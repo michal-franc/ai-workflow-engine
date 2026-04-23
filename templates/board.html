@@ -117,6 +117,9 @@
                     {{range .Issues}}
                     <div class="board-card-wrapper" data-slug="{{.Slug}}">
                         <a href="{{$.Prefix}}/issue/{{.Slug}}?from=board{{if $.Version}}%3Fversion%3D{{$.Version}}{{end}}" class="board-card{{if .HasActiveAgent}} board-card-agent-active{{end}}" draggable="true" data-slug="{{.Slug}}">
+                            {{if and $.ScoringEnabled .HasScore}}
+                            <span class="board-card-score" style="background:{{scoreColor .Score}}" title="Ticket score — open for breakdown">⚡ {{formatScore .Score}}</span>
+                            {{end}}
                             <div class="board-card-id">
                                 <span class="board-card-dot" style="border-color:{{statusColor .Status}}"></span>
                                 {{range boardCardFields $.CardFields .}}

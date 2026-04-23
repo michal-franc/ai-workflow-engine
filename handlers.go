@@ -165,6 +165,32 @@ var funcMap = template.FuncMap{
 		}
 		return result
 	},
+	"formatScore": func(score *tracker.ScoreBreakdown) string {
+		if score == nil {
+			return ""
+		}
+		// Render whole numbers as integers; fractional scores round to one decimal.
+		t := score.Total
+		if t == float64(int64(t)) {
+			return fmt.Sprintf("%d", int64(t))
+		}
+		return fmt.Sprintf("%.1f", t)
+	},
+	"scoreColor": func(score *tracker.ScoreBreakdown) string {
+		if score == nil {
+			return "#6b7280"
+		}
+		switch {
+		case score.Total >= 60:
+			return "#ef4444" // red — urgent
+		case score.Total >= 30:
+			return "#f97316" // orange — warm
+		case score.Total >= 10:
+			return "#eab308" // yellow — mild
+		default:
+			return "#22c55e" // green — cool
+		}
+	},
 	"linkIssueRefs": func(html string, prefix string, slugMap map[string]string) template.HTML {
 		// Match #123, #my-slug, #system/my-slug
 		re := regexp.MustCompile(`#([a-zA-Z0-9][\w/.-]*)`)
@@ -206,6 +232,12 @@ type approvalResponse struct {
 type IssueView struct {
 	*tracker.Issue
 	ActiveSessions []AgentSession
+	Score          *tracker.ScoreBreakdown
+}
+
+// HasScore reports whether this view carries a computed score.
+func (i *IssueView) HasScore() bool {
+	return i != nil && i.Score != nil
 }
 
 func (i *IssueView) HasActiveAgent() bool {
@@ -427,6 +459,8 @@ type ListData struct {
 	ProjectName    string
 	ActiveBots     int
 	SupportsGitHub bool
+	ScoringEnabled bool
+	Sort           string // "score" or "" (default)
 }
 
 type FilterParams struct {
@@ -461,13 +495,26 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracke
 	filtered := filterIssues(issues, filter)
 	sessionMap, activeBots := sessionsByIssueSlug(issues)
 
+	wf := proj.LoadWorkflow()
+	views := issueViews(filtered, sessionMap)
+	scoring := &wf.Scoring
+	attachScores(views, scoring)
+
+	sortKey := strings.TrimSpace(r.URL.Query().Get("sort"))
+	if sortKey == "" && scoring.Enabled && scoring.DefaultSort == "score_desc" {
+		sortKey = "score"
+	}
+	if sortKey == "score" && scoring.Enabled {
+		sortViewsByScore(views)
+	}
+
 	data := ListData{
-		Issues:      issueViews(filtered, sessionMap),
-		Statuses:    statuses,
-		Systems:     systems,
-		Priorities:  priorities,
-		Labels:      labels,
-		Assignees:   assignees,
+		Issues:         views,
+		Statuses:       statuses,
+		Systems:        systems,
+		Priorities:     priorities,
+		Labels:         labels,
+		Assignees:      assignees,
 		Filter:         filter,
 		Total:          total,
 		Filtered:       len(filtered),
@@ -475,6 +522,8 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracke
 		ProjectName:    proj.Name,
 		ActiveBots:     activeBots,
 		SupportsGitHub: proj.SupportsGitHub,
+		ScoringEnabled: scoring.Enabled,
+		Sort:           sortKey,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -566,6 +615,10 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	wf := proj.LoadWorkflowForIssue(found)
 	statuses := orderedStatusesForIssue(wf, found.Status)
+	detailView := issueView(found, sessionMap)
+	if wf.Scoring.Enabled && detailView != nil {
+		detailView.Score = tracker.ComputeScore(found, &wf.Scoring, time.Now())
+	}
 
 	// Classify outgoing transitions that require human approval. The required-path
 	// approval (target is non-optional) is shown inline; optional-path approvals are
@@ -601,7 +654,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 	}
 
 	if err := s.tmpl.ExecuteTemplate(w, "detail.html", DetailData{
-		Issue:             issueView(found, sessionMap),
+		Issue:             detailView,
 		BackURL:           backURL,
 		Prefix:            prefix,
 		ProjectName:       proj.Name,
@@ -647,6 +700,8 @@ type BoardData struct {
 	ActiveBots     int
 	CardFields     []string
 	SupportsGitHub bool
+	ScoringEnabled bool
+	Sort           string
 }
 
 type WorkflowDesignerData struct {
@@ -824,6 +879,12 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 	statusOrder := wf.GetBoardColumns()
 	statusDescs := wf.GetStatusDescriptions()
 	sessionMap, activeBots := sessionsByIssueSlug(issues)
+	scoring := &wf.Scoring
+
+	sortKey := strings.TrimSpace(r.URL.Query().Get("sort"))
+	if sortKey == "" && scoring.Enabled && scoring.DefaultSort == "score_desc" {
+		sortKey = "score"
+	}
 
 	byStatus := map[string][]*IssueView{}
 	seen := map[string]bool{}
@@ -832,8 +893,18 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 		if st == "" {
 			st = "none"
 		}
-		byStatus[st] = append(byStatus[st], issueView(issue, sessionMap))
+		view := issueView(issue, sessionMap)
+		if scoring.Enabled {
+			view.Score = tracker.ComputeScore(issue, scoring, time.Now())
+		}
+		byStatus[st] = append(byStatus[st], view)
 		seen[st] = true
+	}
+
+	if sortKey == "score" && scoring.Enabled {
+		for _, list := range byStatus {
+			sortViewsByScore(list)
+		}
 	}
 
 	var columns []*BoardColumn
@@ -869,6 +940,8 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 		ActiveBots:     activeBots,
 		CardFields:     wf.GetBoardCardFields(),
 		SupportsGitHub: proj.SupportsGitHub,
+		ScoringEnabled: scoring.Enabled,
+		Sort:           sortKey,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -2875,6 +2948,39 @@ func issueView(issue *tracker.Issue, sessionMap map[string][]AgentSession) *Issu
 		Issue:          issue,
 		ActiveSessions: append([]AgentSession(nil), sessionMap[issue.Slug]...),
 	}
+}
+
+// attachScores computes and attaches ScoreBreakdowns to each view when the
+// workflow's scoring block is enabled. No-op otherwise.
+func attachScores(views []*IssueView, scoring *tracker.ScoringConfig) {
+	if scoring == nil || !scoring.Enabled {
+		return
+	}
+	now := time.Now()
+	for _, v := range views {
+		if v == nil || v.Issue == nil {
+			continue
+		}
+		v.Score = tracker.ComputeScore(v.Issue, scoring, now)
+	}
+}
+
+// sortViewsByScore sorts in-place by Score.Total descending. Views with no
+// score (nil Score) sort last, stable.
+func sortViewsByScore(views []*IssueView) {
+	sort.SliceStable(views, func(i, j int) bool {
+		si, sj := views[i].Score, views[j].Score
+		if si == nil && sj == nil {
+			return false
+		}
+		if si == nil {
+			return false
+		}
+		if sj == nil {
+			return true
+		}
+		return si.Total > sj.Total
+	})
 }
 
 func sessionsByIssueSlug(issues []*tracker.Issue) (map[string][]AgentSession, int) {

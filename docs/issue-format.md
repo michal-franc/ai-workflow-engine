@@ -72,6 +72,20 @@ issue-cli set-meta <slug> --key waiting --clear
 
 Workflow-managed fields (`title`, `status`, `human_approval`, `approved_for`, `started_at`, `done_at`, `number`, `repo`, `created`, `labels`) are refused — use the dedicated commands (`transition`, `update --title`, etc.) for those.
 
+## Scoring Fields
+
+When `workflow.yaml` has `scoring.enabled: true`, the viewer computes a per-issue score from these frontmatter fields:
+
+| Field         | Contributes                                                            |
+|:--------------|:-----------------------------------------------------------------------|
+| `priority`    | Points from `scoring.formula.priority` map (e.g. `critical: 40`)        |
+| `due`         | Urgency under a 30-day horizon, capped by `scoring.formula.due_date.overdue_cap` |
+| `created`     | Staleness points at `scoring.formula.age.staleness_weight` per day      |
+| `labels`      | Sum of per-label weights from `scoring.formula.labels`                  |
+| `score_boost` | Flat additive override (integer, may be negative)                       |
+
+Missing fields contribute 0. See [Workflow](workflow.md#scoring) for the full formula and example config.
+
 ## File Organization
 
 Issues can live flat in the issues directory or in subdirectories by system:

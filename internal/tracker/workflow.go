@@ -55,11 +55,46 @@ type WorkflowBoardConfig struct {
 	Columns    []string `yaml:"columns" desc:"Ordered board column names (default: the status lifecycle)"`
 }
 
+// ScoringPriority maps priority values (low/medium/high/critical) to weight in points.
+type ScoringPriority map[string]float64
+
+// ScoringLabels maps label names to weight in points; unlisted labels contribute 0.
+type ScoringLabels map[string]float64
+
+// ScoringDueDate governs the urgency contribution from the `due` frontmatter field.
+// Formula: min(overdue_cap, max(0, 30 - days_until_due) * urgency_weight).
+type ScoringDueDate struct {
+	UrgencyWeight float64 `yaml:"urgency_weight,omitempty" desc:"Points per day under the 30-day horizon"`
+	OverdueCap    float64 `yaml:"overdue_cap,omitempty" desc:"Maximum points the due-date term can contribute"`
+}
+
+// ScoringAge governs the staleness contribution from the `created` frontmatter field.
+type ScoringAge struct {
+	StalenessWeight float64 `yaml:"staleness_weight,omitempty" desc:"Points per day since created"`
+}
+
+// ScoringFormula holds the per-component weights used by score computation.
+type ScoringFormula struct {
+	Priority ScoringPriority `yaml:"priority,omitempty" desc:"Priority → points map (e.g. critical: 40, high: 20)"`
+	DueDate  ScoringDueDate  `yaml:"due_date,omitempty" desc:"Due-date urgency weights and cap"`
+	Age      ScoringAge      `yaml:"age,omitempty" desc:"Staleness weight from created date"`
+	Labels   ScoringLabels   `yaml:"labels,omitempty" desc:"Label → points map (summed across issue labels)"`
+}
+
+// ScoringConfig controls the ticket scoring system. When Enabled is false (or
+// the block is absent) no score is computed or displayed.
+type ScoringConfig struct {
+	Enabled     bool           `yaml:"enabled,omitempty" desc:"Opt-in: compute and render scores only when true"`
+	Formula     ScoringFormula `yaml:"formula,omitempty" desc:"Per-component weights"`
+	DefaultSort string         `yaml:"default_sort,omitempty" desc:"Initial sort on list/board: score_desc, created_desc, updated_desc"`
+}
+
 type WorkflowConfig struct {
 	Statuses    []WorkflowStatus           `yaml:"statuses" desc:"Status lifecycle definitions"`
 	Transitions []WorkflowTransition       `yaml:"transitions" desc:"Transition rules between statuses"`
 	Systems     map[string]WorkflowOverlay `yaml:"systems" desc:"Per-system overrides keyed by system name"`
 	Board       WorkflowBoardConfig        `yaml:"board" desc:"Board display configuration"`
+	Scoring     ScoringConfig              `yaml:"scoring,omitempty" desc:"Ticket scoring policy (opt-in)"`
 }
 
 var defaultBoardCardFields = []string{"system", "labels"}
@@ -377,6 +412,8 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 		Statuses:    append([]WorkflowStatus(nil), w.Statuses...),
 		Transitions: make([]WorkflowTransition, len(w.Transitions)),
 		Systems:     make(map[string]WorkflowOverlay, len(w.Systems)),
+		Board:       w.Board,
+		Scoring:     w.Scoring,
 	}
 	for i := range w.Transitions {
 		clone.Transitions[i] = WorkflowTransition{
@@ -1439,6 +1476,10 @@ func WorkflowSchemaSections() []SchemaSection {
 		{Path: "transitions[].actions[]", Title: "WorkflowAction", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowAction{}))},
 		{Path: "board", Title: "WorkflowBoardConfig", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowBoardConfig{}))},
 		{Path: "systems[<name>]", Title: "WorkflowOverlay", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowOverlay{}))},
+		{Path: "scoring", Title: "ScoringConfig", Fields: schemaFieldsOf(reflect.TypeOf(ScoringConfig{}))},
+		{Path: "scoring.formula", Title: "ScoringFormula", Fields: schemaFieldsOf(reflect.TypeOf(ScoringFormula{}))},
+		{Path: "scoring.formula.due_date", Title: "ScoringDueDate", Fields: schemaFieldsOf(reflect.TypeOf(ScoringDueDate{}))},
+		{Path: "scoring.formula.age", Title: "ScoringAge", Fields: schemaFieldsOf(reflect.TypeOf(ScoringAge{}))},
 	}
 }
 

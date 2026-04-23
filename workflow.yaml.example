@@ -247,3 +247,37 @@ systems:
           Write the design into the issue body under the relevant sections before checking the related boxes.
           Document the output contract early: whether text is human-facing or agent-facing, whether script compatibility matters, and whether `--json` or other machine-readable output is in scope for this issue.
           When the design is complete, stop and ask for backlog approval in the issue viewer before attempting the transition.
+
+# Ticket scoring (optional).
+# When `enabled: true`, the viewer computes a score per issue from frontmatter
+# and renders it as a badge on board cards, a chip + sortable option on the
+# list view, and a breakdown in the detail sidebar. Omit the block or set
+# `enabled: false` to hide all scoring UI.
+#
+# Formula (v1):
+#   score = priority_weight
+#         + min(overdue_cap, max(0, 30 - days_until_due) * urgency_weight)
+#         + age_days * staleness_weight
+#         + sum(label_weights for each label on the issue)
+#         + score_boost                    # optional frontmatter override
+#
+# Frontmatter fields that participate: `priority`, `due`, `created`, `labels`,
+# `score_boost`. Missing fields contribute 0.
+scoring:
+  enabled: false
+  formula:
+    priority:
+      critical: 40
+      high: 20
+      medium: 10
+      low: 0
+    due_date:
+      urgency_weight: 2   # points per day under 30-day horizon
+      overdue_cap: 60     # cap overdue contribution
+    age:
+      staleness_weight: 0.1
+    labels:
+      bug: 5
+      blocker: 25
+      enhancement: 0
+  default_sort: score_desc   # or: created_desc, updated_desc

@@ -168,6 +168,26 @@
                 </div>
                 {{end}}
 
+                {{if .Issue.HasScore}}
+                <div class="sidebar-section">
+                    <h3>Score</h3>
+                    <div class="sidebar-value">
+                        <span class="score-chip score-chip-lg" style="background:{{scoreColor .Issue.Score}}">⚡ {{formatScore .Issue.Score}}</span>
+                        {{if .Issue.Score.Components}}
+                        <ul class="score-breakdown">
+                            {{range .Issue.Score.Components}}
+                            <li>
+                                <span class="score-component-name">{{.Name}}</span>
+                                {{if .Detail}}<span class="score-component-detail">({{.Detail}})</span>{{end}}
+                                <span class="score-component-points">{{if ge .Points 0.0}}+{{end}}{{printf "%g" .Points}}</span>
+                            </li>
+                            {{end}}
+                        </ul>
+                        {{end}}
+                    </div>
+                </div>
+                {{end}}
+
                 {{range .Issue.ExtraFields}}
                 <div class="sidebar-section">
                     <h3>{{.Label}}</h3>

@@ -108,6 +108,18 @@
         <div class="issue-table">
             <div class="issue-table-header">
                 <span>{{.Filtered}} issue{{if ne .Filtered 1}}s{{end}}</span>
+                {{if .ScoringEnabled}}
+                <span class="issue-table-sort">
+                    Sort:
+                    {{if eq .Sort "score"}}
+                    <a href="{{.Prefix}}/" class="sort-link sort-link-active">score ↓</a>
+                    <a href="{{.Prefix}}/" class="sort-link">default</a>
+                    {{else}}
+                    <a href="{{.Prefix}}/" class="sort-link sort-link-active">default</a>
+                    <a href="{{.Prefix}}/?sort=score" class="sort-link">score ↓</a>
+                    {{end}}
+                </span>
+                {{end}}
             </div>
             {{range .Issues}}
             <div class="issue-row">
@@ -132,6 +144,9 @@
                     </div>
                 </div>
                 <div class="issue-right">
+                    {{if and $.ScoringEnabled .HasScore}}
+                    <span class="score-chip" style="background:{{scoreColor .Score}}" title="Score">⚡ {{formatScore .Score}}</span>
+                    {{end}}
                     {{range .Labels}}
                     <span class="label-badge badge">{{.}}</span>
                     {{end}}

@@ -107,6 +107,71 @@ Statuses support a `side_effects` field — actions that run automatically after
 
 This is used so design agents are unassigned when an issue moves to backlog, before a different agent picks it up for implementation.
 
+## Scoring
+
+The `scoring` block in `workflow.yaml` turns on a score that ranks issues by urgency + importance + staleness. Scores are computed server-side on every page load from frontmatter — no cache, no background job — and surface in three places:
+
+- Board cards: a small `⚡ N` badge in the corner, color-graded (green → yellow → orange → red)
+- List view: a score chip on each row and a `Sort: score ↓` toggle at the top
+- Detail view: a sidebar breakdown showing each component's contribution
+
+The block is opt-in; omit it or set `enabled: false` to hide all scoring UI.
+
+### Formula
+
+```
+score = priority_weight
+      + min(overdue_cap, max(0, 30 - days_until_due) * urgency_weight)
+      + age_days * staleness_weight
+      + sum(label_weights for each label on the issue)
+      + score_boost          # optional manual override
+```
+
+Missing fields contribute 0 — an issue with no `priority`, no `due`, and no `created` simply scores 0 (unless `score_boost` is set).
+
+### Frontmatter fields that participate
+
+| Field         | Role                                                                  |
+|:--------------|:----------------------------------------------------------------------|
+| `priority`    | Looked up in `scoring.formula.priority` (case-insensitive)             |
+| `due`         | `YYYY-MM-DD` or RFC3339 date. Triggers urgency under a 30-day horizon |
+| `created`     | Accumulates staleness at `staleness_weight` per day since that date    |
+| `labels`      | Summed against `scoring.formula.labels`; unlisted labels add 0         |
+| `score_boost` | Integer added as a separate component. Negative values work            |
+
+### Example config
+
+```yaml
+scoring:
+  enabled: true
+  formula:
+    priority:
+      critical: 40
+      high: 20
+      medium: 10
+      low: 0
+    due_date:
+      urgency_weight: 2     # points per day under the 30-day horizon
+      overdue_cap: 60       # max from the due-date term (keeps ancient overdue from dominating)
+    age:
+      staleness_weight: 0.1
+    labels:
+      bug: 5
+      blocker: 25
+      enhancement: 0
+  default_sort: score_desc   # initial sort on list + board; overrideable via ?sort=
+```
+
+### Sorting
+
+With scoring enabled:
+
+- `default_sort: score_desc` makes the list and board sort by score descending on first load.
+- Append `?sort=score` to any list or board URL to force score ordering regardless of the default.
+- Drop the query param (or use `/?sort=` cleared) to return to the original order (most-recently-modified first on list, insertion order per column on board).
+
+Existing URL filters (`?status=`, `?system=`, `?label=`, etc.) compose with `?sort=`.
+
 ## System Overlays
 
 Each system (API, CLI, UI, Workflow) can override status prompts and add transition actions. Overlays are defined under `systems:` in `workflow.yaml` and merge with the base workflow:

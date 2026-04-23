@@ -1,0 +1,17 @@
+# Binary
+/issue-viewer
+
+# User-specific config
+projects.yaml
+projects-*.yaml
+
+# User data (use projects.yaml to point to your issue/doc directories)
+/issues/
+
+# Test data
+/test-issues/
+
+# Local agent data
+/.agent-logs/
+/retros/
+/bugs/

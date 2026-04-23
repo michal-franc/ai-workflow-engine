@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{if .Page}}{{.Page.Title}} — {{end}}{{.ProjectName}} Docs</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='1' width='12' height='14' rx='2' fill='%238b949e'/><rect x='4' y='4' width='8' height='1.5' rx='.5' fill='%230d1117'/><rect x='4' y='7' width='8' height='1.5' rx='.5' fill='%230d1117'/><rect x='4' y='10' width='5' height='1.5' rx='.5' fill='%230d1117'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+    <div class="header">
+        <div class="container header-inner">
+            <div style="display:flex;align-items:center;">
+                <a href="/" class="project-back-link">Projects</a>
+                <span class="header-sep">/</span>
+                <h1>{{.ProjectName}}</h1>
+            </div>
+            <nav class="view-tabs">
+                <a href="{{.Prefix}}/" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v1.5H2V2zm0 4h12v1.5H2V6zm0 4h12v1.5H2V10zm0 4h12v1.5H2V14z"/></svg>
+                    List
+                </a>
+                <a href="{{.Prefix}}/board" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v8H6V2zm5 0h4v10h-4V2z"/></svg>
+                    Board
+                </a>
+                <a href="{{.Prefix}}/graph" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.5" cy="8" r="1.75"/><circle cx="8" cy="2.5" r="1.75"/><circle cx="13.5" cy="8" r="1.75"/><circle cx="8" cy="13.5" r="1.75"/><path d="M4.2 8h7.6M8 4.2v7.6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
+                    Graph
+                </a>
+                <a href="{{.Prefix}}/docs" class="view-tab active">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h5v2H3v10h4v2H1V1zm9 0h5v14H8v-2h4V3H10V1zM5 5h2v1H5V5zm0 2h2v1H5V7zm0 2h2v1H5V9z"/></svg>
+                    Docs
+                </a>
+                <a href="{{.Prefix}}/retros" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.75A1.75 1.75 0 014.75 1h6.5A1.75 1.75 0 0113 2.75v10.5A1.75 1.75 0 0111.25 15h-6.5A1.75 1.75 0 013 13.25V2.75zm2 .75v1.25h6V3.5H5zm0 3v1.25h6V6.5H5zm0 3v1.25h4V9.5H5z"/></svg>
+                    Retros
+                </a>
+                <a href="{{.Prefix}}/workflow-designer" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3.25A1.25 1.25 0 013.75 2h2.5A1.25 1.25 0 017.5 3.25v2.5A1.25 1.25 0 016.25 7h-2.5A1.25 1.25 0 012.5 5.75v-2.5zm6 0A1.25 1.25 0 019.75 2h2.5a1.25 1.25 0 011.25 1.25v2.5A1.25 1.25 0 0112.25 7h-2.5A1.25 1.25 0 018.5 5.75v-2.5zm-6 6A1.25 1.25 0 013.75 8h2.5A1.25 1.25 0 017.5 9.25v2.5A1.25 1.25 0 016.25 13h-2.5a1.25 1.25 0 01-1.25-1.25v-2.5zm9.25.75a.75.75 0 010 1.5H10v1.75a.75.75 0 01-1.5 0V11.5H6.75a.75.75 0 010-1.5H8.5V8.25a.75.75 0 011.5 0V10h1.75z"/></svg>
+                    Workflow
+                </a>
+                {{if .SupportsGitHub}}
+                <a href="{{.Prefix}}/github" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+                {{end}}
+            </nav>
+            <div class="theme-picker">
+                <button class="theme-btn" data-theme="dark" title="Dark"></button>
+                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
+                <button class="theme-btn" data-theme="light" title="Light"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        {{if .Sections}}
+        <div class="docs-layout">
+            <nav class="docs-sidebar">
+                {{range .Sections}}
+                {{if .Name}}
+                <div class="docs-section">
+                    <button class="docs-section-toggle{{if and $.Page (eq $.Page.Section .Name)}} open{{end}}" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+                        <svg class="docs-chevron" width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M4 2l4 4-4 4"/></svg>
+                        {{.Name}}
+                    </button>
+                    <ul class="docs-nav docs-subnav{{if and $.Page (eq $.Page.Section .Name)}} open{{end}}">
+                        {{range .Pages}}
+                        <li>
+                            <a href="{{$.Prefix}}/docs/{{.Slug}}" class="docs-nav-link{{if and $.Page (eq $.Page.Slug .Slug)}} active{{end}}">{{.Title}}</a>
+                        </li>
+                        {{end}}
+                    </ul>
+                </div>
+                {{else}}
+                <ul class="docs-nav">
+                    {{range .Pages}}
+                    <li>
+                        <a href="{{$.Prefix}}/docs/{{.Slug}}" class="docs-nav-link{{if and $.Page (eq $.Page.Slug .Slug)}} active{{end}}">{{.Title}}</a>
+                    </li>
+                    {{end}}
+                </ul>
+                {{end}}
+                {{end}}
+            </nav>
+
+            {{if .Page}}
+            <div class="docs-content">
+                <h1 class="docs-title">{{.Page.Title}}</h1>
+                <div class="detail-body">
+                    {{safeHTML .Page.BodyHTML}}
+                </div>
+            </div>
+            {{end}}
+        </div>
+        {{else}}
+        <div class="empty-state">
+            <h2>No documentation yet</h2>
+            <p>Add markdown files to the docs directory to get started.</p>
+        </div>
+        {{end}}
+    </div>
+    <script src="/static/auto-refresh.js"></script>
+</body>
+</html>

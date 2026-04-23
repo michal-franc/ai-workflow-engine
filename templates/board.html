@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — Board</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='1' y='1' width='4' height='14' rx='1' fill='%238b949e'/><rect x='6' y='1' width='4' height='10' rx='1' fill='%238b949e'/><rect x='11' y='1' width='4' height='12' rx='1' fill='%238b949e'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+    <div class="header">
+        <div class="container header-inner">
+            <div style="display:flex;align-items:center;">
+                <a href="/" class="project-back-link">Projects</a>
+                <span class="header-sep">/</span>
+                <h1>{{.ProjectName}}</h1>
+                <span class="count">{{.Total}}</span>
+            </div>
+            <nav class="view-tabs">
+                <a href="{{.Prefix}}/" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v1.5H2V2zm0 4h12v1.5H2V6zm0 4h12v1.5H2V10zm0 4h12v1.5H2V14z"/></svg>
+                    List
+                </a>
+                <a href="{{.Prefix}}/board" class="view-tab active">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v8H6V2zm5 0h4v10h-4V2z"/></svg>
+                    Board
+                </a>
+                <a href="{{.Prefix}}/graph" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.5" cy="8" r="1.75"/><circle cx="8" cy="2.5" r="1.75"/><circle cx="13.5" cy="8" r="1.75"/><circle cx="8" cy="13.5" r="1.75"/><path d="M4.2 8h7.6M8 4.2v7.6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
+                    Graph
+                </a>
+                <a href="{{.Prefix}}/docs" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h5v2H3v10h4v2H1V1zm9 0h5v14H8v-2h4V3H10V1zM5 5h2v1H5V5zm0 2h2v1H5V7zm0 2h2v1H5V9z"/></svg>
+                    Docs
+                </a>
+                <a href="{{.Prefix}}/retros" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.75A1.75 1.75 0 014.75 1h6.5A1.75 1.75 0 0113 2.75v10.5A1.75 1.75 0 0111.25 15h-6.5A1.75 1.75 0 013 13.25V2.75zm2 .75v1.25h6V3.5H5zm0 3v1.25h6V6.5H5zm0 3v1.25h4V9.5H5z"/></svg>
+                    Retros
+                </a>
+                <a href="{{.Prefix}}/workflow-designer" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3.25A1.25 1.25 0 013.75 2h2.5A1.25 1.25 0 017.5 3.25v2.5A1.25 1.25 0 016.25 7h-2.5A1.25 1.25 0 012.5 5.75v-2.5zm6 0A1.25 1.25 0 019.75 2h2.5a1.25 1.25 0 011.25 1.25v2.5A1.25 1.25 0 0112.25 7h-2.5A1.25 1.25 0 018.5 5.75v-2.5zm-6 6A1.25 1.25 0 013.75 8h2.5A1.25 1.25 0 017.5 9.25v2.5A1.25 1.25 0 016.25 13h-2.5a1.25 1.25 0 01-1.25-1.25v-2.5zm9.25.75a.75.75 0 010 1.5H10v1.75a.75.75 0 01-1.5 0V11.5H6.75a.75.75 0 010-1.5H8.5V8.25a.75.75 0 011.5 0V10h1.75z"/></svg>
+                    Workflow
+                </a>
+                {{if .SupportsGitHub}}
+                <a href="{{.Prefix}}/github" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+                {{end}}
+            </nav>
+            <div class="theme-picker">
+                <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
+                <button class="theme-btn" data-theme="dark" title="Dark"></button>
+                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
+                <button class="theme-btn" data-theme="light" title="Light"></button>
+            </div>
+        </div>
+    </div>
+
+    <form class="board-filter-bar" method="GET" action="{{.Prefix}}/board">
+        <input type="search" class="board-search" id="board-search" placeholder="Search issues..." oninput="filterBoardCards(this.value)">
+
+        <select name="version" onchange="this.form.submit()">
+            <option value="">All versions</option>
+            {{range .Versions}}
+            <option value="{{.}}" {{if eq . $.Version}}selected{{end}}>v{{.}}</option>
+            {{end}}
+        </select>
+
+        <select name="system" onchange="this.form.submit()">
+            <option value="">All systems</option>
+            {{range .Systems}}
+            <option value="{{.}}" {{if eq . $.System}}selected{{end}}>{{.}}</option>
+            {{end}}
+        </select>
+
+        <select name="assignee" onchange="this.form.submit()">
+            <option value="">All assignees</option>
+            <option value="_claimed" {{if eq .Assignee "_claimed"}}selected{{end}}>Claimed</option>
+            <option value="_unclaimed" {{if eq .Assignee "_unclaimed"}}selected{{end}}>Unclaimed</option>
+            {{range .Assignees}}
+            <option value="{{.}}" {{if eq . $.Assignee}}selected{{end}}>{{.}}</option>
+            {{end}}
+        </select>
+
+        {{if or .Version .System .Assignee}}
+        <a href="{{.Prefix}}/board" class="clear-btn">Clear filters</a>
+        {{end}}
+
+        <button class="board-layout-btn" id="layout-toggle" title="Toggle layout" onclick="toggleBoardLayout()">
+            <svg id="layout-icon-h" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v12H6V2zm5 0h4v12h-4V2z"/></svg>
+            <svg id="layout-icon-v" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="display:none"><path d="M2 1h12v4H2V1zm0 5h12v4H2V6zm0 5h12v4H2v-4z"/></svg>
+        </button>
+    </form>
+
+    <div class="board-container">
+        <div class="board">
+            {{range .Columns}}
+            <div class="board-column{{if .Optional}} board-column-optional{{end}}" data-status="{{.Status}}">
+                <div class="board-column-header" onclick="toggleColumn(this)">
+                    <div class="board-column-header-top">
+                        <svg class="board-column-chevron" width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M4 2l4 4-4 4"/></svg>
+                        <span class="board-column-dot" style="border-color:{{statusColor .Status}}"></span>
+                        <span class="board-column-title">{{.Status}}</span>
+                        {{if .Optional}}<span class="board-column-optional-badge" title="Optional status — forward transitions may skip this column">optional</span>{{end}}
+                        <span class="board-column-count">{{len .Issues}}</span>
+                        <button class="board-column-add" title="Add issue" onclick="event.stopPropagation(); openCreateModal('{{.Status}}')">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M7.25 1a.75.75 0 01.75.75V7h5.25a.75.75 0 010 1.5H8v5.25a.75.75 0 01-1.5 0V8.5H1.25a.75.75 0 010-1.5H6.5V1.75A.75.75 0 017.25 1z"/></svg>
+                        </button>
+                    </div>
+                    {{if .Description}}
+                    <div class="board-column-desc">{{.Description}}</div>
+                    {{end}}
+                </div>
+                <div class="board-column-cards">
+                    {{range .Issues}}
+                    <div class="board-card-wrapper" data-slug="{{.Slug}}">
+                        <a href="{{$.Prefix}}/issue/{{.Slug}}?from=board{{if $.Version}}%3Fversion%3D{{$.Version}}{{end}}" class="board-card{{if .HasActiveAgent}} board-card-agent-active{{end}}" draggable="true" data-slug="{{.Slug}}">
+                            <div class="board-card-id">
+                                <span class="board-card-dot" style="border-color:{{statusColor .Status}}"></span>
+                                {{range boardCardFields $.CardFields .}}
+                                    {{if .IsList}}
+                                    <div class="board-card-labels">
+                                        {{range .Values}}<span class="board-label">{{.}}</span>{{end}}
+                                    </div>
+                                    {{else}}
+                                    <span class="board-card-system">{{.Value}}</span>
+                                    {{end}}
+                                {{end}}
+                            </div>
+                            <div class="board-card-title">{{.Title}}</div>
+                        </a>
+                        <div class="board-card-dispatch" onclick="event.stopPropagation(); toggleAgentPicker(this)">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.75a.75.75 0 00-1.19.61v11.28a.75.75 0 001.19.61l9.5-5.64a.75.75 0 000-1.22L1.5 1.75z"/></svg>
+                            <div class="agent-picker" onclick="event.stopPropagation()">
+                                <button class="agent-picker-option" onclick="dispatchToAgent('{{.Slug}}', 'claude'); closeAllPickers()">Claude</button>
+                                <button class="agent-picker-option" onclick="dispatchToAgent('{{.Slug}}', 'codex'); closeAllPickers()">Codex</button>
+                            </div>
+                        </div>
+                        <button class="board-card-delete" title="Delete issue" onclick="event.stopPropagation(); confirmDelete('{{.Slug}}', '{{.Title}}')">
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11 1.75V3h2.25a.75.75 0 010 1.5H2.75a.75.75 0 010-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75zM6.5 1.75v1.25h3V1.75a.25.25 0 00-.25-.25h-2.5a.25.25 0 00-.25.25zM4.997 6.178a.75.75 0 10-1.493.144L4.5 13.25a.25.25 0 00.25.25h6.5a.25.25 0 00.25-.25l.996-6.928a.75.75 0 10-1.493-.144L10.08 12.5H5.92L4.997 6.178z"/></svg>
+                        </button>
+                    </div>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+        </div>
+    </div>
+
+    <!-- Delete confirmation modal -->
+    <div class="modal-overlay" id="delete-modal" style="display:none">
+        <div class="modal">
+            <div class="modal-title">Delete issue?</div>
+            <div class="modal-body">
+                Are you sure you want to delete <strong id="delete-issue-title"></strong>?<br>
+                This cannot be undone.
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+                <button class="modal-btn modal-btn-danger" id="delete-confirm-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create issue modal -->
+    <div class="modal-overlay" id="create-modal" style="display:none">
+        <div class="modal" style="max-width:560px">
+            <div class="modal-title">New issue</div>
+            <div class="modal-body">
+                <input type="text" id="create-title" class="modal-input" placeholder="Issue title" tabindex="1" autofocus>
+                <textarea id="create-body" class="modal-input" placeholder="Description (markdown)" rows="6" tabindex="2" style="resize:vertical;font-family:monospace;font-size:13px"></textarea>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                    <select id="create-system" class="modal-input" tabindex="3">
+                        <option value="">No system</option>
+                        {{range .Systems}}
+                        <option value="{{.}}">{{.}}</option>
+                        {{end}}
+                    </select>
+                    <select id="create-version" class="modal-input" tabindex="4">
+                        <option value="">No version</option>
+                        {{range .Versions}}
+                        <option value="{{.}}">v{{.}}</option>
+                        {{end}}
+                    </select>
+                    <select id="create-priority" class="modal-input" tabindex="5">
+                        <option value="">No priority</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                    <input type="text" id="create-labels" class="modal-input" placeholder="Labels (comma-separated)" tabindex="6">
+                </div>
+                <input type="hidden" id="create-status" value="idea">
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="closeCreateModal()">Cancel</button>
+                <button class="modal-btn modal-btn-primary" id="create-confirm-btn" onclick="submitCreate()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dispatch agent modal -->
+    <div class="modal-overlay" id="dispatch-modal" style="display:none">
+        <div class="modal" style="max-width:640px">
+            <div class="modal-title">Dispatch to Agent</div>
+            <div class="modal-body">
+                <div id="dispatch-steps" class="dispatch-steps"></div>
+                <div id="dispatch-session" class="dispatch-session"></div>
+                <details class="dispatch-prompt-details">
+                    <summary>Prompt sent</summary>
+                    <pre class="dispatch-prompt-pre" id="dispatch-prompt"></pre>
+                </details>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="closeDispatchModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="save-toast" id="save-toast">Saved</div>
+
+    <script>
+    // Board layout toggle
+    function applyBoardLayout(layout) {
+        var container = document.querySelector('.board-container');
+        var iconH = document.getElementById('layout-icon-h');
+        var iconV = document.getElementById('layout-icon-v');
+        if (layout === 'vertical') {
+            container.classList.add('board-vertical');
+            iconH.style.display = 'none';
+            iconV.style.display = '';
+        } else {
+            container.classList.remove('board-vertical');
+            iconH.style.display = '';
+            iconV.style.display = 'none';
+        }
+    }
+
+    function toggleBoardLayout() {
+        var current = localStorage.getItem('board-layout') || 'horizontal';
+        var next = current === 'horizontal' ? 'vertical' : 'horizontal';
+        localStorage.setItem('board-layout', next);
+        applyBoardLayout(next);
+    }
+
+    applyBoardLayout(localStorage.getItem('board-layout') || 'horizontal');
+
+    // Column collapse
+    function toggleColumn(header) {
+        var col = header.closest('.board-column');
+        col.classList.toggle('collapsed');
+        // Save collapsed state
+        var collapsed = JSON.parse(localStorage.getItem('board-collapsed') || '{}');
+        var status = col.dataset.status;
+        if (col.classList.contains('collapsed')) {
+            collapsed[status] = true;
+        } else {
+            delete collapsed[status];
+        }
+        localStorage.setItem('board-collapsed', JSON.stringify(collapsed));
+    }
+
+    // Restore collapsed state
+    (function() {
+        var collapsed = JSON.parse(localStorage.getItem('board-collapsed') || '{}');
+        document.querySelectorAll('.board-column').forEach(function(col) {
+            if (collapsed[col.dataset.status]) {
+                col.classList.add('collapsed');
+            }
+        });
+    })();
+
+    // Board search
+    function filterBoardCards(query) {
+        query = query.toLowerCase();
+        document.querySelectorAll('.board-card-wrapper').forEach(function(wrapper) {
+            var text = wrapper.textContent.toLowerCase();
+            wrapper.style.display = (!query || text.indexOf(query) !== -1) ? '' : 'none';
+        });
+        document.querySelectorAll('.board-column').forEach(function(col) {
+            var visible = col.querySelectorAll('.board-card-wrapper:not([style*="display: none"])').length;
+            col.querySelector('.board-column-count').textContent = visible;
+        });
+    }
+
+    const prefix = "{{.Prefix}}";
+
+    // Shift+scroll converts vertical scroll to horizontal on the board
+    const board = document.querySelector('.board-container');
+    board.addEventListener('wheel', function(e) {
+        if (e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            e.preventDefault();
+            board.scrollLeft += e.deltaY;
+        }
+    }, { passive: false });
+
+    // Drag and drop
+    let draggedWrapper = null;
+
+    document.querySelectorAll('.board-card').forEach(card => {
+        card.addEventListener('dragstart', function(e) {
+            draggedWrapper = this.closest('.board-card-wrapper');
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', this.dataset.slug);
+            setTimeout(() => { this.style.opacity = '0.4'; }, 0);
+        });
+
+        card.addEventListener('dragend', function() {
+            this.classList.remove('dragging');
+            this.style.opacity = '';
+            draggedWrapper = null;
+            document.querySelectorAll('.board-column').forEach(col => {
+                col.classList.remove('drag-over');
+            });
+        });
+
+        card.addEventListener('click', function(e) {
+            if (this.classList.contains('just-dropped')) {
+                e.preventDefault();
+                this.classList.remove('just-dropped');
+            }
+        });
+    });
+
+    document.querySelectorAll('.board-column-cards').forEach(cardArea => {
+        const column = cardArea.closest('.board-column');
+
+        cardArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            column.classList.add('drag-over');
+        });
+
+        cardArea.addEventListener('dragleave', function(e) {
+            if (!cardArea.contains(e.relatedTarget)) {
+                column.classList.remove('drag-over');
+            }
+        });
+
+        cardArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            column.classList.remove('drag-over');
+
+            const slug = e.dataTransfer.getData('text/plain');
+            const newStatus = column.dataset.status;
+
+            if (!slug || !draggedWrapper) return;
+
+            // Move the card visually
+            cardArea.appendChild(draggedWrapper);
+            draggedWrapper.querySelector('.board-card').classList.add('just-dropped');
+
+            // Update column counts
+            updateColumnCounts();
+
+            // POST the status change
+            fetch(prefix + '/issue/' + slug, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
+            }).then(res => {
+                const toast = document.getElementById('save-toast');
+                toast.textContent = res.ok ? 'Moved to ' + newStatus : 'Error';
+                toast.className = 'save-toast ' + (res.ok ? 'show' : 'show error');
+                setTimeout(() => { toast.className = 'save-toast'; }, 3000);
+            });
+        });
+    });
+
+    // Also allow dropping on the column header
+    document.querySelectorAll('.board-column-header').forEach(header => {
+        const column = header.closest('.board-column');
+        const cardArea = column.querySelector('.board-column-cards');
+
+        header.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            column.classList.add('drag-over');
+        });
+
+        header.addEventListener('dragleave', function(e) {
+            if (!header.contains(e.relatedTarget)) {
+                column.classList.remove('drag-over');
+            }
+        });
+
+        header.addEventListener('drop', function(e) {
+            e.preventDefault();
+            column.classList.remove('drag-over');
+
+            const slug = e.dataTransfer.getData('text/plain');
+            const newStatus = column.dataset.status;
+
+            if (!slug || !draggedWrapper) return;
+
+            cardArea.appendChild(draggedWrapper);
+            draggedWrapper.querySelector('.board-card').classList.add('just-dropped');
+            updateColumnCounts();
+
+            fetch(prefix + '/issue/' + slug, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
+            }).then(res => {
+                const toast = document.getElementById('save-toast');
+                toast.textContent = res.ok ? 'Moved to ' + newStatus : 'Error';
+                toast.className = 'save-toast ' + (res.ok ? 'show' : 'show error');
+                setTimeout(() => { toast.className = 'save-toast'; }, 3000);
+            });
+        });
+    });
+
+    function updateColumnCounts() {
+        document.querySelectorAll('.board-column').forEach(col => {
+            const count = col.querySelectorAll('.board-card-wrapper').length;
+            col.querySelector('.board-column-count').textContent = count;
+        });
+    }
+
+    // Delete issue
+    function confirmDelete(slug, title) {
+        document.getElementById('delete-issue-title').textContent = title;
+        document.getElementById('delete-modal').style.display = '';
+        document.getElementById('delete-confirm-btn').onclick = function() {
+            fetch(prefix + '/issue/' + slug + '/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            }).then(res => {
+                closeDeleteModal();
+                if (res.ok) {
+                    const wrapper = document.querySelector('.board-card-wrapper[data-slug="' + slug + '"]');
+                    if (wrapper) wrapper.remove();
+                    updateColumnCounts();
+                    showToast('Deleted');
+                } else {
+                    showToast('Error deleting', true);
+                }
+            });
+        };
+    }
+
+    function closeDeleteModal() {
+        document.getElementById('delete-modal').style.display = 'none';
+    }
+
+    // Create issue
+    function openCreateModal(status) {
+        document.getElementById('create-status').value = status;
+        document.getElementById('create-title').value = '';
+        document.getElementById('create-body').value = '';
+        document.getElementById('create-labels').value = '';
+        document.getElementById('create-priority').value = '';
+        // Inherit active filters
+        var activeVersion = document.querySelector('select[name="version"]').value;
+        var activeSystem = document.querySelector('select[name="system"]').value;
+        document.getElementById('create-version').value = activeVersion || '';
+        document.getElementById('create-system').value = activeSystem || '';
+        document.getElementById('create-modal').style.display = '';
+        setTimeout(() => document.getElementById('create-title').focus(), 50);
+    }
+
+    function closeCreateModal() {
+        document.getElementById('create-modal').style.display = 'none';
+    }
+
+    function submitCreate() {
+        const title = document.getElementById('create-title').value.trim();
+        if (!title) return;
+        const status = document.getElementById('create-status').value;
+        const system = document.getElementById('create-system').value;
+        const version = document.getElementById('create-version').value;
+        const priority = document.getElementById('create-priority').value;
+        const labelsRaw = document.getElementById('create-labels').value.trim();
+        const labels = labelsRaw ? labelsRaw.split(',').map(l => l.trim()).filter(Boolean) : [];
+        const body = document.getElementById('create-body').value;
+
+        fetch(prefix + '/issues/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title, status: status, system: system, version: version, priority: priority, labels: labels, body: body })
+        }).then(res => {
+            closeCreateModal();
+            if (res.ok) {
+                showToast('Created');
+                setTimeout(() => location.reload(), 300);
+            } else {
+                showToast('Error creating', true);
+            }
+        });
+    }
+
+    // Allow Enter to submit create modal
+    document.getElementById('create-title').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') submitCreate();
+        if (e.key === 'Escape') closeCreateModal();
+    });
+
+    // Escape closes modals
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeDeleteModal();
+            closeCreateModal();
+            closeDispatchModal();
+        }
+    });
+
+    // Agent picker
+    function toggleAgentPicker(el) {
+        var picker = el.querySelector('.agent-picker');
+        var isOpen = picker.classList.contains('open');
+        closeAllPickers();
+        if (!isOpen) picker.classList.add('open');
+    }
+    function closeAllPickers() {
+        document.querySelectorAll('.agent-picker.open').forEach(function(p) { p.classList.remove('open'); });
+    }
+    document.addEventListener('click', closeAllPickers);
+
+    // Dispatch to agent
+    function dispatchToAgent(slug, agent) {
+        var modal = document.getElementById('dispatch-modal');
+        var stepsEl = document.getElementById('dispatch-steps');
+        var promptEl = document.getElementById('dispatch-prompt');
+        var sessionEl = document.getElementById('dispatch-session');
+        modal.style.display = '';
+        stepsEl.innerHTML = '<div class="dispatch-step pending">Dispatching to ' + agent + '...</div>';
+        promptEl.textContent = '';
+        sessionEl.textContent = '';
+
+        fetch(prefix + '/issue/' + slug + '/dispatch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent: agent })
+        }).then(res => res.json()).then(data => {
+            sessionEl.textContent = 'tmux session: ' + data.session;
+            promptEl.textContent = data.prompt;
+
+            var html = '';
+            data.steps.forEach(function(step) {
+                var icon = step.status === 'ok' ? '&#10003;' : '&#10007;';
+                var cls = step.status === 'ok' ? 'ok' : 'error';
+                html += '<div class="dispatch-step ' + cls + '">'
+                    + '<span class="dispatch-step-icon">' + icon + '</span> '
+                    + step.name
+                    + (step.detail ? ' <span class="dispatch-step-detail">(' + step.detail + ')</span>' : '')
+                    + '</div>';
+            });
+            stepsEl.innerHTML = html;
+        }).catch(function(err) {
+            stepsEl.innerHTML = '<div class="dispatch-step error">Failed: ' + err.message + '</div>';
+        });
+    }
+
+    function closeDispatchModal() {
+        document.getElementById('dispatch-modal').style.display = 'none';
+    }
+
+    function showToast(msg, isError) {
+        const toast = document.getElementById('save-toast');
+        toast.textContent = msg;
+        toast.className = 'save-toast ' + (isError ? 'show error' : 'show');
+        setTimeout(() => { toast.className = 'save-toast'; }, 3000);
+    }
+
+    // Image paste/drop upload for body textarea
+    (function() {
+        const textarea = document.getElementById('create-body');
+        if (!textarea) return;
+
+        async function uploadFile(file) {
+            const fd = new FormData();
+            fd.append('file', file);
+            const res = await fetch(prefix + '/upload', { method: 'POST', body: fd });
+            if (!res.ok) throw new Error('Upload failed');
+            return (await res.json()).url;
+        }
+
+        function insertAtCursor(text) {
+            const s = textarea.selectionStart;
+            textarea.value = textarea.value.substring(0, s) + text + textarea.value.substring(textarea.selectionEnd);
+            textarea.selectionStart = textarea.selectionEnd = s + text.length;
+            textarea.focus();
+        }
+
+        textarea.addEventListener('paste', async function(e) {
+            const items = e.clipboardData && e.clipboardData.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const placeholder = '![Uploading...]()';
+                    insertAtCursor(placeholder);
+                    try {
+                        const url = await uploadFile(item.getAsFile());
+                        textarea.value = textarea.value.replace(placeholder, '![image](' + url + ')');
+                    } catch (err) {
+                        textarea.value = textarea.value.replace(placeholder, '');
+                        showToast('Upload failed', true);
+                    }
+                }
+            }
+        });
+
+        textarea.addEventListener('dragover', function(e) { e.preventDefault(); });
+        textarea.addEventListener('drop', async function(e) {
+            const files = e.dataTransfer && e.dataTransfer.files;
+            if (!files) return;
+            for (const file of files) {
+                if (file.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const placeholder = '![Uploading...]()';
+                    insertAtCursor(placeholder);
+                    try {
+                        const url = await uploadFile(file);
+                        textarea.value = textarea.value.replace(placeholder, '![image](' + url + ')');
+                    } catch (err) {
+                        textarea.value = textarea.value.replace(placeholder, '');
+                        showToast('Upload failed', true);
+                    }
+                }
+            }
+        });
+    })();
+    </script>
+    <script src="/static/auto-refresh.js"></script>
+</body>
+</html>

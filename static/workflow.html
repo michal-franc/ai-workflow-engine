@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Workflow — issue-cli</title>
+<style>
+:root, [data-theme="dark"] {
+    --bg: #0d1117; --bg-s: #161b22; --bg-t: #21262d;
+    --border: #30363d; --text: #e6edf3; --text-s: #8b949e;
+    --link: #58a6ff; --accent: #238636;
+    --red: #da3633; --orange: #d29922; --purple: #8957e5; --cyan: #39d2c0;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+.container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+h1 { font-size: 28px; margin-bottom: 8px; }
+h2 { font-size: 20px; margin: 40px 0 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+h3 { font-size: 16px; margin: 24px 0 12px; color: var(--text-s); }
+p, li { color: var(--text-s); font-size: 14px; }
+a { color: var(--link); text-decoration: none; }
+code { background: var(--bg-t); padding: 2px 6px; border-radius: 4px; font-size: 13px; color: var(--text); }
+
+/* Pipeline */
+.pipeline { display: flex; gap: 0; align-items: stretch; margin: 24px 0; overflow-x: auto; padding-bottom: 8px; }
+.stage { flex: 1; min-width: 120px; position: relative; text-align: center; padding: 16px 12px; border: 1px solid var(--border); background: var(--bg-s); }
+.stage:first-child { border-radius: 8px 0 0 8px; }
+.stage:last-child { border-radius: 0 8px 8px 0; }
+.stage + .stage { border-left: none; }
+.stage .name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.stage .desc { font-size: 11px; color: var(--text-s); }
+.stage .validation { font-size: 10px; color: var(--orange); margin-top: 6px; font-style: italic; }
+.stage::after { content: "\2192"; position: absolute; right: -10px; top: 50%; transform: translateY(-50%); z-index: 1; font-size: 16px; color: var(--text-s); }
+.stage:last-child::after { display: none; }
+.stage.s-idea { border-top: 3px solid #8b949e; }
+.stage.s-design { border-top: 3px solid var(--purple); }
+.stage.s-backlog { border-top: 3px solid var(--link); }
+.stage.s-progress { border-top: 3px solid var(--orange); }
+.stage.s-testing { border-top: 3px solid var(--cyan); }
+.stage.s-docs { border-top: 3px solid #d2a8ff; }
+.stage.s-done { border-top: 3px solid var(--accent); }
+
+/* Agent flow */
+.flow { display: flex; flex-direction: column; gap: 0; margin: 24px 0; }
+.step { display: flex; align-items: flex-start; gap: 16px; position: relative; padding: 16px 0; }
+.step-num { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; position: relative; z-index: 1; }
+.step-num.agent { background: var(--purple); }
+.step-num.validate { background: var(--orange); }
+.step-content { flex: 1; padding-top: 6px; }
+.step-content .title { font-weight: 600; font-size: 15px; color: var(--text); }
+.step-content .detail { font-size: 13px; color: var(--text-s); margin-top: 2px; }
+.step-content code { font-size: 12px; }
+.step + .step::before { content: ""; position: absolute; left: 17px; top: -2px; width: 2px; height: 18px; background: var(--border); }
+
+/* Command reference */
+.cmd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+.cmd-card { background: var(--bg-s); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.cmd-card.primary { border-color: var(--accent); }
+.cmd-card.warn { border-color: var(--orange); }
+.cmd-card .cmd-name { font-weight: 600; font-size: 14px; font-family: monospace; }
+.cmd-card .cmd-desc { font-size: 12px; color: var(--text-s); margin-top: 4px; }
+.cmd-card .cmd-note { font-size: 11px; color: var(--orange); margin-top: 4px; }
+
+/* Rule cards */
+.rules { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 16px 0; }
+.rule { background: var(--bg-s); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.rule .icon { font-size: 20px; margin-bottom: 6px; }
+.rule .rule-title { font-weight: 600; font-size: 13px; }
+.rule .rule-desc { font-size: 12px; color: var(--text-s); margin-top: 4px; }
+
+/* Validation table */
+.val-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+.val-table th, .val-table td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.val-table th { color: var(--text-s); font-weight: 600; background: var(--bg-s); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.val-table td:first-child { font-family: monospace; white-space: nowrap; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.tag-gate { background: rgba(210,153,34,0.15); color: var(--orange); }
+
+.subtitle { color: var(--text-s); font-size: 15px; margin-bottom: 32px; }
+
+@media (max-width: 768px) {
+    .cmd-grid, .rules { grid-template-columns: 1fr; }
+    .pipeline { flex-wrap: wrap; gap: 8px; }
+    .stage { min-width: 100%; border-radius: 8px !important; border-left: 1px solid var(--border) !important; }
+    .stage::after { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Agent Workflow</h1>
+<p class="subtitle">How AI agents operate with <code>issue-cli</code> to pick up, execute, and deliver work.</p>
+
+<!-- Status Pipeline -->
+<h2>Status Lifecycle</h2>
+<p>Every issue moves strictly through these statuses. No skipping allowed.</p>
+
+<div class="pipeline">
+    <div class="stage s-idea">
+        <div class="name">idea</div>
+        <div class="desc">Raw concept</div>
+    </div>
+    <div class="stage s-design">
+        <div class="name">in design</div>
+        <div class="desc">Speccing out</div>
+        <div class="validation">body not empty</div>
+    </div>
+    <div class="stage s-backlog">
+        <div class="name">backlog</div>
+        <div class="desc">Ready to build</div>
+        <div class="validation">has checkboxes</div>
+    </div>
+    <div class="stage s-progress">
+        <div class="name">in progress</div>
+        <div class="desc">Actively building</div>
+        <div class="validation">has assignee</div>
+    </div>
+    <div class="stage s-testing">
+        <div class="name">testing</div>
+        <div class="desc">Verifying</div>
+        <div class="validation">all boxes checked</div>
+    </div>
+    <div class="stage s-docs">
+        <div class="name">documentation</div>
+        <div class="desc">Updating docs</div>
+        <div class="validation">test plan + results</div>
+    </div>
+    <div class="stage s-done">
+        <div class="name">done</div>
+        <div class="desc">Shipped</div>
+        <div class="validation">docs comment</div>
+    </div>
+</div>
+
+<!-- Agent Flow -->
+<h2>Agent Operating Flow</h2>
+<p>Step-by-step sequence an agent follows when picking up and completing work.</p>
+
+<div class="flow">
+    <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+            <div class="title">Learn the project</div>
+            <div class="detail">Run <code>issue-cli process</code> to understand the workflow, rules, and conventions. Do this once at the start.</div>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+            <div class="title">Find available work</div>
+            <div class="detail">Run <code>issue-cli next --version 0.1</code> to see backlog, in-progress, and testing issues. Use <code>--design</code> for ideas needing design work. Use <code>issue-cli search &lt;query&gt;</code> to find issues by title, body, or status.</div>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num agent">3</div>
+        <div class="step-content">
+            <div class="title">Start work with <code>issue-cli start &lt;slug&gt;</code></div>
+            <div class="detail">This is the critical step. For backlog issues, <code>start</code> only works after a human approves <strong>in progress</strong> in the viewer. Then it claims the issue, transitions it to <strong>in progress</strong>, and shows next steps with checklist items. <strong>Do NOT use <code>claim</code> to begin work</strong> &mdash; it only sets the assignee without transitioning.</div>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num agent">4</div>
+        <div class="step-content">
+            <div class="title">Do the work, check off items</div>
+            <div class="detail">Implement the feature or fix. Check off <code>[x]</code> checkboxes in the issue body as acceptance criteria are met. All checkboxes must be checked before moving to testing.</div>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num validate">5</div>
+        <div class="step-content">
+            <div class="title">Add test plan</div>
+            <div class="detail">Add a <code>## Test Plan</code> section to the issue body with <code>### Automated</code> and <code>### Manual</code> subsections. Then transition: <code>issue-cli transition &lt;slug&gt; --to "testing"</code></div>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num validate">6</div>
+        <div class="step-content">
+            <div class="title">Log test results</div>
+            <div class="detail">Run tests and log results: <code>issue-cli comment &lt;slug&gt; --text "tests: 5 unit tests, all passing"</code>. Then transition to documentation: <code>issue-cli transition &lt;slug&gt; --to "documentation"</code></div>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">7</div>
+        <div class="step-content">
+            <div class="title">Update documentation</div>
+            <div class="detail">Update any relevant docs, then log it: <code>issue-cli comment &lt;slug&gt; --text "docs: updated guides/workflow.md"</code></div>
+        </div>
+    </div>
+    <div class="step">
+        <div class="step-num">8</div>
+        <div class="step-content">
+            <div class="title">Mark done</div>
+            <div class="detail">Run <code>issue-cli done &lt;slug&gt;</code>. This validates all requirements across remaining statuses, transitions to done, and auto-unclaims the assignee.</div>
+        </div>
+    </div>
+</div>
+
+<!-- Transition Validation -->
+<h2>Transition Gates</h2>
+<p>Each transition enforces validation rules. The agent cannot skip steps.</p>
+
+<table class="val-table">
+    <thead>
+        <tr><th>Transition</th><th>Requirement</th><th>Why</th></tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>idea &rarr; in design</td>
+            <td><span class="tag tag-gate">body_not_empty</span></td>
+            <td>Must describe the idea before designing it</td>
+        </tr>
+        <tr>
+            <td>in design &rarr; backlog</td>
+            <td><span class="tag tag-gate">has_checkboxes</span></td>
+            <td>Acceptance criteria must be defined as checkboxes</td>
+        </tr>
+        <tr>
+            <td>backlog &rarr; in progress</td>
+            <td><span class="tag tag-gate">has_assignee</span></td>
+            <td>Someone must own the work &mdash; use <code>start</code></td>
+        </tr>
+        <tr>
+            <td>in progress &rarr; testing</td>
+            <td><span class="tag tag-gate">all_checkboxes_checked</span></td>
+            <td>All acceptance criteria must be met before testing</td>
+        </tr>
+        <tr>
+            <td>testing &rarr; documentation</td>
+            <td><span class="tag tag-gate">has_test_plan</span> <span class="tag tag-gate">comment: tests:</span></td>
+            <td>Test plan with automated + manual sections, plus logged results</td>
+        </tr>
+        <tr>
+            <td>documentation &rarr; shipping</td>
+            <td><span class="tag tag-gate">all_checkboxes_checked</span> <span class="tag tag-gate">comment: docs:</span></td>
+            <td>Docs must be updated and logged before shipping</td>
+        </tr>
+        <tr>
+            <td>shipping &rarr; done</td>
+            <td><span class="tag tag-gate">all_checkboxes_checked</span> <span class="tag tag-gate">human approval</span></td>
+            <td>Commit, push, and (if applicable) open a PR; human confirms before done</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- Command Reference -->
+<h2>Command Reference</h2>
+
+<h3>Core workflow (use these)</h3>
+<div class="cmd-grid">
+    <div class="cmd-card primary">
+        <div class="cmd-name">issue-cli start &lt;slug&gt;</div>
+        <div class="cmd-desc">Begin work. Claims the issue, transitions to in-progress, shows checklist and next steps.</div>
+        <div class="cmd-note">This is how agents should always start work.</div>
+    </div>
+    <div class="cmd-card primary">
+        <div class="cmd-name">issue-cli next --version &lt;v&gt;</div>
+        <div class="cmd-desc">Find available work for a version. Shows backlog (unclaimed), in-progress, and testing issues.</div>
+    </div>
+    <div class="cmd-card primary">
+        <div class="cmd-name">issue-cli transition &lt;slug&gt; --to "&lt;status&gt;"</div>
+        <div class="cmd-desc">Move issue to next status. Validates requirements and appends status templates.</div>
+    </div>
+    <div class="cmd-card primary">
+        <div class="cmd-name">issue-cli done &lt;slug&gt;</div>
+        <div class="cmd-desc">Mark complete. Validates all remaining gates, transitions to done, auto-unclaims.</div>
+    </div>
+</div>
+
+<h3>Information &amp; search</h3>
+<div class="cmd-grid">
+    <div class="cmd-card">
+        <div class="cmd-name">issue-cli process</div>
+        <div class="cmd-desc">Learn the project workflow, rules, and conventions. Run this first.</div>
+    </div>
+    <div class="cmd-card">
+        <div class="cmd-name">issue-cli context &lt;slug&gt;</div>
+        <div class="cmd-desc">Full dump: body, checklist, test plan status, comments.</div>
+    </div>
+    <div class="cmd-card">
+        <div class="cmd-name">issue-cli search &lt;query&gt;</div>
+        <div class="cmd-desc">Search across titles, bodies, and statuses.</div>
+    </div>
+    <div class="cmd-card">
+        <div class="cmd-name">issue-cli list --status/--system/--assignee</div>
+        <div class="cmd-desc">Filtered list. Shows "claimed by X" for assigned issues.</div>
+    </div>
+    <div class="cmd-card">
+        <div class="cmd-name">issue-cli stats</div>
+        <div class="cmd-desc">Project health: issue counts by status, system, assignee.</div>
+    </div>
+    <div class="cmd-card">
+        <div class="cmd-name">issue-cli checklist &lt;slug&gt;</div>
+        <div class="cmd-desc">Show checkbox progress for an issue.</div>
+    </div>
+</div>
+
+<h3>Updates</h3>
+<div class="cmd-grid">
+    <div class="cmd-card">
+        <div class="cmd-name">issue-cli create --title "..." --system X</div>
+        <div class="cmd-desc">Create a new issue. Defaults to "idea" status. Applies workflow templates.</div>
+    </div>
+    <div class="cmd-card">
+        <div class="cmd-name">issue-cli comment &lt;slug&gt; --text "..."</div>
+        <div class="cmd-desc">Add a comment. Use "tests:" and "docs:" prefixes for validation gates.</div>
+    </div>
+    <div class="cmd-card warn">
+        <div class="cmd-name">issue-cli claim &lt;slug&gt; --assignee "..."</div>
+        <div class="cmd-desc">Only sets assignee. Does NOT transition status.</div>
+        <div class="cmd-note">Do not use this to begin work. Use 'start' instead.</div>
+    </div>
+    <div class="cmd-card">
+        <div class="cmd-name">issue-cli unclaim &lt;slug&gt;</div>
+        <div class="cmd-desc">Remove assignee from an issue.</div>
+    </div>
+</div>
+
+<!-- Key Rules -->
+<h2>Key Rules for Agents</h2>
+<div class="rules">
+    <div class="rule">
+        <div class="icon">&#9654;</div>
+        <div class="rule-title">Use <code>start</code>, not <code>claim</code></div>
+        <div class="rule-desc"><code>start</code> begins approved backlog work, then claims and transitions to in-progress. <code>claim</code> only sets the assignee &mdash; the issue stays in backlog.</div>
+    </div>
+    <div class="rule">
+        <div class="icon">&#8594;</div>
+        <div class="rule-title">Never skip statuses</div>
+        <div class="rule-desc">Transitions are strictly sequential. The CLI enforces this &mdash; you cannot jump from backlog to testing.</div>
+    </div>
+    <div class="rule">
+        <div class="icon">&#9744;</div>
+        <div class="rule-title">Check off acceptance criteria</div>
+        <div class="rule-desc">All <code>[x]</code> checkboxes must be checked before transitioning from in-progress to testing.</div>
+    </div>
+    <div class="rule">
+        <div class="icon">&#128221;</div>
+        <div class="rule-title">Test plan required</div>
+        <div class="rule-desc">Add <code>## Test Plan</code> with <code>### Automated</code> and <code>### Manual</code> subsections before leaving testing.</div>
+    </div>
+    <div class="rule">
+        <div class="icon">&#128172;</div>
+        <div class="rule-title">Log with comment prefixes</div>
+        <div class="rule-desc">Use <code>tests:</code> prefix after testing and <code>docs:</code> prefix after updating documentation. These are validated.</div>
+    </div>
+    <div class="rule">
+        <div class="icon">&#9989;</div>
+        <div class="rule-title"><code>done</code> validates everything</div>
+        <div class="rule-desc"><code>issue-cli done</code> checks all remaining gates at once and auto-unclaims the assignee on success.</div>
+    </div>
+</div>
+
+</div>
+</body>
+</html>

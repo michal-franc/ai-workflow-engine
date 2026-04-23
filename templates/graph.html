@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — Graph</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='2' cy='8' r='1.5' fill='%238b949e'/><circle cx='8' cy='2' r='1.5' fill='%238b949e'/><circle cx='14' cy='8' r='1.5' fill='%238b949e'/><circle cx='8' cy='14' r='1.5' fill='%238b949e'/><path d='M3.5 8h9M8 3.5v9' stroke='%238b949e' stroke-width='1.5'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+    <style>
+        .graph-outer {
+            padding: 0 24px 48px;
+            overflow-x: auto;
+        }
+        .graph-filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 24px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 32px;
+            flex-wrap: wrap;
+        }
+        .graph-filter-bar select {
+            background: var(--bg-tertiary);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .graph-filter-bar label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        .graph-filter-bar .clear-btn {
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        .graph-filter-bar .clear-btn:hover { color: var(--text); text-decoration: none; }
+        .graph-summary {
+            margin-left: auto;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        .graph-track {
+            display: flex;
+            align-items: flex-start;
+            gap: 0;
+            min-width: max-content;
+            padding: 16px 0;
+        }
+        .graph-connector {
+            display: flex;
+            align-items: center;
+            padding-top: 20px;
+            flex-shrink: 0;
+        }
+        .graph-connector svg {
+            display: block;
+        }
+        .graph-column {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 180px;
+            flex-shrink: 0;
+        }
+        .graph-status-node {
+            width: 100%;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            text-align: center;
+            position: relative;
+        }
+        .graph-status-top {
+            border-radius: 6px 6px 0 0;
+            height: 4px;
+            margin: -10px -12px 8px;
+            border-radius: 7px 7px 0 0;
+        }
+        .graph-status-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .graph-status-meta {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        .graph-status-count {
+            font-size: 11px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border-radius: 12px;
+            padding: 1px 7px;
+            font-weight: 500;
+        }
+        .graph-gate-icon {
+            font-size: 11px;
+            color: var(--text-secondary);
+            cursor: default;
+        }
+        .graph-status-node-optional {
+            border-style: dashed;
+            opacity: 0.85;
+        }
+        .graph-status-optional-tag {
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            border: 1px dashed var(--text-secondary);
+            border-radius: 8px;
+            padding: 1px 5px;
+            margin-left: 4px;
+        }
+        .graph-optional-swatch {
+            display: inline-block;
+            width: 18px;
+            height: 0;
+            border-top: 1.5px dashed #4b5563;
+            vertical-align: middle;
+        }
+        .graph-desc {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .graph-issues {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 10px;
+            width: 100%;
+        }
+        .graph-issue {
+            display: block;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 7px 9px;
+            font-size: 12px;
+            color: var(--text);
+            text-decoration: none;
+            transition: border-color 0.15s;
+        }
+        .graph-issue:hover {
+            border-color: var(--text-secondary);
+            text-decoration: none;
+        }
+        .graph-issue.stale-med {
+            border-left: 3px solid #ca8a04;
+        }
+        .graph-issue.stale-high {
+            border-left: 3px solid #dc2626;
+        }
+        .graph-issue-title {
+            font-size: 11px;
+            color: var(--text);
+            line-height: 1.35;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .graph-issue-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 4px;
+            gap: 4px;
+        }
+        .graph-issue-system {
+            font-size: 10px;
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .graph-days {
+            font-size: 10px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .graph-days.days-yellow { color: #ca8a04; font-weight: 600; }
+        .graph-days.days-red    { color: #dc2626; font-weight: 600; }
+        .graph-legend {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            padding: 0 24px;
+            margin-bottom: 12px;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        .graph-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            border-left: 3px solid;
+        }
+        .legend-dot.stale-med { border-color: #ca8a04; background: var(--bg-secondary); }
+        .legend-dot.stale-high { border-color: #dc2626; background: var(--bg-secondary); }
+        .graph-empty-col {
+            font-size: 11px;
+            color: var(--text-secondary);
+            text-align: center;
+            padding: 8px 0;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container header-inner">
+            <div style="display:flex;align-items:center;">
+                <a href="/" class="project-back-link">Projects</a>
+                <span class="header-sep">/</span>
+                <h1>{{.ProjectName}}</h1>
+                <span class="count">{{.TotalIssues}}</span>
+            </div>
+            <nav class="view-tabs">
+                <a href="{{.Prefix}}/" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v1.5H2V2zm0 4h12v1.5H2V6zm0 4h12v1.5H2V10zm0 4h12v1.5H2V14z"/></svg>
+                    List
+                </a>
+                <a href="{{.Prefix}}/board" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v8H6V2zm5 0h4v10h-4V2z"/></svg>
+                    Board
+                </a>
+                <a href="{{.Prefix}}/graph" class="view-tab active">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.5" cy="8" r="1.75"/><circle cx="8" cy="2.5" r="1.75"/><circle cx="13.5" cy="8" r="1.75"/><circle cx="8" cy="13.5" r="1.75"/><path d="M4.2 8h7.6M8 4.2v7.6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
+                    Graph
+                </a>
+                <a href="{{.Prefix}}/docs" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h5v2H3v10h4v2H1V1zm9 0h5v14H8v-2h4V3H10V1zM5 5h2v1H5V5zm0 2h2v1H5V7zm0 2h2v1H5V9z"/></svg>
+                    Docs
+                </a>
+                <a href="{{.Prefix}}/retros" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.75A1.75 1.75 0 014.75 1h6.5A1.75 1.75 0 0113 2.75v10.5A1.75 1.75 0 0111.25 15h-6.5A1.75 1.75 0 013 13.25V2.75zm2 .75v1.25h6V3.5H5zm0 3v1.25h6V6.5H5zm0 3v1.25h4V9.5H5z"/></svg>
+                    Retros
+                </a>
+                <a href="{{.Prefix}}/workflow-designer" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3.25A1.25 1.25 0 013.75 2h2.5A1.25 1.25 0 017.5 3.25v2.5A1.25 1.25 0 016.25 7h-2.5A1.25 1.25 0 012.5 5.75v-2.5zm6 0A1.25 1.25 0 019.75 2h2.5a1.25 1.25 0 011.25 1.25v2.5A1.25 1.25 0 0112.25 7h-2.5A1.25 1.25 0 018.5 5.75v-2.5zm-6 6A1.25 1.25 0 013.75 8h2.5A1.25 1.25 0 017.5 9.25v2.5A1.25 1.25 0 016.25 13h-2.5a1.25 1.25 0 01-1.25-1.25v-2.5zm9.25.75a.75.75 0 010 1.5H10v1.75a.75.75 0 01-1.5 0V11.5H6.75a.75.75 0 010-1.5H8.5V8.25a.75.75 0 011.5 0V10h1.75z"/></svg>
+                    Workflow
+                </a>
+                {{if .SupportsGitHub}}
+                <a href="{{.Prefix}}/github" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+                {{end}}
+            </nav>
+            <div class="theme-picker">
+                <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
+                <button class="theme-btn" data-theme="dark" title="Dark"></button>
+                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
+                <button class="theme-btn" data-theme="light" title="Light"></button>
+            </div>
+        </div>
+    </div>
+
+    <form class="graph-filter-bar" method="GET" action="{{.Prefix}}/graph">
+        <select name="system" onchange="this.form.submit()">
+            <option value="">All systems</option>
+            {{range .Systems}}
+            <option value="{{.}}" {{if eq . $.System}}selected{{end}}>{{.}}</option>
+            {{end}}
+        </select>
+
+        <label>
+            <input type="checkbox" name="done" value="1" {{if .ShowDone}}checked{{end}} onchange="this.form.submit()">
+            Show done
+        </label>
+
+        {{if or .System .ShowDone}}
+        <a href="{{.Prefix}}/graph" class="clear-btn">Clear</a>
+        {{end}}
+
+        <div class="graph-summary">{{.TotalIssues}} issue{{if ne .TotalIssues 1}}s{{end}} in flight</div>
+    </form>
+
+    <div class="graph-legend">
+        <div class="graph-legend-item">
+            <div class="legend-dot stale-med"></div>
+            7+ days in status
+        </div>
+        <div class="graph-legend-item">
+            <div class="legend-dot stale-high"></div>
+            14+ days in status
+        </div>
+        <div class="graph-legend-item">
+            <span style="font-size:12px;">🔒</span>
+            requires human approval to enter
+        </div>
+        <div class="graph-legend-item">
+            <span class="graph-optional-swatch"></span>
+            optional — forward transitions may skip this status
+        </div>
+    </div>
+
+    <div class="graph-outer">
+        <div class="graph-track">
+            {{range $i, $node := .StatusNodes}}
+            {{if $i}}
+            <div class="graph-connector{{if .Optional}} graph-connector-skip{{end}}" title="{{if .Optional}}Optional — forward transitions may skip this status{{end}}">
+                <svg width="32" height="24" viewBox="0 0 32 24">
+                    {{if .Optional}}
+                    <line x1="0" y1="12" x2="26" y2="12" stroke="#4b5563" stroke-width="1.5" stroke-dasharray="4 3"/>
+                    {{else}}
+                    <line x1="0" y1="12" x2="26" y2="12" stroke="#4b5563" stroke-width="1.5"/>
+                    {{end}}
+                    <polygon points="22,7 32,12 22,17" fill="#4b5563"/>
+                </svg>
+            </div>
+            {{end}}
+            <div class="graph-column{{if .Optional}} graph-column-optional{{end}}">
+                <div class="graph-status-node{{if .Optional}} graph-status-node-optional{{end}}">
+                    <div class="graph-status-top" style="background:{{statusColor .Name}}"></div>
+                    <div class="graph-status-name">{{.Name}}{{if .Optional}} <span class="graph-status-optional-tag">optional</span>{{end}}</div>
+                    <div class="graph-status-meta">
+                        <span class="graph-status-count" style="background:{{statusColor .Name}}1a;color:{{statusColor .Name}}">{{len .Issues}}</span>
+                        {{if .RequireApproval}}<span class="graph-gate-icon" title="Requires human approval to enter this status">🔒</span>{{end}}
+                    </div>
+                    {{if .Description}}<div class="graph-desc" title="{{.Description}}">{{.Description}}</div>{{end}}
+                </div>
+                <div class="graph-issues">
+                    {{range .Issues}}
+                    <a href="{{$.Prefix}}/issue/{{.Slug}}"
+                       class="graph-issue{{if .IsVeryStale}} stale-high{{else if .IsStale}} stale-med{{end}}"
+                       title="{{.Title}}{{if .Assignee}} · {{.Assignee}}{{end}} · {{.DaysInStatus}}d in status">
+                        <div class="graph-issue-title">{{.Title}}</div>
+                        <div class="graph-issue-meta">
+                            <span class="graph-issue-system">{{if .System}}{{.System}}{{else if .Assignee}}{{.Assignee}}{{end}}</span>
+                            <span class="graph-days{{if .IsVeryStale}} days-red{{else if .IsStale}} days-yellow{{end}}">{{.DaysInStatus}}d</span>
+                        </div>
+                    </a>
+                    {{end}}
+                    {{if not .Issues}}
+                    <div class="graph-empty-col">—</div>
+                    {{end}}
+                </div>
+            </div>
+            {{end}}
+        </div>
+    </div>
+</body>
+</html>

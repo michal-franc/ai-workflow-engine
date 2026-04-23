@@ -1,0 +1,11 @@
+projects:
+
+  - name: "My Project"
+    slug: "my-project"
+    issues: "./issues"
+    docs: "./docs"
+
+  - name: "Another Project"
+    slug: "another"
+    issues: "/path/to/other/issues"
+    docs: "/path/to/other/docs"

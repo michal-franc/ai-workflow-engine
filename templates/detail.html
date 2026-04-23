@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Issue.Title}} — {{.ProjectName}}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='{{urlEncodeColor (statusColor .Issue.Status)}}'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+    <div class="header">
+        <div class="container header-inner">
+            <div style="display:flex;align-items:center;">
+                <a href="/" class="project-back-link">Projects</a>
+                <span class="header-sep">/</span>
+                <h1>{{.ProjectName}}</h1>
+            </div>
+            <div class="theme-picker">
+                <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
+                <button class="theme-btn" data-theme="dark" title="Dark"></button>
+                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
+                <button class="theme-btn" data-theme="light" title="Light"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <a href="{{.BackURL}}" class="detail-back">← Back</a>
+
+        <div class="detail-layout">
+            <div>
+                <h1 class="detail-title" id="issue-title" onclick="editTitle()">{{.Issue.Title}} <span class="title-edit-icon">&#9998;</span></h1>
+                <div class="title-editor" id="title-editor" style="display:none">
+                    <input type="text" class="title-input" id="title-input" value="{{.Issue.Title}}">
+                    <button class="body-save-btn" onclick="saveTitle()">Save</button>
+                    <button class="body-tab" onclick="cancelTitleEdit()">Cancel</button>
+                </div>
+                <div class="body-toolbar">
+                    <button class="body-tab active" id="btn-preview" onclick="showPreview()">Preview</button>
+                    <button class="body-tab" id="btn-edit" onclick="showEditor()">Edit</button>
+                    <button class="body-toolbar-action" onclick="editInNvim()">Edit in nvim</button>
+                </div>
+                <div class="detail-body" id="body-preview">
+                    {{if .Issue.BodyHTML}}
+                    {{linkIssueRefs .Issue.BodyHTML .Prefix .SlugMap}}
+                    {{else}}
+                    <p style="color:var(--text-secondary)">No description provided.</p>
+                    {{end}}
+                </div>
+                <div class="body-editor-wrap" id="body-editor" style="display:none">
+                    <textarea class="body-textarea" id="body-textarea">{{.Issue.BodyRaw}}</textarea>
+                    <button class="body-save-btn" onclick="saveBody()">Save</button>
+                </div>
+            </div>
+
+            <div class="detail-sidebar">
+                <div class="sidebar-section">
+                    <h3>Status</h3>
+                    <div class="sidebar-value">
+                        <select class="edit-select" data-field="status" onchange="updateField(this)">
+                            {{range $.Statuses}}
+                            <option value="{{.}}" {{if eq . $.Issue.Status}}selected{{end}}>{{.}}</option>
+                            {{end}}
+                        </select>
+                    </div>
+                </div>
+
+                <div class="sidebar-section" id="active-agent-section" {{if not .Issue.HasActiveAgent}}style="display:none"{{end}}>
+                    <h3>Active Agent</h3>
+                    <div class="active-session-list" id="active-session-list">
+                        {{range .Issue.ActiveSessions}}
+                        <div class="active-session-item">
+                            <div class="active-session-name">{{.Name}}</div>
+                            {{if .StartTime}}<div class="active-session-time">{{.StartTime}}</div>{{end}}
+                        </div>
+                        {{end}}
+                    </div>
+                </div>
+
+                {{if or .NeedsApproval .OptionalApprovals}}
+                <div class="sidebar-section">
+                    <h3>Human Approval</h3>
+                    {{if .NeedsApproval}}
+                    <div class="sidebar-value">
+                        <button class="approve-btn {{if eq .Issue.HumanApproval .NeedsApproval}}approved{{end}}" data-status="{{.NeedsApproval}}" onclick="toggleApproval('{{.NeedsApproval}}')">
+                            <span class="approve-check">{{if eq .Issue.HumanApproval .NeedsApproval}}&#10003;{{else}}&#9744;{{end}}</span>
+                            Human-approved for {{.NeedsApproval}}
+                        </button>
+                    </div>
+                    {{end}}
+                    {{range .OptionalApprovals}}
+                    {{$open := eq $.Issue.HumanApproval .Status}}
+                    <div class="sidebar-value optional-approval-group" data-optional-status="{{.Status}}">
+                        <button class="optional-approval-cta{{if $open}} hidden{{end}}" onclick="revealOptionalApproval(this)">
+                            {{if .CTALabel}}{{.CTALabel}}{{else}}Divert to {{.Status}}{{if .Description}} — {{.Description}}{{end}}{{end}}
+                        </button>
+                        <div class="optional-approval-widget{{if not $open}} hidden{{end}}">
+                            <button class="approve-btn {{if $open}}approved{{end}}" data-status="{{.Status}}" onclick="toggleApproval('{{.Status}}')">
+                                <span class="approve-check">{{if $open}}&#10003;{{else}}&#9744;{{end}}</span>
+                                Human-approved for {{.Status}}
+                            </button>
+                            <button class="optional-approval-dismiss" onclick="dismissOptionalApproval(this)">Cancel</button>
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+                {{end}}
+
+                <div class="sidebar-section">
+                    <h3>Priority</h3>
+                    <div class="sidebar-value">
+                        <select class="edit-select" data-field="priority" onchange="updateField(this)">
+                            <option value="" {{if eq .Issue.Priority ""}}selected{{end}}>—</option>
+                            <option value="low" {{if eq .Issue.Priority "low"}}selected{{end}}>low</option>
+                            <option value="medium" {{if eq .Issue.Priority "medium"}}selected{{end}}>medium</option>
+                            <option value="high" {{if eq .Issue.Priority "high"}}selected{{end}}>high</option>
+                            <option value="critical" {{if eq .Issue.Priority "critical"}}selected{{end}}>critical</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Assignee</h3>
+                    <div class="sidebar-value">
+                        <input type="text" class="edit-input" data-field="assignee" value="{{.Issue.Assignee}}" placeholder="Unassigned" onchange="updateField(this)">
+                    </div>
+                </div>
+
+                {{if .Issue.System}}
+                <div class="sidebar-section">
+                    <h3>System</h3>
+                    <div class="sidebar-value">{{.Issue.System}}</div>
+                </div>
+                {{end}}
+
+                <div class="sidebar-section">
+                    <h3>Version</h3>
+                    <div class="sidebar-value">
+                        <input type="text" class="edit-input" data-field="version" value="{{.Issue.Version}}" placeholder="—" onchange="updateField(this)">
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>Labels</h3>
+                    <div class="sidebar-labels" id="labels-container">
+                        {{range .Issue.Labels}}
+                        <span class="label-badge badge editable-label">{{.}}<button class="label-remove" onclick="removeLabel(this, '{{.}}')">&times;</button></span>
+                        {{end}}
+                    </div>
+                    <div class="label-add-row">
+                        <input type="text" class="edit-input" id="new-label" placeholder="Add label..." onkeydown="if(event.key==='Enter'){event.preventDefault();addLabel()}">
+                        <button class="label-add-btn" onclick="addLabel()">+</button>
+                    </div>
+                </div>
+
+                {{if .Issue.GithubURL}}
+                <div class="sidebar-section">
+                    <h3>GitHub Issue</h3>
+                    <div class="sidebar-value"><a href="{{.Issue.GithubURL}}" target="_blank" rel="noopener">{{.Issue.Repo}}#{{.Issue.Number}}</a></div>
+                </div>
+                {{end}}
+
+                {{if .Issue.Created}}
+                <div class="sidebar-section">
+                    <h3>Created</h3>
+                    <div class="sidebar-value">{{.Issue.Created}}</div>
+                </div>
+                {{end}}
+
+                {{range .Issue.ExtraFields}}
+                <div class="sidebar-section">
+                    <h3>{{.Label}}</h3>
+                    <div class="sidebar-value">
+                        {{if .IsList}}
+                        <ul style="margin:0;padding-left:1.2em">
+                            {{range .Values}}<li>{{.}}</li>{{end}}
+                        </ul>
+                        {{else if .IsURL}}
+                        <a href="{{.Value}}" target="_blank" rel="noopener">{{.Value}}</a>
+                        {{else}}
+                        {{.Value}}
+                        {{end}}
+                    </div>
+                </div>
+                {{end}}
+
+                <div class="sidebar-section dispatch-btn-group">
+                    <button class="dispatch-btn" onclick="dispatchToAgent('claude')">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.75a.75.75 0 00-1.19.61v11.28a.75.75 0 001.19.61l9.5-5.64a.75.75 0 000-1.22L1.5 1.75z"/></svg>
+                        Claude
+                    </button>
+                    <button class="dispatch-btn dispatch-btn-codex" onclick="dispatchToAgent('codex')">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.75a.75.75 0 00-1.19.61v11.28a.75.75 0 001.19.61l9.5-5.64a.75.75 0 000-1.22L1.5 1.75z"/></svg>
+                        Codex
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dispatch agent modal -->
+    <div class="modal-overlay" id="dispatch-modal" style="display:none">
+        <div class="modal" style="max-width:640px">
+            <div class="modal-title">Dispatch to Agent</div>
+            <div class="modal-body">
+                <div id="dispatch-steps" class="dispatch-steps"></div>
+                <div id="dispatch-session" class="dispatch-session"></div>
+                <details class="dispatch-prompt-details">
+                    <summary>Prompt sent</summary>
+                    <pre class="dispatch-prompt-pre" id="dispatch-prompt"></pre>
+                </details>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" onclick="closeDispatchModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="save-toast" id="save-toast">Saved</div>
+
+    <script>
+    const issueURL = "{{.Prefix}}/issue/{{.Issue.Slug}}";
+
+    function updateField(el) {
+        const field = el.dataset.field;
+        const value = el.value;
+        const body = {};
+        body[field] = value;
+        saveUpdate(body);
+    }
+
+    function getCurrentLabels() {
+        const labels = [];
+        document.querySelectorAll('.editable-label').forEach(el => {
+            labels.push(el.textContent.replace('×', '').trim());
+        });
+        return labels;
+    }
+
+    function removeLabel(btn, label) {
+        btn.parentElement.remove();
+        saveUpdate({ labels: getCurrentLabels() });
+    }
+
+    function addLabel() {
+        const input = document.getElementById('new-label');
+        const label = input.value.trim();
+        if (!label) return;
+
+        const container = document.getElementById('labels-container');
+        const span = document.createElement('span');
+        span.className = 'label-badge badge editable-label';
+        span.textContent = label;
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'label-remove';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.onclick = function() { removeLabel(this, label); };
+        span.appendChild(removeBtn);
+        container.appendChild(span);
+
+        input.value = '';
+        saveUpdate({ labels: getCurrentLabels() });
+    }
+
+    function showEditor() {
+        document.getElementById('body-preview').style.display = 'none';
+        document.getElementById('body-editor').style.display = 'block';
+        document.getElementById('btn-edit').classList.add('active');
+        document.getElementById('btn-preview').classList.remove('active');
+        document.getElementById('body-textarea').focus();
+    }
+
+    function showPreview() {
+        document.getElementById('body-editor').style.display = 'none';
+        document.getElementById('body-preview').style.display = 'block';
+        document.getElementById('btn-preview').classList.add('active');
+        document.getElementById('btn-edit').classList.remove('active');
+    }
+
+    function editTitle() {
+        document.getElementById('issue-title').style.display = 'none';
+        document.getElementById('title-editor').style.display = 'flex';
+        const input = document.getElementById('title-input');
+        input.focus();
+        input.select();
+    }
+
+    function saveTitle() {
+        const title = document.getElementById('title-input').value.trim();
+        if (!title) return;
+        saveUpdate({ title: title }, function(data) {
+            const newSlug = data && data.slug ? data.slug : null;
+            if (newSlug && newSlug !== '{{.Issue.Slug}}') {
+                window.location.href = '{{.Prefix}}/issue/' + newSlug + window.location.search;
+            } else {
+                location.reload();
+            }
+        });
+    }
+
+    function cancelTitleEdit() {
+        document.getElementById('title-editor').style.display = 'none';
+        document.getElementById('issue-title').style.display = '';
+    }
+
+    document.addEventListener('keydown', function(e) {
+        const editor = document.getElementById('title-editor');
+        if (editor.style.display !== 'none' && editor.style.display !== '') {
+            if (e.key === 'Enter') { e.preventDefault(); saveTitle(); }
+            if (e.key === 'Escape') { cancelTitleEdit(); }
+        }
+    });
+
+    function saveBody() {
+        const text = document.getElementById('body-textarea').value;
+        saveUpdate({ body: text }, function() {
+            location.reload();
+        });
+    }
+
+    function saveUpdate(body, onSuccess) {
+        fetch(issueURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        }).then(res => {
+            const toast = document.getElementById('save-toast');
+            toast.textContent = res.ok ? 'Saved' : 'Error';
+            toast.className = 'save-toast ' + (res.ok ? 'show' : 'show error');
+            setTimeout(() => { toast.className = 'save-toast'; }, 3000);
+            if (res.ok && onSuccess) res.json().then(onSuccess).catch(() => onSuccess(null));
+        });
+    }
+
+    function editInNvim() {
+        fetch(issueURL + '/edit-in-nvim', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        }).then(res => res.json().then(data => ({ ok: res.ok, data: data })))
+          .then(result => {
+            if (!result.ok) {
+                showToast(result.data.error || 'Failed to open nvim', true);
+                return;
+            }
+            showToast(result.data.message || 'Opened in nvim');
+          })
+          .catch(err => {
+            showToast('Failed to open nvim: ' + err.message, true);
+          });
+    }
+
+    // --- Inline comments ---
+    const commentsURL = issueURL + '/comments';
+    let allComments = [];
+
+    const ICON_EYE = '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2C4.3 2 1.2 4.7.1 8c1.1 3.3 4.2 6 7.9 6s6.8-2.7 7.9-6C14.8 4.7 11.7 2 8 2zm0 10c-2.2 0-4-1.8-4-4s1.8-4 4-4 4 1.8 4 4-1.8 4-4 4zm0-6.5C6.6 5.5 5.5 6.6 5.5 8s1.1 2.5 2.5 2.5 2.5-1.1 2.5-2.5S9.4 5.5 8 5.5z"/></svg>';
+    const ICON_PERSON = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 100-6 3 3 0 000 6zm-5 6s-1 0-1-1 1-4 6-4 6 3 6 4-1 1-1 1H3z"/></svg>';
+    const ICON_BOT = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a1 1 0 011 1v1h2a2 2 0 012 2v1h1a1 1 0 110 2h-1v2a2 2 0 01-2 2h-1v1a1 1 0 11-2 0v-1H6v1a1 1 0 11-2 0v-1H3a2 2 0 01-2-2V8H0a1 1 0 110-2h1V5a2 2 0 012-2h2V2a1 1 0 011-1zM6 7a1 1 0 100-2 1 1 0 000 2zm4 0a1 1 0 100-2 1 1 0 000 2zm-5 3a1 1 0 011-1h4a1 1 0 110 2H6a1 1 0 01-1-1z"/></svg>';
+
+    function initComments() {
+        const body = document.getElementById('body-preview');
+        if (!body) return;
+
+        const children = Array.from(body.children);
+        children.forEach((el, idx) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'comment-block';
+            wrapper.dataset.block = idx;
+
+            const gutter = document.createElement('div');
+            gutter.className = 'comment-gutter';
+            gutter.innerHTML = '<button class="comment-eye" data-block="' + idx + '" title="Comments"></button>';
+
+            el.parentNode.insertBefore(wrapper, el);
+            wrapper.appendChild(gutter);
+            wrapper.appendChild(el);
+        });
+
+        fetch(commentsURL)
+            .then(r => r.json())
+            .then(comments => {
+                allComments = comments;
+                updateCommentIndicators();
+            });
+
+        body.addEventListener('click', function(e) {
+            const btn = e.target.closest('.comment-eye');
+            if (!btn) return;
+            e.stopPropagation();
+            openCommentPopover(btn, parseInt(btn.dataset.block));
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.comment-popover') && !e.target.closest('.comment-eye')) {
+                document.querySelectorAll('.comment-popover').forEach(p => p.remove());
+            }
+        });
+    }
+
+    function updateCommentIndicators() {
+        const counts = {};
+        const openCounts = {};
+        allComments.forEach(c => {
+            counts[c.block] = (counts[c.block] || 0) + 1;
+            if (c.status !== 'done') openCounts[c.block] = (openCounts[c.block] || 0) + 1;
+        });
+
+        document.querySelectorAll('.comment-eye').forEach(btn => {
+            const block = parseInt(btn.dataset.block);
+            const count = counts[block] || 0;
+            const open = openCounts[block] || 0;
+            const allDone = count > 0 && open === 0;
+            btn.className = 'comment-eye' + (count > 0 ? (allDone ? ' all-done' : ' has-comments') : '');
+            if (count > 0) {
+                btn.innerHTML = (allDone ? '<span class="comment-check">&#10003;</span>' : ICON_EYE)
+                    + '<span class="comment-count">' + count + '</span>';
+            } else {
+                btn.innerHTML = '<span style="opacity:0.3">' + ICON_EYE + '</span>';
+            }
+        });
+    }
+
+    function openCommentPopover(btn, blockIdx) {
+        document.querySelectorAll('.comment-popover').forEach(p => p.remove());
+
+        const popover = document.createElement('div');
+        popover.className = 'comment-popover';
+
+        const blockComments = allComments.filter(c => c.block === blockIdx);
+
+        let html = '';
+        if (blockComments.length > 0) {
+            html += '<div class="comment-list">';
+            blockComments.forEach(c => {
+                const isDone = c.status === 'done';
+                const sourceIcon = c.source === 'app' ? ICON_PERSON : ICON_BOT;
+                const sourceClass = c.source === 'app' ? 'human' : 'bot';
+                html += '<div class="comment-item' + (isDone ? ' comment-done' : '') + '">'
+                    + '<div class="comment-item-header">'
+                    + '<span class="comment-source-icon ' + sourceClass + '">' + sourceIcon + '</span>'
+                    + '<span class="comment-date">' + c.date + '</span>'
+                    + '<span class="comment-actions">'
+                    + '<button class="comment-toggle-btn" onclick="toggleComment(' + c.id + ',' + blockIdx + ')" title="' + (isDone ? 'Reopen' : 'Mark done') + '">'
+                    + (isDone ? '&#8634;' : '&#10003;') + '</button>'
+                    + '<button class="comment-delete-btn" onclick="deleteComment(' + c.id + ',' + blockIdx + ')" title="Delete">&times;</button>'
+                    + '</span>'
+                    + '</div>'
+                    + '<div class="comment-text">' + escapeHtml(c.text) + '</div>'
+                    + '</div>';
+            });
+            html += '</div>';
+        }
+
+        html += '<div class="comment-add">'
+            + '<textarea class="comment-text-input" placeholder="Add a comment..." id="comment-text-' + blockIdx + '"></textarea>'
+            + '<button class="comment-submit" onclick="submitComment(' + blockIdx + ')">Comment</button>'
+            + '</div>';
+
+        popover.innerHTML = html;
+        btn.closest('.comment-block').appendChild(popover);
+    }
+
+    function submitComment(blockIdx) {
+        const text = document.getElementById('comment-text-' + blockIdx).value.trim();
+        if (!text) return;
+
+        fetch(commentsURL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ block: blockIdx, text: text })
+        }).then(res => {
+            if (res.ok) {
+                // Reload comments from server to get the ID
+                fetch(commentsURL).then(r => r.json()).then(comments => {
+                    allComments = comments;
+                    updateCommentIndicators();
+                    document.querySelectorAll('.comment-popover').forEach(p => p.remove());
+                    showToast('Comment added');
+                });
+            }
+        });
+    }
+
+    function toggleComment(id, blockIdx) {
+        fetch(commentsURL + '/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        }).then(res => {
+            if (res.ok) {
+                const c = allComments.find(c => c.id === id);
+                if (c) c.status = c.status === 'done' ? 'open' : 'done';
+                updateCommentIndicators();
+                // Refresh popover
+                const btn = document.querySelector('.comment-eye[data-block="' + blockIdx + '"]');
+                if (btn) openCommentPopover(btn, blockIdx);
+            }
+        });
+    }
+
+    function deleteComment(id, blockIdx) {
+        fetch(commentsURL + '/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: id })
+        }).then(res => {
+            if (res.ok) {
+                allComments = allComments.filter(c => c.id !== id);
+                updateCommentIndicators();
+                const btn = document.querySelector('.comment-eye[data-block="' + blockIdx + '"]');
+                if (btn) openCommentPopover(btn, blockIdx);
+                showToast('Comment deleted');
+            }
+        });
+    }
+
+    function showToast(msg, isError) {
+        const toast = document.getElementById('save-toast');
+        toast.textContent = msg;
+        toast.className = 'save-toast show' + (isError ? ' error' : '');
+        setTimeout(() => { toast.className = 'save-toast'; }, 3000);
+    }
+
+    function escapeHtml(s) {
+        const div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+    }
+
+    // --- Interactive checkboxes ---
+    function initCheckboxes() {
+        var preview = document.getElementById('body-preview');
+        if (!preview) return;
+
+        var boxes = preview.querySelectorAll('input[type="checkbox"]');
+        boxes.forEach(function(cb, idx) {
+            cb.disabled = false;
+            cb.dataset.idx = idx;
+            cb.addEventListener('change', function() {
+                toggleCheckbox(this);
+            });
+        });
+    }
+
+    function toggleCheckbox(cb) {
+        var textarea = document.getElementById('body-textarea');
+        var body = textarea.value;
+        var idx = parseInt(cb.dataset.idx);
+
+        // Find the nth checkbox pattern in the raw markdown
+        var count = 0;
+        var result = body.replace(/\[([ xX])\]/g, function(match, inner) {
+            if (count++ === idx) {
+                return cb.checked ? '[x]' : '[ ]';
+            }
+            return match;
+        });
+
+        textarea.value = result;
+        saveUpdate({ body: result });
+    }
+
+    function toggleApproval(status) {
+        fetch(issueURL + '/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: status })
+        }).then(res => res.json()).then(data => {
+            document.querySelectorAll('.approve-btn[data-status]').forEach(btn => {
+                const btnStatus = btn.dataset.status;
+                const check = btn.querySelector('.approve-check');
+                if (data.human_approval === btnStatus) {
+                    btn.classList.add('approved');
+                    if (check) check.innerHTML = '&#10003;';
+                } else {
+                    btn.classList.remove('approved');
+                    if (check) check.innerHTML = '&#9744;';
+                }
+            });
+            if (data.human_approval) {
+                if (data.notified_session) {
+                    showToast('Human approval set and sent to bot session ' + data.notified_session);
+                } else if (data.notification_error) {
+                    showToast('Human approval set, but bot notification was not delivered: ' + data.notification_error);
+                } else {
+                    showToast('Human approval set');
+                }
+            } else {
+                showToast('Human approval removed');
+            }
+        });
+    }
+
+    function revealOptionalApproval(btn) {
+        const group = btn.closest('.optional-approval-group');
+        if (!group) return;
+        btn.classList.add('hidden');
+        const widget = group.querySelector('.optional-approval-widget');
+        if (widget) widget.classList.remove('hidden');
+    }
+
+    function dismissOptionalApproval(btn) {
+        const group = btn.closest('.optional-approval-group');
+        if (!group) return;
+        const widget = group.querySelector('.optional-approval-widget');
+        const cta = group.querySelector('.optional-approval-cta');
+        if (widget) widget.classList.add('hidden');
+        if (cta) cta.classList.remove('hidden');
+    }
+
+    function dispatchToAgent(agent) {
+        var modal = document.getElementById('dispatch-modal');
+        var stepsEl = document.getElementById('dispatch-steps');
+        var promptEl = document.getElementById('dispatch-prompt');
+        var sessionEl = document.getElementById('dispatch-session');
+        modal.style.display = '';
+        stepsEl.innerHTML = '<div class="dispatch-step pending">Dispatching to ' + agent + '...</div>';
+        promptEl.textContent = '';
+        sessionEl.textContent = '';
+
+        fetch(issueURL + '/dispatch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent: agent })
+        }).then(res => res.json()).then(data => {
+            sessionEl.textContent = 'tmux session: ' + data.session;
+            promptEl.textContent = data.prompt;
+
+            var html = '';
+            data.steps.forEach(function(step) {
+                var icon = step.status === 'ok' ? '&#10003;' : '&#10007;';
+                var cls = step.status === 'ok' ? 'ok' : 'error';
+                html += '<div class="dispatch-step ' + cls + '">'
+                    + '<span class="dispatch-step-icon">' + icon + '</span> '
+                    + step.name
+                    + (step.detail ? ' <span class="dispatch-step-detail">(' + step.detail + ')</span>' : '')
+                    + '</div>';
+            });
+            stepsEl.innerHTML = html;
+        }).catch(function(err) {
+            stepsEl.innerHTML = '<div class="dispatch-step error">Failed: ' + err.message + '</div>';
+        });
+    }
+
+    function closeDispatchModal() {
+        document.getElementById('dispatch-modal').style.display = 'none';
+    }
+
+    document.addEventListener('DOMContentLoaded', initComments);
+    document.addEventListener('DOMContentLoaded', initCheckboxes);
+    </script>
+    <script src="/static/auto-refresh.js"></script>
+</body>
+</html>

@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — Retros</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='2' width='12' height='12' rx='2' fill='%238b949e'/><path d='M5 5h6v1.5H5zm0 3h6v1.5H5zm0 3h4v1.5H5z' fill='%230d1117'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+    <style>
+        .retros-shell {
+            width: min(1180px, calc(100vw - 32px));
+            margin: 0 auto 32px;
+        }
+
+        .retros-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 16px;
+            margin: 20px 0 24px;
+        }
+
+        .retros-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .retros-filters select {
+            min-width: 170px;
+        }
+
+        .retros-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin: 0 0 24px;
+        }
+
+        .retro-summary-card,
+        .retro-card,
+        .bug-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+        }
+
+        .retro-summary-card {
+            padding: 14px 16px;
+        }
+
+        .retro-summary-value {
+            font-size: 26px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .retro-summary-label {
+            margin-top: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .retros-section {
+            margin-top: 28px;
+        }
+
+        .retros-section h2 {
+            margin-bottom: 8px;
+        }
+
+        .retros-section-intro {
+            color: var(--text-secondary);
+            margin-bottom: 14px;
+        }
+
+        .retro-list,
+        .bug-list {
+            display: grid;
+            gap: 14px;
+        }
+
+        .retro-card,
+        .bug-card {
+            padding: 18px;
+        }
+
+        .retro-card-header,
+        .bug-card-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .retro-card-title,
+        .bug-card-title {
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .retro-meta,
+        .bug-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .retro-chip,
+        .bug-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 9px;
+            border-radius: 999px;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+
+        .retro-chip.status-open,
+        .bug-chip.status-open {
+            border-color: #f59e0b;
+            color: #f59e0b;
+        }
+
+        .retro-chip.status-processed,
+        .bug-chip.status-fixed {
+            border-color: #22c55e;
+            color: #22c55e;
+        }
+
+        .bug-chip.status-wontfix {
+            border-color: #94a3b8;
+            color: #94a3b8;
+        }
+
+        .retro-link,
+        .bug-link {
+            color: var(--text-link);
+            text-decoration: none;
+        }
+
+        .retro-link:hover,
+        .bug-link:hover {
+            text-decoration: underline;
+        }
+
+        .bug-description {
+            white-space: pre-wrap;
+            line-height: 1.55;
+        }
+
+        .triage-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .triage-select {
+            min-width: 140px;
+        }
+
+        .review-launch {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .review-launch select,
+        .triage-select,
+        .retros-filters select {
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text);
+            border-radius: 10px;
+            padding: 8px 10px;
+        }
+
+        .review-launch button,
+        .triage-actions button {
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text);
+            border-radius: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .review-launch button.primary {
+            background: linear-gradient(135deg, #2563eb, #0891b2);
+            color: #fff;
+            border-color: transparent;
+        }
+
+        .review-launch-status {
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        @media (max-width: 700px) {
+            .retro-card-header,
+            .bug-card-header,
+            .retros-toolbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container header-inner">
+            <div style="display:flex;align-items:center;">
+                <a href="/" class="project-back-link">Projects</a>
+                <span class="header-sep">/</span>
+                <h1>{{.ProjectName}}</h1>
+            </div>
+            <nav class="view-tabs">
+                <a href="{{.Prefix}}/" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v1.5H2V2zm0 4h12v1.5H2V6zm0 4h12v1.5H2V10zm0 4h12v1.5H2V14z"/></svg>
+                    List
+                </a>
+                <a href="{{.Prefix}}/board" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v8H6V2zm5 0h4v10h-4V2z"/></svg>
+                    Board
+                </a>
+                <a href="{{.Prefix}}/graph" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.5" cy="8" r="1.75"/><circle cx="8" cy="2.5" r="1.75"/><circle cx="13.5" cy="8" r="1.75"/><circle cx="8" cy="13.5" r="1.75"/><path d="M4.2 8h7.6M8 4.2v7.6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
+                    Graph
+                </a>
+                <a href="{{.Prefix}}/docs" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h5v2H3v10h4v2H1V1zm9 0h5v14H8v-2h4V3H10V1zM5 5h2v1H5V5zm0 2h2v1H5V7zm0 2h2v1H5V9z"/></svg>
+                    Docs
+                </a>
+                <a href="{{.Prefix}}/retros" class="view-tab active">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.75A1.75 1.75 0 014.75 1h6.5A1.75 1.75 0 0113 2.75v10.5A1.75 1.75 0 0111.25 15h-6.5A1.75 1.75 0 013 13.25V2.75zm2 .75v1.25h6V3.5H5zm0 3v1.25h6V6.5H5zm0 3v1.25h4V9.5H5z"/></svg>
+                    Retros
+                </a>
+                <a href="{{.Prefix}}/workflow-designer" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3.25A1.25 1.25 0 013.75 2h2.5A1.25 1.25 0 017.5 3.25v2.5A1.25 1.25 0 016.25 7h-2.5A1.25 1.25 0 012.5 5.75v-2.5zm6 0A1.25 1.25 0 019.75 2h2.5a1.25 1.25 0 011.25 1.25v2.5A1.25 1.25 0 0112.25 7h-2.5A1.25 1.25 0 018.5 5.75v-2.5zm-6 6A1.25 1.25 0 013.75 8h2.5A1.25 1.25 0 017.5 9.25v2.5A1.25 1.25 0 016.25 13h-2.5a1.25 1.25 0 01-1.25-1.25v-2.5zm9.25.75a.75.75 0 010 1.5H10v1.75a.75.75 0 01-1.5 0V11.5H6.75a.75.75 0 010-1.5H8.5V8.25a.75.75 0 011.5 0V10h1.75z"/></svg>
+                    Workflow
+                </a>
+                {{if .SupportsGitHub}}
+                <a href="{{.Prefix}}/github" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+                {{end}}
+            </nav>
+            <div class="theme-picker">
+                <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
+                <button class="theme-btn" data-theme="dark" title="Dark"></button>
+                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
+                <button class="theme-btn" data-theme="light" title="Light"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="retros-shell">
+        <div class="retros-toolbar">
+            <form class="retros-filters" method="GET" action="{{.Prefix}}/retros">
+                <select name="retro_status" onchange="this.form.submit()">
+                    <option value="">All retro states</option>
+                    <option value="open" {{if eq .RetroStatus "open"}}selected{{end}}>Open retros</option>
+                    <option value="processed" {{if eq .RetroStatus "processed"}}selected{{end}}>Processed retros</option>
+                </select>
+                <select name="bug_status" onchange="this.form.submit()">
+                    <option value="">All bug states</option>
+                    <option value="open" {{if eq .BugStatus "open"}}selected{{end}}>Open bugs</option>
+                    <option value="fixed" {{if eq .BugStatus "fixed"}}selected{{end}}>Fixed bugs</option>
+                    <option value="wontfix" {{if eq .BugStatus "wontfix"}}selected{{end}}>Won't fix bugs</option>
+                </select>
+                {{if or .RetroStatus .BugStatus}}
+                <a href="{{.Prefix}}/retros" class="clear-btn">Clear filters</a>
+                {{end}}
+            </form>
+
+            <div class="review-launch">
+                <select id="review-agent">
+                    <option value="claude">Claude</option>
+                    <option value="codex">Codex</option>
+                </select>
+                <button class="primary" onclick="launchRetrosReview()">Review Retros And Bugs</button>
+                <span class="review-launch-status" id="review-launch-status"></span>
+            </div>
+        </div>
+
+        <div class="retros-summary">
+            <div class="retro-summary-card">
+                <div class="retro-summary-value">{{len .Retros}}</div>
+                <div class="retro-summary-label">Visible retrospectives</div>
+            </div>
+            <div class="retro-summary-card">
+                <div class="retro-summary-value">{{index .RetroCounts "open"}}</div>
+                <div class="retro-summary-label">Open retros</div>
+            </div>
+            <div class="retro-summary-card">
+                <div class="retro-summary-value">{{index .RetroCounts "processed"}}</div>
+                <div class="retro-summary-label">Processed retros</div>
+            </div>
+            <div class="retro-summary-card">
+                <div class="retro-summary-value">{{index .BugCounts "open"}}</div>
+                <div class="retro-summary-label">Open related bugs</div>
+            </div>
+            <div class="retro-summary-card">
+                <div class="retro-summary-value">{{addCounts .BugCounts "fixed" "wontfix"}}</div>
+                <div class="retro-summary-label">Closed related bugs</div>
+            </div>
+        </div>
+
+        <section class="retros-section">
+            <h2>Retrospectives</h2>
+            <p class="retros-section-intro">Project-scoped workflow feedback saved under the project <code>retros/</code> directory.</p>
+            {{if .Retros}}
+            <div class="retro-list">
+                {{range .Retros}}
+                <article class="retro-card">
+                    <div class="retro-card-header">
+                        <div class="retro-card-title">{{if .IssueTitle}}{{.IssueTitle}}{{else}}{{.FileName}}{{end}}</div>
+                        <div class="triage-actions">
+                            <select class="triage-select" id="retro-status-{{.FileName}}">
+                                <option value="open" {{if eq .ReviewStatus "open"}}selected{{end}}>Open</option>
+                                <option value="processed" {{if eq .ReviewStatus "processed"}}selected{{end}}>Processed</option>
+                            </select>
+                            <button onclick="updateRetroStatus('{{.FileName}}')">Save</button>
+                        </div>
+                    </div>
+                    <div class="retro-meta">
+                        {{if .IssueSlug}}
+                        <span class="retro-chip">Issue <a class="retro-link" href="{{$.Prefix}}/issue/{{.IssueSlug}}">#{{.IssueSlug}}</a></span>
+                        {{end}}
+                        {{if .Status}}<span class="retro-chip">Issue status {{.Status}}</span>{{end}}
+                        {{if .System}}<span class="retro-chip">System {{.System}}</span>{{end}}
+                        {{if .Date}}<span class="retro-chip">{{.Date}}</span>{{end}}
+                        <span class="retro-chip status-{{.ReviewStatus}}">Review {{.ReviewStatus}}</span>
+                        <span class="retro-chip">{{.FileName}}</span>
+                    </div>
+                    <div class="detail-body">
+                        {{safeHTML .BodyHTML}}
+                    </div>
+                </article>
+                {{end}}
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <h2>No retrospectives yet</h2>
+                <p>Run <code>issue-cli retrospective &lt;slug&gt; --body "..."</code> to start collecting project feedback here.</p>
+            </div>
+            {{end}}
+        </section>
+
+        <section class="retros-section">
+            <h2>Related Tool Bugs</h2>
+            <p class="retros-section-intro">Global <code>bugs/</code> reports filtered down to issues that belong to this project.</p>
+            {{if .Bugs}}
+            <div class="bug-list">
+                {{range .Bugs}}
+                <article class="bug-card">
+                    <div class="bug-card-header">
+                        <div class="bug-card-title">{{if .IssueSlug}}<a class="bug-link" href="{{$.Prefix}}/issue/{{.IssueSlug}}">#{{.IssueSlug}}</a>{{else}}{{.FileName}}{{end}}</div>
+                        <div class="triage-actions">
+                            <select class="triage-select" id="bug-status-{{.FileName}}">
+                                <option value="open" {{if eq .Status "open"}}selected{{end}}>Open</option>
+                                <option value="fixed" {{if eq .Status "fixed"}}selected{{end}}>Fixed</option>
+                                <option value="wontfix" {{if eq .Status "wontfix"}}selected{{end}}>Won't fix</option>
+                            </select>
+                            <button onclick="updateBugStatus('{{.FileName}}')">Save</button>
+                        </div>
+                    </div>
+                    <div class="bug-meta">
+                        {{if .Tool}}<span class="bug-chip">{{.Tool}}</span>{{end}}
+                        {{if .Timestamp}}<span class="bug-chip">{{.Timestamp}}</span>{{end}}
+                        <span class="bug-chip status-{{.Status}}">{{.Status}}</span>
+                        <span class="bug-chip">{{.FileName}}</span>
+                    </div>
+                    <div class="bug-description">{{.Description}}</div>
+                </article>
+                {{end}}
+            </div>
+            {{else}}
+            <div class="empty-state">
+                <h2>No related tool bugs</h2>
+                <p>Bug reports in the global <code>bugs/</code> directory will appear here when they reference an issue from this project.</p>
+            </div>
+            {{end}}
+        </section>
+    </div>
+    <script>
+    var prefix = "{{.Prefix}}";
+
+    function launchRetrosReview() {
+        var agent = document.getElementById('review-agent').value;
+        var statusEl = document.getElementById('review-launch-status');
+        statusEl.textContent = 'Launching review...';
+        fetch(prefix + '/retros/review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent: agent })
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (data.status !== 'dispatched') {
+                throw new Error(data.status || 'launch failed');
+            }
+            statusEl.textContent = 'Started ' + agent + ' in session ' + data.session;
+        })
+        .catch(function(err) {
+            statusEl.textContent = 'Launch failed: ' + err.message;
+        });
+    }
+
+    function updateRetroStatus(fileName) {
+        var select = document.getElementById('retro-status-' + fileName);
+        fetch(prefix + '/retros/retro/' + encodeURIComponent(fileName) + '/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: select.value })
+        }).then(function(resp) {
+            if (!resp.ok) throw new Error('save failed');
+            window.location.reload();
+        }).catch(function(err) {
+            alert('Retro save failed: ' + err.message);
+        });
+    }
+
+    function updateBugStatus(fileName) {
+        var select = document.getElementById('bug-status-' + fileName);
+        fetch(prefix + '/retros/bug/' + encodeURIComponent(fileName) + '/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: select.value })
+        }).then(function(resp) {
+            if (!resp.ok) throw new Error('save failed');
+            window.location.reload();
+        }).catch(function(err) {
+            alert('Bug save failed: ' + err.message);
+        });
+    }
+    </script>
+    <script src="/static/auto-refresh.js"></script>
+</body>
+</html>

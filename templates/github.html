@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — GitHub</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z' fill='%238b949e'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+    <style>
+        .gh-shell {
+            width: min(1180px, calc(100vw - 32px));
+            margin: 20px auto 32px;
+        }
+
+        .gh-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .gh-repo-badge {
+            font-family: var(--font-mono, monospace);
+            font-size: 13px;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px 10px;
+        }
+
+        .gh-button {
+            background: color-mix(in srgb, var(--text-link) 12%, transparent);
+            color: var(--text-link);
+            border: 1px solid color-mix(in srgb, var(--text-link) 35%, transparent);
+            border-radius: 6px;
+            padding: 7px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .gh-button:hover:not(:disabled) {
+            background: color-mix(in srgb, var(--text-link) 20%, transparent);
+            border-color: color-mix(in srgb, var(--text-link) 55%, transparent);
+        }
+        .gh-button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .gh-button.secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        .gh-button.secondary:hover:not(:disabled) {
+            border-color: var(--text-link);
+        }
+
+        .gh-status {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        .gh-status.error { color: #f85149; }
+
+        .gh-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .gh-row {
+            display: grid;
+            grid-template-columns: 28px 56px 1fr auto;
+            gap: 12px;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+        .gh-row.imported { opacity: 0.55; }
+
+        .gh-row input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; }
+        .gh-row input[type=checkbox]:disabled { cursor: not-allowed; }
+
+        .gh-number {
+            font-family: var(--font-mono, monospace);
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .gh-title { font-weight: 500; }
+
+        .gh-labels {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+        .gh-label {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: var(--bg-tertiary, #30363d);
+            color: var(--text-secondary);
+        }
+
+        .gh-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .gh-empty {
+            text-align: center;
+            padding: 48px 16px;
+            color: var(--text-secondary);
+        }
+
+        .gh-import-bar {
+            position: sticky;
+            bottom: 0;
+            margin-top: 20px;
+            padding: 12px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container header-inner">
+            <div style="display:flex;align-items:center;">
+                <a href="/" class="project-back-link">Projects</a>
+                <span class="header-sep">/</span>
+                <h1>{{.ProjectName}}</h1>
+            </div>
+            <nav class="view-tabs">
+                <a href="{{.Prefix}}/" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v1.5H2V2zm0 4h12v1.5H2V6zm0 4h12v1.5H2V10zm0 4h12v1.5H2V14z"/></svg>
+                    List
+                </a>
+                <a href="{{.Prefix}}/board" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v8H6V2zm5 0h4v10h-4V2z"/></svg>
+                    Board
+                </a>
+                <a href="{{.Prefix}}/graph" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.5" cy="8" r="1.75"/><circle cx="8" cy="2.5" r="1.75"/><circle cx="13.5" cy="8" r="1.75"/><circle cx="8" cy="13.5" r="1.75"/><path d="M4.2 8h7.6M8 4.2v7.6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
+                    Graph
+                </a>
+                <a href="{{.Prefix}}/docs" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h5v2H3v10h4v2H1V1zm9 0h5v14H8v-2h4V3H10V1zM5 5h2v1H5V5zm0 2h2v1H5V7zm0 2h2v1H5V9z"/></svg>
+                    Docs
+                </a>
+                <a href="{{.Prefix}}/retros" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.75A1.75 1.75 0 014.75 1h6.5A1.75 1.75 0 0113 2.75v10.5A1.75 1.75 0 0111.25 15h-6.5A1.75 1.75 0 013 13.25V2.75zm2 .75v1.25h6V3.5H5zm0 3v1.25h6V6.5H5zm0 3v1.25h4V9.5H5z"/></svg>
+                    Retros
+                </a>
+                <a href="{{.Prefix}}/workflow-designer" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3.25A1.25 1.25 0 013.75 2h2.5A1.25 1.25 0 017.5 3.25v2.5A1.25 1.25 0 016.25 7h-2.5A1.25 1.25 0 012.5 5.75v-2.5zm6 0A1.25 1.25 0 019.75 2h2.5a1.25 1.25 0 011.25 1.25v2.5A1.25 1.25 0 0112.25 7h-2.5A1.25 1.25 0 018.5 5.75v-2.5zm-6 6A1.25 1.25 0 013.75 8h2.5A1.25 1.25 0 017.5 9.25v2.5A1.25 1.25 0 016.25 13h-2.5a1.25 1.25 0 01-1.25-1.25v-2.5zm9.25.75a.75.75 0 010 1.5H10v1.75a.75.75 0 01-1.5 0V11.5H6.75a.75.75 0 010-1.5H8.5V8.25a.75.75 0 011.5 0V10h1.75z"/></svg>
+                    Workflow
+                </a>
+                <a href="{{.Prefix}}/github" class="view-tab active">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+            </nav>
+            <div class="theme-picker">
+                <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
+                <button class="theme-btn" data-theme="dark" title="Dark"></button>
+                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
+                <button class="theme-btn" data-theme="light" title="Light"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="gh-shell">
+        <div class="gh-toolbar">
+            <div>
+                {{if .Repo}}
+                    <span class="gh-repo-badge">{{.Repo}}</span>
+                {{else}}
+                    <span class="gh-status error">No `repo` configured for this project in projects.yaml.</span>
+                {{end}}
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <span id="gh-status" class="gh-status"></span>
+                <button id="gh-sync-btn" class="gh-button" {{if not .Repo}}disabled{{end}}>Sync from GitHub</button>
+            </div>
+        </div>
+
+        <div id="gh-list" class="gh-list"></div>
+
+        <div id="gh-empty" class="gh-empty" style="display:none;">
+            No unimported issues — everything on GitHub is already local.
+        </div>
+
+        <div id="gh-import-bar" class="gh-import-bar" style="display:none;">
+            <span id="gh-selected-count">0 selected</span>
+            <div style="display:flex;gap:8px;">
+                <button id="gh-select-all" class="gh-button secondary">Toggle all</button>
+                <button id="gh-import-btn" class="gh-button" disabled>Import selected</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const prefix = {{.Prefix}};
+        const statusEl = document.getElementById('gh-status');
+        const listEl = document.getElementById('gh-list');
+        const emptyEl = document.getElementById('gh-empty');
+        const importBar = document.getElementById('gh-import-bar');
+        const syncBtn = document.getElementById('gh-sync-btn');
+        const importBtn = document.getElementById('gh-import-btn');
+        const selectAllBtn = document.getElementById('gh-select-all');
+        const selectedCountEl = document.getElementById('gh-selected-count');
+
+        function setStatus(msg, isError) {
+            statusEl.textContent = msg || '';
+            statusEl.classList.toggle('error', !!isError);
+        }
+
+        function updateSelectedCount() {
+            const boxes = listEl.querySelectorAll('input[type=checkbox]:not(:disabled):checked');
+            selectedCountEl.textContent = boxes.length + ' selected';
+            importBtn.disabled = boxes.length === 0;
+        }
+
+        function render(issues) {
+            listEl.innerHTML = '';
+            const unimported = issues.filter(i => !i.Imported);
+            if (issues.length === 0) {
+                emptyEl.style.display = 'block';
+                emptyEl.textContent = 'No open issues on GitHub.';
+                importBar.style.display = 'none';
+                return;
+            }
+            if (unimported.length === 0) {
+                emptyEl.style.display = 'block';
+                emptyEl.textContent = 'No unimported issues — everything on GitHub is already local.';
+                importBar.style.display = 'none';
+                return;
+            }
+            emptyEl.style.display = 'none';
+            importBar.style.display = 'flex';
+
+            for (const iss of issues) {
+                const row = document.createElement('div');
+                row.className = 'gh-row' + (iss.imported ? ' imported' : '');
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = iss.number;
+                cb.checked = !iss.imported;
+                cb.disabled = iss.imported;
+                cb.addEventListener('change', updateSelectedCount);
+
+                const num = document.createElement('div');
+                num.className = 'gh-number';
+                num.textContent = '#' + iss.number;
+
+                const main = document.createElement('div');
+                const title = document.createElement('div');
+                title.className = 'gh-title';
+                title.textContent = iss.title;
+                main.appendChild(title);
+                if (iss.labels && iss.labels.length) {
+                    const labels = document.createElement('div');
+                    labels.className = 'gh-labels';
+                    for (const l of iss.labels) {
+                        const chip = document.createElement('span');
+                        chip.className = 'gh-label';
+                        chip.textContent = l.name || '';
+                        labels.appendChild(chip);
+                    }
+                    main.appendChild(labels);
+                }
+
+                const meta = document.createElement('div');
+                meta.className = 'gh-meta';
+                meta.textContent = iss.imported ? 'already imported' : (iss.updatedAt ? new Date(iss.updatedAt).toISOString().slice(0,10) : '');
+
+                row.append(cb, num, main, meta);
+                listEl.appendChild(row);
+            }
+            updateSelectedCount();
+        }
+
+        async function sync() {
+            syncBtn.disabled = true;
+            setStatus('Fetching from GitHub…');
+            try {
+                const r = await fetch(prefix + '/github/fetch', { method: 'POST' });
+                if (!r.ok) throw new Error(await r.text());
+                const data = await r.json();
+                render(data.issues || []);
+                setStatus((data.issues || []).length + ' issues fetched');
+            } catch (e) {
+                setStatus(String(e).slice(0, 300), true);
+            } finally {
+                syncBtn.disabled = false;
+            }
+        }
+
+        async function importSelected() {
+            const nums = Array.from(listEl.querySelectorAll('input[type=checkbox]:not(:disabled):checked'))
+                .map(cb => parseInt(cb.value, 10));
+            if (nums.length === 0) return;
+            importBtn.disabled = true;
+            setStatus('Importing ' + nums.length + ' issue(s)…');
+            try {
+                const r = await fetch(prefix + '/github/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ numbers: nums }),
+                });
+                if (!r.ok) throw new Error(await r.text());
+                const data = await r.json();
+                const failed = (data.results || []).filter(x => !x.ok);
+                setStatus('Imported ' + data.imported + '/' + nums.length + (failed.length ? ' (' + failed.length + ' failed)' : ''), failed.length > 0);
+                await sync();
+            } catch (e) {
+                setStatus(String(e).slice(0, 300), true);
+            } finally {
+                importBtn.disabled = false;
+            }
+        }
+
+        syncBtn.addEventListener('click', sync);
+        importBtn.addEventListener('click', importSelected);
+        selectAllBtn.addEventListener('click', () => {
+            const boxes = Array.from(listEl.querySelectorAll('input[type=checkbox]:not(:disabled)'));
+            const anyUnchecked = boxes.some(b => !b.checked);
+            boxes.forEach(b => b.checked = anyUnchecked);
+            updateSelectedCount();
+        });
+    })();
+    </script>
+</body>
+</html>

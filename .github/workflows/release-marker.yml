@@ -1,0 +1,133 @@
+name: Release Marker
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to generate release notes for (e.g. v0.2.0). Leave empty to use the latest tag."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release-marker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Resolve tags
+        id: tags
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "push" ]; then
+            CURRENT="${GITHUB_REF#refs/tags/}"
+          else
+            INPUT="${{ github.event.inputs.tag }}"
+            if [ -n "$INPUT" ]; then
+              CURRENT="$INPUT"
+            else
+              CURRENT="$(git describe --tags --abbrev=0)"
+            fi
+          fi
+          PREV="$(git describe --tags --abbrev=0 "${CURRENT}^" 2>/dev/null || true)"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "previous=$PREV" >> "$GITHUB_OUTPUT"
+          echo "Current:  $CURRENT"
+          echo "Previous: ${PREV:-<none>}"
+
+      - name: Generate categorized release notes
+        id: notes
+        env:
+          CURRENT: ${{ steps.tags.outputs.current }}
+          PREVIOUS: ${{ steps.tags.outputs.previous }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$PREVIOUS" ]; then
+            RANGE="${PREVIOUS}..${CURRENT}"
+          else
+            RANGE="$CURRENT"
+          fi
+
+          categorize() {
+            local sha="$1"
+            local files
+            files="$(git show --no-renames --name-only --pretty=format: "$sha" | sed '/^$/d')"
+            local cat_cli=0 cat_ui=0 cat_wf=0 cat_other=0
+            while IFS= read -r f; do
+              [ -z "$f" ] && continue
+              case "$f" in
+                cmd/issue-cli/*)                cat_cli=1 ;;
+                templates/*|static/*)           cat_ui=1 ;;
+                handlers.go|handlers_test.go|docs.go|main.go) cat_ui=1 ;;
+                workflow.yaml|workflow.yaml.example) cat_wf=1 ;;
+                internal/tracker/workflow*)     cat_wf=1 ;;
+                internal/tracker/*)             cat_other=1 ;;
+                *)                              cat_other=1 ;;
+              esac
+            done <<< "$files"
+            [ $cat_cli   -eq 1 ] && echo "CLI"
+            [ $cat_ui    -eq 1 ] && echo "UI"
+            [ $cat_wf    -eq 1 ] && echo "Workflow"
+            [ $cat_other -eq 1 ] && echo "Other"
+          }
+
+          TMP="$(mktemp -d)"
+          : > "$TMP/CLI"
+          : > "$TMP/UI"
+          : > "$TMP/Workflow"
+          : > "$TMP/Other"
+
+          for sha in $(git rev-list --reverse "$RANGE"); do
+            subject="$(git log -1 --pretty=%s "$sha")"
+            short="$(git rev-parse --short "$sha")"
+            line="- ${subject} (${short})"
+            for cat in $(categorize "$sha" | sort -u); do
+              echo "$line" >> "$TMP/$cat"
+            done
+          done
+
+          {
+            echo "## Release ${CURRENT}"
+            echo
+            if [ -n "$PREVIOUS" ]; then
+              echo "_Changes since ${PREVIOUS}._"
+            else
+              echo "_Initial tagged release._"
+            fi
+            echo
+            for cat in UI CLI Workflow Other; do
+              if [ -s "$TMP/$cat" ]; then
+                echo "### ${cat}"
+                cat "$TMP/$cat"
+                echo
+              fi
+            done
+          } > "$TMP/notes.md"
+
+          echo "---- release notes ----"
+          cat "$TMP/notes.md"
+          echo "-----------------------"
+
+          echo "path=$TMP/notes.md" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT: ${{ steps.tags.outputs.current }}
+          NOTES_PATH: ${{ steps.notes.outputs.path }}
+        run: |
+          set -euo pipefail
+          if gh release view "$CURRENT" >/dev/null 2>&1; then
+            gh release edit "$CURRENT" --notes-file "$NOTES_PATH"
+          else
+            gh release create "$CURRENT" --title "$CURRENT" --notes-file "$NOTES_PATH"
+          fi

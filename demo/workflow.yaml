@@ -1,0 +1,238 @@
+statuses:
+  - name: "idea"
+    description: "Raw idea, needs exploration"
+    prompt: |
+      Clarify the issue with the human before moving into structured design.
+      Ask focused questions to remove ambiguity around goals, scope, and success criteria.
+
+  - name: "in design"
+    description: "Being designed and specced out"
+    prompt: |
+      Review the relevant context before proposing changes.
+      Turn the problem into explicit checklists, assumptions, and open questions.
+      When the design is complete, stop and ask for backlog approval in the issue viewer before attempting the transition.
+
+  - name: "backlog"
+    description: "Ready to work on"
+    prompt: |
+      This is a handoff state.
+      Do not run `issue-cli start` until a human approves `in progress` in the issue viewer.
+
+  - name: "in progress"
+    description: "Actively being implemented"
+    prompt: |
+      Implement the accepted design and keep the issue body, implementation checklist, and test plan accurate as work progresses.
+
+  - name: "waiting-for-team-input"
+    optional: true
+    description: "Parked — blocked on another team (optional, skip if not blocked)"
+    prompt: |
+      Do not run code changes while in this status.
+      When the blocking team responds, transition back to `in progress` or forward to `testing`.
+
+  - name: "testing"
+    description: "Under verification"
+    prompt: |
+      Build or update the relevant automated coverage, record concrete test evidence, and surface any remaining manual checks clearly.
+
+  - name: "human-testing"
+    description: "Manual verification by humans"
+    prompt: |
+      Stop here and wait for human verification.
+      Make sure the manual checks are explicit, minimal, and reproducible.
+
+  - name: "documentation"
+    description: "Being documented"
+    prompt: |
+      Update the relevant docs for the change and record the documentation work clearly.
+
+  - name: "shipping"
+    description: "Commit, push, and open a PR"
+    prompt: |
+      Commit the changes with a message referencing the issue, push to the remote, and (if applicable) open a PR.
+      Tick the Shipping checklist as each step completes, then request human approval before marking done.
+
+  - name: "done"
+    description: "Completed"
+
+board:
+  columns:
+    - idea
+    - in design
+    - backlog
+    - in progress
+    - waiting-for-team-input
+    - testing
+    - human-testing
+    - documentation
+    - shipping
+    - done
+  card_fields:
+    - system
+    - labels
+    - assignee
+    - waiting
+
+transitions:
+  - from: "idea"
+    to: "in design"
+    actions:
+      - type: "validate"
+        rule: "body_not_empty"
+      - type: "append_section"
+        title: "Idea"
+        body: |
+          - [ ] Description written with enough context for someone unfamiliar
+          - [ ] Edge cases and constraints identified
+          - [ ] Scope is clear (what is NOT included)
+      - type: "append_section"
+        title: "Design"
+        body: |
+          - [ ] Acceptance criteria defined as checkboxes
+          - [ ] Dependencies identified
+          - [ ] Approach documented
+
+  - from: "in design"
+    to: "backlog"
+    actions:
+      - type: "validate"
+        rule: "has_checkboxes"
+      - type: "require_human_approval"
+        status: "backlog"
+      - type: "set_fields"
+        field: "assignee"
+        value: ""
+
+  - from: "backlog"
+    to: "in progress"
+    actions:
+      - type: "require_human_approval"
+        status: "in progress"
+      - type: "validate"
+        rule: "has_assignee"
+      - type: "append_section"
+        title: "Implementation"
+        body: |
+          - [ ] Code changes complete
+          - [ ] Tests written or updated
+      - type: "append_section"
+        title: "Test Plan"
+        body: |
+          ### Automated
+          - [ ] Automated verification recorded
+
+          ### Manual
+          - [ ] Manual verification listed if needed
+      - type: "inject_prompt"
+        prompt: |
+          Implement the change and keep the Implementation section accurate as work progresses.
+
+  - from: "in progress"
+    to: "testing"
+    actions:
+      - type: "validate"
+        rule: "all_checkboxes_checked"
+      - type: "append_section"
+        title: "Testing"
+        body: |
+          - [ ] Relevant tests for changed code passing
+          - [ ] Known unrelated failures documented if full suite is red
+          - [ ] Test results logged as comment (`issue-cli comment <slug> --text "tests: ..."`)
+      - type: "inject_prompt"
+        prompt: |
+          Run the relevant tests for the changed code, record results, and capture any remaining manual checks.
+          If unrelated failures block the full suite, document them explicitly.
+
+  - from: "testing"
+    to: "human-testing"
+    actions:
+      - type: "validate"
+        rule: "has_test_plan"
+      - type: "validate"
+        rule: "has_comment_prefix: tests:"
+      - type: "append_section"
+        title: "Human Testing"
+        body: |
+          - [ ] Human verification complete if required
+
+  - from: "human-testing"
+    to: "documentation"
+    actions:
+      - type: "require_human_approval"
+        status: "documentation"
+      - type: "append_section"
+        title: "Documentation"
+        body: |
+          - [ ] User-facing docs updated if behavior changed
+          - [ ] Docs comment added (`issue-cli comment <slug> --text "docs: ..."`)
+
+  - from: "documentation"
+    to: "shipping"
+    actions:
+      - type: "validate"
+        rule: "has_comment_prefix: docs:"
+      - type: "append_section"
+        title: "Shipping"
+        body: |
+          - [ ] Changes committed with a message referencing the issue
+          - [ ] Commit pushed to the remote
+          - [ ] PR opened if applicable
+
+  - from: "shipping"
+    to: "done"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Shipping"
+      - type: "require_human_approval"
+        status: "done"
+
+  - from: "in progress"
+    to: "waiting-for-team-input"
+    cta_label: "Block on another team — park until they respond"
+    actions:
+      - type: "require_human_approval"
+        status: "waiting-for-team-input"
+      - type: "inject_prompt"
+        prompt: |
+          Set the `waiting` frontmatter field on the issue to name the team you're blocked on, and summarise the open question in a comment before stepping away.
+
+  - from: "waiting-for-team-input"
+    to: "in progress"
+    actions:
+      - type: "inject_prompt"
+        prompt: |
+          Confirm the blocker is resolved, clear the `waiting` frontmatter field, and resume implementation.
+
+systems:
+  Combat:
+    transitions:
+      - from: "backlog"
+        to: "in progress"
+        actions:
+          - type: "inject_prompt"
+            prompt: |
+              Check combat edge cases, balance implications, and regression coverage before closing implementation.
+  UI:
+    statuses:
+      - name: "in design"
+        prompt: |
+          Review the relevant context before proposing changes.
+          Turn the problem into explicit checklists, assumptions, and open questions.
+          For UI work that launches local tools or editors, state whether to reuse existing tmux/alacritty patterns, whether handlers may block on local processes, and what feedback the user sees after launch.
+          When the design is complete, stop and ask for backlog approval in the issue viewer before attempting the transition.
+  API:
+    statuses:
+      - name: "in design"
+        prompt: |
+          Review the relevant context before proposing changes.
+          Turn the problem into explicit checklists, assumptions, and open questions.
+          For API changes that affect UI-visible state, state the source of truth, whether server-side polling plus `/hash` is the expected refresh path, and whether manual browser verification is required before human-testing.
+          When the design is complete, stop and ask for backlog approval in the issue viewer before attempting the transition.
+  CLI:
+    statuses:
+      - name: "in design"
+        prompt: |
+          Review the relevant context before proposing changes.
+          Turn the problem into explicit checklists, assumptions, and open questions.
+          Document the output contract early: whether text is human-facing or agent-facing, whether script compatibility matters, and whether `--json` or other machine-readable output is in scope for this issue.
+          When the design is complete, stop and ask for backlog approval in the issue viewer before attempting the transition.

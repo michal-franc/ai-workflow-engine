@@ -57,7 +57,12 @@ statuses:
     prompt: |
       Commit the changes with a message referencing the issue, push the commit to the remote, and note a PR link if one is opened.
       Cut a release: bump the version, create an annotated tag (e.g. `git tag -as vX.Y.Z -m "..."`), and push the tag so the release-marker workflow publishes a GitHub Release.
-      Stop and ask for `done` approval in the issue viewer once the commit is pushed and the release tag is visible on GitHub.
+      Pick the version bump by the nature of the change (semver):
+        - Bugfix only → patch bump (e.g. v0.1.0 → v0.1.1, the `x.y.Z` digit).
+        - New feature, backwards-compatible → minor bump (e.g. v0.1.1 → v0.2.0, the `x.Y.z` digit).
+        - Breaking change (CLI contract, workflow.yaml schema, or API) → major bump (e.g. v0.2.0 → v1.0.0, the `X.y.z` digit).
+      Once the release-marker workflow finishes, review the auto-generated release notes and update the GitHub release description with a human-polished summary (`gh release edit vX.Y.Z --notes "..."` or via the web UI).
+      Stop and ask for `done` approval in the issue viewer once the commit is pushed and the release description is polished.
   - name: "done"
     description: "Completed"
 
@@ -171,6 +176,7 @@ transitions:
           - [ ] Commit pushed to the remote
           - [ ] PR opened if applicable
           - [ ] Release tag created and pushed (triggers release-marker workflow)
+          - [ ] GitHub release description reviewed and updated with human-polished notes
   - from: "shipping"
     to: "done"
     actions:

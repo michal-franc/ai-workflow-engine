@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -13,6 +14,9 @@ import (
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 	"gopkg.in/yaml.v3"
 )
+
+//go:embed CHANGELOG.md
+var changelogMD string
 
 var jsonOutput bool
 
@@ -637,7 +641,7 @@ Every issue follows this lifecycle:
   issue-cli done <slug>           — finish when complete
 
 Run 'issue-cli process <topic>' for details:
-  workflow, format, transitions, testing, docs, systems, references
+  workflow, format, transitions, schema, changes, testing, docs, systems, references
 `)
 	case "workflow":
 		proj := loadProject(configPath, projectSlug)
@@ -785,6 +789,10 @@ validates that the comment exists but trusts its content.
 		for _, s := range systems {
 			fmt.Printf("  %s\n", s)
 		}
+	case "schema":
+		runProcessSchema()
+	case "changes", "changelog", "versions":
+		runProcessChanges()
 	case "references":
 		fmt.Print(`== Issue References ==
 
@@ -798,9 +806,132 @@ References are resolved by:
   3. Filename match (e.g. #321 if the file is 321.md)
 `)
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown topic: %s\n\nAvailable: workflow, format, transitions, testing, docs, systems, references\n", topic)
+		fmt.Fprintf(os.Stderr, "Unknown topic: %s\n\nAvailable: workflow, format, transitions, schema, changes, testing, docs, systems, references\n", topic)
 		os.Exit(1)
 	}
+}
+
+func runProcessSchema() {
+	fmt.Println("== workflow.yaml schema ==")
+	fmt.Println()
+	fmt.Println("Driven off Go struct tags — every field the parser honors appears here.")
+	fmt.Println("Edit workflow.yaml at the project root (or demo/workflow.yaml for the demo).")
+
+	for _, section := range tracker.WorkflowSchemaSections() {
+		fmt.Println()
+		fmt.Printf("== %s  (struct: %s) ==\n", section.Path, section.Title)
+		width := maxFieldWidth(section.Fields)
+		for _, f := range section.Fields {
+			name := f.Name
+			if f.Optional {
+				name += "?"
+			}
+			desc := f.Description
+			if desc == "" {
+				desc = "(no description)"
+			}
+			fmt.Printf("  %-*s  %-24s  %s\n", width, name, f.Type, desc)
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("== Action types (transitions[].actions[].type) ==")
+	w := maxNamedWidth(tracker.WorkflowActionTypes)
+	for _, a := range tracker.WorkflowActionTypes {
+		fmt.Printf("  %-*s  %s\n", w, a.Name, a.Description)
+	}
+
+	fmt.Println()
+	fmt.Println("== Validation rules (actions[].rule when type=validate) ==")
+	w = maxNamedWidth(tracker.WorkflowValidationRules)
+	for _, r := range tracker.WorkflowValidationRules {
+		fmt.Printf("  %-*s  %s\n", w, r.Name, r.Description)
+	}
+
+	fmt.Println()
+	fmt.Println("Fields marked with ? are optional (yaml omitempty).")
+	fmt.Println("Run 'issue-cli process changes' to see when features were added.")
+}
+
+func runProcessChanges() {
+	if strings.TrimSpace(changelogMD) == "" {
+		fmt.Println("(no changelog embedded)")
+		return
+	}
+	fmt.Println("== issue-cli / workflow release history ==")
+	fmt.Println()
+	trimmed, omitted := trimChangelogToVersions(changelogMD, 20)
+	fmt.Print(trimmed)
+	if !strings.HasSuffix(trimmed, "\n") {
+		fmt.Println()
+	}
+	if omitted > 0 {
+		fmt.Printf("\n(%d older version entries omitted; see cmd/issue-cli/CHANGELOG.md for the full history)\n", omitted)
+	}
+	fmt.Println()
+	fmt.Println("Run 'issue-cli process schema' to see the current workflow.yaml schema.")
+}
+
+// trimChangelogToVersions keeps the preamble (everything before the first
+// "## v" heading) plus the first `max` version sections. Returns the trimmed
+// text and the number of version sections that were dropped.
+func trimChangelogToVersions(md string, max int) (string, int) {
+	lines := strings.Split(md, "\n")
+	var preamble, kept []string
+	total, seen := 0, 0
+	seenFirst := false
+	dropping := false
+	for _, line := range lines {
+		if strings.HasPrefix(line, "## v") {
+			total++
+			if !seenFirst {
+				seenFirst = true
+			}
+			if seen < max {
+				seen++
+				dropping = false
+			} else {
+				dropping = true
+				continue
+			}
+		} else if dropping {
+			continue
+		}
+		if !seenFirst {
+			preamble = append(preamble, line)
+		} else {
+			kept = append(kept, line)
+		}
+	}
+	omitted := total - seen
+	if omitted < 0 {
+		omitted = 0
+	}
+	return strings.Join(append(preamble, kept...), "\n"), omitted
+}
+
+func maxFieldWidth(fields []tracker.SchemaFieldDoc) int {
+	w := 0
+	for _, f := range fields {
+		n := len(f.Name)
+		if f.Optional {
+			n++
+		}
+		if n > w {
+			w = n
+		}
+	}
+	return w
+}
+
+func maxNamedWidth(items []tracker.SchemaNamedDoc) int {
+	w := 0
+	for _, i := range items {
+		if len(i.Name) > w {
+			w = len(i.Name)
+		}
+	}
+	return w
 }
 
 func runNext(proj *tracker.Project, design bool, version string) {

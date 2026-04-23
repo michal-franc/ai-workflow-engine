@@ -3,6 +3,7 @@ package tracker
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -1439,5 +1440,83 @@ func TestLoadWorkflow_InvalidFile(t *testing.T) {
 	_, err := LoadWorkflow("/nonexistent/path/workflow.yaml")
 	if err == nil {
 		t.Fatal("expected error for nonexistent file")
+	}
+}
+
+func TestWorkflowSchemaSections_EveryYAMLFieldHasDescTag(t *testing.T) {
+	// Drift guard: every yaml-tagged field on any workflow struct must also
+	// carry a `desc:"..."` tag. WorkflowSchemaSections() is what
+	// `issue-cli process schema` prints, so a missing desc tag = a field
+	// that silently ships with no agent-visible documentation.
+	types := []reflect.Type{
+		reflect.TypeOf(WorkflowConfig{}),
+		reflect.TypeOf(WorkflowStatus{}),
+		reflect.TypeOf(WorkflowTransition{}),
+		reflect.TypeOf(WorkflowAction{}),
+		reflect.TypeOf(WorkflowBoardConfig{}),
+		reflect.TypeOf(WorkflowOverlay{}),
+	}
+	for _, tp := range types {
+		for i := 0; i < tp.NumField(); i++ {
+			f := tp.Field(i)
+			yamlTag := f.Tag.Get("yaml")
+			if yamlTag == "" || yamlTag == "-" {
+				continue
+			}
+			if f.Tag.Get("desc") == "" {
+				t.Errorf("%s.%s has yaml tag %q but no desc tag", tp.Name(), f.Name, yamlTag)
+			}
+		}
+	}
+}
+
+func TestWorkflowActionTypes_CoverAllHandledTypes(t *testing.T) {
+	// Every action.Type the preview switch handles must appear in
+	// WorkflowActionTypes so the schema command can document it.
+	handled := []string{
+		"validate",
+		"require_human_approval",
+		"append_section",
+		"inject_prompt",
+		"set_fields",
+	}
+	names := map[string]bool{}
+	for _, a := range WorkflowActionTypes {
+		names[a.Name] = true
+	}
+	for _, want := range handled {
+		if !names[want] {
+			t.Errorf("WorkflowActionTypes missing entry for %q", want)
+		}
+	}
+}
+
+func TestWorkflowValidationRules_CoverAllHandledRules(t *testing.T) {
+	// Every rule name checkRule recognizes must be documented. The entries
+	// include argument syntax (e.g. "approved_for: <status>"), so we match
+	// on the bare rule prefix.
+	handled := []string{
+		"body_not_empty",
+		"has_checkboxes",
+		"section_has_checkboxes",
+		"has_assignee",
+		"all_checkboxes_checked",
+		"section_checkboxes_checked",
+		"has_test_plan",
+		"has_comment_prefix",
+		"approved_for",
+		"human_approval",
+	}
+	for _, want := range handled {
+		found := false
+		for _, r := range WorkflowValidationRules {
+			if r.Name == want || strings.HasPrefix(r.Name, want+":") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("WorkflowValidationRules missing entry for %q", want)
+		}
 	}
 }

@@ -77,6 +77,8 @@ make install
 | Command                | Description                                                  |
 |:-----------------------|:-------------------------------------------------------------|
 | `process`              | Learn how the project works (run this first)                 |
+| `process schema`       | Print the `workflow.yaml` schema (fields, action types, rules) |
+| `process changes`      | Print the release history (last 20 versions)                 |
 | `start <slug>`        | Claim approved backlog issue, transition to in-progress, show next steps |
 | `next --version <v>`  | Find work for a version (backlog + in-progress + testing)    |
 | `next --design`       | Find ideas and in-design issues needing design work          |

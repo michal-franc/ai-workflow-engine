@@ -516,3 +516,141 @@ func assertContains(t *testing.T, got, want string) {
 		t.Fatalf("output missing %q\noutput:\n%s", want, got)
 	}
 }
+
+func TestProcessSchemaIncludesEveryTaggedField(t *testing.T) {
+	out := captureStdout(t, func() {
+		runProcessSchema()
+	})
+
+	// Every yaml-tagged field across every workflow struct must appear.
+	// This is the anti-drift guarantee: a new field added to a workflow
+	// struct will fail this test until it is also given a `desc:"..."` tag
+	// (and thus surfaces in the schema output).
+	for _, section := range tracker.WorkflowSchemaSections() {
+		for _, f := range section.Fields {
+			if !strings.Contains(out, f.Name) {
+				t.Errorf("schema output missing field %q from %s", f.Name, section.Path)
+			}
+			if f.Description == "" {
+				t.Errorf("field %s.%s missing desc:\"...\" tag", section.Path, f.Name)
+			}
+		}
+	}
+
+	for _, a := range tracker.WorkflowActionTypes {
+		if !strings.Contains(out, a.Name) {
+			t.Errorf("schema output missing action type %q", a.Name)
+		}
+	}
+
+	for _, r := range tracker.WorkflowValidationRules {
+		if !strings.Contains(out, r.Name) {
+			t.Errorf("schema output missing validation rule %q", r.Name)
+		}
+	}
+
+	assertContains(t, out, "workflow.yaml schema")
+	assertContains(t, out, "Action types")
+	assertContains(t, out, "Validation rules")
+}
+
+func TestProcessSchemaMarksOptionalFields(t *testing.T) {
+	out := captureStdout(t, func() {
+		runProcessSchema()
+	})
+
+	// `optional` on WorkflowStatus carries `omitempty`, so the schema must
+	// mark it as such. This anchors the '?' suffix convention.
+	assertContains(t, out, "optional?")
+	assertContains(t, out, "prompt?")
+	// `name` is required (no omitempty) — must not have a '?'.
+	if strings.Contains(out, "name?") {
+		t.Errorf("required field `name` should not be suffixed with ?")
+	}
+}
+
+func TestProcessChangesEmbedsChangelog(t *testing.T) {
+	out := captureStdout(t, func() {
+		runProcessChanges()
+	})
+
+	assertContains(t, out, "release history")
+	assertContains(t, out, "# Changelog")
+	// Every versioned entry in the embedded CHANGELOG must be reachable.
+	for _, line := range strings.Split(changelogMD, "\n") {
+		if strings.HasPrefix(line, "## v") {
+			if !strings.Contains(out, line) {
+				t.Errorf("process changes output missing version line %q", line)
+			}
+		}
+	}
+}
+
+func TestTrimChangelogToVersions(t *testing.T) {
+	t.Parallel()
+
+	md := "# Changelog\n\npreamble here\n\n"
+	for i := 25; i >= 1; i-- {
+		md += "## v0.0." + itoaLocal(i) + " — 2026-01-01\n\n- change\n\n"
+	}
+
+	trimmed, omitted := trimChangelogToVersions(md, 20)
+	if omitted != 5 {
+		t.Fatalf("omitted = %d, want 5", omitted)
+	}
+	// Preamble preserved.
+	assertContains(t, trimmed, "# Changelog")
+	assertContains(t, trimmed, "preamble here")
+	// Newest 20 kept (v0.0.25 .. v0.0.6).
+	assertContains(t, trimmed, "## v0.0.25")
+	assertContains(t, trimmed, "## v0.0.6")
+	// Older ones dropped. Use a trailing space/newline-anchored check so
+	// "## v0.0.1" does not falsely match "## v0.0.10".
+	if strings.Contains(trimmed, "## v0.0.5 ") {
+		t.Errorf("v0.0.5 should have been trimmed")
+	}
+	if strings.Contains(trimmed, "## v0.0.1 ") {
+		t.Errorf("v0.0.1 should have been trimmed")
+	}
+}
+
+func TestTrimChangelogToVersions_UnderCapKeepsAll(t *testing.T) {
+	t.Parallel()
+
+	md := "# Changelog\n\n## v0.1.1 — 2026-04-23\n\n- change\n\n## v0.1.0 — 2026-04-23\n\n- change\n"
+	trimmed, omitted := trimChangelogToVersions(md, 20)
+	if omitted != 0 {
+		t.Fatalf("omitted = %d, want 0", omitted)
+	}
+	assertContains(t, trimmed, "## v0.1.1")
+	assertContains(t, trimmed, "## v0.1.0")
+}
+
+func itoaLocal(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf []byte
+	for n > 0 {
+		buf = append([]byte{byte('0' + n%10)}, buf...)
+		n /= 10
+	}
+	return string(buf)
+}
+
+func TestChangelogEmbeddedAndHasEntries(t *testing.T) {
+	t.Parallel()
+
+	if strings.TrimSpace(changelogMD) == "" {
+		t.Fatal("changelogMD is empty — //go:embed CHANGELOG.md failed")
+	}
+	versionCount := 0
+	for _, line := range strings.Split(changelogMD, "\n") {
+		if strings.HasPrefix(line, "## v") {
+			versionCount++
+		}
+	}
+	if versionCount == 0 {
+		t.Fatal("CHANGELOG.md has no '## v...' entries")
+	}
+}

@@ -217,6 +217,62 @@ func TestSplitRule(t *testing.T) {
 	}
 }
 
+func TestStripGlobalFlags(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"project before command", []string{"--project", "foo", "show", "42"}, []string{"show", "42"}},
+		{"config before command", []string{"--config", "/tmp/p.yaml", "start", "slug"}, []string{"start", "slug"}},
+		{"json flag", []string{"--json", "show", "42"}, []string{"show", "42"}},
+		{"all three", []string{"--json", "--project", "foo", "--config", "p.yaml", "transition", "slug", "--to", "testing"},
+			[]string{"transition", "slug", "--to", "testing"}},
+		{"no global flags", []string{"show", "42"}, []string{"show", "42"}},
+		{"dangling project at end", []string{"--project"}, []string{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := stripGlobalFlags(tc.in)
+			if len(got) != len(tc.want) {
+				t.Fatalf("len mismatch: got %v, want %v", got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Errorf("at %d: got %q, want %q", i, got[i], tc.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestLoadAgentTimeline_StripsGlobalFlagsBeforeCommand(t *testing.T) {
+	workDir := t.TempDir()
+	assignee := "agent-globals"
+	dir := filepath.Join(workDir, ".agent-logs", assignee)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	logPath := filepath.Join(dir, assignee+".clilog")
+	lines := []string{
+		`{"args":["--project","demo","show","slug"],"ts":"2026-04-24T10:00:00Z"}`,
+		`{"args":["--json","--project","demo","transition","slug","--to","testing"],"ts":"2026-04-24T10:01:00Z"}`,
+	}
+	if err := os.WriteFile(logPath, []byte(strings.Join(lines, "\n")+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	events := LoadAgentTimeline(workDir, assignee)
+	if len(events) != 2 {
+		t.Fatalf("want 2 events, got %d", len(events))
+	}
+	if events[0].Kind != "show" {
+		t.Errorf("event 0 kind: got %q, want show", events[0].Kind)
+	}
+	if events[1].Kind != "transition" || events[1].ToStatus != "testing" {
+		t.Errorf("event 1: got kind=%q to=%q, want transition→testing", events[1].Kind, events[1].ToStatus)
+	}
+}
+
 func TestExtractFlag(t *testing.T) {
 	args := []string{"comment", "slug", "--text", "hello", "--extra", "world"}
 	if got := extractFlag(args, "--text"); got != "hello" {

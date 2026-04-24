@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.4.2 — 2026-04-24
+
+- Agent Timeline now strips issue-cli global flags (`--json`, `--config <val>`, `--project <val>`) from clilog entries before interpreting the subcommand, so calls like `issue-cli --project demo show 42` render as `show` instead of mis-classifying `--project` as the command. Reader-side fix: existing historical logs now render correctly.
+
 ## v0.4.1 — 2026-04-24
 
 - Agent dispatch now persists the exact briefing prompt to `.agent-logs/<session>/dispatch-prompt.txt` at dispatch time. The Agent Timeline's dispatch row replays the real prompt when the file exists and falls back to the reconstructed version (labeled `(reconstructed)`) for older logs.

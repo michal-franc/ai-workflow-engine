@@ -79,6 +79,7 @@ func LoadAgentTimeline(workDir, assignee string) []TimelineEvent {
 		if err := json.Unmarshal(scanner.Bytes(), &rec); err != nil {
 			continue
 		}
+		rec.Args = stripGlobalFlags(rec.Args)
 		if len(rec.Args) == 0 {
 			continue
 		}
@@ -150,6 +151,28 @@ func timelineEventFromRecord(rec cliLogRecord) TimelineEvent {
 		ev.Summary = strings.Join(rec.Args, " ")
 	}
 	return ev
+}
+
+// stripGlobalFlags removes issue-cli's global flags (--json, --config <val>,
+// --project <val>) so the remaining args[0] is the subcommand. logAction
+// records os.Args[1:] verbatim, so a call like `issue-cli --project foo show 42`
+// lands in the clilog with "--project" as args[0] and the timeline would
+// otherwise render that as the command.
+func stripGlobalFlags(args []string) []string {
+	out := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--json":
+			continue
+		case "--config", "--project":
+			if i+1 < len(args) {
+				i++
+			}
+			continue
+		}
+		out = append(out, args[i])
+	}
+	return out
 }
 
 func extractFlag(args []string, flag string) string {

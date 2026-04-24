@@ -97,13 +97,14 @@
     <div class="board-container">
         <div class="board">
             {{range .Columns}}
-            <div class="board-column{{if .Optional}} board-column-optional{{end}}" data-status="{{.Status}}">
+            <div class="board-column{{if .Optional}} board-column-optional{{end}}{{if .Global}} board-column-global{{end}}" data-status="{{.Status}}">
                 <div class="board-column-header" onclick="toggleColumn(this)">
                     <div class="board-column-header-top">
                         <svg class="board-column-chevron" width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M4 2l4 4-4 4"/></svg>
                         <span class="board-column-dot" style="border-color:{{statusColor .Status}}"></span>
                         <span class="board-column-title">{{.Status}}</span>
                         {{if .Optional}}<span class="board-column-optional-badge" title="Optional status — forward transitions may skip this column">optional</span>{{end}}
+                        {{if .Global}}<span class="board-column-global-badge" title="Global status — transitions from here are allowed to any status">global</span>{{end}}
                         <span class="board-column-count">{{len .Issues}}</span>
                         <button class="board-column-add" title="Add issue" onclick="event.stopPropagation(); openCreateModal('{{.Status}}')">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M7.25 1a.75.75 0 01.75.75V7h5.25a.75.75 0 010 1.5H8v5.25a.75.75 0 01-1.5 0V8.5H1.25a.75.75 0 010-1.5H6.5V1.75A.75.75 0 017.25 1z"/></svg>
@@ -201,6 +202,22 @@
             <div class="modal-actions">
                 <button class="modal-btn modal-btn-cancel" onclick="closeCreateModal()">Cancel</button>
                 <button class="modal-btn modal-btn-primary" id="create-confirm-btn" onclick="submitCreate()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transition prompt modal -->
+    <div class="modal-overlay" id="transition-modal" style="display:none">
+        <div class="modal" style="max-width:560px">
+            <div class="modal-title" id="transition-modal-title">Confirm transition</div>
+            <div class="modal-body">
+                <div id="transition-modal-summary" style="margin-bottom:12px;color:#8b949e;font-size:13px"></div>
+                <div id="transition-modal-fields"></div>
+                <div id="transition-modal-error" style="color:#f85149;font-size:13px;margin-top:8px;display:none"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="modal-btn modal-btn-cancel" id="transition-modal-cancel">Cancel</button>
+                <button class="modal-btn modal-btn-primary" id="transition-modal-confirm">Confirm</button>
             </div>
         </div>
     </div>
@@ -329,6 +346,29 @@
         });
     });
 
+    function handleDrop(e, column, cardArea) {
+        e.preventDefault();
+        column.classList.remove('drag-over');
+
+        const slug = e.dataTransfer.getData('text/plain');
+        const newStatus = column.dataset.status;
+        if (!slug || !draggedWrapper) return;
+
+        // Capture source before moving — revert uses this on cancel/block.
+        const wrapper = draggedWrapper;
+        const sourceColumn = wrapper.parentNode;
+        const sourceStatus = sourceColumn.closest('.board-column').dataset.status;
+
+        if (sourceStatus === newStatus) return;
+
+        // Optimistic move — we'll revert if the server blocks or the user cancels.
+        cardArea.appendChild(wrapper);
+        wrapper.querySelector('.board-card').classList.add('just-dropped');
+        updateColumnCounts();
+
+        startTransition(slug, newStatus, wrapper, sourceColumn);
+    }
+
     document.querySelectorAll('.board-column-cards').forEach(cardArea => {
         const column = cardArea.closest('.board-column');
 
@@ -345,32 +385,7 @@
         });
 
         cardArea.addEventListener('drop', function(e) {
-            e.preventDefault();
-            column.classList.remove('drag-over');
-
-            const slug = e.dataTransfer.getData('text/plain');
-            const newStatus = column.dataset.status;
-
-            if (!slug || !draggedWrapper) return;
-
-            // Move the card visually
-            cardArea.appendChild(draggedWrapper);
-            draggedWrapper.querySelector('.board-card').classList.add('just-dropped');
-
-            // Update column counts
-            updateColumnCounts();
-
-            // POST the status change
-            fetch(prefix + '/issue/' + slug, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus })
-            }).then(res => {
-                const toast = document.getElementById('save-toast');
-                toast.textContent = res.ok ? 'Moved to ' + newStatus : 'Error';
-                toast.className = 'save-toast ' + (res.ok ? 'show' : 'show error');
-                setTimeout(() => { toast.className = 'save-toast'; }, 3000);
-            });
+            handleDrop(e, column, cardArea);
         });
     });
 
@@ -392,30 +407,163 @@
         });
 
         header.addEventListener('drop', function(e) {
-            e.preventDefault();
-            column.classList.remove('drag-over');
-
-            const slug = e.dataTransfer.getData('text/plain');
-            const newStatus = column.dataset.status;
-
-            if (!slug || !draggedWrapper) return;
-
-            cardArea.appendChild(draggedWrapper);
-            draggedWrapper.querySelector('.board-card').classList.add('just-dropped');
-            updateColumnCounts();
-
-            fetch(prefix + '/issue/' + slug, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus })
-            }).then(res => {
-                const toast = document.getElementById('save-toast');
-                toast.textContent = res.ok ? 'Moved to ' + newStatus : 'Error';
-                toast.className = 'save-toast ' + (res.ok ? 'show' : 'show error');
-                setTimeout(() => { toast.className = 'save-toast'; }, 3000);
-            });
+            handleDrop(e, column, cardArea);
         });
     });
+
+    function revertCard(wrapper, sourceColumn) {
+        sourceColumn.appendChild(wrapper);
+        wrapper.querySelector('.board-card').classList.remove('just-dropped');
+        updateColumnCounts();
+    }
+
+    // startTransition runs the same flow as `issue-cli transition`:
+    // 1. ask the server for a preview (validation, declarative fields[])
+    // 2. if blocked → revert + toast the reason
+    // 3. if fields or human approval required → open modal; cancel reverts
+    // 4. commit via POST /issue/<slug> with status + field answers
+    function startTransition(slug, newStatus, wrapper, sourceColumn) {
+        const previewURL = prefix + '/issue/' + slug + '/transition?to=' + encodeURIComponent(newStatus);
+        fetch(previewURL).then(res => res.json().then(data => ({ ok: res.ok, data: data }))).then(result => {
+            if (!result.ok) {
+                revertCard(wrapper, sourceColumn);
+                showTransitionToast((result.data && result.data.error) || 'Preview failed', true);
+                return;
+            }
+            const preview = result.data;
+            const needsApproval = !preview.allowed && /not human-approved/i.test(preview.validation_error || '');
+
+            // Hard-blocked by a validation rule other than approval → revert.
+            if (!preview.allowed && !needsApproval) {
+                revertCard(wrapper, sourceColumn);
+                showTransitionToast(preview.validation_error || 'Transition blocked', true);
+                return;
+            }
+
+            const fields = preview.fields || [];
+            if (fields.length === 0 && !needsApproval) {
+                commitTransition(slug, newStatus, {}, wrapper, sourceColumn);
+                return;
+            }
+
+            openTransitionModal({
+                slug: slug,
+                newStatus: newStatus,
+                sourceStatus: sourceColumn.closest('.board-column').dataset.status,
+                fields: fields,
+                needsApproval: needsApproval,
+                approvalMessage: preview.validation_error || '',
+                onConfirm: function(answers) {
+                    commitTransition(slug, newStatus, answers, wrapper, sourceColumn);
+                },
+                onCancel: function() {
+                    revertCard(wrapper, sourceColumn);
+                }
+            });
+        }).catch(err => {
+            revertCard(wrapper, sourceColumn);
+            showTransitionToast('Preview failed: ' + err.message, true);
+        });
+    }
+
+    function commitTransition(slug, newStatus, answers, wrapper, sourceColumn) {
+        fetch(prefix + '/issue/' + slug, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus, fields: answers })
+        }).then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data: data })))
+          .then(result => {
+            if (!result.ok) {
+                revertCard(wrapper, sourceColumn);
+                const msg = (result.data && result.data.error) || 'Error';
+                showTransitionToast(msg, true);
+                return;
+            }
+            showTransitionToast('Moved to ' + newStatus, false);
+          })
+          .catch(err => {
+            revertCard(wrapper, sourceColumn);
+            showTransitionToast('Request failed: ' + err.message, true);
+          });
+    }
+
+    function showTransitionToast(msg, isError) {
+        const toast = document.getElementById('save-toast');
+        toast.textContent = msg;
+        toast.className = 'save-toast ' + (isError ? 'show error' : 'show');
+        setTimeout(() => { toast.className = 'save-toast'; }, 3500);
+    }
+
+    function openTransitionModal(opts) {
+        const modal = document.getElementById('transition-modal');
+        const title = document.getElementById('transition-modal-title');
+        const summary = document.getElementById('transition-modal-summary');
+        const fieldsEl = document.getElementById('transition-modal-fields');
+        const errorEl = document.getElementById('transition-modal-error');
+        const cancelBtn = document.getElementById('transition-modal-cancel');
+        const confirmBtn = document.getElementById('transition-modal-confirm');
+
+        title.textContent = opts.sourceStatus + ' → ' + opts.newStatus;
+        summary.textContent = opts.needsApproval
+            ? 'Human approval is required for this transition.'
+            : 'Fill the required fields to commit the move.';
+
+        fieldsEl.innerHTML = '';
+        (opts.fields || []).forEach(function(f) {
+            const label = document.createElement('label');
+            label.style.display = 'block';
+            label.style.margin = '8px 0 4px';
+            label.style.fontSize = '13px';
+            label.textContent = f.prompt + (f.required ? ' *' : '');
+            const input = f.type === 'multiline'
+                ? document.createElement('textarea')
+                : document.createElement('input');
+            if (f.type !== 'multiline') input.type = 'text';
+            input.className = 'modal-input';
+            input.dataset.fieldName = f.name;
+            input.dataset.fieldRequired = f.required ? '1' : '';
+            if (f.type === 'multiline') { input.rows = 4; input.style.resize = 'vertical'; input.style.fontFamily = 'monospace'; input.style.fontSize = '13px'; }
+            fieldsEl.appendChild(label);
+            fieldsEl.appendChild(input);
+        });
+
+        if (opts.needsApproval && (opts.fields || []).length === 0) {
+            const note = document.createElement('div');
+            note.style.fontSize = '13px';
+            note.textContent = opts.approvalMessage
+                + ' Approve the issue in the detail view first, or click Cancel to revert.';
+            fieldsEl.appendChild(note);
+        }
+
+        errorEl.style.display = 'none';
+        errorEl.textContent = '';
+
+        function cleanup() {
+            modal.style.display = 'none';
+            cancelBtn.onclick = null;
+            confirmBtn.onclick = null;
+        }
+        cancelBtn.onclick = function() { cleanup(); opts.onCancel(); };
+        confirmBtn.onclick = function() {
+            const answers = {};
+            const inputs = fieldsEl.querySelectorAll('[data-field-name]');
+            for (const el of inputs) {
+                const val = el.value.trim();
+                if (el.dataset.fieldRequired && !val) {
+                    errorEl.textContent = 'Please fill: ' + el.previousElementSibling.textContent.replace(/ \*$/, '');
+                    errorEl.style.display = '';
+                    el.focus();
+                    return;
+                }
+                answers[el.dataset.fieldName] = val;
+            }
+            cleanup();
+            opts.onConfirm(answers);
+        };
+        modal.style.display = '';
+        const first = fieldsEl.querySelector('input, textarea');
+        if (first) setTimeout(() => first.focus(), 50);
+    }
 
     function updateColumnCounts() {
         document.querySelectorAll('.board-column').forEach(col => {

@@ -30,6 +30,17 @@ statuses:
       Do not run code changes while in this status.
       When the blocking team responds, transition back to `in progress` or forward to `testing`.
 
+  - name: "deferred"
+    optional: true
+    global: true
+    description: "Parked with no owner — captured for later, may or may not be picked up"
+    prompt: |
+      Do not work this issue while it is deferred. Check the `deferred_to` frontmatter
+      field to see who or what it is waiting on, and the Deferred Record section for
+      the reason it was parked.
+      When the blocker clears, drag the card to any status — deferred is marked `global`
+      so there is no linear workflow constraint on the way out.
+
   - name: "testing"
     description: "Under verification"
     prompt: |
@@ -62,6 +73,7 @@ board:
     - backlog
     - in progress
     - waiting-for-team-input
+    - deferred
     - testing
     - human-testing
     - documentation
@@ -72,6 +84,7 @@ board:
     - labels
     - assignee
     - waiting
+    - deferred_to
 
 transitions:
   - from: "idea"
@@ -202,6 +215,40 @@ transitions:
       - type: "inject_prompt"
         prompt: |
           Confirm the blocker is resolved, clear the `waiting` frontmatter field, and resume implementation.
+
+  # Demo of declarative transitions[].fields[] with a wildcard source: dragging
+  # a card from ANY column to `deferred` matches this rule, prompts for the
+  # answers, writes `deferred_to` to frontmatter, and appends the reason to
+  # ## Deferred Record before the move commits. Cancelling reverts the card.
+  - from: "*"
+    to: "deferred"
+    cta_label: "Defer — park with an owner and reason"
+    fields:
+      - name: "deferred_to"
+        prompt: "Deferred to whom?"
+        target: "frontmatter"
+        required: true
+      - name: "deferral_reason"
+        prompt: "Reason for deferral"
+        target: "section:Deferred Record"
+        required: true
+        type: "multiline"
+    actions:
+      - type: "append_section"
+        title: "Deferred Record"
+        body: |
+          - [ ] Revisit once the blocker is cleared
+      - type: "set_fields"
+        field: "assignee"
+        value: ""
+
+  - from: "deferred"
+    to: "in design"
+    actions:
+      - type: "inject_prompt"
+        prompt: |
+          The deferral is over. Clear the `deferred_to` frontmatter field if the owner
+          has handed the issue back, and refresh the Design section with any new context.
 
 systems:
   Combat:

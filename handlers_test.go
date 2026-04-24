@@ -1068,7 +1068,10 @@ func TestSessionMatchesIssue(t *testing.T) {
 
 // --- handleUpdateIssue ---
 
-func TestHandleUpdateIssue_UpdatesStatus(t *testing.T) {
+func TestHandleUpdateIssue_BlocksIllegalStatusJump(t *testing.T) {
+	// Status-only updates route through the workflow engine; jumping
+	// "in progress" → "done" skips required intermediate statuses and is
+	// blocked with 409, same as `issue-cli transition`.
 	proj, _ := setupTestProject(t)
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
@@ -1080,27 +1083,153 @@ func TestHandleUpdateIssue_UpdatesStatus(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("expected 409, got %d", resp.StatusCode)
+	}
+	var result map[string]string
+	json.NewDecoder(resp.Body).Decode(&result)
+	if result["error"] == "" {
+		t.Fatalf("expected error message, got %v", result)
+	}
+
+	// File must be untouched on a blocked transition.
+	issues, _ := tracker.LoadIssues(proj.IssueDir)
+	for _, issue := range issues {
+		if issue.Slug == "bug-in-login" && issue.Status != "in progress" {
+			t.Fatalf("issue mutated despite block: status=%s", issue.Status)
+		}
+	}
+}
+
+func TestHandleUpdateIssue_AdjacentStatusTransition(t *testing.T) {
+	// Legal adjacent transition ("in progress" → "testing") passes through the
+	// engine and applies workflow actions (e.g. appends ## Testing).
+	proj, _ := setupTestProject(t)
+	// Prepare the issue with the checkboxes ## Implementation + test plan so
+	// validation passes.
+	issuePath := filepath.Join(proj.IssueDir, "bug-in-login.md")
+	content := `---
+title: "Bug in login"
+status: "in progress"
+assignee: "alice"
+---
+
+## Implementation
+- [x] done
+
+## Test Plan
+### Automated
+- [ ] a
+
+### Manual
+- [ ] m
+`
+	if err := os.WriteFile(issuePath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	body := `{"status":"testing"}`
+	resp, err := http.Post(ts.URL+"/p/test-project/issue/bug-in-login", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
 	}
 
-	var result map[string]string
-	json.NewDecoder(resp.Body).Decode(&result)
-	if result["status"] != "ok" {
-		t.Fatalf("expected status ok, got %v", result)
-	}
-
-	// Verify the file was updated
 	issues, _ := tracker.LoadIssues(proj.IssueDir)
 	for _, issue := range issues {
 		if issue.Slug == "bug-in-login" {
-			if issue.Status != "done" {
-				t.Fatalf("expected status 'done', got '%s'", issue.Status)
+			if issue.Status != "testing" {
+				t.Fatalf("status = %s, want testing", issue.Status)
+			}
+			if !strings.Contains(issue.BodyRaw, "## Testing") {
+				t.Fatalf("expected ## Testing section appended, body:\n%s", issue.BodyRaw)
 			}
 			return
 		}
 	}
-	t.Fatal("issue not found after update")
+	t.Fatal("issue not found")
+}
+
+func TestHandleUpdateIssue_BodyOnlyBypassesEngine(t *testing.T) {
+	// Body edits from the detail view do not touch status and must not trigger
+	// the workflow engine.
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	body := `{"body":"Updated body text"}`
+	resp, err := http.Post(ts.URL+"/p/test-project/issue/bug-in-login", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	issues, _ := tracker.LoadIssues(proj.IssueDir)
+	for _, issue := range issues {
+		if issue.Slug == "bug-in-login" {
+			if issue.Status != "in progress" {
+				t.Fatalf("status mutated unexpectedly: %s", issue.Status)
+			}
+			if !strings.Contains(issue.BodyRaw, "Updated body text") {
+				t.Fatalf("body not updated:\n%s", issue.BodyRaw)
+			}
+			return
+		}
+	}
+	t.Fatal("issue not found")
+}
+
+func TestHandleTransitionPreview_ExposesFields(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	// Provide a workflow with a declarative field on an adjacent transition.
+	workflowPath := filepath.Join(t.TempDir(), "workflow.yaml")
+	wfSrc := `
+statuses:
+  - name: "in progress"
+  - name: "testing"
+transitions:
+  - from: "in progress"
+    to: "testing"
+    fields:
+      - name: deferred_to
+        prompt: "Who is covering?"
+        target: frontmatter
+        required: true
+`
+	if err := os.WriteFile(workflowPath, []byte(wfSrc), 0644); err != nil {
+		t.Fatal(err)
+	}
+	proj.WorkflowFile = workflowPath
+
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/p/test-project/issue/bug-in-login/transition?to=testing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var preview tracker.TransitionPreview
+	if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
+		t.Fatal(err)
+	}
+	if len(preview.Fields) != 1 || preview.Fields[0].Name != "deferred_to" {
+		t.Fatalf("unexpected preview fields: %+v", preview.Fields)
+	}
 }
 
 func TestHandleUpdateIssue_UpdatesPriority(t *testing.T) {

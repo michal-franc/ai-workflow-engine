@@ -281,16 +281,17 @@ func LoadIssues(dir string) ([]*Issue, error) {
 }
 
 type IssueUpdate struct {
-	Title         *string  `json:"title,omitempty"`
-	Status        *string  `json:"status,omitempty"`
-	Priority      *string  `json:"priority,omitempty"`
-	Version       *string  `json:"version,omitempty"`
-	Assignee      *string  `json:"assignee,omitempty"`
-	HumanApproval *string  `json:"human_approval,omitempty"`
-	StartedAt     *string  `json:"started_at,omitempty"`
-	DoneAt        *string  `json:"done_at,omitempty"`
-	Labels        []string `json:"labels,omitempty"`
-	Body          *string  `json:"body,omitempty"`
+	Title         *string           `json:"title,omitempty"`
+	Status        *string           `json:"status,omitempty"`
+	Priority      *string           `json:"priority,omitempty"`
+	Version       *string           `json:"version,omitempty"`
+	Assignee      *string           `json:"assignee,omitempty"`
+	HumanApproval *string           `json:"human_approval,omitempty"`
+	StartedAt     *string           `json:"started_at,omitempty"`
+	DoneAt        *string           `json:"done_at,omitempty"`
+	Labels        []string          `json:"labels,omitempty"`
+	Body          *string           `json:"body,omitempty"`
+	ExtraFields   map[string]string `json:"extra_fields,omitempty"`
 }
 
 func AppendIssueBody(body, text string) (string, bool, error) {
@@ -522,6 +523,25 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 	}
 	if update.Labels != nil {
 		fmRaw = setLabels(fmRaw, update.Labels)
+	}
+
+	if len(update.ExtraFields) > 0 {
+		keys := make([]string, 0, len(update.ExtraFields))
+		for k := range update.ExtraFields {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			if ProtectedFrontmatterFields[k] || !frontmatterKeyRe.MatchString(k) {
+				continue
+			}
+			v := update.ExtraFields[k]
+			if v == "" {
+				fmRaw = removeFrontmatterKey(fmRaw, k)
+			} else {
+				fmRaw = setFrontmatterScalar(fmRaw, k, v)
+			}
+		}
 	}
 
 	if update.Body != nil {

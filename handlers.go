@@ -374,6 +374,8 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleDispatchAgent(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/edit-in-nvim") && r.Method == http.MethodPost:
 		s.handleEditIssueInNvim(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/transition") && r.Method == http.MethodGet:
+		s.handleTransitionPreview(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/approve") && r.Method == http.MethodPost:
 		s.handleApproveIssue(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/delete") && r.Method == http.MethodPost:
@@ -697,6 +699,7 @@ type BoardColumn struct {
 	Status      string
 	Description string
 	Optional    bool
+	Global      bool
 	Issues      []*IssueView
 }
 
@@ -935,10 +938,12 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 	for _, st := range statusOrder {
 		desc := statusDescs[st]
 		optional := false
+		global := false
 		if ws := wf.GetStatus(st); ws != nil {
 			optional = ws.Optional
+			global = ws.Global
 		}
-		columns = append(columns, &BoardColumn{Status: st, Description: desc, Optional: optional, Issues: byStatus[st]})
+		columns = append(columns, &BoardColumn{Status: st, Description: desc, Optional: optional, Global: global, Issues: byStatus[st]})
 		added[st] = true
 	}
 	for st := range seen {
@@ -1833,6 +1838,15 @@ func (s *Server) handleDocPage(w http.ResponseWriter, r *http.Request, proj *tra
 
 // --- Update Issue ---
 
+// updateIssuePayload combines a plain IssueUpdate with the answers collected
+// from a workflow transition's declarative fields[]. When Status is set to a
+// value different from the issue's current status, the server routes through
+// the workflow engine so the web path matches `issue-cli transition`.
+type updateIssuePayload struct {
+	tracker.IssueUpdate
+	Fields map[string]string `json:"fields,omitempty"`
+}
+
 func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
 	slug := strings.TrimPrefix(r.URL.Path, prefix+"/issue/")
 	if slug == "" {
@@ -1859,18 +1873,39 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 		return
 	}
 
-	var update tracker.IssueUpdate
-	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+	var payload updateIssuePayload
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
 		return
 	}
+	update := payload.IssueUpdate
 
-	if err := tracker.UpdateIssueFrontmatter(found.FilePath, update); err != nil {
-		http.Error(w, "update failed: "+err.Error(), http.StatusInternalServerError)
-		return
+	// Status changes route through the workflow engine so the board path matches
+	// `issue-cli transition` — validation, actions, declarative fields.
+	if update.Status != nil && *update.Status != found.Status {
+		wf := proj.LoadWorkflowForIssue(found)
+		_, _, terr := wf.ApplyTransitionToFileWithFields(found.FilePath, *update.Status, payload.Fields)
+		if terr != nil {
+			writeTransitionError(w, terr)
+			return
+		}
+		// The engine wrote status/body/fields atomically. Strip Status/Body/
+		// ExtraFields from the remaining update so we don't double-write — any
+		// remaining fields (title, priority, labels, etc.) still go through the
+		// plain writer.
+		update.Status = nil
+		update.Body = nil
+		update.ExtraFields = nil
 	}
 
-	if update.Status != nil && *update.Status == "done" && proj.SupportsGitHub && found.Repo != "" && found.Number > 0 {
+	if hasNonStatusUpdates(update) {
+		if err := tracker.UpdateIssueFrontmatter(found.FilePath, update); err != nil {
+			http.Error(w, "update failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	if payload.Status != nil && *payload.Status == "done" && proj.SupportsGitHub && found.Repo != "" && found.Number > 0 {
 		go closeGithubIssue(found)
 	}
 
@@ -1890,6 +1925,24 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "slug": newSlug})
+}
+
+func hasNonStatusUpdates(u tracker.IssueUpdate) bool {
+	return u.Title != nil || u.Priority != nil || u.Version != nil || u.Assignee != nil ||
+		u.HumanApproval != nil || u.StartedAt != nil || u.DoneAt != nil ||
+		u.Labels != nil || u.Body != nil || len(u.ExtraFields) > 0
+}
+
+// writeTransitionError emits an HTTP 409 with a JSON body the board UI can
+// render as a toast. 409 is used instead of 500 because these errors are
+// user-correctable (approve in viewer, check boxes, fill required fields).
+func writeTransitionError(w http.ResponseWriter, err error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusConflict)
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "error",
+		"error":  err.Error(),
+	})
 }
 
 func closeGithubIssue(issue *tracker.Issue) {
@@ -1914,6 +1967,37 @@ func closeGithubIssue(issue *tracker.Issue) {
 }
 
 // --- Comments ---
+
+// handleTransitionPreview answers GET /p/<proj>/issue/<slug>/transition?to=<status>
+// with the TransitionPreview (steps, allowed/validation_error, declarative
+// fields[]). The board uses this to decide whether to open a prompt modal,
+// and what to render in it, before POSTing the actual status change.
+func (s *Server) handleTransitionPreview(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	slug := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, prefix+"/issue/"), "/transition")
+	if slug == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	issue := s.findIssueBySlug(proj, slug)
+	if issue == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	to := strings.TrimSpace(r.URL.Query().Get("to"))
+	if to == "" {
+		http.Error(w, "missing ?to=<status>", http.StatusBadRequest)
+		return
+	}
+
+	comments, _ := tracker.LoadComments(issue.FilePath)
+	wf := proj.LoadWorkflowForIssue(issue)
+	preview := wf.PreviewTransition(issue, issue.Status, to, issue.System, comments)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(preview)
+}
 
 func (s *Server) findIssueBySlug(proj *tracker.Project, slug string) *tracker.Issue {
 	issues, err := tracker.LoadIssues(proj.IssueDir)

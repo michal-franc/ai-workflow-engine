@@ -21,6 +21,11 @@ type WorkflowStatus struct {
 	// Optional marks the status as skippable on forward transitions. A transition
 	// from A to C is valid if every status strictly between them is Optional.
 	Optional bool `yaml:"optional,omitempty" desc:"Skippable on forward transitions; surfaced with a CTA in the viewer"`
+	// Global marks the status as an escape hatch: transitions FROM it to any
+	// other status are allowed, regardless of the linear lifecycle. Useful for
+	// parked states (deferred, blocked, on-hold) that should return to the
+	// lifecycle at any point without needing explicit edges for every target.
+	Global bool `yaml:"global,omitempty" desc:"Transitions from this status to any status are allowed (no lifecycle constraint)"`
 }
 
 type WorkflowAction struct {
@@ -34,10 +39,19 @@ type WorkflowAction struct {
 	Value  string `yaml:"value,omitempty" desc:"Field value for type=set_fields (empty string clears)"`
 }
 
+type WorkflowField struct {
+	Name     string `yaml:"name" json:"name" desc:"Field identifier (also frontmatter key when target=frontmatter)"`
+	Prompt   string `yaml:"prompt" json:"prompt" desc:"Human-readable prompt shown in the UI when collecting the answer"`
+	Target   string `yaml:"target,omitempty" json:"target,omitempty" desc:"frontmatter (default) or section:<Title> to append under that body section"`
+	Required bool   `yaml:"required,omitempty" json:"required,omitempty" desc:"Block the transition when the answer is empty"`
+	Type     string `yaml:"type,omitempty" json:"type,omitempty" desc:"text (default) or multiline — hint for the UI control"`
+}
+
 type WorkflowTransition struct {
-	From    string           `yaml:"from" desc:"Source status"`
+	From    string           `yaml:"from" desc:"Source status, or \"*\" to match any source (fallback when no exact edge is defined)"`
 	To      string           `yaml:"to" desc:"Target status"`
 	Actions []WorkflowAction `yaml:"actions" desc:"Ordered actions run during the transition"`
+	Fields  []WorkflowField  `yaml:"fields,omitempty" desc:"Prompts collected from the UI before the transition commits"`
 	// CTALabel overrides the default "Divert to <status>" label on the detail-view
 	// CTA button that reveals the approval widget for optional-target transitions.
 	// Only meaningful when the target status is Optional and the transition has a
@@ -136,6 +150,7 @@ type TransitionPreview struct {
 	Allowed         bool                    `json:"allowed"`
 	ValidationError string                  `json:"validation_error,omitempty"`
 	Steps           []TransitionPreviewStep `json:"steps"`
+	Fields          []WorkflowField         `json:"fields,omitempty"`
 	Result          TransitionResult        `json:"result"`
 }
 
@@ -369,7 +384,11 @@ func (w *WorkflowConfig) IsValidTransition(from, to string) bool {
 	if fi == -1 || ti == -1 {
 		return false
 	}
-	if w.GetTransition(from, to) != nil {
+	if w.ResolveTransition(from, to) != nil {
+		return true
+	}
+	// Global source: no lifecycle constraint on transitions away from it.
+	if fs := w.GetStatus(from); fs != nil && fs.Global {
 		return true
 	}
 	if ti <= fi {
@@ -393,10 +412,31 @@ func (w *WorkflowConfig) GetStatus(name string) *WorkflowStatus {
 	return nil
 }
 
+// GetTransition returns the transition with an exact (from, to) match or nil.
+// Use ResolveTransition when callers should accept wildcard (from: "*") fallbacks;
+// Merge and other structural operations must use GetTransition to avoid
+// accidentally mutating a global rule when a specific edge was intended.
 func (w *WorkflowConfig) GetTransition(from, to string) *WorkflowTransition {
 	for i := range w.Transitions {
 		t := &w.Transitions[i]
 		if t.From == from && t.To == to {
+			return t
+		}
+	}
+	return nil
+}
+
+// ResolveTransition returns the transition that governs (from, to): an exact
+// (from, to) match if one exists, otherwise the wildcard (from: "*", to)
+// fallback. Exact edges win over wildcards, so a specific rule can override a
+// global one for a particular source status.
+func (w *WorkflowConfig) ResolveTransition(from, to string) *WorkflowTransition {
+	if t := w.GetTransition(from, to); t != nil {
+		return t
+	}
+	for i := range w.Transitions {
+		t := &w.Transitions[i]
+		if t.From == "*" && t.To == to {
 			return t
 		}
 	}
@@ -420,6 +460,7 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 			From:     w.Transitions[i].From,
 			To:       w.Transitions[i].To,
 			Actions:  append([]WorkflowAction(nil), w.Transitions[i].Actions...),
+			Fields:   append([]WorkflowField(nil), w.Transitions[i].Fields...),
 			CTALabel: w.Transitions[i].CTALabel,
 		}
 	}
@@ -433,6 +474,7 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 				From:     overlay.Transitions[i].From,
 				To:       overlay.Transitions[i].To,
 				Actions:  append([]WorkflowAction(nil), overlay.Transitions[i].Actions...),
+				Fields:   append([]WorkflowField(nil), overlay.Transitions[i].Fields...),
 				CTALabel: overlay.Transitions[i].CTALabel,
 			}
 		}
@@ -479,7 +521,7 @@ func (w *WorkflowConfig) StatusPrompt(name string) string {
 }
 
 func (w *WorkflowConfig) transitionActions(from, to string) []WorkflowAction {
-	if t := w.GetTransition(from, to); t != nil {
+	if t := w.ResolveTransition(from, to); t != nil {
 		return append([]WorkflowAction(nil), t.Actions...)
 	}
 
@@ -733,6 +775,7 @@ func (w *WorkflowConfig) PreviewTransition(issue *Issue, fromStatus, toStatus, s
 	}
 
 	working := *issue
+	preview.Fields = w.TransitionFields(fromStatus, toStatus)
 	actions := w.transitionActions(fromStatus, toStatus)
 	for _, action := range actions {
 		step := TransitionPreviewStep{
@@ -930,6 +973,10 @@ func (w *WorkflowConfig) checkRule(rule string, issue *Issue, comments []Comment
 }
 
 func (w *WorkflowConfig) ApplyTransition(issue *Issue, fromStatus, toStatus string) TransitionResult {
+	return w.ApplyTransitionWithFields(issue, fromStatus, toStatus, nil)
+}
+
+func (w *WorkflowConfig) ApplyTransitionWithFields(issue *Issue, fromStatus, toStatus string, fieldValues map[string]string) TransitionResult {
 	result := TransitionResult{
 		Update: IssueUpdate{
 			Status: stringPtr(toStatus),
@@ -971,6 +1018,37 @@ func (w *WorkflowConfig) ApplyTransition(issue *Issue, fromStatus, toStatus stri
 		result.BodyAppended = true
 	}
 
+	for _, field := range w.TransitionFields(fromStatus, toStatus) {
+		answer := strings.TrimSpace(fieldValues[field.Name])
+		if answer == "" {
+			continue
+		}
+		target := strings.TrimSpace(field.Target)
+		switch {
+		case target == "" || target == "frontmatter":
+			if result.Update.ExtraFields == nil {
+				result.Update.ExtraFields = map[string]string{}
+			}
+			result.Update.ExtraFields[field.Name] = answer
+		case strings.HasPrefix(target, "section:"):
+			sectionTitle := strings.TrimSpace(strings.TrimPrefix(target, "section:"))
+			if sectionTitle == "" {
+				continue
+			}
+			line := fmt.Sprintf("- **%s:** %s", field.Prompt, answer)
+			newBody, changed, err := AppendIssueBodyToSection(issue.BodyRaw, sectionTitle, line, true)
+			if err != nil {
+				continue
+			}
+			if changed {
+				result.Update.Body = &newBody
+				issue.BodyRaw = newBody
+				result.BodyChanged = true
+				result.BodyAppended = true
+			}
+		}
+	}
+
 	if issue.HumanApproval != "" {
 		result.Update.HumanApproval = stringPtr("")
 		result.ClearedApproval = true
@@ -979,7 +1057,40 @@ func (w *WorkflowConfig) ApplyTransition(issue *Issue, fromStatus, toStatus stri
 	return result
 }
 
+// TransitionFields returns the declarative fields[] for the given transition,
+// falling back to a wildcard (from: "*") edge when no exact match exists.
+// The caller is responsible for collecting the answers.
+func (w *WorkflowConfig) TransitionFields(fromStatus, toStatus string) []WorkflowField {
+	t := w.ResolveTransition(fromStatus, toStatus)
+	if t == nil {
+		return nil
+	}
+	return append([]WorkflowField(nil), t.Fields...)
+}
+
+// ValidateFieldAnswers checks required field answers are present (non-empty
+// after trimming). Returns an error naming the first missing required field.
+func (w *WorkflowConfig) ValidateFieldAnswers(fromStatus, toStatus string, fieldValues map[string]string) error {
+	for _, field := range w.TransitionFields(fromStatus, toStatus) {
+		if !field.Required {
+			continue
+		}
+		if strings.TrimSpace(fieldValues[field.Name]) == "" {
+			label := field.Prompt
+			if label == "" {
+				label = field.Name
+			}
+			return fmt.Errorf("required field %q is missing: %s", field.Name, label)
+		}
+	}
+	return nil
+}
+
 func (w *WorkflowConfig) ApplyTransitionToFile(filePath, toStatus string) (string, TransitionResult, error) {
+	return w.ApplyTransitionToFileWithFields(filePath, toStatus, nil)
+}
+
+func (w *WorkflowConfig) ApplyTransitionToFileWithFields(filePath, toStatus string, fieldValues map[string]string) (string, TransitionResult, error) {
 	var fromStatus string
 	var result TransitionResult
 
@@ -1015,8 +1126,11 @@ func (w *WorkflowConfig) ApplyTransitionToFile(filePath, toStatus string) (strin
 		if err := w.ValidateTransition(issue, fromStatus, toStatus, comments); err != nil {
 			return err
 		}
+		if err := w.ValidateFieldAnswers(fromStatus, toStatus, fieldValues); err != nil {
+			return err
+		}
 
-		result = w.ApplyTransition(issue, fromStatus, toStatus)
+		result = w.ApplyTransitionWithFields(issue, fromStatus, toStatus, fieldValues)
 		return updateIssueFrontmatterLocked(filePath, result.Update)
 	})
 
@@ -1286,6 +1400,9 @@ func (w *WorkflowConfig) Merge(custom *WorkflowConfig) {
 		if cs.Optional {
 			base.Optional = true
 		}
+		if cs.Global {
+			base.Global = true
+		}
 		base.Validation = appendUnique(base.Validation, cs.Validation)
 		base.SideEffects = appendUnique(base.SideEffects, cs.SideEffects)
 	}
@@ -1474,6 +1591,7 @@ func WorkflowSchemaSections() []SchemaSection {
 		{Path: "statuses[]", Title: "WorkflowStatus", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowStatus{}))},
 		{Path: "transitions[]", Title: "WorkflowTransition", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowTransition{}))},
 		{Path: "transitions[].actions[]", Title: "WorkflowAction", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowAction{}))},
+		{Path: "transitions[].fields[]", Title: "WorkflowField", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowField{}))},
 		{Path: "board", Title: "WorkflowBoardConfig", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowBoardConfig{}))},
 		{Path: "systems[<name>]", Title: "WorkflowOverlay", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowOverlay{}))},
 		{Path: "scoring", Title: "ScoringConfig", Fields: schemaFieldsOf(reflect.TypeOf(ScoringConfig{}))},

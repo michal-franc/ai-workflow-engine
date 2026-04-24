@@ -16,6 +16,15 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.5.0 — 2026-04-24
+
+- Board drag-and-drop now runs the same workflow engine as `issue-cli transition`. Moving a card runs validations, executes `actions[]` (`append_section`, `inject_prompt`, `set_fields`, `require_human_approval`), and blocks the move with HTTP 409 + a toast when any rule fails. Cancelling the prompt reverts the card to its source column and leaves the file untouched.
+- New `transitions[].fields[]` declarative block in `workflow.yaml`. Each field has `name`, `prompt`, `target` (`frontmatter` or `section:<Title>`), `required`, and `type` (`text` or `multiline`). Answers are captured through a modal before the transition commits. Frontmatter targets write an arbitrary scalar key; section targets append `- **<prompt>:** <answer>` under the named section.
+- New wildcard source: `from: "*"` matches any source status when no exact `from:/to:` edge is defined, so a single transition can cover every column (e.g. "defer from anywhere"). Exact edges still win over wildcards.
+- New `statuses[].global: true` flag: marks a status as an escape hatch where transitions out to any other status are allowed, with no linear-lifecycle constraint. The board column renders a `global` badge next to the existing `optional` badge.
+- New `GET /p/<proj>/issue/<slug>/transition?to=<status>` preview endpoint returns the same `PreviewTransition` struct used by the CLI, plus the declarative `fields[]` — the board uses it to decide whether to open the prompt modal and what to render in it.
+- `IssueUpdate` gains an `extra_fields` map for writing arbitrary scalar frontmatter keys; protected keys (`title`, `status`, `human_approval`, `started_at`, `done_at`, `number`, `repo`, `created`, `labels`) are always refused.
+
 ## v0.4.2 — 2026-04-24
 
 - Agent Timeline now strips issue-cli global flags (`--json`, `--config <val>`, `--project <val>`) from clilog entries before interpreting the subcommand, so calls like `issue-cli --project demo show 42` render as `show` instead of mis-classifying `--project` as the command. Reader-side fix: existing historical logs now render correctly.

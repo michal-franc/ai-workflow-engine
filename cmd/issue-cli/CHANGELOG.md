@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.4.1 — 2026-04-24
+
+- Agent dispatch now persists the exact briefing prompt to `.agent-logs/<session>/dispatch-prompt.txt` at dispatch time. The Agent Timeline's dispatch row replays the real prompt when the file exists and falls back to the reconstructed version (labeled `(reconstructed)`) for older logs.
+
 ## v0.4.0 — 2026-04-24
 
 - Agent Timeline on the issue detail view. Parses `.agent-logs/<assignee>/<assignee>.clilog` into a structured list of events (start, show, process, append, check, transition, comment, retrospective) with click-to-expand detail for bodies.

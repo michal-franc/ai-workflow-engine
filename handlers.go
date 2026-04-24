@@ -657,17 +657,22 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 	timeline := LoadAgentTimeline(proj.WorkDir, found.Assignee)
 	timeline = EnrichTimelineWithWorkflow(timeline, wf, "")
 	if len(timeline) > 0 {
-		// Reconstruct the base dispatch prompt using the inferred pre-start
-		// status (the `from` of the first transition, or current status as a
-		// fallback) so the timeline shows what the bot was briefed with.
-		briefedStatus := FirstTransitionFromStatus(timeline)
-		issueCopy := *found
-		if briefedStatus != "" {
-			issueCopy.Status = briefedStatus
+		// Prefer the exact prompt persisted at dispatch time; fall back to a
+		// reconstruction so older logs (pre-persistence) still render.
+		basePrompt := LoadDispatchPrompt(proj.WorkDir, found.Assignee)
+		summary := "dispatch — base prompt"
+		if basePrompt == "" {
+			briefedStatus := FirstTransitionFromStatus(timeline)
+			issueCopy := *found
+			if briefedStatus != "" {
+				issueCopy.Status = briefedStatus
+			}
+			basePrompt = buildAgentPrompt(&issueCopy, wf)
+			summary = "dispatch — base prompt (reconstructed)"
 		}
-		basePrompt := buildAgentPrompt(&issueCopy, wf)
-		dispatchTS := timeline[0].Timestamp
-		timeline = append([]TimelineEvent{DispatchEvent(basePrompt, dispatchTS)}, timeline...)
+		dispatchEv := DispatchEvent(basePrompt, timeline[0].Timestamp)
+		dispatchEv.Summary = summary
+		timeline = append([]TimelineEvent{dispatchEv}, timeline...)
 	}
 
 	if err := s.tmpl.ExecuteTemplate(w, "detail.html", DetailData{
@@ -2695,6 +2700,12 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 	exec.Command("tmux", "rename-window", "-t", session, windowName).Run()
 
 	os.MkdirAll(sessionLogDir, 0755)
+
+	// Persist the exact prompt the bot is briefed with so the timeline view
+	// can replay it later instead of reconstructing an approximation.
+	dispatchPromptPath := filepath.Join(sessionLogDir, "dispatch-prompt.txt")
+	_ = os.WriteFile(dispatchPromptPath, []byte(prompt), 0644)
+
 	runStep(&steps, fmt.Sprintf("Log to %s", rawLog),
 		exec.Command("tmux", "pipe-pane", "-t", session, "-o", fmt.Sprintf("cat >> %s", rawLog)))
 	runStep(&steps, fmt.Sprintf("CLI log to %s", cliLog),

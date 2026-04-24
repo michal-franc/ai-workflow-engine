@@ -9,6 +9,34 @@ import (
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
+func TestLoadDispatchPrompt(t *testing.T) {
+	workDir := t.TempDir()
+	assignee := "agent-test-dispatch"
+	dir := filepath.Join(workDir, ".agent-logs", assignee)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := LoadDispatchPrompt(workDir, assignee); got != "" {
+		t.Errorf("missing file should return empty, got %q", got)
+	}
+
+	want := "You have been assigned: Fix thing.\n\n## Goal\nDo the work."
+	if err := os.WriteFile(filepath.Join(dir, "dispatch-prompt.txt"), []byte(want), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got := LoadDispatchPrompt(workDir, assignee); got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+
+	if got := LoadDispatchPrompt("", assignee); got != "" {
+		t.Error("empty workDir should return empty")
+	}
+	if got := LoadDispatchPrompt(workDir, ""); got != "" {
+		t.Error("empty assignee should return empty")
+	}
+}
+
 func TestLoadAgentTimeline_MissingLogReturnsNil(t *testing.T) {
 	if got := LoadAgentTimeline("", ""); got != nil {
 		t.Errorf("empty inputs should return nil, got %d events", len(got))

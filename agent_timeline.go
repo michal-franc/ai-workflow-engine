@@ -40,6 +40,22 @@ type cliLogRecord struct {
 	TS   string   `json:"ts"`
 }
 
+// LoadDispatchPrompt returns the exact prompt the bot was briefed with at
+// dispatch time, persisted at <workDir>/.agent-logs/<assignee>/dispatch-prompt.txt
+// by startAgentSession. Returns empty string when the file is missing (older
+// dispatches, or issues that weren't dispatched through the viewer).
+func LoadDispatchPrompt(workDir, assignee string) string {
+	if workDir == "" || assignee == "" {
+		return ""
+	}
+	path := filepath.Join(workDir, ".agent-logs", assignee, "dispatch-prompt.txt")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 // LoadAgentTimeline reads the per-agent clilog at
 // <workDir>/.agent-logs/<assignee>/<assignee>.clilog and returns semantic
 // events in file order (oldest first). Returns nil when the log is missing

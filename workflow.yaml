@@ -173,6 +173,7 @@ transitions:
         title: "Shipping"
         body: |
           - [ ] Changes committed with a message referencing the issue
+          - [ ] `cmd/issue-cli/CHANGELOG.md` updated (offline fallback for `issue-cli process changes`)
           - [ ] Commit pushed to the remote
           - [ ] PR opened if applicable
           - [ ] Release tag created and pushed (triggers release-marker workflow)

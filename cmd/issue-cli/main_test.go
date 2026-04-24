@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -570,6 +571,12 @@ func TestProcessSchemaMarksOptionalFields(t *testing.T) {
 }
 
 func TestProcessChangesEmbedsChangelog(t *testing.T) {
+	orig := fetchReleases
+	fetchReleases = func(string) ([]githubRelease, error) {
+		return nil, fmt.Errorf("test: offline")
+	}
+	t.Cleanup(func() { fetchReleases = orig })
+
 	out := captureStdout(t, func() {
 		runProcessChanges()
 	})
@@ -583,6 +590,40 @@ func TestProcessChangesEmbedsChangelog(t *testing.T) {
 				t.Errorf("process changes output missing version line %q", line)
 			}
 		}
+	}
+}
+
+func TestProcessChangesPrefersGitHubReleases(t *testing.T) {
+	orig := fetchReleases
+	fetchReleases = func(repo string) ([]githubRelease, error) {
+		if repo != releasesRepo {
+			t.Errorf("fetchReleases called with repo %q, want %q", repo, releasesRepo)
+		}
+		return []githubRelease{
+			{
+				TagName:     "v9.9.9",
+				Name:        "v9.9.9 — test release",
+				Body:        "- first test change\n- second test change",
+				PublishedAt: "2026-04-24T10:00:00Z",
+			},
+		}, nil
+	}
+	t.Cleanup(func() { fetchReleases = orig })
+
+	out := captureStdout(t, func() {
+		runProcessChanges()
+	})
+
+	assertContains(t, out, "release history")
+	assertContains(t, out, "v9.9.9 — test release")
+	assertContains(t, out, "2026-04-24")
+	assertContains(t, out, "first test change")
+	// Must not fall through to the embedded changelog when releases succeed.
+	if strings.Contains(out, "# Changelog") {
+		t.Error("releases path should not print embedded CHANGELOG heading")
+	}
+	if strings.Contains(out, "(offline)") {
+		t.Error("releases path should not mark output as offline")
 	}
 }
 

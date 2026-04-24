@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,6 +18,44 @@ import (
 
 //go:embed CHANGELOG.md
 var changelogMD string
+
+// releasesRepo is the GitHub repo `process changes` pulls release history from.
+// CHANGELOG.md is the offline fallback when the API is unreachable.
+const releasesRepo = "michal-franc/ai-native-project-viewer"
+
+type githubRelease struct {
+	TagName     string `json:"tag_name"`
+	Name        string `json:"name"`
+	Body        string `json:"body"`
+	PublishedAt string `json:"published_at"`
+	Draft       bool   `json:"draft"`
+}
+
+// fetchReleases is a package-level var so tests can stub network calls.
+var fetchReleases = fetchReleasesFromGitHub
+
+func fetchReleasesFromGitHub(repo string) ([]githubRelease, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/releases?per_page=20", repo)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("github api %s", resp.Status)
+	}
+	var releases []githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return nil, err
+	}
+	return releases, nil
+}
 
 var jsonOutput bool
 
@@ -854,11 +893,52 @@ func runProcessSchema() {
 }
 
 func runProcessChanges() {
+	releases, err := fetchReleases(releasesRepo)
+	if err == nil && len(releases) > 0 {
+		printReleases(releases)
+		return
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not fetch releases from github (%v); using embedded CHANGELOG.md\n", err)
+	}
+	printEmbeddedChangelog()
+}
+
+func printReleases(releases []githubRelease) {
+	fmt.Println("== issue-cli / workflow release history ==")
+	fmt.Printf("(from https://github.com/%s/releases)\n\n", releasesRepo)
+	printed := 0
+	for _, r := range releases {
+		if r.Draft {
+			continue
+		}
+		title := r.Name
+		if title == "" {
+			title = r.TagName
+		}
+		date := r.PublishedAt
+		if t, perr := time.Parse(time.RFC3339, date); perr == nil {
+			date = t.Format("2006-01-02")
+		}
+		fmt.Printf("## %s — %s\n\n", title, date)
+		if body := strings.TrimSpace(r.Body); body != "" {
+			fmt.Println(body)
+			fmt.Println()
+		}
+		printed++
+		if printed >= 20 {
+			break
+		}
+	}
+	fmt.Println("Run 'issue-cli process schema' to see the current workflow.yaml schema.")
+}
+
+func printEmbeddedChangelog() {
 	if strings.TrimSpace(changelogMD) == "" {
 		fmt.Println("(no changelog embedded)")
 		return
 	}
-	fmt.Println("== issue-cli / workflow release history ==")
+	fmt.Println("== issue-cli / workflow release history (offline) ==")
 	fmt.Println()
 	trimmed, omitted := trimChangelogToVersions(changelogMD, 20)
 	fmt.Print(trimmed)

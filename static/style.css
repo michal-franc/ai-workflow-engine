@@ -2046,3 +2046,154 @@ select.modal-input option {
     color: var(--text);
     font-weight: 600;
 }
+
+/* --- Agent Timeline --- */
+.timeline-section {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+}
+.timeline-header {
+    font-size: 14px;
+    margin: 0 0 12px 0;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.timeline-count {
+    display: inline-block;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 11px;
+    margin-left: 6px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+.timeline-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+}
+.timeline-event {
+    display: grid;
+    grid-template-columns: 145px 95px 1fr;
+    gap: 10px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: baseline;
+}
+.timeline-event:last-child { border-bottom: none; }
+.timeline-time {
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+.timeline-kind {
+    color: var(--text-link);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.timeline-kind-transition .timeline-kind { color: var(--accent); }
+.timeline-kind-retrospective .timeline-kind { color: #d29922; }
+.timeline-kind-check .timeline-kind { color: var(--text-secondary); }
+.timeline-summary {
+    color: var(--text);
+    word-break: break-word;
+}
+.timeline-details { cursor: pointer; }
+.timeline-details summary {
+    color: var(--text);
+    list-style: none;
+}
+.timeline-details summary::before {
+    content: "▸ ";
+    color: var(--text-secondary);
+    font-size: 10px;
+}
+.timeline-details[open] summary::before { content: "▾ "; }
+.timeline-details summary::-webkit-details-marker { display: none; }
+.timeline-detail {
+    margin: 6px 0 10px 0;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+    font-size: 12px;
+    max-height: 400px;
+    overflow: auto;
+}
+
+/* --- Timeline actions (transition details) --- */
+.timeline-from-to {
+    color: var(--text-secondary);
+    font-weight: normal;
+    font-size: 11px;
+}
+.timeline-actions {
+    margin: 8px 0 4px 0;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+}
+.timeline-actions-label {
+    color: var(--text-secondary);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+.timeline-action-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.timeline-action {
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--border);
+}
+.timeline-action:last-child { border-bottom: none; }
+.timeline-action-type {
+    display: inline-block;
+    min-width: 130px;
+    padding: 1px 8px;
+    margin-right: 10px;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-radius: 3px;
+    font-size: 11px;
+    text-align: center;
+}
+.timeline-action-validate .timeline-action-type { color: #d29922; }
+.timeline-action-inject_prompt .timeline-action-type { color: var(--text-link); }
+.timeline-action-append_section .timeline-action-type { color: var(--accent); }
+.timeline-action-require_human_approval .timeline-action-type { color: #f85149; }
+.timeline-action-label {
+    color: var(--text);
+}
+.timeline-action-body {
+    margin: 6px 0 0 0;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+    font-size: 11px;
+    max-height: 300px;
+    overflow: auto;
+}
+
+/* Dispatch + status-prompt distinct colors */
+.timeline-kind-dispatch .timeline-kind { color: #d29922; font-weight: 700; }
+.timeline-kind-dispatch { background: rgba(210, 153, 34, 0.05); }
+.timeline-action-status_prompt .timeline-action-type { color: #d29922; }

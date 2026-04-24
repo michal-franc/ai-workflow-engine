@@ -16,6 +16,15 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.4.0 — 2026-04-24
+
+- Agent Timeline on the issue detail view. Parses `.agent-logs/<assignee>/<assignee>.clilog` into a structured list of events (start, show, process, append, check, transition, comment, retrospective) with click-to-expand detail for bodies.
+- Transition events are enriched from `workflow.yaml`: validations (with their rule descriptions), `inject_prompt` text, appended section bodies, required human-approval gates, and `set_fields` actions all render inside the expanded row.
+- `start` events show the canonical claim-to-work transition (typically `backlog → in progress`) with the same workflow actions the bot received.
+- Every transition surfaces the target status's `prompt` field as a `status_prompt` action, so the view shows the guidance the agent reads on entering each new status.
+- A synthetic `dispatch` row at the top reconstructs the base agent prompt (via `buildAgentPrompt`) using the pre-start status, approximating what the bot was briefed with at dispatch time.
+- Purely server-side: works on every existing `.clilog` file without any CLI changes.
+
 ## v0.3.1 — 2026-04-24
 
 - `issue-cli process changes` now fetches release history live from the GitHub releases API for `michal-franc/ai-native-project-viewer`. The embedded CHANGELOG.md remains as an offline fallback when the API is unreachable or rate-limited.

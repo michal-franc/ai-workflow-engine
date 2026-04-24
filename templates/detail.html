@@ -52,6 +52,42 @@
                     <textarea class="body-textarea" id="body-textarea">{{.Issue.BodyRaw}}</textarea>
                     <button class="body-save-btn" onclick="saveBody()">Save</button>
                 </div>
+
+                {{if .Timeline}}
+                <div class="timeline-section">
+                    <h3 class="timeline-header">Agent Timeline <span class="timeline-count">{{len .Timeline}}</span></h3>
+                    <ol class="timeline-list">
+                        {{range .Timeline}}
+                        <li class="timeline-event timeline-kind-{{.Kind}}">
+                            <span class="timeline-time">{{.TimeLabel}}</span>
+                            <span class="timeline-kind">{{.Kind}}</span>
+                            {{if or .Detail .Actions}}
+                            <details class="timeline-details">
+                                <summary class="timeline-summary">{{.Summary}}{{if .FromStatus}} <span class="timeline-from-to">({{.FromStatus}} → {{.ToStatus}})</span>{{end}}</summary>
+                                {{if .Actions}}
+                                <div class="timeline-actions">
+                                    <div class="timeline-actions-label">Workflow actions the bot saw:</div>
+                                    <ol class="timeline-action-list">
+                                        {{range .Actions}}
+                                        <li class="timeline-action timeline-action-{{.Type}}">
+                                            <span class="timeline-action-type">{{.Type}}</span>
+                                            <span class="timeline-action-label">{{.Label}}</span>
+                                            {{if .Body}}<pre class="timeline-action-body">{{.Body}}</pre>{{end}}
+                                        </li>
+                                        {{end}}
+                                    </ol>
+                                </div>
+                                {{end}}
+                                {{if .Detail}}<pre class="timeline-detail">{{.Detail}}</pre>{{end}}
+                            </details>
+                            {{else}}
+                            <span class="timeline-summary">{{.Summary}}</span>
+                            {{end}}
+                        </li>
+                        {{end}}
+                    </ol>
+                </div>
+                {{end}}
             </div>
 
             <div class="detail-sidebar">

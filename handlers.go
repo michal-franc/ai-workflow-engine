@@ -544,6 +544,7 @@ type DetailData struct {
 	NeedsApproval     string             // required-path next status that requires human approval, else empty
 	OptionalApprovals []OptionalApproval // optional-path transitions that require human approval, hidden behind CTAs
 	ActiveBots        int
+	Timeline          []TimelineEvent // agent↔issue-cli interactions parsed from .agent-logs/<assignee>/<assignee>.clilog
 }
 
 // OptionalApproval describes a transition to an Optional status that requires
@@ -653,6 +654,22 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		}
 	}
 
+	timeline := LoadAgentTimeline(proj.WorkDir, found.Assignee)
+	timeline = EnrichTimelineWithWorkflow(timeline, wf, "")
+	if len(timeline) > 0 {
+		// Reconstruct the base dispatch prompt using the inferred pre-start
+		// status (the `from` of the first transition, or current status as a
+		// fallback) so the timeline shows what the bot was briefed with.
+		briefedStatus := FirstTransitionFromStatus(timeline)
+		issueCopy := *found
+		if briefedStatus != "" {
+			issueCopy.Status = briefedStatus
+		}
+		basePrompt := buildAgentPrompt(&issueCopy, wf)
+		dispatchTS := timeline[0].Timestamp
+		timeline = append([]TimelineEvent{DispatchEvent(basePrompt, dispatchTS)}, timeline...)
+	}
+
 	if err := s.tmpl.ExecuteTemplate(w, "detail.html", DetailData{
 		Issue:             detailView,
 		BackURL:           backURL,
@@ -663,6 +680,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		NeedsApproval:     needsApproval,
 		OptionalApprovals: optionalApprovals,
 		ActiveBots:        activeBots,
+		Timeline:          timeline,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

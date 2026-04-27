@@ -23,11 +23,30 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli replace <slug>`       | Replace content of an existing section   |
 | `issue-cli set-meta <slug>`      | Set or clear a frontmatter field         |
 | `issue-cli process workflow`     | Print the active workflow                |
-| `issue-cli process transitions`  | Print available transitions              |
+| `issue-cli process transitions`  | Print transition rules (default workflow, or scoped via `--system <name>` or `<issue-slug>`) |
 | `issue-cli process schema`       | Print the `workflow.yaml` schema (fields, action types, validation rules) |
 | `issue-cli process changes`      | Print the release history (last 20 versions) |
 | `issue-cli report-bug "..."`     | File a bug report about issue-cli itself |
 | `issue-cli retrospective <slug>` | Save a workflow retrospective            |
+
+### `process transitions`
+
+Rules are rendered from the loaded workflow rather than a hardcoded list. Each
+row lists the validation rules, human-approval gates, and side effects
+(`set_fields`, `append_section`, `inject_prompt`) attached to the transition;
+optional and global statuses are surfaced separately.
+
+Three scopes are supported. Without arguments the default project workflow is
+printed and a hint at the bottom names any per-system overlays and points at
+the scoping flags. Passing `--system <name>` (alias `--workflow <name>`)
+prints the rules merged with that system's overlay. Passing an issue slug
+resolves the issue's `system` field and prints the scoped rules; issues with
+no system explicitly say `(no system overlay; project default)` so agents do
+not mistake the default output for an issue-specific one.
+
+The renderer is backed by `tracker.DescribeAction` and
+`tracker.ValidationSummary` so descriptions stay in sync with the same strings
+shown in transition previews.
 
 ### `process schema` and `process changes`
 

@@ -150,16 +150,18 @@ func main() {
 	switch cmd {
 	case "help", "--help", "-h":
 		if len(cmdArgs) > 0 {
-			runProcess(cmdArgs[0], configPath, projectSlug)
+			runProcess(cmdArgs[0], cmdArgs[1:], configPath, projectSlug)
 		} else {
 			printHelp()
 		}
 	case "process":
 		topic := ""
+		var topicArgs []string
 		if len(cmdArgs) > 0 {
 			topic = cmdArgs[0]
+			topicArgs = cmdArgs[1:]
 		}
-		runProcess(topic, configPath, projectSlug)
+		runProcess(topic, topicArgs, configPath, projectSlug)
 	case "next":
 		design := false
 		for _, a := range cmdArgs {
@@ -634,7 +636,7 @@ First time? Run these:
 `)
 }
 
-func runProcess(topic, configPath, projectSlug string) {
+func runProcess(topic string, args []string, configPath, projectSlug string) {
 	switch topic {
 	case "", "all":
 		fmt.Print(`== AI-Native Project Viewer ==
@@ -723,37 +725,8 @@ Run 'issue-cli process <topic>' for details:
 			}
 		}
 	case "transitions":
-		fmt.Print(`== Transition Rules ==
-
-  → idea                      Title only
-  idea → in design            Body must have content
-  in design → backlog         At least one [ ] checkbox (acceptance criteria)
-                               Must be human-approved in the issue viewer
-                               Side-effect: assignee is cleared
-  backlog → in progress       Must be human-approved in the issue viewer
-                               Must have an assignee (use: issue-cli start)
-  in progress → testing       Section checkboxes must be checked (e.g. ## Implementation)
-  testing → human-testing     Must have ## Test Plan with ### Automated and ### Manual
-                               Must have a test results comment
-  human-testing → documentation  Manual verification by humans
-  documentation → shipping    Section checkboxes must be checked (## Documentation)
-                               Must have a "docs:" comment
-  shipping → done             Section checkboxes must be checked (## Shipping)
-                               Must be human-approved in the issue viewer
-
-Transitions are strict — you cannot skip required statuses.
-`)
 		proj := loadProject(configPath, projectSlug)
-		wf := proj.LoadWorkflow()
-		var optional []string
-		for _, st := range wf.Statuses {
-			if st.Optional {
-				optional = append(optional, st.Name)
-			}
-		}
-		if len(optional) > 0 {
-			fmt.Printf("\nOptional statuses (skippable on forward transitions): %s\n", strings.Join(optional, ", "))
-		}
+		runProcessTransitions(proj, args)
 	case "format":
 		fmt.Print(`== Issue File Format ==
 
@@ -865,6 +838,165 @@ References are resolved by:
 		fmt.Fprintf(os.Stderr, "Unknown topic: %s\n\nAvailable: workflow, format, transitions, schema, changes, testing, docs, systems, references\n", topic)
 		os.Exit(1)
 	}
+}
+
+func runProcessTransitions(proj *tracker.Project, args []string) {
+	wf := proj.LoadWorkflow()
+
+	var (
+		system        string
+		systemSource  string
+		issueRef      string
+		hasIssueRef   bool
+	)
+
+	systemFlag := flagValue(args, "--system")
+	workflowFlag := flagValue(args, "--workflow")
+	if systemFlag == "" {
+		systemFlag = workflowFlag
+	}
+
+	for _, a := range args {
+		if a == "--system" || a == "--workflow" {
+			break
+		}
+		if strings.HasPrefix(a, "--") {
+			continue
+		}
+		issueRef = a
+		hasIssueRef = true
+		break
+	}
+
+	var issueSlug string
+	switch {
+	case hasIssueRef:
+		issue, _ := findIssue(proj, issueRef)
+		system = issue.System
+		issueSlug = issue.Slug
+		systemSource = fmt.Sprintf("issue %s", issue.Slug)
+	case systemFlag != "":
+		system = systemFlag
+		systemSource = fmt.Sprintf("--system %s", systemFlag)
+	}
+
+	scoped := wf
+	if strings.TrimSpace(system) != "" {
+		scoped = wf.ForSystem(system)
+	}
+
+	header := "== Transition Rules =="
+	switch {
+	case hasIssueRef && system != "":
+		header = fmt.Sprintf("== Transition Rules — system %q (%s) ==", system, systemSource)
+	case hasIssueRef:
+		header = fmt.Sprintf("== Transition Rules — issue %s (no system overlay; project default) ==", issueSlug)
+	case system != "":
+		header = fmt.Sprintf("== Transition Rules — system %q ==", system)
+	}
+	fmt.Println(header)
+	fmt.Println()
+
+	statusOrder := scoped.GetStatusOrder()
+	if len(statusOrder) > 0 {
+		first := statusOrder[0]
+		fmt.Printf("  → %-26s  Initial state — title only\n", first)
+	}
+
+	rendered := map[string]bool{}
+	for _, s := range statusOrder {
+		for _, t := range scoped.Transitions {
+			if t.To != s {
+				continue
+			}
+			key := t.From + "→" + t.To
+			if rendered[key] {
+				continue
+			}
+			rendered[key] = true
+			renderTransition(t, scoped)
+		}
+	}
+	// Render any transitions whose From or To isn't in the lifecycle (defensive).
+	for _, t := range scoped.Transitions {
+		key := t.From + "→" + t.To
+		if rendered[key] {
+			continue
+		}
+		rendered[key] = true
+		renderTransition(t, scoped)
+	}
+
+	fmt.Println()
+	fmt.Println("Transitions are strict — you cannot skip required statuses.")
+
+	var optional []string
+	var globalStatuses []string
+	for _, st := range scoped.Statuses {
+		if st.Optional {
+			optional = append(optional, st.Name)
+		}
+		if st.Global {
+			globalStatuses = append(globalStatuses, st.Name)
+		}
+	}
+	if len(optional) > 0 {
+		fmt.Printf("\nOptional statuses (skippable on forward transitions): %s\n", strings.Join(optional, ", "))
+	}
+	if len(globalStatuses) > 0 {
+		fmt.Printf("Global statuses (transitions from them to any status are allowed): %s\n", strings.Join(globalStatuses, ", "))
+	}
+
+	if system == "" && len(scoped.Systems) > 0 {
+		var names []string
+		for name := range scoped.Systems {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		fmt.Println()
+		fmt.Println("This is the project's default workflow. Per-system overlays are configured for:")
+		fmt.Printf("  %s\n", strings.Join(names, ", "))
+		fmt.Println("Run 'issue-cli process transitions --system <name>' or 'issue-cli process transitions <issue-slug>' to see the rules for a specific workflow.")
+	}
+}
+
+func renderTransition(t tracker.WorkflowTransition, wf *tracker.WorkflowConfig) {
+	from := t.From
+	if from == "" {
+		from = "(any)"
+	}
+	if from == "*" {
+		from = "* (any)"
+	}
+	label := fmt.Sprintf("%s → %s", from, t.To)
+	descs := transitionActionDescriptions(t, wf)
+	if len(descs) == 0 {
+		fmt.Printf("  %-28s  (no rules)\n", label)
+		return
+	}
+	fmt.Printf("  %-28s  %s\n", label, descs[0])
+	for _, d := range descs[1:] {
+		fmt.Printf("  %-28s    %s\n", "", d)
+	}
+}
+
+func transitionActionDescriptions(t tracker.WorkflowTransition, wf *tracker.WorkflowConfig) []string {
+	var descs []string
+	for _, action := range t.Actions {
+		desc := tracker.DescribeAction(action, t.To)
+		if strings.TrimSpace(desc) == "" {
+			continue
+		}
+		descs = append(descs, desc)
+	}
+	for _, f := range t.Fields {
+		marker := ""
+		if f.Required {
+			marker = " (required)"
+		}
+		descs = append(descs, fmt.Sprintf("Prompts for field %q%s before commit", f.Name, marker))
+	}
+	return descs
 }
 
 func runProcessSchema() {

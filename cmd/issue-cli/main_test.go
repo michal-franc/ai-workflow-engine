@@ -679,6 +679,162 @@ func itoaLocal(n int) string {
 	return string(buf)
 }
 
+func makeProcessTransitionsFixture(t *testing.T) *tracker.Project {
+	t.Helper()
+
+	dir := t.TempDir()
+	issuesDir := filepath.Join(dir, "issues")
+	cliDir := filepath.Join(issuesDir, "CLI")
+	if err := os.MkdirAll(cliDir, 0755); err != nil {
+		t.Fatalf("mkdir %s: %v", cliDir, err)
+	}
+
+	workflowPath := filepath.Join(dir, "workflow.yaml")
+	workflow := strings.TrimSpace(`
+statuses:
+  - name: "idea"
+  - name: "in design"
+  - name: "backlog"
+  - name: "in progress"
+  - name: "blocked"
+    global: true
+  - name: "deferred"
+    optional: true
+  - name: "done"
+transitions:
+  - from: "idea"
+    to: "in design"
+    actions:
+      - type: validate
+        rule: body_not_empty
+  - from: "in design"
+    to: "backlog"
+    actions:
+      - type: require_human_approval
+        status: "backlog"
+      - type: set_fields
+        field: "assignee"
+        value: ""
+  - from: "backlog"
+    to: "in progress"
+    actions:
+      - type: require_human_approval
+        status: "in progress"
+      - type: validate
+        rule: has_assignee
+      - type: append_section
+        title: "Implementation"
+        body: |
+          - [ ] Code changes complete
+systems:
+  CLI:
+    transitions:
+      - from: "backlog"
+        to: "in progress"
+        actions:
+          - type: require_human_approval
+            status: "in progress"
+          - type: validate
+            rule: has_assignee
+          - type: inject_prompt
+            prompt: "CLI-specific guidance for new work."
+`)
+	if err := os.WriteFile(workflowPath, []byte(workflow), 0644); err != nil {
+		t.Fatalf("write workflow: %v", err)
+	}
+
+	cliIssue := strings.TrimSpace(`
+---
+title: "cli sample"
+status: "backlog"
+system: "CLI"
+---
+
+body
+`)
+	if err := os.WriteFile(filepath.Join(cliDir, "cli-sample.md"), []byte(cliIssue), 0644); err != nil {
+		t.Fatalf("write cli issue: %v", err)
+	}
+
+	plainIssue := strings.TrimSpace(`
+---
+title: "plain sample"
+status: "backlog"
+---
+
+body
+`)
+	if err := os.WriteFile(filepath.Join(issuesDir, "plain-sample.md"), []byte(plainIssue), 0644); err != nil {
+		t.Fatalf("write plain issue: %v", err)
+	}
+
+	return &tracker.Project{
+		Name:         "test",
+		Slug:         "test",
+		IssueDir:     issuesDir,
+		WorkflowFile: workflowPath,
+	}
+}
+
+func TestProcessTransitionsRendersFromActiveWorkflow(t *testing.T) {
+	proj := makeProcessTransitionsFixture(t)
+
+	out := captureStdout(t, func() {
+		runProcessTransitions(proj, nil)
+	})
+
+	// Header indicates the default workflow is being shown.
+	assertContains(t, out, "== Transition Rules ==")
+	// Initial state line.
+	assertContains(t, out, "→ idea")
+	// Each configured edge appears.
+	assertContains(t, out, "idea → in design")
+	assertContains(t, out, "in design → backlog")
+	assertContains(t, out, "backlog → in progress")
+	// Validation rules and action types are humanized.
+	assertContains(t, out, "Validate issue body is not empty")
+	assertContains(t, out, "Validate issue has assignee")
+	assertContains(t, out, `Must be human-approved for "backlog" in the issue viewer`)
+	assertContains(t, out, "Side-effect: clears assignee")
+	assertContains(t, out, "Side-effect: appends ## Implementation section")
+	// Optional and global statuses surfaced.
+	assertContains(t, out, "Optional statuses (skippable on forward transitions): deferred")
+	assertContains(t, out, "Global statuses (transitions from them to any status are allowed): blocked")
+	// Hints about per-system overlays when no scope was supplied.
+	assertContains(t, out, "Per-system overlays are configured for:")
+	assertContains(t, out, "CLI")
+}
+
+func TestProcessTransitionsScopedBySystemFlag(t *testing.T) {
+	proj := makeProcessTransitionsFixture(t)
+
+	out := captureStdout(t, func() {
+		runProcessTransitions(proj, []string{"--system", "CLI"})
+	})
+
+	assertContains(t, out, `== Transition Rules — system "CLI"`)
+	// CLI overlay overrides backlog → in progress and adds an inject_prompt.
+	assertContains(t, out, "Side-effect: injects entry guidance prompt")
+	if strings.Contains(out, "Per-system overlays are configured for:") {
+		t.Errorf("scoped output should not list per-system overlay hint:\n%s", out)
+	}
+}
+
+func TestProcessTransitionsScopedByIssueSlug(t *testing.T) {
+	proj := makeProcessTransitionsFixture(t)
+
+	cliOut := captureStdout(t, func() {
+		runProcessTransitions(proj, []string{"cli-sample"})
+	})
+	assertContains(t, cliOut, `== Transition Rules — system "CLI" (issue cli/cli-sample) ==`)
+	assertContains(t, cliOut, "Side-effect: injects entry guidance prompt")
+
+	plainOut := captureStdout(t, func() {
+		runProcessTransitions(proj, []string{"plain-sample"})
+	})
+	assertContains(t, plainOut, "== Transition Rules — issue plain-sample (no system overlay; project default) ==")
+}
+
 func TestChangelogEmbeddedAndHasEntries(t *testing.T) {
 	t.Parallel()
 

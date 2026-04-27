@@ -885,6 +885,49 @@ func (w *WorkflowConfig) PreviewTransition(issue *Issue, fromStatus, toStatus, s
 	return preview
 }
 
+// ValidationSummary returns a human-readable one-line description of the
+// validation rule (the same text shown in transition previews).
+func ValidationSummary(rule string) string {
+	return validationSummary(rule)
+}
+
+// DescribeAction returns a short human-readable description of a workflow
+// action, suitable for listing the rules that govern a transition.
+func DescribeAction(action WorkflowAction, defaultStatus string) string {
+	switch action.Type {
+	case "validate":
+		return ValidationSummary(action.Rule)
+	case "require_human_approval":
+		status := strings.TrimSpace(action.Status)
+		if status == "" {
+			status = defaultStatus
+		}
+		if status == "" {
+			return "Must be human-approved in the issue viewer"
+		}
+		return fmt.Sprintf("Must be human-approved for %q in the issue viewer", status)
+	case "append_section":
+		title := strings.TrimSpace(action.Title)
+		if title == "" {
+			return "Side-effect: appends a body section"
+		}
+		return fmt.Sprintf("Side-effect: appends ## %s section", title)
+	case "inject_prompt":
+		return "Side-effect: injects entry guidance prompt"
+	case "set_fields":
+		field := strings.TrimSpace(action.Field)
+		if field == "" {
+			return "Side-effect: sets a frontmatter field"
+		}
+		if action.Value == "" {
+			return fmt.Sprintf("Side-effect: clears %s", field)
+		}
+		return fmt.Sprintf("Side-effect: sets %s = %q", field, action.Value)
+	default:
+		return action.Type
+	}
+}
+
 func validationSummary(rule string) string {
 	ruleName := rule
 	arg := ""

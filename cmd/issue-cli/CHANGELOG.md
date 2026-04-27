@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.7.0 — 2026-04-28
+
+- `issue-cli process transitions` now renders rules from the loaded workflow rather than a hardcoded ruleset. Each row lists validation rules, human-approval gates (previously only discovered by failing a transition), and side effects (`set_fields`, `append_section`, `inject_prompt`); optional and global statuses are surfaced separately. Three scopes are supported: no-arg prints the project default and lists configured per-system overlays at the bottom; `--system <name>` (alias `--workflow <name>`) prints the rules merged with that overlay; passing an issue slug resolves the issue's `system` field and labels the header accordingly (issues with no system explicitly say `(no system overlay; project default)`). Backed by new `tracker.DescribeAction` and `tracker.ValidationSummary` exports so descriptions stay in sync with transition previews.
+
 ## v0.6.0 — 2026-04-27
 
 - New `issue-cli replace <slug> --section "<name>" --body "<content>"` command. Replaces the content of an existing section in place — finds the heading at any depth, swaps everything between it and the next heading of equal or shallower depth, and preserves the heading line. Errors if the section doesn't exist (use `append --section` to create), and requires `--force` when multiple normalized matches exist. Pairs naturally with `append --section` so evolving sections (status tables, checklist progress, summary paragraphs) can be rewritten rather than accreted.

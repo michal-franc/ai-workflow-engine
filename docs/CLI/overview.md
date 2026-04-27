@@ -20,6 +20,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli transition <slug>`    | Attempt the next workflow transition     |
 | `issue-cli comment <slug>`       | Add a comment to an issue                |
 | `issue-cli append <slug>`        | Append content to issue body             |
+| `issue-cli replace <slug>`       | Replace content of an existing section   |
 | `issue-cli set-meta <slug>`      | Set or clear a frontmatter field         |
 | `issue-cli process workflow`     | Print the active workflow                |
 | `issue-cli process transitions`  | Print available transitions              |

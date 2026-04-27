@@ -92,6 +92,7 @@ make install
 | `comment <slug>`      | Add a comment                                                |
 | `checklist <slug>`    | Show checkbox progress                                       |
 | `append <slug>`       | Append body content, or target an existing section           |
+| `replace <slug>`      | Replace the content of an existing section in place          |
 | `list`                | List issues with filters                                     |
 | `search <query>`      | Search across titles, bodies, and statuses                   |
 | `stats`               | Project health overview                                      |
@@ -137,6 +138,16 @@ The web UI (drag-and-drop) has no restrictions — humans have full power.
   Raw append still works, but it now rejects input that would introduce a normalized duplicate heading already present in the issue body.
 
 Escaped newlines in `--body` and `--text` are interpreted, so `\n` becomes a real newline before the append logic runs.
+
+### Replace Behavior
+
+`issue-cli replace` swaps the content of an existing section without rewriting the rest of the body. It finds the section heading at any depth, replaces everything between it and the next heading of equal or shallower depth, and preserves the heading line itself.
+
+- `issue-cli replace <slug> --section "Design" --body "new approach"` — replace the matched section in place.
+- `issue-cli replace <slug> --section "Design" --body "..." --force` — required when multiple normalized matches exist; replaces the first match.
+- Errors if no section matches — use `append --section` to create a new section.
+
+Use `replace` when an evolving section (status table, checklist progress, summary paragraph) needs to be rewritten rather than extended.
 
 ### Project Version
 

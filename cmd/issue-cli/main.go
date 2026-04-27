@@ -302,6 +302,22 @@ func main() {
 		}
 		proj := loadProject(configPath, projectSlug)
 		runAppend(proj, cmdArgs[0], section, text, force)
+	case "replace":
+		requireArg(cmdArgs, "replace", "<slug>")
+		text := textFlagValue(cmdArgs[1:], "--body")
+		section := flagValue(cmdArgs[1:], "--section")
+		force := hasFlag(cmdArgs[1:], "--force")
+		if text == "" {
+			text = textFlagValue(cmdArgs[1:], "--text")
+		}
+		if strings.TrimSpace(section) == "" {
+			fatal("replace requires --section\n\nExample:\n  issue-cli replace %s --section \"Design\" --body \"updated approach\"", cmdArgs[0])
+		}
+		if text == "" {
+			fatal("replace requires --body\n\nExample:\n  issue-cli replace %s --section \"Design\" --body \"updated approach\"", cmdArgs[0])
+		}
+		proj := loadProject(configPath, projectSlug)
+		runReplace(proj, cmdArgs[0], section, text, force)
 	case "retrospective":
 		requireArg(cmdArgs, "retrospective", "<slug>")
 		text := textFlagValue(cmdArgs[1:], "--body")
@@ -601,6 +617,7 @@ Commands:
   update <slug>        Replace issue body (--body "content"), preserves frontmatter
   set-meta <slug>      Set/clear a frontmatter field (--key <k> --value "v" | --clear)
   append <slug>        Append content to issue body (--body "...", or --section "X" --body "...")
+  replace <slug>       Replace content of an existing section (--section "X" --body "...")
   retrospective <slug> Save workflow feedback under retros/ in the project
   stats                Project health overview
   report-bug <desc>    Report a bug in issue-cli itself
@@ -1825,6 +1842,19 @@ func runAppend(proj *tracker.Project, slug, section, text string, force bool) {
 	}
 
 	fmt.Printf("✓ Appended to %s\n", issue.Slug)
+}
+
+func runReplace(proj *tracker.Project, slug, section, text string, force bool) {
+	issue, _ := findIssue(proj, slug)
+
+	_, _, err := tracker.UpdateIssueBody(issue.FilePath, func(body string) (string, bool, error) {
+		return tracker.ReplaceIssueBodySection(body, section, text, force)
+	})
+	if err != nil {
+		fatal("Failed to replace: %v", err)
+	}
+
+	fmt.Printf("✓ Replaced section %q in %s\n", section, issue.Slug)
 }
 
 func runRetrospective(proj *tracker.Project, slug, text string) {

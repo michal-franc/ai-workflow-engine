@@ -88,6 +88,38 @@ Each transition can have ordered actions:
 | `inject_prompt`            | Add extra guidance for this specific transition          |
 | `set_fields`               | Update frontmatter fields (e.g., clear assignee)         |
 
+## Declarative Fields (v0.5.0+)
+
+Transitions can declare `fields[]` — prompts the web UI collects via a modal before the move commits. Both the CLI and the board use the same engine, so dragging a card is equivalent to `issue-cli transition`.
+
+```yaml
+- from: "*"
+  to: "deferred"
+  fields:
+    - name: "deferred_to"
+      prompt: "Deferred to whom?"
+      target: "frontmatter"   # writes deferred_to: "<answer>" to frontmatter
+      required: true
+    - name: "deferral_reason"
+      prompt: "Reason for deferral"
+      target: "section:Deferred Record"  # appends "- **Reason...:** <answer>" under ## Deferred Record
+      type: "multiline"
+      required: true
+```
+
+- `target: frontmatter` writes an arbitrary scalar key (protected keys like `status`, `title`, `human_approval` are always refused).
+- `target: section:<Title>` appends `- **<prompt>:** <answer>` under the section, creating it if missing.
+- `type: multiline` hints the UI to render a textarea.
+- `required: true` blocks the transition when the answer is empty.
+
+## Wildcard Source (`from: "*"`)
+
+A transition with `from: "*"` matches every source status that lacks a more specific edge. Useful for "defer from anywhere" or similar fork-off rules. Exact `from: <status>` edges always win.
+
+## Global Status (`global: true`)
+
+A status marked `global: true` is an escape hatch: transitions out of it to any other status are allowed, regardless of the linear lifecycle. The board column renders a `global` badge next to the existing `optional` badge. Combine with `from: "*"` to build parked states (deferred, blocked, on-hold) without having to enumerate every edge.
+
 ## Side-Effects
 
 Statuses support `side_effects` that run automatically after a transition:

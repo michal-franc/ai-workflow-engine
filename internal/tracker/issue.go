@@ -346,6 +346,26 @@ func AppendIssueBodyToSection(body, section, text string, force bool) (string, b
 	return nextBody, changed, nil
 }
 
+// ReplaceIssueBodySection replaces the content of an existing section with text.
+// The heading line is preserved; everything between it and the next heading of
+// equal or shallower depth is replaced. Errors if no matching section exists,
+// or if multiple sections match and force is false.
+func ReplaceIssueBodySection(body, section, text string, force bool) (string, bool, error) {
+	matches := findHeadingMatches(body, section)
+	if len(matches) == 0 {
+		return body, false, fmt.Errorf("no section matching %q in issue body\n\nUse 'issue-cli append --section %q' to create a new section", section, section)
+	}
+	if len(matches) > 1 && !force {
+		var labels []string
+		for _, match := range matches {
+			labels = append(labels, fmt.Sprintf("%s (line %d)", match.Line, match.StartLine+1))
+		}
+		return body, false, fmt.Errorf("multiple matching sections for %q: %s\n\nRerun with --force to replace the first matching section", section, strings.Join(labels, ", "))
+	}
+	nextBody, changed := replaceContentInMatch(body, matches[0], text)
+	return nextBody, changed, nil
+}
+
 func findAllHeadings(body string) []headingMatch {
 	lines := strings.Split(body, "\n")
 	var matches []headingMatch

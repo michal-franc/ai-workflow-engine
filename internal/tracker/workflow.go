@@ -704,6 +704,37 @@ func appendContentToMatch(body string, match headingMatch, content string) (stri
 	return strings.TrimRight(strings.Join(newLines, "\n"), "\n") + "\n", true
 }
 
+func replaceContentInMatch(body string, match headingMatch, content string) (string, bool) {
+	lines := strings.Split(body, "\n")
+	sectionLines := lines[match.StartLine:match.EndLine]
+	heading := sectionLines[0]
+	contentLines := sectionLines[1:]
+
+	trailing := 0
+	for trailing < len(contentLines) && strings.TrimSpace(contentLines[len(contentLines)-1-trailing]) == "" {
+		trailing++
+	}
+
+	currentBody := strings.TrimSpace(strings.Join(contentLines, "\n"))
+	newBody := strings.TrimSpace(content)
+	if newBody == currentBody {
+		return body, false
+	}
+
+	replacement := []string{heading}
+	if newBody != "" {
+		replacement = append(replacement, strings.Split(newBody, "\n")...)
+	}
+	for i := 0; i < trailing; i++ {
+		replacement = append(replacement, "")
+	}
+
+	newLines := append([]string(nil), lines[:match.StartLine]...)
+	newLines = append(newLines, replacement...)
+	newLines = append(newLines, lines[match.EndLine:]...)
+	return strings.TrimRight(strings.Join(newLines, "\n"), "\n") + "\n", true
+}
+
 func appendToSection(body, title, content string) (string, bool) {
 	heading := normalizeHeading(title)
 	content = strings.TrimSpace(content)

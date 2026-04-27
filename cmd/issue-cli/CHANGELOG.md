@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.6.0 — 2026-04-27
+
+- New `issue-cli replace <slug> --section "<name>" --body "<content>"` command. Replaces the content of an existing section in place — finds the heading at any depth, swaps everything between it and the next heading of equal or shallower depth, and preserves the heading line. Errors if the section doesn't exist (use `append --section` to create), and requires `--force` when multiple normalized matches exist. Pairs naturally with `append --section` so evolving sections (status tables, checklist progress, summary paragraphs) can be rewritten rather than accreted.
+
 ## v0.5.0 — 2026-04-24
 
 - Board drag-and-drop now runs the same workflow engine as `issue-cli transition`. Moving a card runs validations, executes `actions[]` (`append_section`, `inject_prompt`, `set_fields`, `require_human_approval`), and blocks the move with HTTP 409 + a toast when any rule fails. Cancelling the prompt reverts the card to its source column and leaves the file untouched.

@@ -112,6 +112,16 @@ Transitions can declare `fields[]` — prompts the web UI collects via a modal b
 - `type: multiline` hints the UI to render a textarea.
 - `required: true` blocks the transition when the answer is empty.
 
+For `target: frontmatter` fields the validator falls back to the issue's existing frontmatter when no answer is supplied. This means `issue-cli set-meta <slug> --key X --value Y` followed by `issue-cli transition --to <status>` succeeds without re-supplying `X` — the frontmatter is the source of truth. `target: section:<Title>` fields do not fall back; they record a fresh line on each transition and so always require an explicit answer.
+
+From the CLI, declarative answers can also be passed inline with repeatable `--field key=value` flags:
+
+```bash
+issue-cli transition <slug> --to "deferred" --field deferred_to=alice --field deferral_reason="capacity"
+```
+
+Explicit `--field` values win over frontmatter fallback when both are present.
+
 ## Wildcard Source (`from: "*"`)
 
 A transition with `from: "*"` matches every source status that lacks a more specific edge. Useful for "defer from anywhere" or similar fork-off rules. Exact `from: <status>` edges always win.

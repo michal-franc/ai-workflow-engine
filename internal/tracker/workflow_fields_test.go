@@ -151,6 +151,77 @@ func TestApplyTransitionToFile_WritesArbitraryFrontmatterField(t *testing.T) {
 	}
 }
 
+func TestApplyTransitionToFile_AcceptsRequiredFieldFromExistingFrontmatter(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "1.md")
+	// Frontmatter already has `waiting` set (e.g. via `set-meta`).
+	src := "---\ntitle: \"T\"\nstatus: \"a\"\nwaiting: \"design review\"\n---\n\nbody\n"
+	if err := os.WriteFile(path, []byte(src), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	wf := &WorkflowConfig{
+		Statuses: []WorkflowStatus{{Name: "a"}, {Name: "b"}},
+		Transitions: []WorkflowTransition{{
+			From: "a", To: "b",
+			Fields: []WorkflowField{
+				{Name: "waiting", Prompt: "Waiting on?", Target: "frontmatter", Required: true},
+			},
+		}},
+	}
+
+	// No fieldValues passed — frontmatter should satisfy the required field.
+	if _, _, err := wf.ApplyTransitionToFileWithFields(path, "b", nil); err != nil {
+		t.Fatalf("transition rejected despite frontmatter having waiting set: %v", err)
+	}
+	got, _ := os.ReadFile(path)
+	s := string(got)
+	if !strings.Contains(s, `status: "b"`) {
+		t.Fatalf("status not updated:\n%s", s)
+	}
+	if !strings.Contains(s, `waiting: "design review"`) {
+		t.Fatalf("waiting field overwritten or stripped:\n%s", s)
+	}
+}
+
+func TestMergeFieldValuesFromFrontmatter_PrefersExplicitAnswer(t *testing.T) {
+	wf := &WorkflowConfig{
+		Statuses: []WorkflowStatus{{Name: "a"}, {Name: "b"}},
+		Transitions: []WorkflowTransition{{
+			From: "a", To: "b",
+			Fields: []WorkflowField{
+				{Name: "waiting", Target: "frontmatter", Required: true},
+			},
+		}},
+	}
+	issue := &Issue{
+		ExtraFields: []ExtraField{{Key: "waiting", Value: "from-frontmatter"}},
+	}
+	merged := wf.MergeFieldValuesFromFrontmatter(issue, "a", "b", map[string]string{"waiting": "explicit"})
+	if merged["waiting"] != "explicit" {
+		t.Errorf("explicit answer should win: got %q", merged["waiting"])
+	}
+}
+
+func TestMergeFieldValuesFromFrontmatter_SkipsSectionTargets(t *testing.T) {
+	wf := &WorkflowConfig{
+		Statuses: []WorkflowStatus{{Name: "a"}, {Name: "b"}},
+		Transitions: []WorkflowTransition{{
+			From: "a", To: "b",
+			Fields: []WorkflowField{
+				{Name: "reason", Target: "section:Record", Required: true},
+			},
+		}},
+	}
+	issue := &Issue{
+		ExtraFields: []ExtraField{{Key: "reason", Value: "noise"}},
+	}
+	merged := wf.MergeFieldValuesFromFrontmatter(issue, "a", "b", nil)
+	if _, ok := merged["reason"]; ok {
+		t.Errorf("section-targeted field should not be merged from frontmatter: %v", merged)
+	}
+}
+
 func TestApplyTransitionToFile_BlocksWhenRequiredFieldMissing(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "1.md")

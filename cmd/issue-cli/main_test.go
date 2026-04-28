@@ -68,7 +68,7 @@ func TestRunTransitionPrintsPostTransitionState(t *testing.T) {
 	proj, issuePath := makeTransitionFixture(t)
 	jsonOutput = false
 	output := captureStdout(t, func() {
-		runTransition(proj, "cli/sample", "in progress")
+		runTransition(proj, "cli/sample", "in progress", nil)
 	})
 
 	assertContains(t, output, "✓ backlog → in progress")
@@ -108,7 +108,7 @@ func TestRunTransitionJSONIncludesPostTransitionFields(t *testing.T) {
 	defer func() { jsonOutput = false }()
 
 	output := captureStdout(t, func() {
-		runTransition(proj, "cli/sample", "in progress")
+		runTransition(proj, "cli/sample", "in progress", nil)
 	})
 
 	var got transitionOutput
@@ -151,6 +151,41 @@ func TestNormalizeEscapedText(t *testing.T) {
 	want := "line1\nline2\nline3\tend"
 	if got != want {
 		t.Fatalf("normalizeEscapedText = %q, want %q", got, want)
+	}
+}
+
+func TestParseFieldFlags(t *testing.T) {
+	got, err := parseFieldFlags([]string{"--to", "testing", "--field", "waiting=design review", "--field", "deferred_to=alice"})
+	if err != nil {
+		t.Fatalf("parseFieldFlags: %v", err)
+	}
+	if got["waiting"] != "design review" {
+		t.Errorf("waiting = %q, want \"design review\"", got["waiting"])
+	}
+	if got["deferred_to"] != "alice" {
+		t.Errorf("deferred_to = %q, want alice", got["deferred_to"])
+	}
+}
+
+func TestParseFieldFlags_RejectsMalformed(t *testing.T) {
+	if _, err := parseFieldFlags([]string{"--field", "no-equals-sign"}); err == nil {
+		t.Fatal("expected error for missing =")
+	}
+	if _, err := parseFieldFlags([]string{"--field", "=value"}); err == nil {
+		t.Fatal("expected error for empty key")
+	}
+	if _, err := parseFieldFlags([]string{"--field"}); err == nil {
+		t.Fatal("expected error for trailing --field with no value")
+	}
+}
+
+func TestParseFieldFlags_NoFieldsReturnsEmpty(t *testing.T) {
+	got, err := parseFieldFlags([]string{"--to", "testing"})
+	if err != nil {
+		t.Fatalf("parseFieldFlags: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("expected empty map, got %v", got)
 	}
 }
 
@@ -310,7 +345,7 @@ func TestRunTransitionNextHintSkipsOptionalStatus(t *testing.T) {
 	proj, _ := makeOptionalNextFixture(t)
 	jsonOutput = false
 	output := captureStdout(t, func() {
-		runTransition(proj, "cli/sample", "in progress")
+		runTransition(proj, "cli/sample", "in progress", nil)
 	})
 
 	// Primary Next must point at the required status, not the optional side-path.
@@ -328,7 +363,7 @@ func TestRunTransitionJSONCarriesOptionalNextStatuses(t *testing.T) {
 	defer func() { jsonOutput = false }()
 
 	output := captureStdout(t, func() {
-		runTransition(proj, "cli/sample", "in progress")
+		runTransition(proj, "cli/sample", "in progress", nil)
 	})
 
 	var got transitionOutput

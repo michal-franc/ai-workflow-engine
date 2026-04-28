@@ -16,6 +16,12 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.7.1 — 2026-04-28
+
+- `issue-cli transition` no longer rejects valid `target: frontmatter` answers that are already on the issue. The validator now consults the issue's existing frontmatter for required `target: frontmatter` fields, so `set-meta <key> <value>` followed by `transition` succeeds without re-supplying the value. `target: section:<Title>` fields still require an explicit answer (they record a fresh body line each time).
+- New repeatable `--field key=value` flag on `issue-cli transition` for inline answers: `issue-cli transition <slug> --to "waiting-for-team-input" --field waiting="design review"`. Explicit `--field` values win over frontmatter fallback when both are set.
+- `issue-cli process transitions` now renders required fields with target context: `Required frontmatter field "waiting" (set via \`--field waiting=…\` or \`set-meta\`)` instead of the prior generic `Prompts for field "waiting" (required) before commit`.
+
 ## v0.7.0 — 2026-04-28
 
 - `issue-cli process transitions` now renders rules from the loaded workflow rather than a hardcoded ruleset. Each row lists validation rules, human-approval gates (previously only discovered by failing a transition), and side effects (`set_fields`, `append_section`, `inject_prompt`); optional and global statuses are surfaced separately. Three scopes are supported: no-arg prints the project default and lists configured per-system overlays at the bottom; `--system <name>` (alias `--workflow <name>`) prints the rules merged with that overlay; passing an issue slug resolves the issue's `system` field and labels the header accordingly (issues with no system explicitly say `(no system overlay; project default)`). Backed by new `tracker.DescribeAction` and `tracker.ValidationSummary` exports so descriptions stay in sync with transition previews.

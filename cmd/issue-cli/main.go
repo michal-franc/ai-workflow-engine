@@ -203,10 +203,14 @@ func main() {
 			}
 		}
 		if to == "" {
-			fatal("--to is required\n\nExample:\n  issue-cli transition %s --to \"testing\"", cmdArgs[0])
+			fatal("--to is required\n\nExamples:\n  issue-cli transition %s --to \"testing\"\n  issue-cli transition %s --to \"waiting-for-team-input\" --field waiting=\"design review\"", cmdArgs[0], cmdArgs[0])
+		}
+		fields, ferr := parseFieldFlags(cmdArgs[1:])
+		if ferr != nil {
+			fatal("%v", ferr)
 		}
 		proj := loadProject(configPath, projectSlug)
-		runTransition(proj, cmdArgs[0], to)
+		runTransition(proj, cmdArgs[0], to, fields)
 	case "claim":
 		requireArg(cmdArgs, "claim", "<slug>")
 		assignee := flagValue(cmdArgs[1:], "--assignee")
@@ -519,6 +523,34 @@ func hasFlag(args []string, flag string) bool {
 		}
 	}
 	return false
+}
+
+// parseFieldFlags collects repeated `--field key=value` flags into a map.
+// Used by `transition` to supply declarative `fields[]` answers inline so the
+// CLI can satisfy required frontmatter fields without a separate set-meta call.
+func parseFieldFlags(args []string) (map[string]string, error) {
+	out := map[string]string{}
+	for i := 0; i < len(args); i++ {
+		if args[i] != "--field" {
+			continue
+		}
+		if i+1 >= len(args) {
+			return nil, fmt.Errorf("--field requires a key=value argument")
+		}
+		kv := args[i+1]
+		idx := strings.IndexByte(kv, '=')
+		if idx <= 0 {
+			return nil, fmt.Errorf("--field expects key=value, got %q", kv)
+		}
+		key := strings.TrimSpace(kv[:idx])
+		val := normalizeEscapedText(kv[idx+1:])
+		if key == "" {
+			return nil, fmt.Errorf("--field key cannot be empty (got %q)", kv)
+		}
+		out[key] = val
+		i++
+	}
+	return out, nil
 }
 
 func requireArg(args []string, cmd, argName string) {
@@ -990,11 +1022,23 @@ func transitionActionDescriptions(t tracker.WorkflowTransition, wf *tracker.Work
 		descs = append(descs, desc)
 	}
 	for _, f := range t.Fields {
-		marker := ""
-		if f.Required {
-			marker = " (required)"
+		target := strings.TrimSpace(f.Target)
+		if target == "" {
+			target = "frontmatter"
 		}
-		descs = append(descs, fmt.Sprintf("Prompts for field %q%s before commit", f.Name, marker))
+		qualifier := "Prompts for"
+		if f.Required {
+			qualifier = "Required"
+		}
+		switch {
+		case target == "frontmatter":
+			descs = append(descs, fmt.Sprintf("%s frontmatter field %q (set via `--field %s=…` or `set-meta`)", qualifier, f.Name, f.Name))
+		case strings.HasPrefix(target, "section:"):
+			section := strings.TrimSpace(strings.TrimPrefix(target, "section:"))
+			descs = append(descs, fmt.Sprintf("%s field %q appended to ## %s (set via `--field %s=…`)", qualifier, f.Name, section, f.Name))
+		default:
+			descs = append(descs, fmt.Sprintf("%s field %q (target: %s)", qualifier, f.Name, target))
+		}
 	}
 	return descs
 }
@@ -1549,12 +1593,12 @@ func runCreate(proj *tracker.Project, args []string) {
 	fmt.Println("\nThank you!")
 }
 
-func runTransition(proj *tracker.Project, slug, to string) {
+func runTransition(proj *tracker.Project, slug, to string, fields map[string]string) {
 	issue, _ := findIssue(proj, slug)
 	wf := proj.LoadWorkflowForIssue(issue)
 	to = strings.ToLower(to)
 
-	from, result, err := wf.ApplyTransitionToFile(issue.FilePath, to)
+	from, result, err := wf.ApplyTransitionToFileWithFields(issue.FilePath, to, fields)
 	if err != nil {
 		fatal("Failed to transition: %v", err)
 	}

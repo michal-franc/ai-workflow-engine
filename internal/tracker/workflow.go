@@ -1160,6 +1160,47 @@ func (w *WorkflowConfig) ValidateFieldAnswers(fromStatus, toStatus string, field
 	return nil
 }
 
+// MergeFieldValuesFromFrontmatter returns a copy of fieldValues with any
+// `target: frontmatter` field that is empty in the answer map filled in from
+// the issue's existing frontmatter. This lets `set-meta <key> <value>` followed
+// by `transition` succeed without re-supplying the value: the frontmatter is
+// the source of truth for these fields.
+//
+// Section-targeted fields are not merged — those write a new line into the
+// body each time, so re-supplying the answer is the only way to record one.
+func (w *WorkflowConfig) MergeFieldValuesFromFrontmatter(issue *Issue, fromStatus, toStatus string, fieldValues map[string]string) map[string]string {
+	merged := map[string]string{}
+	for k, v := range fieldValues {
+		merged[k] = v
+	}
+	if issue == nil {
+		return merged
+	}
+	for _, field := range w.TransitionFields(fromStatus, toStatus) {
+		if strings.TrimSpace(merged[field.Name]) != "" {
+			continue
+		}
+		target := strings.TrimSpace(field.Target)
+		if target != "" && target != "frontmatter" {
+			continue
+		}
+		for _, ef := range issue.ExtraFields {
+			if ef.Key != field.Name {
+				continue
+			}
+			if ef.IsList {
+				if len(ef.Values) > 0 {
+					merged[field.Name] = strings.Join(ef.Values, ", ")
+				}
+			} else if strings.TrimSpace(ef.Value) != "" {
+				merged[field.Name] = ef.Value
+			}
+			break
+		}
+	}
+	return merged
+}
+
 func (w *WorkflowConfig) ApplyTransitionToFile(filePath, toStatus string) (string, TransitionResult, error) {
 	return w.ApplyTransitionToFileWithFields(filePath, toStatus, nil)
 }
@@ -1200,6 +1241,7 @@ func (w *WorkflowConfig) ApplyTransitionToFileWithFields(filePath, toStatus stri
 		if err := w.ValidateTransition(issue, fromStatus, toStatus, comments); err != nil {
 			return err
 		}
+		fieldValues = w.MergeFieldValuesFromFrontmatter(issue, fromStatus, toStatus, fieldValues)
 		if err := w.ValidateFieldAnswers(fromStatus, toStatus, fieldValues); err != nil {
 			return err
 		}

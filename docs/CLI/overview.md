@@ -29,6 +29,23 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli report-bug "..."`     | File a bug report about issue-cli itself |
 | `issue-cli retrospective <slug>` | Save a workflow retrospective            |
 
+### `transition`
+
+`issue-cli transition <slug> --to "<status>"` runs the workflow engine — same path the board uses for drag-and-drop, so behavior matches.
+
+When a transition declares `fields[]` with `required: true`, supply answers in either of two ways:
+
+```bash
+# Inline: repeatable --field key=value
+issue-cli transition <slug> --to "waiting-for-team-input" --field waiting="design review"
+
+# Or set the frontmatter ahead of time; the validator reads it at transition time
+issue-cli set-meta <slug> --key waiting --value "design review"
+issue-cli transition <slug> --to "waiting-for-team-input"
+```
+
+`--field` only applies to the in-flight transition. `set-meta` persists the value, so subsequent transitions and views see it. Section-targeted fields (`target: section:<Title>`) ignore frontmatter and always need a fresh `--field` answer because they append a new line to the body each time.
+
 ### `process transitions`
 
 Rules are rendered from the loaded workflow rather than a hardcoded list. Each

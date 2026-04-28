@@ -645,6 +645,35 @@ func normalizeHeadingKey(title string) string {
 	return strings.ToLower(strings.Join(strings.Fields(title), " "))
 }
 
+// computeFenceFlags returns, for each line index, whether the line sits
+// inside a fenced code block (or is the fence opener/closer itself). Fence
+// detection follows CommonMark rules loosely: a line is a fence if, after
+// stripping leading whitespace, it starts with ``` or ~~~, and a closing
+// fence must use the same marker that opened the block.
+func computeFenceFlags(lines []string) []bool {
+	flags := make([]bool, len(lines))
+	var fence string
+	for i, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+		if fence == "" {
+			switch {
+			case strings.HasPrefix(trimmed, "```"):
+				fence = "```"
+				flags[i] = true
+			case strings.HasPrefix(trimmed, "~~~"):
+				fence = "~~~"
+				flags[i] = true
+			}
+			continue
+		}
+		flags[i] = true
+		if strings.HasPrefix(trimmed, fence) {
+			fence = ""
+		}
+	}
+	return flags
+}
+
 func findHeadingMatches(body, title string) []headingMatch {
 	lines := strings.Split(body, "\n")
 	key := normalizeHeadingKey(title)
@@ -652,8 +681,13 @@ func findHeadingMatches(body, title string) []headingMatch {
 		return nil
 	}
 
+	fenceFlags := computeFenceFlags(lines)
+
 	var matches []headingMatch
 	for i, line := range lines {
+		if fenceFlags[i] {
+			continue
+		}
 		level, parsedTitle, ok := parseHeadingLine(line)
 		if !ok || normalizeHeadingKey(parsedTitle) != key {
 			continue
@@ -661,6 +695,9 @@ func findHeadingMatches(body, title string) []headingMatch {
 
 		end := len(lines)
 		for j := i + 1; j < len(lines); j++ {
+			if fenceFlags[j] {
+				continue
+			}
 			nextLevel, _, ok := parseHeadingLine(lines[j])
 			if ok && nextLevel <= level {
 				end = j

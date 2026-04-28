@@ -893,6 +893,166 @@ func TestApplyTransition_SecondRunIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestFindHeadingMatches_IgnoresFencedCodeBlocks(t *testing.T) {
+	body := "intro\n" +
+		"\n" +
+		"```markdown\n" +
+		"## Documentation\n" +
+		"- [ ] inside fence\n" +
+		"```\n" +
+		"\n" +
+		"## Implementation\n" +
+		"- [x] real heading\n"
+
+	if got := findHeadingMatches(body, "Documentation"); len(got) != 0 {
+		t.Fatalf("findHeadingMatches matched fenced heading: %#v", got)
+	}
+	if got := findHeadingMatches(body, "Implementation"); len(got) != 1 {
+		t.Fatalf("findHeadingMatches missed real heading: %#v", got)
+	}
+
+	// Tilde fences and indentation should also be respected.
+	tildeBody := "  ~~~\n" +
+		"## Documentation\n" +
+		"  ~~~\n"
+	if got := findHeadingMatches(tildeBody, "Documentation"); len(got) != 0 {
+		t.Fatalf("findHeadingMatches matched heading inside tilde fence: %#v", got)
+	}
+}
+
+func TestApplyTransitionToFile_AppendsDocumentationWhenBodyHasFencedExample(t *testing.T) {
+	dir := t.TempDir()
+	fp := filepath.Join(dir, "fenced.md")
+	content := "---\n" +
+		"title: \"fenced example\"\n" +
+		"status: \"human-testing\"\n" +
+		"human_approval: \"documentation\"\n" +
+		"assignee: \"agent-fenced\"\n" +
+		"---\n" +
+		"\n" +
+		"The body shows what a Documentation section looks like:\n" +
+		"\n" +
+		"```markdown\n" +
+		"## Documentation\n" +
+		"- [ ] User-facing docs updated if behavior changed\n" +
+		"```\n" +
+		"\n" +
+		"## Human Testing\n" +
+		"- [x] Human verification complete if required\n"
+	if err := os.WriteFile(fp, []byte(content), 0644); err != nil {
+		t.Fatalf("write issue: %v", err)
+	}
+
+	wf, err := LoadWorkflow(filepath.Join("..", "..", "workflow.yaml"))
+	if err != nil {
+		t.Fatalf("LoadWorkflow: %v", err)
+	}
+	_, result, err := wf.ApplyTransitionToFile(fp, "documentation")
+	if err != nil {
+		t.Fatalf("ApplyTransitionToFile: %v", err)
+	}
+	if !result.BodyAppended {
+		t.Fatal("BodyAppended = false; the fenced example should not block the real append")
+	}
+
+	got, err := os.ReadFile(fp)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	body := string(got)
+
+	// The real `## Documentation` section must follow `## Human Testing`
+	// (the last existing section), and both new checkboxes must be present.
+	humanIdx := strings.Index(body, "## Human Testing")
+	docsIdx := strings.LastIndex(body, "## Documentation")
+	if humanIdx < 0 || docsIdx < humanIdx {
+		t.Fatalf("real `## Documentation` heading not appended after `## Human Testing`:\n%s", body)
+	}
+	if !strings.Contains(body[docsIdx:], "- [ ] User-facing docs updated if behavior changed") {
+		t.Fatalf("appended Documentation section missing first checkbox:\n%s", body)
+	}
+	if !strings.Contains(body[docsIdx:], "- [ ] Docs comment added") {
+		t.Fatalf("appended Documentation section missing second checkbox:\n%s", body)
+	}
+}
+
+func TestApplyTransitionToFile_HumanTestingToDocumentation_PersistsAppendedSection(t *testing.T) {
+	dir := t.TempDir()
+	fp := filepath.Join(dir, "14.md")
+	content := `---
+title: "sample"
+status: "human-testing"
+human_approval: "documentation"
+assignee: "agent-sample"
+---
+
+Some prose.
+
+## Implementation
+- [x] Code changes complete
+
+## Test Plan
+### Automated
+- [x] Automated verification recorded
+
+### Manual
+- [x] Manual verification listed if needed
+
+## Testing
+- [x] Relevant tests for changed code passing
+- [x] Known unrelated failures documented if full suite is red
+- [x] Test results logged as comment
+
+## Human Testing
+- [x] Human verification complete if required
+
+
+<!-- issue-viewer-comments
+{"id":1,"block":0,"date":"2026-04-28","text":"tests: ok","status":"open","source":"cli"}
+-->`
+	if err := os.WriteFile(fp, []byte(content), 0644); err != nil {
+		t.Fatalf("write issue: %v", err)
+	}
+
+	// Use the project workflow.yaml so the test exercises the same definitions
+	// agents hit at runtime, not just the hard-coded DefaultWorkflow.
+	wf, err := LoadWorkflow(filepath.Join("..", "..", "workflow.yaml"))
+	if err != nil {
+		t.Fatalf("LoadWorkflow: %v", err)
+	}
+	from, result, err := wf.ApplyTransitionToFile(fp, "documentation")
+	if err != nil {
+		t.Fatalf("ApplyTransitionToFile: %v", err)
+	}
+	if from != "human-testing" {
+		t.Fatalf("from = %q, want human-testing", from)
+	}
+	if !result.BodyAppended {
+		t.Fatalf("BodyAppended = false, want true (Documentation should be appended)")
+	}
+
+	got, err := os.ReadFile(fp)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	body := string(got)
+
+	if !strings.Contains(body, "## Documentation") {
+		t.Fatalf("on-disk body missing `## Documentation` heading after transition:\n%s", body)
+	}
+	if !strings.Contains(body, "- [ ] User-facing docs updated if behavior changed") {
+		t.Fatalf("on-disk body missing first Documentation checkbox:\n%s", body)
+	}
+	if !strings.Contains(body, "- [ ] Docs comment added") {
+		t.Fatalf("on-disk body missing second Documentation checkbox:\n%s", body)
+	}
+
+	// Comment block must survive the rewrite.
+	if !strings.Contains(body, "<!-- issue-viewer-comments") {
+		t.Fatalf("on-disk body lost the comments block:\n%s", body)
+	}
+}
+
 func TestPreviewTransition(t *testing.T) {
 	wf := &WorkflowConfig{
 		Statuses: []WorkflowStatus{

@@ -390,8 +390,12 @@ func ReplaceIssueBodySection(body, section, text string, force bool) (string, bo
 
 func findAllHeadings(body string) []headingMatch {
 	lines := strings.Split(body, "\n")
+	fenceFlags := computeFenceFlags(lines)
 	var matches []headingMatch
 	for i, line := range lines {
+		if fenceFlags[i] {
+			continue
+		}
 		level, title, ok := parseHeadingLine(line)
 		if !ok {
 			continue
@@ -910,11 +914,17 @@ func CountCheckboxesInSection(body, section string) (total, checked int) {
 }
 
 // CheckCheckbox finds an unchecked checkbox whose text contains the query and checks it off.
-// Returns the updated body and whether a match was found.
+// Returns the updated body and whether a match was found. Checkboxes inside
+// fenced code blocks are skipped — they are illustrative quotes, not workflow
+// state.
 func CheckCheckbox(body, query string) (string, bool) {
 	query = strings.ToLower(strings.TrimSpace(query))
 	lines := strings.Split(body, "\n")
+	fenceFlags := computeFenceFlags(lines)
 	for i, line := range lines {
+		if fenceFlags[i] {
+			continue
+		}
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "- [ ]") {
 			text := strings.ToLower(strings.TrimSpace(trimmed[5:]))

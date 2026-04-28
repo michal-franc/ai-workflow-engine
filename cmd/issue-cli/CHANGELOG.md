@@ -16,6 +16,11 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.7.3 — 2026-04-28
+
+- Fixed `issue-cli transition` silently dropping the `append_section` payload when the issue body quoted the section heading inside a fenced code block (` ``` ` or `~~~`). Heading detection in `findHeadingMatches` / `findAllHeadings` now skips lines inside fences, so transitions like `human-testing → documentation` correctly add the `## Documentation` section even when the body documents a `## Documentation` example.
+- `issue-cli check <slug> "<query>"` now skips checkboxes inside fenced code blocks. Quoting `- [ ] …` examples in the issue body no longer absorbs the next `check` and leaves the real workflow checkbox unchecked.
+
 ## v0.7.2 — 2026-04-28
 
 - `issue-cli append <slug> --body "..."` now auto-routes into an existing section when `--body` starts with a heading already present in the issue and contains only deeper subheadings — no more retrying with `--section` after a duplicate-heading failure for the common `## Implementation\n…` pattern. The duplicate-heading error still fires when a *peer* heading collides (e.g. `## New\n…\n## Existing`); pass `--section` in that case.

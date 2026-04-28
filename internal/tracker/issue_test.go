@@ -1224,6 +1224,28 @@ func TestCheckCheckbox(t *testing.T) {
 			t.Fatal("expected case insensitive match")
 		}
 	})
+
+	t.Run("skips checkboxes inside fenced code blocks", func(t *testing.T) {
+		fenced := "```\n" +
+			"- [ ] User-facing docs updated\n" +
+			"```\n" +
+			"\n" +
+			"## Documentation\n" +
+			"- [ ] User-facing docs updated\n"
+		result, found := CheckCheckbox(fenced, "User-facing docs updated")
+		if !found {
+			t.Fatal("expected match outside fence")
+		}
+		// The in-fence checkbox must remain unchanged.
+		fencedSegment := result[:strings.Index(result, "```\n\n")+len("```\n\n")]
+		if !strings.Contains(fencedSegment, "- [ ] User-facing docs updated") {
+			t.Errorf("in-fence checkbox should not be ticked:\n%s", fencedSegment)
+		}
+		// The real-section checkbox must be ticked.
+		if !strings.Contains(result, "## Documentation\n- [x] User-facing docs updated") {
+			t.Errorf("real-section checkbox should be ticked:\n%s", result)
+		}
+	})
 }
 
 func TestHasTestPlan(t *testing.T) {

@@ -84,7 +84,7 @@ Each transition can have ordered actions:
 |:---------------------------|:---------------------------------------------------------|
 | `validate`                 | Check a rule (body not empty, checkboxes checked, etc.)  |
 | `require_human_approval`   | Block until human approves in the web UI                 |
-| `append_section`           | Add a titled section with checklist to the issue body    |
+| `append_section`           | Add a titled section with checklist to the issue body. Fence-aware: section headings inside fenced code blocks (``` or `~~~`) are not treated as existing sections, so quoting workflow YAML in the body does not block appends. |
 | `inject_prompt`            | Add extra guidance for this specific transition          |
 | `set_fields`               | Update frontmatter fields (e.g., clear assignee)         |
 

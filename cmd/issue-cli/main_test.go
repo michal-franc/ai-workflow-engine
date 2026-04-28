@@ -189,7 +189,7 @@ func TestParseFieldFlags_NoFieldsReturnsEmpty(t *testing.T) {
 	}
 }
 
-func TestRunAppendRejectsEscapedDuplicateHeading(t *testing.T) {
+func TestRunAppendAutoRoutesEscapedDuplicateHeading(t *testing.T) {
 	dir := t.TempDir()
 	issuesDir := filepath.Join(dir, "issues")
 	systemDir := filepath.Join(issuesDir, "CLI")
@@ -212,20 +212,23 @@ Existing note
 		t.Fatalf("write issue: %v", err)
 	}
 
-	body := normalizeEscapedText(`## Design\n- [ ] escaped duplicate`)
-	_, _, err := tracker.UpdateIssueBody(issuePath, func(existing string) (string, bool, error) {
+	body := normalizeEscapedText(`## Design\n- [ ] auto routed`)
+	_, changed, err := tracker.UpdateIssueBody(issuePath, func(existing string) (string, bool, error) {
 		return tracker.AppendIssueBody(existing, body)
 	})
-	if err == nil {
-		t.Fatal("expected duplicate heading error")
+	if err != nil {
+		t.Fatalf("AppendIssueBody returned error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "duplicate heading") {
-		t.Fatalf("error = %q, want duplicate heading guidance", err)
+	if !changed {
+		t.Fatal("changed = false, want true")
 	}
 
 	finalIssue := loadIssueByPath(t, issuesDir, issuePath)
-	if strings.Contains(finalIssue.BodyRaw, "escaped duplicate") {
-		t.Fatalf("issue body unexpectedly changed:\n%s", finalIssue.BodyRaw)
+	if !strings.Contains(finalIssue.BodyRaw, "auto routed") {
+		t.Fatalf("issue body missing auto-routed content:\n%s", finalIssue.BodyRaw)
+	}
+	if strings.Count(finalIssue.BodyRaw, "## Design") != 1 {
+		t.Fatalf("expected exactly one ## Design heading, got:\n%s", finalIssue.BodyRaw)
 	}
 }
 

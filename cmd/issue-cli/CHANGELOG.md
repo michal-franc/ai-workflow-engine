@@ -16,6 +16,11 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.7.2 — 2026-04-28
+
+- `issue-cli append <slug> --body "..."` now auto-routes into an existing section when `--body` starts with a heading already present in the issue and contains only deeper subheadings — no more retrying with `--section` after a duplicate-heading failure for the common `## Implementation\n…` pattern. The duplicate-heading error still fires when a *peer* heading collides (e.g. `## New\n…\n## Existing`); pass `--section` in that case.
+- `--section` is now documented in `issue-cli help` and surfaced in the dispatch prompt's "commands you can use freely" block, so agents see it before hitting the duplicate-heading error.
+
 ## v0.7.1 — 2026-04-28
 
 - `issue-cli transition` no longer rejects valid `target: frontmatter` answers that are already on the issue. The validator now consults the issue's existing frontmatter for required `target: frontmatter` fields, so `set-meta <key> <value>` followed by `transition` succeeds without re-supplying the value. `target: section:<Title>` fields still require an explicit answer (they record a fresh body line each time).

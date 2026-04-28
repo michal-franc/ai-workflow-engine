@@ -305,9 +305,31 @@ func AppendIssueBody(body, text string) (string, bool, error) {
 		existing[match.Key] = true
 	}
 
+	textHeadings := findAllHeadings(text)
+
+	// Auto-route: if text begins with a heading that already exists in body
+	// and the rest of the text only contains deeper subheadings, treat this
+	// as an append into that existing section.
+	if len(textHeadings) > 0 && textHeadings[0].StartLine == 0 && existing[textHeadings[0].Key] {
+		lead := textHeadings[0]
+		canAutoRoute := true
+		for _, h := range textHeadings[1:] {
+			if h.Level <= lead.Level {
+				canAutoRoute = false
+				break
+			}
+		}
+		if canAutoRoute {
+			lines := strings.Split(text, "\n")
+			_, title, _ := parseHeadingLine(lines[0])
+			remainder := strings.Join(lines[1:], "\n")
+			return AppendIssueBodyToSection(body, title, remainder, false)
+		}
+	}
+
 	var duplicates []string
 	seen := map[string]bool{}
-	for _, match := range findAllHeadings(text) {
+	for _, match := range textHeadings {
 		if existing[match.Key] && !seen[match.Key] {
 			duplicates = append(duplicates, strings.TrimSpace(match.Line))
 			seen[match.Key] = true

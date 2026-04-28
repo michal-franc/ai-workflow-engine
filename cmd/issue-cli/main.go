@@ -651,6 +651,7 @@ Commands:
   update <slug>        Replace issue body (--body "content"), preserves frontmatter
   set-meta <slug>      Set/clear a frontmatter field (--key <k> --value "v" | --clear)
   append <slug>        Append content to issue body (--body "...", or --section "X" --body "...")
+                       If --body starts with an existing heading, it auto-routes into that section.
   replace <slug>       Replace content of an existing section (--section "X" --body "...")
   retrospective <slug> Save workflow feedback under retros/ in the project
   stats                Project health overview

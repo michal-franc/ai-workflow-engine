@@ -2623,6 +2623,7 @@ These are safe to run without asking the user:
   issue-cli check %s "<text>"         # mark a checkbox done
   issue-cli transition %s --to "<next-status>"  # move forward
   issue-cli append %s --body "content"          # append section to issue body
+  issue-cli append %s --section "Name" --body "..."  # append into an existing section (also auto-routes if --body starts with that heading)
   issue-cli retrospective %s --body "content"   # save workflow feedback under retros/ in the project
 
 ## CRITICAL: NEVER modify issue .md files manually. Always use issue-cli commands.
@@ -2665,7 +2666,7 @@ If you hit friction, ambiguity, or missing guardrails while using issue-cli or t
 		issue.Slug,
 		issue.Slug,
 		issue.Slug,
-		issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.System, issue.System, issue.Slug,
+		issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.System, issue.System, issue.Slug,
 		issue.Title, issue.Status, issue.Priority,
 		issue.BodyRaw)
 }

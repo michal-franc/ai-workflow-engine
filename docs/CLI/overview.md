@@ -29,6 +29,17 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli report-bug "..."`     | File a bug report about issue-cli itself |
 | `issue-cli retrospective <slug>` | Save a workflow retrospective            |
 
+### `append`
+
+`issue-cli append <slug> --body "..."` adds content to the issue body. Two routing modes:
+
+- **Default** — content is appended after the existing body. Headings inside `--body` must be unique against the issue.
+- **Section** — pass `--section "Name"` to append into an existing section (or create it if missing). Use `--force` to disambiguate when the same heading exists at multiple levels.
+
+If `--body` starts with a heading that is already present in the issue (and the rest contains only deeper subheadings), the command auto-routes into that section — equivalent to passing `--section`. This means agents drafting `## Implementation\n…` style appends do not have to retry with `--section` after a duplicate-heading failure.
+
+The duplicate-heading guard still fires when `--body` introduces a *peer* heading that collides (e.g., `--body "## New\n…\n## Existing"`); pass `--section` to disambiguate.
+
 ### `transition`
 
 `issue-cli transition <slug> --to "<status>"` runs the workflow engine — same path the board uses for drag-and-drop, so behavior matches.

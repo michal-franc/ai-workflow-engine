@@ -195,9 +195,55 @@ func TestParseIssue_EmptyLabels(t *testing.T) {
 	}
 }
 
-func TestAppendIssueBodyRejectsNormalizedDuplicateHeadings(t *testing.T) {
+func TestAppendIssueBodyAutoRoutesWhenLeadingHeadingExists(t *testing.T) {
 	body := "## Design\nExisting design notes"
-	_, changed, err := AppendIssueBody(body, "###   design\nNew design notes")
+	got, changed, err := AppendIssueBody(body, "## Design\n\nNew design notes")
+	if err != nil {
+		t.Fatalf("AppendIssueBody returned error: %v", err)
+	}
+	if !changed {
+		t.Fatal("changed = false, want true")
+	}
+	want := "## Design\nExisting design notes\n\nNew design notes\n"
+	if got != want {
+		t.Fatalf("body = %q, want %q", got, want)
+	}
+}
+
+func TestAppendIssueBodyAutoRoutesWithSubheadings(t *testing.T) {
+	body := "## Implementation\n- [ ] step one"
+	got, changed, err := AppendIssueBody(body, "## Implementation\n\n### Notes\n- detail")
+	if err != nil {
+		t.Fatalf("AppendIssueBody returned error: %v", err)
+	}
+	if !changed {
+		t.Fatal("changed = false, want true")
+	}
+	if !strings.Contains(got, "### Notes") || !strings.Contains(got, "- detail") {
+		t.Fatalf("body = %q, want subheading appended into Implementation", got)
+	}
+	if strings.Count(got, "## Implementation") != 1 {
+		t.Fatalf("body = %q, want only one ## Implementation heading", got)
+	}
+}
+
+func TestAppendIssueBodyAutoRoutesNormalizedHeading(t *testing.T) {
+	body := "## Design\nExisting design notes"
+	got, changed, err := AppendIssueBody(body, "###   design\nNew design notes")
+	if err != nil {
+		t.Fatalf("AppendIssueBody returned error: %v", err)
+	}
+	if !changed {
+		t.Fatal("changed = false, want true")
+	}
+	if !strings.Contains(got, "New design notes") {
+		t.Fatalf("body = %q, want appended detail", got)
+	}
+}
+
+func TestAppendIssueBodyRejectsPeerHeadingCollision(t *testing.T) {
+	body := "## Design\nA\n\n## Test Plan\nB"
+	_, changed, err := AppendIssueBody(body, "## New\n\n## Design\nshould fail")
 	if err == nil {
 		t.Fatal("expected duplicate heading error")
 	}

@@ -1,0 +1,35 @@
+{
+  "next_id": 6,
+  "entries": [
+    {
+      "id": 1,
+      "description": "PaymentProcessor.charge() does not roll back the ledger entry when the gateway call fails",
+      "status": "✅ resolved",
+      "comment": "repro in tests:sadasdsad tests/payment/processor_test.go:142"
+    },
+    {
+      "id": 2,
+      "description": "RefundService duplicates the idempotency-key check already done in the API layer",
+      "status": "👍 nice-to-have",
+      "comment": ""
+    },
+    {
+      "id": 3,
+      "description": "Stripe webhook handler logs the raw payload — leaks PAN-suffix in retained logs",
+      "status": "🔥 must-fix",
+      "comment": "redact before logging; see security #s-101"
+    },
+    {
+      "id": 4,
+      "description": "internal/ledger uses time.Now() directly — hard to test, prefer injectable clock",
+      "status": "✅ resolved",
+      "comment": "fixed in commit 8a1c2e0"
+    },
+    {
+      "id": 5,
+      "description": "config.Load() panics on missing STRIPE_KEY in dev — should warn and fall back to noop gateway",
+      "status": "❌ wontfix",
+      "comment": "by design; dev env requires explicit setup"
+    }
+  ]
+}

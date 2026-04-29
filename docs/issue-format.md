@@ -86,6 +86,20 @@ When `workflow.yaml` has `scoring.enabled: true`, the viewer computes a per-issu
 
 Missing fields contribute 0. See [Workflow](workflow.md#scoring) for the full formula and example config.
 
+## Inline Data Table Marker
+
+A `<!-- data -->` HTML comment in the body marks where the per-issue [data table](data-store.md) renders. The marker can declare the dropdown statuses for that issue:
+
+```markdown
+## Findings
+
+<!-- data statuses=🔥 must-fix,👍 nice-to-have,✅ resolved,❌ wontfix -->
+```
+
+Statuses are comma-separated; spaces and emojis are allowed inside a token. Without `statuses=`, the dropdown defaults to `open, resolved`. With no marker at all, the table renders below the body when entries exist.
+
+The table reads from a sidecar JSON file (`<slug>.data.json`) — manage rows via `issue-cli data add | list | set-status | set-comment | remove`, never by editing the JSON directly.
+
 ## File Organization
 
 Issues can live flat in the issues directory or in subdirectories by system:

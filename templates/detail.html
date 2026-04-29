@@ -42,8 +42,8 @@
                     <button class="body-toolbar-action" onclick="editInNvim()">Edit in nvim</button>
                 </div>
                 <div class="detail-body" id="body-preview">
-                    {{if .Issue.BodyHTML}}
-                    {{linkIssueRefs .Issue.BodyHTML .Prefix .SlugMap}}
+                    {{if .RenderedBody}}
+                    {{.RenderedBody}}
                     {{else}}
                     <p style="color:var(--text-secondary)">No description provided.</p>
                     {{end}}
@@ -404,6 +404,59 @@
           .catch(err => {
             showToast('Failed to open nvim: ' + err.message, true);
           });
+    }
+
+    // --- Data table row actions ---
+    function dataTableToast(ok, msg) {
+        const toast = document.getElementById('save-toast');
+        toast.textContent = msg || (ok ? 'Saved' : 'Error');
+        toast.className = 'save-toast ' + (ok ? 'show' : 'show error');
+        setTimeout(() => { toast.className = 'save-toast'; }, 2000);
+    }
+
+    function dataRowID(el) {
+        const row = el.closest('.data-row');
+        return row ? row.dataset.id : null;
+    }
+
+    function dataSetStatus(selectEl) {
+        const id = dataRowID(selectEl);
+        if (!id) return;
+        fetch(issueURL + '/data/' + id + '/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: selectEl.value })
+        }).then(res => dataTableToast(res.ok, res.ok ? 'Status updated' : 'Failed'));
+    }
+
+    function dataSetComment(cellEl) {
+        const id = dataRowID(cellEl);
+        if (!id) return;
+        const next = cellEl.innerText;
+        if (next === cellEl.dataset.original) return;
+        fetch(issueURL + '/data/' + id + '/comment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ comment: next })
+        }).then(res => {
+            if (res.ok) cellEl.dataset.original = next;
+            dataTableToast(res.ok, res.ok ? 'Comment saved' : 'Failed');
+        });
+    }
+
+    function dataRemove(btnEl) {
+        const id = dataRowID(btnEl);
+        if (!id) return;
+        if (!confirm('Remove entry #' + id + '?')) return;
+        fetch(issueURL + '/data/' + id, { method: 'DELETE' })
+            .then(res => {
+                if (res.ok) {
+                    btnEl.closest('.data-row').remove();
+                    dataTableToast(true, 'Removed');
+                } else {
+                    dataTableToast(false, 'Failed');
+                }
+            });
     }
 
     // --- Inline comments ---

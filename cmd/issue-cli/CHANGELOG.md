@@ -16,6 +16,11 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.9.0 — 2026-04-29
+
+- New per-issue **structured data store**. Every issue can carry a sidecar `<slug>.data.json` of `{id, description, status, comment}` rows. Manage rows with `issue-cli data add | list | set-status | set-comment | remove` (`add` prints the assigned id on stdout for shell composition; `list --json` emits the entries array). The detail view renders the rows as an inline table at a `<!-- data statuses=... -->` marker in the body — per-issue dropdown statuses (spaces and emojis allowed inside a token), inline status select, contenteditable comment, row remove button. Designed for agent code-review findings the human triages inline. Atomic temp+rename writes; ids are monotonic and not reused after delete; missing sidecar means empty store, no error. New endpoints: `POST /issue/<slug>/data`, `POST /issue/<slug>/data/<id>/status`, `POST /issue/<slug>/data/<id>/comment`, `DELETE /issue/<slug>/data/<id>`. See `docs/data-store.md`.
+- Markdown rendering now passes raw HTML through (`goldmark` `html.WithUnsafe()`), so HTML comments — including the new `<!-- data -->` marker — survive into the rendered body instead of being replaced by `<!-- raw HTML omitted -->`. Issue bodies are already trusted content, so this aligns with the existing trust model.
+
 ## v0.8.0 — 2026-04-29
 
 - `issue-cli list --json` now emits `Score` (float) and `ScoreBreakdown` (`{Total, Components[]}`) on every entry when `workflow.yaml` has `scoring.enabled: true`. Both fields are `null` when scoring is disabled or the issue has no scoring inputs. The breakdown is the same `tracker.ComputeScore` output that drives the viewer's `⚡N` badge — CLI consumers no longer need to re-implement the scoring formula in bash against raw frontmatter.

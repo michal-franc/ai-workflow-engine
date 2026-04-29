@@ -33,6 +33,7 @@ Open `http://localhost:8080` to see a sample project with issues and docs.
 - **Inline editing** — change status, priority, version, labels, assignee, and body from the UI
 - **External body editing** — open an issue body in `nvim` from the detail view using the same local `tmux`/terminal workspace flow as agent sessions
 - **Inline comments** on issue body blocks with open/done status
+- **Inline data table** — drop `<!-- data statuses=open,resolved,wontfix -->` in a body to render a per-issue table of `{description, status, comment}` rows with inline status dropdown and contenteditable comments. Backed by a sidecar `<slug>.data.json`. See [docs/data-store.md](docs/data-store.md).
 - **Issue references** — `#123` auto-links to other issues
 - **Theme picker** — dark, dracula, light
 - **Agent dispatch** — send issues to Claude or Codex from the board (hover play button) or detail view
@@ -50,6 +51,7 @@ Open `http://localhost:8080` to see a sample project with issues and docs.
 - **Checkbox management** — `check` command to tick off checklist items by text match
 - **Configurable workflows** — custom statuses, status prompts, validation rules, transition actions, and side-effects via `workflow.yaml`
 - **Workflow side-effects** — automatic actions on transition (e.g., `clear_assignee` when entering backlog)
+- **Per-issue data store** — `issue-cli data add | list | set-status | set-comment | remove` writes a sidecar JSON of `{id, description, status, comment}` rows next to the issue file. Designed for agent code-review findings that the human triages inline in the UI.
 
 ### Syncing
 

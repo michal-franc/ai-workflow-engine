@@ -109,6 +109,7 @@ Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI
 - [Board Configuration](docs/board-configuration.md) — columns, card fields
 - [Agent Dispatch](docs/agent-dispatch.md) — terminal config, approval notifications
 - [GitHub Integration](docs/github-integration.md) — sync, issue reference, auto-close
+- [Per-issue Data Store](docs/data-store.md) — sidecar JSON, `<!-- data -->` marker, `issue-cli data` commands
 
 Per-system docs:
 

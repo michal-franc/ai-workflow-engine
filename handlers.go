@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -192,22 +193,23 @@ var funcMap = template.FuncMap{
 		}
 	},
 	"linkIssueRefs": func(html string, prefix string, slugMap map[string]string) template.HTML {
-		// Match #123, #my-slug, #system/my-slug
-		re := regexp.MustCompile(`#([a-zA-Z0-9][\w/.-]*)`)
-		result := re.ReplaceAllStringFunc(html, func(match string) string {
-			ref := match[1:]
-			// Direct slug match (e.g. #combat/fix-heat-bug)
-			if slug, ok := slugMap[ref]; ok {
-				return fmt.Sprintf(`<a href="%s/issue/%s" class="issue-ref">%s</a>`, prefix, slug, match)
-			}
-			// Try lowercase
-			if slug, ok := slugMap[strings.ToLower(ref)]; ok {
-				return fmt.Sprintf(`<a href="%s/issue/%s" class="issue-ref">%s</a>`, prefix, slug, match)
-			}
-			return match
-		})
-		return template.HTML(result)
+		return template.HTML(linkIssueRefs(html, prefix, slugMap))
 	},
+}
+
+var issueRefRe = regexp.MustCompile(`#([a-zA-Z0-9][\w/.-]*)`)
+
+func linkIssueRefs(html, prefix string, slugMap map[string]string) string {
+	return issueRefRe.ReplaceAllStringFunc(html, func(match string) string {
+		ref := match[1:]
+		if slug, ok := slugMap[ref]; ok {
+			return fmt.Sprintf(`<a href="%s/issue/%s" class="issue-ref">%s</a>`, prefix, slug, match)
+		}
+		if slug, ok := slugMap[strings.ToLower(ref)]; ok {
+			return fmt.Sprintf(`<a href="%s/issue/%s" class="issue-ref">%s</a>`, prefix, slug, match)
+		}
+		return match
+	})
 }
 
 type Server struct {
@@ -370,6 +372,14 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleToggleComment(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/comments/delete") && r.Method == http.MethodPost:
 		s.handleDeleteComment(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/data") && r.Method == http.MethodPost:
+		s.handleDataAdd(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.Contains(rest, "/data/") && strings.HasSuffix(rest, "/status") && r.Method == http.MethodPost:
+		s.handleDataSetStatus(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.Contains(rest, "/data/") && strings.HasSuffix(rest, "/comment") && r.Method == http.MethodPost:
+		s.handleDataSetComment(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.Contains(rest, "/data/") && r.Method == http.MethodDelete:
+		s.handleDataRemove(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/dispatch") && r.Method == http.MethodPost:
 		s.handleDispatchAgent(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/edit-in-nvim") && r.Method == http.MethodPost:
@@ -547,6 +557,7 @@ type DetailData struct {
 	OptionalApprovals []OptionalApproval // optional-path transitions that require human approval, hidden behind CTAs
 	ActiveBots        int
 	Timeline          []TimelineEvent // agent↔issue-cli interactions parsed from .agent-logs/<assignee>/<assignee>.clilog
+	RenderedBody      template.HTML   // BodyHTML with data marker replaced by the rendered data table
 }
 
 // OptionalApproval describes a transition to an Optional status that requires
@@ -677,6 +688,8 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		timeline = append([]TimelineEvent{dispatchEv}, timeline...)
 	}
 
+	renderedBody := renderBodyWithDataTable(found, prefix, slugMap)
+
 	if err := s.tmpl.ExecuteTemplate(w, "detail.html", DetailData{
 		Issue:             detailView,
 		BackURL:           backURL,
@@ -688,9 +701,36 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		OptionalApprovals: optionalApprovals,
 		ActiveBots:        activeBots,
 		Timeline:          timeline,
+		RenderedBody:      template.HTML(renderedBody),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// renderBodyWithDataTable substitutes the first <!-- data --> marker in the
+// rendered body HTML with the data table, or appends the table after the
+// body if no marker is present. Issue refs are linked afterwards so the
+// table itself is not rewritten.
+func renderBodyWithDataTable(issue *tracker.Issue, prefix string, slugMap map[string]string) string {
+	bodyHTML := issue.BodyHTML
+	store, err := tracker.LoadData(issue.FilePath)
+	if err != nil {
+		// Treat read failure as "no data" — never block the detail view.
+		store = tracker.DataStore{}
+	}
+	marker := tracker.ParseDataMarker(bodyHTML)
+	statuses := tracker.ResolveDataStatuses(marker.Statuses, store.Entries)
+	tableHTML := renderDataTable(prefix, issue.Slug, statuses, store.Entries)
+
+	var body string
+	if marker.Found {
+		body = bodyHTML[:marker.Start] + tableHTML + bodyHTML[marker.Start+len(marker.Raw):]
+	} else if len(store.Entries) == 0 && !marker.Found {
+		body = bodyHTML
+	} else {
+		body = bodyHTML + tableHTML
+	}
+	return linkIssueRefs(body, prefix, slugMap)
 }
 
 // --- Board ---
@@ -2099,6 +2139,195 @@ func (s *Server) handleToggleComment(w http.ResponseWriter, r *http.Request, pro
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// renderDataTable produces the inline data-table HTML that replaces a
+// <!-- data --> marker in an issue body. statuses is the dropdown menu;
+// it should already include any status currently in use on an entry.
+func renderDataTable(prefix, slug string, statuses []string, entries []tracker.DataEntry) string {
+	var b strings.Builder
+	b.WriteString(`<div class="data-table-wrap" data-issue-slug="`)
+	b.WriteString(template.HTMLEscapeString(slug))
+	b.WriteString(`" data-prefix="`)
+	b.WriteString(template.HTMLEscapeString(prefix))
+	b.WriteString(`">`)
+	b.WriteString(`<table class="data-table"><thead><tr><th>#</th><th>Description</th><th>Status</th><th>Comment</th><th></th></tr></thead><tbody>`)
+	if len(entries) == 0 {
+		b.WriteString(`<tr class="data-table-empty"><td colspan="5">No entries yet. Add some with <code>issue-cli data add &lt;slug&gt; --description "..."</code>.</td></tr>`)
+	}
+	for _, e := range entries {
+		b.WriteString(`<tr class="data-row" data-id="`)
+		b.WriteString(strconv.Itoa(e.ID))
+		b.WriteString(`"><td class="data-id">`)
+		b.WriteString(strconv.Itoa(e.ID))
+		b.WriteString(`</td><td class="data-desc">`)
+		b.WriteString(template.HTMLEscapeString(e.Description))
+		b.WriteString(`</td><td class="data-status"><select onchange="dataSetStatus(this)">`)
+		statusList := append([]string(nil), statuses...)
+		seen := false
+		for _, s := range statusList {
+			if s == e.Status {
+				seen = true
+				break
+			}
+		}
+		if !seen && e.Status != "" {
+			statusList = append(statusList, e.Status)
+		}
+		for _, s := range statusList {
+			selected := ""
+			if s == e.Status {
+				selected = " selected"
+			}
+			b.WriteString(`<option value="`)
+			b.WriteString(template.HTMLEscapeString(s))
+			b.WriteString(`"`)
+			b.WriteString(selected)
+			b.WriteString(`>`)
+			b.WriteString(template.HTMLEscapeString(s))
+			b.WriteString(`</option>`)
+		}
+		b.WriteString(`</select></td><td class="data-comment" contenteditable="true" onblur="dataSetComment(this)" data-original="`)
+		b.WriteString(template.HTMLEscapeString(e.Comment))
+		b.WriteString(`">`)
+		b.WriteString(template.HTMLEscapeString(e.Comment))
+		b.WriteString(`</td><td class="data-actions"><button class="data-remove-btn" onclick="dataRemove(this)" title="Remove entry">×</button></td></tr>`)
+	}
+	b.WriteString(`</tbody></table></div>`)
+	return b.String()
+}
+
+// extractDataSlugAndID parses /<prefix>/issue/<slug>/data[/<id>[/<verb>]]. The
+// slug may contain slashes (subdirectory issues). Returns slug, id (-1 when
+// the id is not part of the path), and ok. Verb is matched by the caller.
+func (s *Server) extractDataSlugAndID(path, prefix string) (slug string, id int, ok bool) {
+	rest := strings.TrimPrefix(path, prefix+"/issue/")
+	idx := strings.Index(rest, "/data")
+	if idx < 0 {
+		return "", 0, false
+	}
+	slug = rest[:idx]
+	tail := rest[idx+len("/data"):]
+	if tail == "" {
+		return slug, -1, true
+	}
+	tail = strings.TrimPrefix(tail, "/")
+	parts := strings.Split(tail, "/")
+	parsed, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return "", 0, false
+	}
+	return slug, parsed, true
+}
+
+type dataAddRequest struct {
+	Description string `json:"description"`
+	Status      string `json:"status"`
+}
+
+type dataStatusRequest struct {
+	Status string `json:"status"`
+}
+
+type dataCommentRequest struct {
+	Comment string `json:"comment"`
+}
+
+func (s *Server) handleDataAdd(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	slug, _, ok := s.extractDataSlugAndID(r.URL.Path, prefix)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	issue := s.findIssueBySlug(proj, slug)
+	if issue == nil {
+		http.NotFound(w, r)
+		return
+	}
+	var req dataAddRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Description) == "" {
+		http.Error(w, "description is required", http.StatusBadRequest)
+		return
+	}
+	id, err := tracker.AddEntry(issue.FilePath, req.Description, req.Status)
+	if err != nil {
+		http.Error(w, "failed to add: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]int{"id": id})
+}
+
+func (s *Server) handleDataSetStatus(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	slug, id, ok := s.extractDataSlugAndID(r.URL.Path, prefix)
+	if !ok || id < 0 {
+		http.NotFound(w, r)
+		return
+	}
+	issue := s.findIssueBySlug(proj, slug)
+	if issue == nil {
+		http.NotFound(w, r)
+		return
+	}
+	var req dataStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := tracker.SetEntryStatus(issue.FilePath, id, req.Status); err != nil {
+		http.Error(w, "failed: "+err.Error(), http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleDataSetComment(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	slug, id, ok := s.extractDataSlugAndID(r.URL.Path, prefix)
+	if !ok || id < 0 {
+		http.NotFound(w, r)
+		return
+	}
+	issue := s.findIssueBySlug(proj, slug)
+	if issue == nil {
+		http.NotFound(w, r)
+		return
+	}
+	var req dataCommentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := tracker.SetEntryComment(issue.FilePath, id, req.Comment); err != nil {
+		http.Error(w, "failed: "+err.Error(), http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleDataRemove(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	slug, id, ok := s.extractDataSlugAndID(r.URL.Path, prefix)
+	if !ok || id < 0 {
+		http.NotFound(w, r)
+		return
+	}
+	issue := s.findIssueBySlug(proj, slug)
+	if issue == nil {
+		http.NotFound(w, r)
+		return
+	}
+	if err := tracker.RemoveEntry(issue.FilePath, id); err != nil {
+		http.Error(w, "failed: "+err.Error(), http.StatusNotFound)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

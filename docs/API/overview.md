@@ -13,6 +13,7 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 - `internal/tracker/issue.go` — Issue struct, ParseIssue, LoadIssues, frontmatter update
 - `internal/tracker/doc.go` — DocPage struct, LoadDocs
 - `internal/tracker/workflow.go` — WorkflowConfig, transition engine, validation
+- `internal/tracker/data.go` — `DataStore` sidecar (`<slug>.data.json`); the four `/data` endpoints are thin wrappers over `AddEntry` / `SetEntryStatus` / `SetEntryComment` / `RemoveEntry`. See [Per-issue Data Store](../data-store.md).
 
 ## Design Considerations
 
@@ -37,4 +38,8 @@ When working on API changes:
 | POST   | `/issue/<slug>/approve`                       | Toggle human approval          |
 | GET    | `/issue/<slug>/comments`                      | List issue comments            |
 | POST   | `/issue/<slug>/comments`                      | Add comment                    |
+| POST   | `/issue/<slug>/data`                          | Add a row to the per-issue data store — body `{description, status}`, returns `{id}` |
+| POST   | `/issue/<slug>/data/<id>/status`              | Set a row's status — body `{status}` |
+| POST   | `/issue/<slug>/data/<id>/comment`             | Set a row's comment — body `{comment}` |
+| DELETE | `/issue/<slug>/data/<id>`                     | Remove a row (id is not reused) |
 | GET    | `/hash`                                       | Content hash for polling       |

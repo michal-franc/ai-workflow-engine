@@ -35,3 +35,4 @@ When working on UI changes:
 - Handlers must not block on local processes — use goroutines for async operations
 - User feedback after actions (dispatch, approve, save) goes through the toast notification system
 - Board card fields and columns are driven by `workflow.yaml` — see [Board Configuration](../board-configuration)
+- The detail view substitutes `<!-- data -->` markers in the rendered body with an inline data table (status dropdown + contenteditable comment + remove button). Markdown HTML comments require `goldmark/renderer/html.WithUnsafe()`, which is enabled in `internal/tracker/issue.go`. See [Per-issue Data Store](../data-store.md).

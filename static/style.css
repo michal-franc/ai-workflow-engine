@@ -2209,3 +2209,92 @@ select.modal-input option {
 .timeline-kind-dispatch .timeline-kind { color: #d29922; font-weight: 700; }
 .timeline-kind-dispatch { background: rgba(210, 153, 34, 0.05); }
 .timeline-action-status_prompt .timeline-action-type { color: #d29922; }
+
+/* --- Per-issue structured data table --- */
+.data-table-wrap {
+    margin: 16px 0;
+    border: 1px solid var(--border, #30363d);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg-secondary, #161b22);
+}
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.data-table thead th {
+    text-align: left;
+    padding: 8px 10px;
+    background: var(--bg-tertiary, #21262d);
+    color: var(--text-secondary, #8b949e);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border, #30363d);
+}
+.data-table tbody td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border, #30363d);
+    vertical-align: top;
+}
+.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.data-table .data-id {
+    width: 40px;
+    color: var(--text-secondary, #8b949e);
+    font-family: var(--font-mono, monospace);
+}
+.data-table .data-desc {
+    width: 40%;
+}
+.data-table .data-status {
+    width: 160px;
+}
+.data-table .data-status select {
+    width: 100%;
+    background: var(--bg-primary, #0d1117);
+    color: var(--text, #e6edf3);
+    border: 1px solid var(--border, #30363d);
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 13px;
+}
+.data-table .data-comment {
+    color: var(--text, #e6edf3);
+    cursor: text;
+    min-width: 120px;
+}
+.data-table .data-comment:focus {
+    outline: 2px solid var(--accent, #58a6ff);
+    outline-offset: -2px;
+    background: var(--bg-primary, #0d1117);
+}
+.data-table .data-comment:empty::before {
+    content: "—";
+    color: var(--text-secondary, #8b949e);
+}
+.data-table .data-actions {
+    width: 32px;
+    text-align: right;
+}
+.data-remove-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    line-height: 1;
+    font-size: 16px;
+}
+.data-remove-btn:hover {
+    background: rgba(248, 81, 73, 0.15);
+    border-color: rgba(248, 81, 73, 0.4);
+    color: #f85149;
+}
+.data-table-empty td {
+    color: var(--text-secondary, #8b949e);
+    font-style: italic;
+    text-align: center;
+}

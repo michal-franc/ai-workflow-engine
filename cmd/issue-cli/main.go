@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -349,6 +350,12 @@ func main() {
 			fatal("report-bug requires a description\n\nExample:\n  issue-cli report-bug \"transition command rejects valid status name with trailing space\"")
 		}
 		runReportBug(strings.Join(cmdArgs, " "))
+	case "data":
+		if len(cmdArgs) < 1 {
+			fatal("data requires a subcommand\n\nUsage:\n  issue-cli data add <slug> --description \"...\" [--status <s>]\n  issue-cli data list <slug> [--json]\n  issue-cli data set-status <slug> <id> <status>\n  issue-cli data set-comment <slug> <id> --text \"...\"\n  issue-cli data remove <slug> <id>")
+		}
+		proj := loadProject(configPath, projectSlug)
+		runData(proj, cmdArgs[0], cmdArgs[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\nRun: issue-cli help\n", cmd)
 		os.Exit(1)
@@ -656,6 +663,7 @@ Commands:
   retrospective <slug> Save workflow feedback under retros/ in the project
   stats                Project health overview
   report-bug <desc>    Report a bug in issue-cli itself
+  data <sub> <slug>    Per-issue structured data store (sub: add|list|set-status|set-comment|remove)
 
 Global flags:
   --config <path>      Path to projects.yaml (default: projects.yaml)
@@ -2199,6 +2207,150 @@ func runStats(proj *tracker.Project) {
 			fmt.Printf("  %-15s %d\n", a, n)
 		}
 	}
+}
+
+// --- data subcommand ---
+
+func runData(proj *tracker.Project, sub string, args []string) {
+	switch sub {
+	case "add":
+		runDataAdd(proj, args)
+	case "list":
+		runDataList(proj, args)
+	case "set-status":
+		runDataSetStatus(proj, args)
+	case "set-comment":
+		runDataSetComment(proj, args)
+	case "remove", "rm":
+		runDataRemove(proj, args)
+	default:
+		fatal("Unknown data subcommand: %s\n\nValid: add, list, set-status, set-comment, remove", sub)
+	}
+}
+
+func parseDataID(s string) int {
+	id, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil || id <= 0 {
+		fatal("Invalid id %q: must be a positive integer", s)
+	}
+	return id
+}
+
+func runDataAdd(proj *tracker.Project, args []string) {
+	if len(args) < 1 {
+		fatal("data add requires <slug>\n\nExample:\n  issue-cli data add my-issue --description \"finding\" --status \"open\"")
+	}
+	slug := args[0]
+	rest := args[1:]
+	desc := textFlagValue(rest, "--description")
+	if desc == "" {
+		fatal("data add requires --description\n\nExample:\n  issue-cli data add %s --description \"finding\" --status \"open\"", slug)
+	}
+	status := textFlagValue(rest, "--status")
+
+	issue, _ := findIssue(proj, slug)
+	id, err := tracker.AddEntry(issue.FilePath, desc, status)
+	if err != nil {
+		fatal("Failed to add entry: %v", err)
+	}
+	if jsonOutput {
+		outputJSON(map[string]interface{}{"id": id, "slug": issue.Slug})
+		return
+	}
+	fmt.Println(id)
+	fmt.Fprintf(os.Stderr, "✓ Added entry #%d to %s\n", id, issue.Slug)
+}
+
+func runDataList(proj *tracker.Project, args []string) {
+	if len(args) < 1 {
+		fatal("data list requires <slug>")
+	}
+	slug := args[0]
+	issue, _ := findIssue(proj, slug)
+	store, err := tracker.LoadData(issue.FilePath)
+	if err != nil {
+		fatal("Failed to load data: %v", err)
+	}
+
+	if jsonOutput {
+		outputJSON(store.Entries)
+		return
+	}
+
+	if len(store.Entries) == 0 {
+		fmt.Printf("== %s — data ==\n(no entries)\n", issue.Slug)
+		return
+	}
+	fmt.Printf("== %s — data (%d) ==\n", issue.Slug, len(store.Entries))
+	for _, e := range store.Entries {
+		fmt.Printf("  #%d  [%s]  %s\n", e.ID, e.Status, e.Description)
+		if e.Comment != "" {
+			fmt.Printf("        comment: %s\n", e.Comment)
+		}
+	}
+}
+
+func runDataSetStatus(proj *tracker.Project, args []string) {
+	if len(args) < 3 {
+		fatal("data set-status requires <slug> <id> <status>\n\nExample:\n  issue-cli data set-status my-issue 1 resolved")
+	}
+	slug := args[0]
+	id := parseDataID(args[1])
+	status := args[2]
+
+	issue, _ := findIssue(proj, slug)
+	if err := tracker.SetEntryStatus(issue.FilePath, id, status); err != nil {
+		fatal("Failed to set status: %v", err)
+	}
+	fmt.Printf("✓ %s entry #%d status → %s\n", issue.Slug, id, status)
+}
+
+func runDataSetComment(proj *tracker.Project, args []string) {
+	if len(args) < 2 {
+		fatal("data set-comment requires <slug> <id> --text \"...\"")
+	}
+	slug := args[0]
+	id := parseDataID(args[1])
+	text := textFlagValue(args[2:], "--text")
+	if text == "" {
+		text = textFlagValue(args[2:], "--body")
+	}
+	// allow trailing positional text
+	if text == "" {
+		var parts []string
+		skip := false
+		for _, a := range args[2:] {
+			if skip {
+				skip = false
+				continue
+			}
+			if strings.HasPrefix(a, "--") {
+				skip = true
+				continue
+			}
+			parts = append(parts, a)
+		}
+		text = strings.Join(parts, " ")
+	}
+
+	issue, _ := findIssue(proj, slug)
+	if err := tracker.SetEntryComment(issue.FilePath, id, text); err != nil {
+		fatal("Failed to set comment: %v", err)
+	}
+	fmt.Printf("✓ %s entry #%d comment updated\n", issue.Slug, id)
+}
+
+func runDataRemove(proj *tracker.Project, args []string) {
+	if len(args) < 2 {
+		fatal("data remove requires <slug> <id>")
+	}
+	slug := args[0]
+	id := parseDataID(args[1])
+	issue, _ := findIssue(proj, slug)
+	if err := tracker.RemoveEntry(issue.FilePath, id); err != nil {
+		fatal("Failed to remove entry: %v", err)
+	}
+	fmt.Printf("✓ %s entry #%d removed\n", issue.Slug, id)
 }
 
 // --- Utility ---

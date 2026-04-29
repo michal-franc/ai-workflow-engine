@@ -29,6 +29,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli process changes`      | Print the release history (last 20 versions) |
 | `issue-cli report-bug "..."`     | File a bug report about issue-cli itself |
 | `issue-cli retrospective <slug>` | Save a workflow retrospective            |
+| `issue-cli data <sub> <slug>`    | Per-issue structured data store — see [Per-issue Data Store](../data-store.md) |
 
 ### `append`
 
@@ -94,6 +95,19 @@ not mistake the default output for an issue-specific one.
 The renderer is backed by `tracker.DescribeAction` and
 `tracker.ValidationSummary` so descriptions stay in sync with the same strings
 shown in transition previews.
+
+### `data`
+
+`issue-cli data <sub> <slug>` reads and writes the per-issue structured data store (`<slug>.data.json` next to the issue's markdown file). Subcommands are `add`, `list`, `set-status`, `set-comment`, `remove`. Agents must use the CLI rather than touching the JSON file directly so the on-disk shape can change without breaking them. Full reference: [Per-issue Data Store](../data-store.md).
+
+```bash
+id=$(issue-cli data add <slug> --description "finding")
+issue-cli data set-status  <slug> "$id" "🔥 must-fix"
+issue-cli data set-comment <slug> "$id" --text "see processor_test.go:142"
+issue-cli data list <slug> --json
+```
+
+`add` prints the assigned id on stdout (and a human line on stderr) so it composes in shell pipelines. `--json` on `list` emits the entries array exactly.
 
 ### `process schema` and `process changes`
 

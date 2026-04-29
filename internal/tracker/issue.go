@@ -12,6 +12,7 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/renderer/html"
 	"gopkg.in/yaml.v3"
 )
 
@@ -123,7 +124,10 @@ func ParseIssue(filename string, data []byte) (*Issue, error) {
 	body = strings.TrimSpace(body)
 	issue.BodyRaw = body
 
-	md := goldmark.New(goldmark.WithExtensions(extension.TaskList, extension.Table))
+	md := goldmark.New(
+		goldmark.WithExtensions(extension.TaskList, extension.Table),
+		goldmark.WithRendererOptions(html.WithUnsafe()),
+	)
 	var buf bytes.Buffer
 	if err := md.Convert([]byte(body), &buf); err != nil {
 		return nil, fmt.Errorf("rendering markdown in %s: %w", filename, err)

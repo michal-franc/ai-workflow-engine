@@ -17,13 +17,25 @@ Flags:
 ## Project Structure
 
 ```
-main.go          — entry point, CLI flags, starts HTTP server
-handlers.go      — HTTP handlers, routing, template functions, Server struct
-issue.go         — Issue struct, ParseIssue, LoadIssues (walks subdirs)
-docs.go          — DocPage struct, ParseDocPage, LoadDocs
-templates/       — Go HTML templates (list.html, board.html, detail.html, docs.html)
-static/style.css — all CSS (dark GitHub theme)
-sync-issues.sh   — downloads issues from GitHub Project into ./issues/<System>/
+main.go                     — entry point, CLI flags, starts HTTP server
+routes.go                   — Server struct, NewServer, Routes, dispatcher, project list
+template_funcs.go           — funcMap, status/priority colors, link rewriters
+helpers.go                  — projectRoot, fileExists, workflowFileTarget, small utilities
+tmux.go                     — agent session listing/matching/notification
+handlers_list.go            — list view, filters, /hash, /issues.json
+handlers_board.go           — board + graph views
+handlers_detail.go          — detail page, transition preview, data-table render
+handlers_issue_mutate.go    — update/create/delete/approve/upload, body editor
+handlers_data.go            — /data sidecar endpoints
+handlers_comments.go        — comment add/get/toggle/delete
+handlers_workflow.go        — designer, retros, bug status, docs handlers
+handlers_dispatch.go        — agent dispatch + prompt builders
+handlers_github.go          — github page, fetch, import
+issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
+docs.go                     — DocPage struct, ParseDocPage, LoadDocs
+templates/                  — Go HTML templates (list.html, board.html, detail.html, docs.html)
+static/style.css            — all CSS (dark GitHub theme)
+sync-issues.sh              — downloads issues from GitHub Project into ./issues/<System>/
 ```
 
 ## Issue File Format
@@ -120,4 +132,4 @@ Per-system docs:
 
 ## Adding New Statuses
 
-Status colors are defined in the `statusColor` template function in `handlers.go` `funcMap`. Board column order and descriptions come from `workflow.yaml` statuses.
+Status colors are defined in the `statusColor` template function in `template_funcs.go` `funcMap`. Board column order and descriptions come from `workflow.yaml` statuses.

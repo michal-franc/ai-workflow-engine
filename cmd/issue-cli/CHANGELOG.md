@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.10.1 — 2026-04-29
+
+- Internal refactor: `handlers.go` (3512 lines) split into 13 cohesive files (`routes.go`, `template_funcs.go`, `helpers.go`, `tmux.go`, and `handlers_<area>.go` per responsibility). `handlers_test.go` (60K) split to mirror the new layout. No public API change, no behavior change — pure source reorganization to make subsequent handler-area changes produce smaller, single-area diffs.
+
 ## v0.10.0 — 2026-04-29
 
 - New `issue-cli workflow init` command bootstraps a fresh project in one shot: writes `workflow.yaml` from a bundled template and scaffolds `issues/` and `docs/` if they don't exist. Three templates ship: `development` (the canonical software-delivery flow this repo uses), `review` (`inbox → … → archived` triage flow), and `writing` (`idea → … → published` long-form content flow). `--template <name>` picks one; without it, an interactive prompt appears when stdin is a terminal, otherwise the command exits non-zero with the list of valid names. `--force` overwrites an existing `workflow.yaml`. Templates live as editable YAML under `cmd/issue-cli/templates/workflow/*.yaml`, are embedded via `//go:embed`, and the list of valid `--template` names is derived from the embedded directory so adding a new template is just dropping a file and rebuilding.

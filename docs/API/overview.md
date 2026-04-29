@@ -5,11 +5,23 @@ order: 1
 
 ## Scope
 
-The API system covers HTTP handlers, routing, JSON endpoints, and server-side logic in `handlers.go`.
+The API system covers HTTP handlers, routing, JSON endpoints, and server-side logic. The handler code is split across cohesive files by responsibility (routes, list, board, detail, mutate, data, comments, workflow, dispatch, github), with shared helpers in `template_funcs.go`, `tmux.go`, and `helpers.go`.
 
 ## Key Files
 
-- `handlers.go` — all HTTP handlers, template functions, Server struct, agent dispatch
+- `routes.go` — `Server` struct, `NewServer`, `Routes`, `handleProjectRoutes` dispatcher, project list page
+- `template_funcs.go` — `funcMap`, `statusColor`/`priorityColor`/`assigneeColor`, `linkIssueRefs`, status ordering helpers
+- `helpers.go` — `projectRoot`, `fileExists`, `workflowFileTarget`, `resolveProjectWorkDir`, `valueOrDash`, `trimSnippet`
+- `tmux.go` — agent session listing (`listTmuxSessions`), matching (`sessionMatchesIssue`), notification (`tmuxSendKeys`)
+- `handlers_list.go` — list view, filters, `IssueView`, `attachScores`, `/hash` polling, `/issues.json`
+- `handlers_board.go` — board and graph views
+- `handlers_detail.go` — detail page, `renderBodyWithDataTable`, `renderDataTable`, transition preview, `findIssueBySlug`
+- `handlers_issue_mutate.go` — update/create/delete/approve/upload, edit-in-nvim body editor goroutine
+- `handlers_data.go` — `/data` endpoints (`extractDataSlugAndID` + add/set-status/set-comment/remove)
+- `handlers_comments.go` — comment add/get/toggle/delete
+- `handlers_workflow.go` — workflow designer (data/preview/save), retros, bug status, docs pages
+- `handlers_dispatch.go` — agent dispatch, `startAgentSession`, `buildAgentPrompt`, `buildRetrosReviewPrompt`
+- `handlers_github.go` — github page, fetch, import
 - `internal/tracker/issue.go` — Issue struct, ParseIssue, LoadIssues, frontmatter update
 - `internal/tracker/doc.go` — DocPage struct, LoadDocs
 - `internal/tracker/workflow.go` — WorkflowConfig, transition engine, validation

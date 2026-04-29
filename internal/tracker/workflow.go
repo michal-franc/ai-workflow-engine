@@ -443,6 +443,37 @@ func (w *WorkflowConfig) ResolveTransition(from, to string) *WorkflowTransition 
 	return nil
 }
 
+func cloneBoardConfig(b WorkflowBoardConfig) WorkflowBoardConfig {
+	return WorkflowBoardConfig{
+		CardFields: append([]string(nil), b.CardFields...),
+		Columns:    append([]string(nil), b.Columns...),
+	}
+}
+
+func cloneScoringConfig(s ScoringConfig) ScoringConfig {
+	out := ScoringConfig{
+		Enabled:     s.Enabled,
+		DefaultSort: s.DefaultSort,
+		Formula: ScoringFormula{
+			DueDate: s.Formula.DueDate,
+			Age:     s.Formula.Age,
+		},
+	}
+	if s.Formula.Priority != nil {
+		out.Formula.Priority = make(ScoringPriority, len(s.Formula.Priority))
+		for k, v := range s.Formula.Priority {
+			out.Formula.Priority[k] = v
+		}
+	}
+	if s.Formula.Labels != nil {
+		out.Formula.Labels = make(ScoringLabels, len(s.Formula.Labels))
+		for k, v := range s.Formula.Labels {
+			out.Formula.Labels[k] = v
+		}
+	}
+	return out
+}
+
 func (w *WorkflowConfig) Clone() *WorkflowConfig {
 	if w == nil {
 		return nil
@@ -452,8 +483,8 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 		Statuses:    append([]WorkflowStatus(nil), w.Statuses...),
 		Transitions: make([]WorkflowTransition, len(w.Transitions)),
 		Systems:     make(map[string]WorkflowOverlay, len(w.Systems)),
-		Board:       w.Board,
-		Scoring:     w.Scoring,
+		Board:       cloneBoardConfig(w.Board),
+		Scoring:     cloneScoringConfig(w.Scoring),
 	}
 	for i := range w.Transitions {
 		clone.Transitions[i] = WorkflowTransition{
@@ -1094,6 +1125,13 @@ func (w *WorkflowConfig) ApplyTransitionWithFields(issue *Issue, fromStatus, toS
 		},
 	}
 
+	// Consume any standing approval up front so a `set_fields` action that
+	// targets `human_approval` (run below) can override the cleared value.
+	if issue.HumanApproval != "" {
+		result.Update.HumanApproval = stringPtr("")
+		result.ClearedApproval = true
+	}
+
 	for _, action := range w.transitionActions(fromStatus, toStatus) {
 		switch action.Type {
 		case "append_section":
@@ -1158,11 +1196,6 @@ func (w *WorkflowConfig) ApplyTransitionWithFields(issue *Issue, fromStatus, toS
 				result.BodyAppended = true
 			}
 		}
-	}
-
-	if issue.HumanApproval != "" {
-		result.Update.HumanApproval = stringPtr("")
-		result.ClearedApproval = true
 	}
 
 	return result

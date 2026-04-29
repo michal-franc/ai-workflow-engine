@@ -950,6 +950,101 @@ func TestSetFrontmatterField_EscapesSpecialChars(t *testing.T) {
 	}
 }
 
+// TestFrontmatterSplitHandlesEmbeddedDashes guards against the bare-"---" split
+// bug: if the frontmatter contains a "---" substring without a leading newline
+// (typical case: a YAML value mentioning a dash separator), the bare split
+// breaks at the wrong position and the file gets corrupted on the next write.
+// Both SetFrontmatterField and UpdateIssueFrontmatter must split on "\n---" so
+// only the closing fence — always preceded by a newline — terminates the
+// frontmatter.
+func TestFrontmatterSplitHandlesEmbeddedDashes(t *testing.T) {
+	// `note` carries a literal `---` substring with no leading newline. With the
+	// bare-"---" split this is misidentified as the closing fence and the value
+	// is partially relocated into the body on write.
+	original := "---\n" +
+		"title: \"Embedded\"\n" +
+		"status: \"in progress\"\n" +
+		"note: \"see ---x for context\"\n" +
+		"---\n\n" +
+		"body line\n"
+
+	t.Run("SetFrontmatterField", func(t *testing.T) {
+		dir := t.TempDir()
+		fp := filepath.Join(dir, "test.md")
+		if err := os.WriteFile(fp, []byte(original), 0644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+
+		if err := SetFrontmatterField(fp, "due", "2026-05-01", false); err != nil {
+			t.Fatalf("SetFrontmatterField: %v", err)
+		}
+
+		data, err := os.ReadFile(fp)
+		if err != nil {
+			t.Fatalf("read: %v", err)
+		}
+		issue, err := ParseIssue("test.md", data)
+		if err != nil {
+			t.Fatalf("ParseIssue after update: %v\n%s", err, string(data))
+		}
+		var note, due string
+		for _, ef := range issue.ExtraFields {
+			switch ef.Key {
+			case "note":
+				note = ef.Value
+			case "due":
+				due = ef.Value
+			}
+		}
+		if note != "see ---x for context" {
+			t.Errorf("note round-trip = %q, want %q\nfile:\n%s", note, "see ---x for context", string(data))
+		}
+		if due != "2026-05-01" {
+			t.Errorf("due = %q, want 2026-05-01", due)
+		}
+		if strings.TrimSpace(issue.BodyRaw) != "body line" {
+			t.Errorf("body corrupted = %q, want %q\nfile:\n%s", issue.BodyRaw, "body line", string(data))
+		}
+	})
+
+	t.Run("UpdateIssueFrontmatter", func(t *testing.T) {
+		dir := t.TempDir()
+		fp := filepath.Join(dir, "test.md")
+		if err := os.WriteFile(fp, []byte(original), 0644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+
+		newPriority := "critical"
+		if err := UpdateIssueFrontmatter(fp, IssueUpdate{Priority: &newPriority}); err != nil {
+			t.Fatalf("UpdateIssueFrontmatter: %v", err)
+		}
+
+		data, err := os.ReadFile(fp)
+		if err != nil {
+			t.Fatalf("read: %v", err)
+		}
+		issue, err := ParseIssue("test.md", data)
+		if err != nil {
+			t.Fatalf("ParseIssue after update: %v\n%s", err, string(data))
+		}
+		if issue.Priority != "critical" {
+			t.Errorf("priority = %q, want critical", issue.Priority)
+		}
+		var note string
+		for _, ef := range issue.ExtraFields {
+			if ef.Key == "note" {
+				note = ef.Value
+			}
+		}
+		if note != "see ---x for context" {
+			t.Errorf("note round-trip = %q, want %q\nfile:\n%s", note, "see ---x for context", string(data))
+		}
+		if strings.TrimSpace(issue.BodyRaw) != "body line" {
+			t.Errorf("body corrupted = %q, want %q\nfile:\n%s", issue.BodyRaw, "body line", string(data))
+		}
+	})
+}
+
 func TestDeleteIssue(t *testing.T) {
 	dir := t.TempDir()
 	fp := filepath.Join(dir, "test.md")

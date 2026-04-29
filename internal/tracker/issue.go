@@ -484,7 +484,7 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 		return fmt.Errorf("no frontmatter in %s", filePath)
 	}
 
-	parts := strings.SplitN(content[3:], "---", 2)
+	parts := strings.SplitN(content[3:], "\n---", 2)
 	if len(parts) < 2 {
 		return fmt.Errorf("invalid frontmatter in %s", filePath)
 	}
@@ -683,7 +683,7 @@ func SetFrontmatterField(filePath, key, value string, clear bool) error {
 			return fmt.Errorf("no frontmatter in %s", filePath)
 		}
 
-		parts := strings.SplitN(content[3:], "---", 2)
+		parts := strings.SplitN(content[3:], "\n---", 2)
 		if len(parts) < 2 {
 			return fmt.Errorf("invalid frontmatter in %s", filePath)
 		}

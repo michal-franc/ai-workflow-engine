@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.10.2 — 2026-04-29
+
+- Fixed three latent correctness bugs in `internal/tracker`. (1) Frontmatter parsing: `updateIssueFrontmatterLocked` and `SetFrontmatterField` were splitting on bare `"---"` instead of `"\n---"`, so an issue file whose YAML carried a `---` substring (a hyphen-separator inside a value) got corrupted on the next write. All four split sites now use the same `"\n---"` form as `ParseFrontmatter`. (2) `WorkflowConfig.Clone` shallow-copied `Scoring` and `Board`, leaking map and slice mutations from per-system overlays back to the base config. Both are now deep-copied. (3) `ApplyTransitionWithFields` ran the post-action `human_approval` clear after the action loop, silently overwriting any `set_fields` action that targeted `human_approval`; the clear now runs first so explicit `set_fields` values win. The `set_fields` row in `docs/Workflow/overview.md` now enumerates the supported `field` values.
+
 ## v0.10.1 — 2026-04-29
 
 - Internal refactor: `handlers.go` (3512 lines) split into 13 cohesive files (`routes.go`, `template_funcs.go`, `helpers.go`, `tmux.go`, and `handlers_<area>.go` per responsibility). `handlers_test.go` (60K) split to mirror the new layout. No public API change, no behavior change — pure source reorganization to make subsequent handler-area changes produce smaller, single-area diffs.

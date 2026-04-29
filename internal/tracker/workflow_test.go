@@ -1680,3 +1680,91 @@ func TestWorkflowValidationRules_CoverAllHandledRules(t *testing.T) {
 		}
 	}
 }
+
+// TestWorkflowConfigCloneIsolatesScoringAndBoard guards against the shallow-copy
+// aliasing bug in WorkflowConfig.Clone. Mutating the clone's Scoring maps or
+// Board slices must not affect the original, otherwise per-system overlays
+// produced by ForSystem would leak edits across requests.
+func TestWorkflowConfigCloneIsolatesScoringAndBoard(t *testing.T) {
+	original := &WorkflowConfig{
+		Statuses: []WorkflowStatus{{Name: "idea"}},
+		Board: WorkflowBoardConfig{
+			CardFields: []string{"system", "labels"},
+			Columns:    []string{"idea", "done"},
+		},
+		Scoring: ScoringConfig{
+			Enabled: true,
+			Formula: ScoringFormula{
+				Priority: ScoringPriority{"high": 20, "critical": 40},
+				Labels:   ScoringLabels{"bug": 5, "regression": 8},
+			},
+		},
+	}
+
+	clone := original.Clone()
+
+	clone.Scoring.Formula.Priority["high"] = 999
+	clone.Scoring.Formula.Priority["new-key"] = 1
+	clone.Scoring.Formula.Labels["bug"] = 999
+	clone.Scoring.Formula.Labels["new-label"] = 2
+	// Index-write before append so a shallow-copied slice header would write
+	// through to the original's backing array. Append-then-write would
+	// reallocate and mask the alias.
+	clone.Board.CardFields[0] = "MUTATED"
+	clone.Board.CardFields = append(clone.Board.CardFields, "version")
+	clone.Board.Columns[0] = "MUTATED"
+	clone.Board.Columns = append(clone.Board.Columns, "extra")
+
+	if got := original.Scoring.Formula.Priority["high"]; got != 20 {
+		t.Errorf("original Scoring.Formula.Priority[high] aliased: got %v, want 20", got)
+	}
+	if _, leaked := original.Scoring.Formula.Priority["new-key"]; leaked {
+		t.Error("original Scoring.Formula.Priority received clone's new key")
+	}
+	if got := original.Scoring.Formula.Labels["bug"]; got != 5 {
+		t.Errorf("original Scoring.Formula.Labels[bug] aliased: got %v, want 5", got)
+	}
+	if _, leaked := original.Scoring.Formula.Labels["new-label"]; leaked {
+		t.Error("original Scoring.Formula.Labels received clone's new key")
+	}
+	if got := original.Board.CardFields; len(got) != 2 || got[0] != "system" {
+		t.Errorf("original Board.CardFields aliased: got %v, want [system labels]", got)
+	}
+	if got := original.Board.Columns; len(got) != 2 || got[0] != "idea" {
+		t.Errorf("original Board.Columns aliased: got %v, want [idea done]", got)
+	}
+}
+
+// TestApplyTransitionPreservesSetFieldsHumanApproval guards against the
+// post-loop unconditional clear that silently overwrote any `set_fields` action
+// whose `field` was `human_approval`. The clear must run before the action
+// loop so an explicit `set_fields` value wins.
+func TestApplyTransitionPreservesSetFieldsHumanApproval(t *testing.T) {
+	wf := &WorkflowConfig{
+		Statuses: []WorkflowStatus{{Name: "A"}, {Name: "B"}},
+		Transitions: []WorkflowTransition{{
+			From: "A",
+			To:   "B",
+			Actions: []WorkflowAction{
+				{Type: "set_fields", Field: "human_approval", Value: "yes"},
+			},
+		}},
+	}
+
+	// Issue arrives with a standing approval — the old code's post-loop clear
+	// path triggers in this case, which is exactly when the bug overwrote the
+	// set_fields value.
+	issue := &Issue{HumanApproval: "yes"}
+
+	result := wf.ApplyTransitionWithFields(issue, "A", "B", nil)
+
+	if result.Update.HumanApproval == nil {
+		t.Fatalf("HumanApproval was not set on result")
+	}
+	if got := *result.Update.HumanApproval; got != "yes" {
+		t.Errorf("HumanApproval after transition = %q, want %q (set_fields was overwritten)", got, "yes")
+	}
+	if !result.ClearedApproval {
+		t.Errorf("ClearedApproval = false, want true (an incoming approval was consumed)")
+	}
+}

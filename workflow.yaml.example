@@ -263,6 +263,11 @@ systems:
 #
 # Frontmatter fields that participate: `priority`, `due`, `created`, `labels`,
 # `score_boost`. Missing fields contribute 0.
+#
+# Priority keys are looked up after the frontmatter value is normalized to
+# lowercase. Use lowercase keys (`p0`, `critical`) — frontmatter `P2` resolves
+# as `p2`. Uppercase keys still match via a case-insensitive fallback but
+# lowercase is the canonical form.
 scoring:
   enabled: false
   formula:

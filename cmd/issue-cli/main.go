@@ -646,7 +646,7 @@ Commands:
   comment <slug>       Add a comment to an issue
   check <slug> <text>  Check off a checkbox item by text match
   checklist <slug>     Show checkbox status for an issue
-  list                 List issues with filters (--status open|closed|<name>)
+  list                 List issues with filters (--status open|closed|<name>, --sort score)
   search <query>       Search issues (supports regex, e.g. "foo|bar")
   update <slug>        Replace issue body (--body "content"), preserves frontmatter
   set-meta <slug>      Set/clear a frontmatter field (--key <k> --value "v" | --clear)
@@ -1908,6 +1908,16 @@ func runCheck(proj *tracker.Project, slug, query string) {
 	fmt.Printf("file: %s\n", issue.FilePath)
 }
 
+// listJSONIssue wraps tracker.Issue with scoring fields for `list --json`.
+// Score and ScoreBreakdown are populated only when scoring is enabled in the
+// workflow config; otherwise they marshal as null so consumers can treat
+// missing scoring uniformly.
+type listJSONIssue struct {
+	*tracker.Issue
+	Score          *float64                `json:"Score"`
+	ScoreBreakdown *tracker.ScoreBreakdown `json:"ScoreBreakdown"`
+}
+
 func runList(proj *tracker.Project, args []string) {
 	issues, err := tracker.LoadIssues(proj.IssueDir)
 	if err != nil {
@@ -1921,6 +1931,7 @@ func runList(proj *tracker.Project, args []string) {
 	}
 	assignee := flagValue(args, "--assignee")
 	version := flagValue(args, "--version")
+	sortBy := flagValue(args, "--sort")
 
 	var filtered []*tracker.Issue
 	for _, issue := range issues {
@@ -1952,8 +1963,43 @@ func runList(proj *tracker.Project, args []string) {
 		filtered = append(filtered, issue)
 	}
 
+	wf := proj.LoadWorkflow()
+	scoringOn := wf != nil && wf.Scoring.Enabled
+
+	if scoringOn {
+		applySort := strings.ToLower(strings.TrimSpace(sortBy))
+		if applySort == "" && strings.EqualFold(wf.Scoring.DefaultSort, "score_desc") {
+			applySort = "score"
+		}
+		if applySort == "score" || applySort == "score_desc" {
+			now := time.Now()
+			scores := make(map[*tracker.Issue]float64, len(filtered))
+			for _, iss := range filtered {
+				if bd := tracker.ComputeScore(iss, &wf.Scoring, now); bd != nil {
+					scores[iss] = bd.Total
+				}
+			}
+			sort.SliceStable(filtered, func(i, j int) bool {
+				return scores[filtered[i]] > scores[filtered[j]]
+			})
+		}
+	}
+
 	if jsonOutput {
-		outputJSON(filtered)
+		entries := make([]listJSONIssue, 0, len(filtered))
+		now := time.Now()
+		for _, issue := range filtered {
+			entry := listJSONIssue{Issue: issue}
+			if scoringOn {
+				if bd := tracker.ComputeScore(issue, &wf.Scoring, now); bd != nil {
+					total := bd.Total
+					entry.Score = &total
+					entry.ScoreBreakdown = bd
+				}
+			}
+			entries = append(entries, entry)
+		}
+		outputJSON(entries)
 		return
 	}
 

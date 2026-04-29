@@ -873,6 +873,151 @@ func TestProcessTransitionsScopedByIssueSlug(t *testing.T) {
 	assertContains(t, plainOut, "== Transition Rules — issue plain-sample (no system overlay; project default) ==")
 }
 
+func makeListScoringFixture(t *testing.T, scoringEnabled bool) *tracker.Project {
+	t.Helper()
+
+	dir := t.TempDir()
+	issuesDir := filepath.Join(dir, "issues")
+	if err := os.MkdirAll(issuesDir, 0755); err != nil {
+		t.Fatalf("mkdir %s: %v", issuesDir, err)
+	}
+
+	enabled := "false"
+	if scoringEnabled {
+		enabled = "true"
+	}
+	workflowPath := filepath.Join(dir, "workflow.yaml")
+	workflow := strings.TrimSpace(fmt.Sprintf(`
+statuses:
+  - name: "backlog"
+  - name: "in progress"
+  - name: "done"
+scoring:
+  enabled: %s
+  default_sort: score_desc
+  formula:
+    priority:
+      p0: 100
+      p1: 75
+      p2: 50
+      p3: 25
+`, enabled))
+	if err := os.WriteFile(workflowPath, []byte(workflow), 0644); err != nil {
+		t.Fatalf("write workflow: %v", err)
+	}
+
+	issues := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "high.md",
+			body: strings.TrimSpace(`
+---
+title: "high priority"
+status: "backlog"
+priority: "P0"
+---
+body
+`),
+		},
+		{
+			name: "mid.md",
+			body: strings.TrimSpace(`
+---
+title: "mid priority"
+status: "backlog"
+priority: "P2"
+---
+body
+`),
+		},
+	}
+	for _, iss := range issues {
+		if err := os.WriteFile(filepath.Join(issuesDir, iss.name), []byte(iss.body), 0644); err != nil {
+			t.Fatalf("write %s: %v", iss.name, err)
+		}
+	}
+
+	return &tracker.Project{
+		Name:         "test",
+		Slug:         "test",
+		IssueDir:     issuesDir,
+		WorkflowFile: workflowPath,
+	}
+}
+
+func TestRunListJSONIncludesScoreWhenScoringEnabled(t *testing.T) {
+	proj := makeListScoringFixture(t, true)
+	jsonOutput = true
+	defer func() { jsonOutput = false }()
+
+	output := captureStdout(t, func() {
+		runList(proj, nil)
+	})
+
+	var got []listJSONIssue
+	if err := json.Unmarshal([]byte(output), &got); err != nil {
+		t.Fatalf("unmarshal list output: %v\noutput:\n%s", err, output)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d issues, want 2", len(got))
+	}
+
+	// default_sort: score_desc — P0 (100) ranks above P2 (50).
+	if got[0].Slug != "high-priority" {
+		t.Fatalf("first slug = %q, want high-priority (sorted by score desc)", got[0].Slug)
+	}
+	if got[0].Score == nil {
+		t.Fatal("first issue Score is nil, want populated float")
+	}
+	if *got[0].Score != 100 {
+		t.Fatalf("first issue Score = %v, want 100", *got[0].Score)
+	}
+	if got[0].ScoreBreakdown == nil {
+		t.Fatal("first issue ScoreBreakdown is nil, want populated breakdown")
+	}
+	if got[0].ScoreBreakdown.Total != 100 {
+		t.Fatalf("first ScoreBreakdown.Total = %v, want 100", got[0].ScoreBreakdown.Total)
+	}
+	if len(got[0].ScoreBreakdown.Components) == 0 {
+		t.Fatal("ScoreBreakdown.Components empty, want priority component")
+	}
+	if got[0].ScoreBreakdown.Components[0].Name != "priority" {
+		t.Fatalf("first component Name = %q, want priority", got[0].ScoreBreakdown.Components[0].Name)
+	}
+
+	if got[1].Score == nil || *got[1].Score != 50 {
+		t.Fatalf("second issue Score = %v, want 50", got[1].Score)
+	}
+}
+
+func TestRunListJSONOmitsScoreWhenScoringDisabled(t *testing.T) {
+	proj := makeListScoringFixture(t, false)
+	jsonOutput = true
+	defer func() { jsonOutput = false }()
+
+	output := captureStdout(t, func() {
+		runList(proj, nil)
+	})
+
+	var got []listJSONIssue
+	if err := json.Unmarshal([]byte(output), &got); err != nil {
+		t.Fatalf("unmarshal list output: %v\noutput:\n%s", err, output)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d issues, want 2", len(got))
+	}
+	for i, entry := range got {
+		if entry.Score != nil {
+			t.Errorf("issue[%d].Score = %v, want nil when scoring disabled", i, *entry.Score)
+		}
+		if entry.ScoreBreakdown != nil {
+			t.Errorf("issue[%d].ScoreBreakdown = %+v, want nil when scoring disabled", i, entry.ScoreBreakdown)
+		}
+	}
+}
+
 func TestChangelogEmbeddedAndHasEntries(t *testing.T) {
 	t.Parallel()
 

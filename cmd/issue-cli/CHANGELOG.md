@@ -16,6 +16,12 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.8.0 — 2026-04-29
+
+- `issue-cli list --json` now emits `Score` (float) and `ScoreBreakdown` (`{Total, Components[]}`) on every entry when `workflow.yaml` has `scoring.enabled: true`. Both fields are `null` when scoring is disabled or the issue has no scoring inputs. The breakdown is the same `tracker.ComputeScore` output that drives the viewer's `⚡N` badge — CLI consumers no longer need to re-implement the scoring formula in bash against raw frontmatter.
+- New `--sort score` flag on `issue-cli list` orders output by `Score` descending. When scoring is enabled and `default_sort: score_desc` is set in `workflow.yaml`, the sort is applied automatically with no flag.
+- Documented that `scoring.formula.priority` keys should be lowercase: frontmatter values are normalized to lowercase before lookup. Uppercase keys still match via a case-insensitive fallback but lowercase is the canonical form.
+
 ## v0.7.3 — 2026-04-28
 
 - Fixed `issue-cli transition` silently dropping the `append_section` payload when the issue body quoted the section heading inside a fenced code block (` ``` ` or `~~~`). Heading detection in `findHeadingMatches` / `findAllHeadings` now skips lines inside fences, so transitions like `human-testing → documentation` correctly add the `## Documentation` section even when the body documents a `## Documentation` example.

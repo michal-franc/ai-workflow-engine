@@ -133,7 +133,7 @@ Missing fields contribute 0 — an issue with no `priority`, no `due`, and no `c
 
 | Field         | Role                                                                  |
 |:--------------|:----------------------------------------------------------------------|
-| `priority`    | Looked up in `scoring.formula.priority` (case-insensitive)             |
+| `priority`    | Looked up in `scoring.formula.priority`. Frontmatter values are normalized to lowercase before lookup, so map keys should also be lowercase (`p0`, `critical`) — uppercase keys still match via a case-insensitive fallback but lowercase is the canonical form |
 | `due`         | `YYYY-MM-DD` or RFC3339 date. Triggers urgency under a 30-day horizon |
 | `created`     | Accumulates staleness at `staleness_weight` per day since that date    |
 | `labels`      | Summed against `scoring.formula.labels`; unlisted labels add 0         |

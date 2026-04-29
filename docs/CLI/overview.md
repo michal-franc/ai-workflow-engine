@@ -16,6 +16,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | Command                          | Description                              |
 |:---------------------------------|:-----------------------------------------|
 | `issue-cli show <slug>`          | Print full issue context                 |
+| `issue-cli list`                 | List issues with filters — supports `--sort score` and emits `Score`/`ScoreBreakdown` in `--json` when scoring is enabled |
 | `issue-cli start <slug>`         | Pick up issue from any status — claim + advance handoff states |
 | `issue-cli transition <slug>`    | Attempt the next workflow transition     |
 | `issue-cli comment <slug>`       | Add a comment to an issue                |
@@ -39,6 +40,24 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 If `--body` starts with a heading that is already present in the issue (and the rest contains only deeper subheadings), the command auto-routes into that section — equivalent to passing `--section`. This means agents drafting `## Implementation\n…` style appends do not have to retry with `--section` after a duplicate-heading failure.
 
 The duplicate-heading guard still fires when `--body` introduces a *peer* heading that collides (e.g., `--body "## New\n…\n## Existing"`); pass `--section` to disambiguate.
+
+### `list`
+
+`issue-cli list` filters by `--status`, `--system`, `--assignee`, `--version`. With `--json`, each entry is the full issue plus two scoring fields:
+
+| Field            | Type                                | When populated                                                                                  |
+|:-----------------|:------------------------------------|:------------------------------------------------------------------------------------------------|
+| `Score`          | `float` (or `null`)                 | `workflow.yaml` has `scoring.enabled: true` and the issue contributes to at least one component |
+| `ScoreBreakdown` | `{Total, Components[]}` (or `null`) | Same as above. `Components` is an ordered list of `{Name, Points, Detail}` entries              |
+
+Both fields are `null` when scoring is disabled or the issue has no scoring inputs (no priority, no `due`, no `created`, no scored labels, no `score_boost`). The breakdown matches what the web viewer renders into the `⚡N` badge — same `tracker.ComputeScore` is the single source of truth.
+
+`--sort score` orders the output by `Score` descending. When scoring is enabled and `default_sort: score_desc` is set in `workflow.yaml`, the sort is applied automatically with no flag.
+
+```bash
+issue-cli list --json | jq '.[] | select(.Score != null) | {Slug, Score}'
+issue-cli list --sort score --status open
+```
 
 ### `transition`
 

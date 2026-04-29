@@ -10,7 +10,13 @@ The Workflow system covers the workflow engine, transition logic, validation rul
 ## Key Files
 
 - `workflow.yaml` — project workflow definition (statuses, transitions, actions, board config, system overlays)
-- `internal/tracker/workflow.go` — WorkflowConfig, transition engine, validation, approval checks
+- `internal/tracker/workflow_config.go` — `WorkflowConfig`, `LoadWorkflow`, `DefaultWorkflow`, status/transition accessors, prompts/templates
+- `internal/tracker/workflow_transition.go` — `ApplyTransition*`, `StartIssueOnce`, `MarkIssueDoneOnce`, `IsValidTransition`, `Next*Status`
+- `internal/tracker/workflow_validate.go` — `ValidateTransition`, `Validate`, `checkRule`, `DescribeAction` (rule and approval checks)
+- `internal/tracker/workflow_preview.go` — `PreviewTransition` and the `TransitionPreview*` types
+- `internal/tracker/workflow_merge.go` — `Clone`, `ForSystem`, `Merge` (per-system overlay handling)
+- `internal/tracker/workflow_schema.go` — reflection-based YAML schema docs
+- `internal/tracker/heading.go` — shared section/heading helpers used by both workflow and issue code
 
 ## Workflow Structure
 
@@ -161,5 +167,5 @@ When working on workflow changes:
 
 - State which statuses, rules, templates, or overlays will change
 - Consider whether existing issues need migration or compatibility handling
-- Validation rules are defined in `workflow.go` — new rules need both the rule implementation and yaml support
+- Validation rules are defined in `workflow_validate.go` (`checkRule` switch) — new rules need both the rule implementation there and a matching entry in `WorkflowValidationRules` in `workflow_schema.go`, plus yaml support
 - Test with `go test ./internal/tracker/...` — workflow tests are comprehensive

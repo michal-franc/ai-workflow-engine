@@ -24,7 +24,13 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 - `handlers_github.go` — github page, fetch, import
 - `internal/tracker/issue.go` — Issue struct, ParseIssue, LoadIssues, frontmatter update
 - `internal/tracker/doc.go` — DocPage struct, LoadDocs
-- `internal/tracker/workflow.go` — WorkflowConfig, transition engine, validation
+- `internal/tracker/workflow_config.go` — `WorkflowConfig`, `LoadWorkflow`, `DefaultWorkflow`, status/transition accessors, prompt + template helpers
+- `internal/tracker/workflow_transition.go` — `ApplyTransition*`, `StartIssueOnce`, `MarkIssueDoneOnce`, `IsValidTransition`, `Next*Status`
+- `internal/tracker/workflow_validate.go` — `ValidateTransition`, `Validate`, `checkRule`, `DescribeAction`
+- `internal/tracker/workflow_preview.go` — `PreviewTransition` and the `TransitionPreview*` types
+- `internal/tracker/workflow_merge.go` — `Clone`, `ForSystem`, `Merge`, `appendUnique*` (system overlay merging)
+- `internal/tracker/workflow_schema.go` — reflection-based YAML schema docs (`WorkflowActionTypes`, `WorkflowValidationRules`, `WorkflowSchemaSections`)
+- `internal/tracker/heading.go` — shared section/heading helpers (`appendToSection`, `findHeadingMatches`, `parseHeadingLine`, …) used by both the workflow and issue files
 - `internal/tracker/data.go` — `DataStore` sidecar (`<slug>.data.json`); the four `/data` endpoints are thin wrappers over `AddEntry` / `SetEntryStatus` / `SetEntryComment` / `RemoveEntry`. See [Per-issue Data Store](../data-store.md).
 
 ## Design Considerations

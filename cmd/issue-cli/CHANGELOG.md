@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.10.3 — 2026-04-29
+
+- Internal refactor: `internal/tracker/workflow.go` (1812 lines) split into six cohesive files (`workflow_config.go`, `workflow_transition.go`, `workflow_merge.go`, `workflow_validate.go`, `workflow_preview.go`, `workflow_schema.go`), plus a new `heading.go` for the section/heading helpers shared with `issue.go`. No public API change, no behavior change — pure source reorganization to make subsequent workflow-area changes produce smaller, single-area diffs. `docs/API/overview.md`, `docs/CLI/overview.md`, and `docs/Workflow/overview.md` updated to reference the new layout.
+
 ## v0.10.2 — 2026-04-29
 
 - Fixed three latent correctness bugs in `internal/tracker`. (1) Frontmatter parsing: `updateIssueFrontmatterLocked` and `SetFrontmatterField` were splitting on bare `"---"` instead of `"\n---"`, so an issue file whose YAML carried a `---` substring (a hyphen-separator inside a value) got corrupted on the next write. All four split sites now use the same `"\n---"` form as `ParseFrontmatter`. (2) `WorkflowConfig.Clone` shallow-copied `Scoring` and `Board`, leaking map and slice mutations from per-system overlays back to the base config. Both are now deep-copied. (3) `ApplyTransitionWithFields` ran the post-action `human_approval` clear after the action loop, silently overwriting any `set_fields` action that targeted `human_approval`; the clear now runs first so explicit `set_fields` values win. The `set_fields` row in `docs/Workflow/overview.md` now enumerates the supported `field` values.

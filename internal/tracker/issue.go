@@ -392,28 +392,6 @@ func ReplaceIssueBodySection(body, section, text string, force bool) (string, bo
 	return nextBody, changed, nil
 }
 
-func findAllHeadings(body string) []headingMatch {
-	lines := strings.Split(body, "\n")
-	fenceFlags := computeFenceFlags(lines)
-	var matches []headingMatch
-	for i, line := range lines {
-		if fenceFlags[i] {
-			continue
-		}
-		level, title, ok := parseHeadingLine(line)
-		if !ok {
-			continue
-		}
-		matches = append(matches, headingMatch{
-			StartLine: i,
-			Level:     level,
-			Line:      strings.TrimSpace(line),
-			Key:       normalizeHeadingKey(title),
-		})
-	}
-	return matches
-}
-
 // UpdateIssueBody applies a body transformation while holding the issue lock.
 // It reloads the current body under the lock so callers do not overwrite newer edits
 // based on a stale pre-lock snapshot.

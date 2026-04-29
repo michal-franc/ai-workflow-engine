@@ -137,13 +137,13 @@ Behaviour:
 
 ### `process schema` and `process changes`
 
-`process schema` is driven off reflection on the YAML struct tags in
-`internal/tracker/workflow.go`. Every `yaml:"..."` field must also carry a
-`desc:"..."` tag — the tracker tests fail otherwise, so the schema output
-cannot drift from the parser. Action types and validation rules are
-documented via explicit registries (`WorkflowActionTypes`,
-`WorkflowValidationRules`) kept next to the switch statements that handle
-them.
+`process schema` is driven off reflection on the YAML struct tags defined
+in `internal/tracker/workflow_config.go`. Every `yaml:"..."` field must
+also carry a `desc:"..."` tag — the tracker tests fail otherwise, so the
+schema output cannot drift from the parser. Action types and validation
+rules are documented via explicit registries (`WorkflowActionTypes`,
+`WorkflowValidationRules` in `internal/tracker/workflow_schema.go`) kept
+next to the switch statements that handle them.
 
 `process changes` embeds `cmd/issue-cli/CHANGELOG.md` at build time via
 `//go:embed` and prints it newest-first, capped to the 20 most recent `## v`

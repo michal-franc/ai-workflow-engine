@@ -356,6 +356,8 @@ func main() {
 		}
 		proj := loadProject(configPath, projectSlug)
 		runData(proj, cmdArgs[0], cmdArgs[1:])
+	case "workflow":
+		runWorkflow(cmdArgs)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\nRun: issue-cli help\n", cmd)
 		os.Exit(1)
@@ -664,6 +666,7 @@ Commands:
   stats                Project health overview
   report-bug <desc>    Report a bug in issue-cli itself
   data <sub> <slug>    Per-issue structured data store (sub: add|list|set-status|set-comment|remove)
+  workflow init        Bootstrap a new project: writes workflow.yaml + scaffolds issues/, docs/ (--template <name>, --force)
 
 Global flags:
   --config <path>      Path to projects.yaml (default: projects.yaml)

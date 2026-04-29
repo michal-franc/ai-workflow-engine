@@ -1,0 +1,176 @@
+board:
+  columns:
+    - idea
+    - in design
+    - backlog
+    - in progress
+    - testing
+    - human-testing
+    - documentation
+    - shipping
+    - done
+  card_fields:
+    - system
+    - labels
+    - priority
+    - assignee
+
+statuses:
+  - name: "idea"
+    description: "Raw idea, needs exploration"
+    prompt: |
+      Clarify the issue with the human before moving into structured design.
+      Ask focused questions to remove ambiguity around goals, scope, and success criteria.
+  - name: "in design"
+    description: "Being designed and specced out"
+    prompt: |
+      Review the relevant context before proposing changes.
+      Turn the problem into explicit checklists, assumptions, and open questions.
+      Write the design into the issue body under the relevant sections before checking the related boxes.
+      When the design is complete, stop and ask for backlog approval in the issue viewer before attempting the transition.
+  - name: "backlog"
+    description: "Ready to work on"
+    prompt: |
+      This is a handoff state.
+      Do not run `issue-cli start` until a human approves `in progress` in the issue viewer.
+  - name: "in progress"
+    description: "Actively being implemented"
+    prompt: |
+      Implement the accepted design and keep the issue body, implementation checklist, and test plan accurate as work progresses.
+      Record implementation notes and planned verification steps in the issue body; checkboxes mark completion but do not replace written content.
+  - name: "testing"
+    description: "Under verification"
+    prompt: |
+      Build or update the relevant automated coverage, record concrete test evidence, and surface any remaining manual checks clearly.
+      Before checking test-related boxes, make sure the Test Plan section in the issue body contains the explicit automated and manual steps being verified.
+  - name: "human-testing"
+    description: "Manual verification by humans"
+    prompt: |
+      Stop here and wait for human verification.
+      Make sure the manual checks are explicit, minimal, and reproducible.
+  - name: "documentation"
+    description: "Being documented"
+    prompt: |
+      Update the relevant docs for the change and record the documentation work clearly.
+  - name: "shipping"
+    description: "Committing and pushing changes"
+    prompt: |
+      Commit the changes with a message referencing the issue, push the commit to the remote, and note a PR link if one is opened.
+      Stop and ask for `done` approval in the issue viewer once the commit is pushed.
+  - name: "done"
+    description: "Completed"
+
+transitions:
+  - from: "idea"
+    to: "in design"
+    actions:
+      - type: "validate"
+        rule: "body_not_empty"
+      - type: "append_section"
+        title: "Idea"
+        body: |
+          - [ ] Description written with enough context for someone unfamiliar
+          - [ ] Edge cases and constraints identified
+          - [ ] Scope is clear (what is NOT included)
+      - type: "append_section"
+        title: "Design"
+        body: |
+          - [ ] Approach documented
+          - [ ] Dependencies identified
+          - [ ] Human approval requested for backlog
+      - type: "append_section"
+        title: "Acceptance Criteria"
+        body: |
+          - [ ] First observable requirement
+          - [ ] Second observable requirement
+  - from: "in design"
+    to: "backlog"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Design"
+      - type: "validate"
+        rule: "section_has_checkboxes: Acceptance Criteria"
+      - type: "require_human_approval"
+        status: "backlog"
+      - type: "set_fields"
+        field: "assignee"
+        value: ""
+  - from: "backlog"
+    to: "in progress"
+    actions:
+      - type: "require_human_approval"
+        status: "in progress"
+      - type: "validate"
+        rule: "has_assignee"
+      - type: "append_section"
+        title: "Implementation"
+        body: |
+          - [ ] Code changes complete
+          - [ ] Automated tests added or updated where practical
+          - [ ] Cross-cutting impact reviewed where relevant
+      - type: "append_section"
+        title: "Test Plan"
+        body: |
+          ### Automated
+          - [ ] Automated verification recorded
+
+          ### Manual
+          - [ ] Manual verification listed if needed
+  - from: "in progress"
+    to: "testing"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Implementation"
+      - type: "validate"
+        rule: "has_test_plan"
+      - type: "append_section"
+        title: "Testing"
+        body: |
+          - [ ] Relevant tests for changed code passing
+          - [ ] Test results logged as comment (`issue-cli comment <slug> --text "tests: ..."`)
+      - type: "inject_prompt"
+        prompt: |
+          Run the relevant tests for the changed code, record results, and capture any remaining manual checks.
+  - from: "testing"
+    to: "human-testing"
+    actions:
+      - type: "validate"
+        rule: "has_test_plan"
+      - type: "validate"
+        rule: "section_checkboxes_checked: Testing"
+      - type: "validate"
+        rule: "has_comment_prefix: tests:"
+      - type: "append_section"
+        title: "Human Testing"
+        body: |
+          - [ ] Human verification complete if required
+  - from: "human-testing"
+    to: "documentation"
+    actions:
+      - type: "require_human_approval"
+        status: "documentation"
+      - type: "append_section"
+        title: "Documentation"
+        body: |
+          - [ ] User-facing docs updated if behavior changed
+          - [ ] Docs comment added (`issue-cli comment <slug> --text "docs: ..."`)
+  - from: "documentation"
+    to: "shipping"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Documentation"
+      - type: "validate"
+        rule: "has_comment_prefix: docs:"
+      - type: "append_section"
+        title: "Shipping"
+        body: |
+          - [ ] Changes committed with a message referencing the issue
+          - [ ] Commit pushed to the remote
+          - [ ] PR opened if applicable
+  - from: "shipping"
+    to: "done"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Shipping"
+      - type: "require_human_approval"
+        status: "done"

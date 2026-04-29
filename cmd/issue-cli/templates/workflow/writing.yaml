@@ -1,0 +1,99 @@
+board:
+  columns:
+    - idea
+    - outline
+    - drafting
+    - editing
+    - review
+    - published
+  card_fields:
+    - labels
+    - priority
+    - assignee
+
+statuses:
+  - name: "idea"
+    description: "Raw concept for a piece"
+    prompt: |
+      Capture what this piece is about, who it is for, and what the reader should walk away with.
+      Sharpen the angle before moving to outline.
+  - name: "outline"
+    description: "Structuring the piece"
+    prompt: |
+      Build a section-by-section outline. Each section should have a clear point — not just a heading.
+      Confirm the outline holds together before drafting full prose.
+  - name: "drafting"
+    description: "Writing the first full draft"
+    prompt: |
+      Write the full draft following the agreed outline.
+      Prefer momentum over polish at this stage; do not edit while drafting.
+  - name: "editing"
+    description: "Self-edit pass"
+    prompt: |
+      Read the draft cold. Cut what does not earn its keep.
+      Tighten language, fix structure, and verify every claim.
+  - name: "review"
+    description: "Out for outside review"
+    prompt: |
+      Wait for review feedback.
+      When feedback is in, decide whether to revise (back to editing) or proceed to publish.
+  - name: "published"
+    description: "Live"
+
+transitions:
+  - from: "idea"
+    to: "outline"
+    actions:
+      - type: "validate"
+        rule: "body_not_empty"
+      - type: "append_section"
+        title: "Outline"
+        body: |
+          - [ ] Audience and angle stated
+          - [ ] Section list with one-line purpose for each
+          - [ ] Key references gathered
+  - from: "outline"
+    to: "drafting"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Outline"
+      - type: "append_section"
+        title: "Draft"
+        body: |
+          - [ ] First full draft written
+          - [ ] All outline sections covered
+  - from: "drafting"
+    to: "editing"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Draft"
+      - type: "append_section"
+        title: "Edit"
+        body: |
+          - [ ] Cold read complete
+          - [ ] Cuts and rewrites applied
+          - [ ] Claims fact-checked
+  - from: "editing"
+    to: "review"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Edit"
+      - type: "require_human_approval"
+        status: "review"
+      - type: "append_section"
+        title: "Review"
+        body: |
+          - [ ] Feedback gathered
+          - [ ] Revisions applied or explicitly declined
+  - from: "review"
+    to: "editing"
+    actions:
+      - type: "validate"
+        rule: "has_comment_prefix: revise:"
+  - from: "review"
+    to: "published"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Review"
+      - type: "require_human_approval"
+        status: "published"

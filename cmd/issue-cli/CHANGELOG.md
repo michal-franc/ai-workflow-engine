@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.10.0 — 2026-04-29
+
+- New `issue-cli workflow init` command bootstraps a fresh project in one shot: writes `workflow.yaml` from a bundled template and scaffolds `issues/` and `docs/` if they don't exist. Three templates ship: `development` (the canonical software-delivery flow this repo uses), `review` (`inbox → … → archived` triage flow), and `writing` (`idea → … → published` long-form content flow). `--template <name>` picks one; without it, an interactive prompt appears when stdin is a terminal, otherwise the command exits non-zero with the list of valid names. `--force` overwrites an existing `workflow.yaml`. Templates live as editable YAML under `cmd/issue-cli/templates/workflow/*.yaml`, are embedded via `//go:embed`, and the list of valid `--template` names is derived from the embedded directory so adding a new template is just dropping a file and rebuilding.
+
 ## v0.9.0 — 2026-04-29
 
 - New per-issue **structured data store**. Every issue can carry a sidecar `<slug>.data.json` of `{id, description, status, comment}` rows. Manage rows with `issue-cli data add | list | set-status | set-comment | remove` (`add` prints the assigned id on stdout for shell composition; `list --json` emits the entries array). The detail view renders the rows as an inline table at a `<!-- data statuses=... -->` marker in the body — per-issue dropdown statuses (spaces and emojis allowed inside a token), inline status select, contenteditable comment, row remove button. Designed for agent code-review findings the human triages inline. Atomic temp+rename writes; ids are monotonic and not reused after delete; missing sidecar means empty store, no error. New endpoints: `POST /issue/<slug>/data`, `POST /issue/<slug>/data/<id>/status`, `POST /issue/<slug>/data/<id>/comment`, `DELETE /issue/<slug>/data/<id>`. See `docs/data-store.md`.

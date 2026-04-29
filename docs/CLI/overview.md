@@ -30,6 +30,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli report-bug "..."`     | File a bug report about issue-cli itself |
 | `issue-cli retrospective <slug>` | Save a workflow retrospective            |
 | `issue-cli data <sub> <slug>`    | Per-issue structured data store — see [Per-issue Data Store](../data-store.md) |
+| `issue-cli workflow init`        | Bootstrap a new project: writes `workflow.yaml` from a bundled template and scaffolds `issues/`, `docs/` |
 
 ### `append`
 
@@ -108,6 +109,31 @@ issue-cli data list <slug> --json
 ```
 
 `add` prints the assigned id on stdout (and a human line on stderr) so it composes in shell pipelines. `--json` on `list` emits the entries array exactly.
+
+### `workflow init`
+
+`issue-cli workflow init` bootstraps a fresh project directory. It writes `workflow.yaml` from one of three bundled templates and scaffolds `issues/` and `docs/` if they do not already exist.
+
+```bash
+issue-cli workflow init --template development
+issue-cli workflow init --template review --force
+issue-cli workflow init                          # interactive prompt
+```
+
+Templates:
+
+| Name          | Status set                                                                  | Use case                                  |
+|:--------------|:----------------------------------------------------------------------------|:------------------------------------------|
+| `development` | `idea → in design → backlog → in progress → testing → human-testing → documentation → shipping → done` | Software delivery flow (mirrors this repo) |
+| `review`      | `inbox → triaged → reviewing → needs-changes → approved → archived`         | Review and triage of incoming items       |
+| `writing`     | `idea → outline → drafting → editing → review → published`                  | Long-form content                         |
+
+Behaviour:
+
+- `--template <name>` selects a template. Without it, the command shows a numbered prompt when stdin is a terminal; piped or scripted invocations must pass the flag and exit non-zero with the list of valid templates if they don't.
+- `--force` overwrites an existing `workflow.yaml`. Without it, the command refuses to touch the existing file and exits non-zero.
+- `issues/` and `docs/` creation is idempotent — running the command in an already-initialised project does not error and does not re-create directories.
+- Templates live as plain YAML under `cmd/issue-cli/templates/workflow/*.yaml` and are embedded at build time via `//go:embed`. The list of valid `--template` names is derived from the embedded directory, so adding a new template is just dropping a new `<name>.yaml` file there and rebuilding.
 
 ### `process schema` and `process changes`
 

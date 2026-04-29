@@ -1,0 +1,92 @@
+board:
+  columns:
+    - inbox
+    - triaged
+    - reviewing
+    - needs-changes
+    - approved
+    - archived
+  card_fields:
+    - labels
+    - priority
+    - assignee
+
+statuses:
+  - name: "inbox"
+    description: "New incoming item, not yet looked at"
+    prompt: |
+      A new item has landed. Read it end-to-end before doing anything else.
+      Decide whether it has enough context to be triaged, or whether the submitter needs to provide more.
+  - name: "triaged"
+    description: "Categorised and ready for review"
+    prompt: |
+      Confirm the item is in scope, label it, and set a priority.
+      When the item is ready for an actual review pass, transition to reviewing.
+  - name: "reviewing"
+    description: "Active review in progress"
+    prompt: |
+      Read the item carefully and write your review notes directly into the issue body.
+      Decide on one of two outcomes: approved (ready to land) or needs-changes (sender must revise).
+  - name: "needs-changes"
+    description: "Sent back to the author for revisions"
+    prompt: |
+      Wait for the author to address review feedback.
+      When they have responded, move back to reviewing for another pass.
+  - name: "approved"
+    description: "Review complete and approved"
+    prompt: |
+      Approval is recorded. The item is ready to be archived once any follow-up actions are taken.
+  - name: "archived"
+    description: "Closed out, no further action"
+
+transitions:
+  - from: "inbox"
+    to: "triaged"
+    actions:
+      - type: "validate"
+        rule: "body_not_empty"
+      - type: "append_section"
+        title: "Triage"
+        body: |
+          - [ ] Scope confirmed
+          - [ ] Labels and priority set
+          - [ ] Reviewer identified
+  - from: "triaged"
+    to: "reviewing"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Triage"
+      - type: "validate"
+        rule: "has_assignee"
+      - type: "append_section"
+        title: "Review Notes"
+        body: |
+          - [ ] Item read in full
+          - [ ] Review notes written
+          - [ ] Decision recorded (approve or request changes)
+  - from: "reviewing"
+    to: "needs-changes"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Review Notes"
+      - type: "append_section"
+        title: "Requested Changes"
+        body: |
+          - [ ] Changes listed clearly for the author
+  - from: "needs-changes"
+    to: "reviewing"
+    actions:
+      - type: "validate"
+        rule: "has_comment_prefix: response:"
+  - from: "reviewing"
+    to: "approved"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Review Notes"
+      - type: "require_human_approval"
+        status: "approved"
+  - from: "approved"
+    to: "archived"
+    actions:
+      - type: "require_human_approval"
+        status: "archived"

@@ -42,36 +42,18 @@ func readWorkflowTemplate(name string) ([]byte, error) {
 	return fs.ReadFile(workflowTemplatesFS, filepath.ToSlash(filepath.Join(workflowTemplatesDir, name+".yaml")))
 }
 
-// stdinIsTTY reports whether stdin is connected to a terminal.
-// Uses os.Stat, no external deps.
-func stdinIsTTY() bool {
-	info, err := os.Stdin.Stat()
+// stdinIsTTY reports whether the supplied reader is a terminal. Used by the
+// interactive workflow-init prompt to decide whether to read a selection.
+func stdinIsTTY(r io.Reader) bool {
+	f, ok := r.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := f.Stat()
 	if err != nil {
 		return false
 	}
 	return info.Mode()&os.ModeCharDevice != 0
-}
-
-func runWorkflow(args []string) {
-	if len(args) == 0 {
-		fatal("workflow requires a subcommand\n\nUsage:\n  issue-cli workflow init [--template <name>] [--force]")
-	}
-	sub := args[0]
-	subArgs := args[1:]
-	switch sub {
-	case "init":
-		runWorkflowInit(subArgs)
-	default:
-		fatal("Unknown workflow subcommand: %s\n\nUsage:\n  issue-cli workflow init [--template <name>] [--force]", sub)
-	}
-}
-
-func runWorkflowInit(args []string) {
-	template := flagValue(args, "--template")
-	force := hasFlag(args, "--force")
-	if err := doWorkflowInit(template, force, os.Stdin, os.Stdout, stdinIsTTY()); err != nil {
-		fatal("%v", err)
-	}
 }
 
 // doWorkflowInit is the testable core. It takes explicit IO and a TTY hint so

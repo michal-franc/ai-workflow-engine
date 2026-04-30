@@ -16,6 +16,11 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.10.4 — 2026-04-30
+
+- Internal refactor: `cmd/issue-cli/main.go` (2380 lines, ~250-line dispatch switch) split into one `cmd_<name>.go` per subcommand plus a `Command`/`Context` registry (`commands.go`, `context.go`, `helpers.go`). `main()` is now 12 lines and only logs the invocation, parses globals, and delegates to `run()`. Every subcommand owns its own `flag.FlagSet` and returns errors instead of calling `os.Exit`; the package-global `jsonOutput` is gone (`Context.JSONOutput` carries the flag), so two CLI invocations with different `--json` modes can run concurrently without racing — verified by a new `TestConcurrentJSONOutputDoesNotRace` under `go test -race`. Top-level help is generated from the registry rather than a hand-rolled blob, so adding a subcommand no longer requires editing `printHelp`. No public CLI behavior change: text and `--json` shapes are byte-for-byte identical to v0.10.3.
+- Side-effect fixes embedded in the refactor: `findIssue` now returns `(*Issue, error)` (the old `fatal()`-on-miss path swallowed every "not-found" branch); `runStart` matches missing approvals via `errors.Is(err, tracker.ErrApprovalMissing)` instead of `strings.Contains` against the message; `claim --force` is parsed by `flag.FlagSet` rather than walked out of `os.Args` with a `goto`; `report-bug` opens its log file with `O_CREATE|O_EXCL` plus a counter suffix so two reports in the same second no longer truncate each other; `update --title ""` is now distinguishable from "title flag absent" (`flag.Visit`).
+
 ## v0.10.3 — 2026-04-29
 
 - Internal refactor: `internal/tracker/workflow.go` (1812 lines) split into six cohesive files (`workflow_config.go`, `workflow_transition.go`, `workflow_merge.go`, `workflow_validate.go`, `workflow_preview.go`, `workflow_schema.go`), plus a new `heading.go` for the section/heading helpers shared with `issue.go`. No public API change, no behavior change — pure source reorganization to make subsequent workflow-area changes produce smaller, single-area diffs. `docs/API/overview.md`, `docs/CLI/overview.md`, and `docs/Workflow/overview.md` updated to reference the new layout.

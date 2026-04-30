@@ -9,7 +9,20 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 
 ## Key Files
 
-- `cmd/issue-cli/main.go` — CLI entry point, command dispatch, output formatting
+- `cmd/issue-cli/main.go` — entry point, global-flag parsing, top-level error printing
+- `cmd/issue-cli/commands.go` — registry (`registerCommand`, `lookupCommand`, `printHelp`); top-level help is auto-generated from this list
+- `cmd/issue-cli/context.go` — `Command` and `Context` types, `findIssueOrErr`, `requireSlug`, `newFlagSet`, `flagWasSet`
+- `cmd/issue-cli/helpers.go` — shared helpers (`loadProjectOrErr`, `parseFieldFlags`, `normalizeEscapedText`, `writeJSON`, `printCheckboxes`, etc.)
+- `cmd/issue-cli/cmd_<name>.go` — one file per subcommand. Each file declares a `*Command`, registers it in `init()`, and owns its own `flag.FlagSet`. Group commands (`data`, `workflow`, `process`) dispatch internally to per-subcommand handlers in the same file.
+- `cmd/issue-cli/workflow_init.go` — testable `doWorkflowInit` core (the `workflow init` subcommand wraps it from `cmd_workflow.go`)
+
+### Adding a new subcommand
+
+1. Create `cmd/issue-cli/cmd_<name>.go`.
+2. Declare a `var <name>Command = &Command{Name, ShortHelp, LongHelp, Run}` and call `registerCommand(<name>Command)` in `init()`.
+3. Build the `Run` function as `func(ctx *Context, args []string) error`. Construct a `flag.FlagSet` via `newFlagSet("<name>", ctx)` and parse `args` (which is everything after the subcommand name). Return errors instead of calling `os.Exit`.
+4. Reach the project via `ctx.Project`, write to `ctx.Stdout` / `ctx.Stderr`, and consult `ctx.JSONOutput` for output mode. The package-global `jsonOutput` no longer exists.
+5. The new command appears in `issue-cli help` automatically.
 
 ## Commands
 

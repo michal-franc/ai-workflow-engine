@@ -1,17 +1,35 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
+
+// newTestContext builds a Context whose Stdout/Stderr are captured into the
+// returned buffer. Tests use this in place of the old captureStdout helper so
+// per-test output stays isolated from os.Stdout (and from any concurrent
+// tests).
+func newTestContext(proj *tracker.Project, jsonOut bool) (*Context, *bytes.Buffer, *bytes.Buffer) {
+	var stdout, stderr bytes.Buffer
+	ctx := &Context{
+		JSONOutput: jsonOut,
+		Stdout:     &stdout,
+		Stderr:     &stderr,
+		Stdin:      strings.NewReader(""),
+		Project:    proj,
+		Now:        time.Now,
+	}
+	return ctx, &stdout, &stderr
+}
 
 func TestCollectChecklist(t *testing.T) {
 	t.Parallel()
@@ -66,10 +84,11 @@ func TestTransitionSideEffects(t *testing.T) {
 
 func TestRunTransitionPrintsPostTransitionState(t *testing.T) {
 	proj, issuePath := makeTransitionFixture(t)
-	jsonOutput = false
-	output := captureStdout(t, func() {
-		runTransition(proj, "cli/sample", "in progress", nil)
-	})
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runTransition(ctx, []string{"cli/sample", "--to", "in progress"}); err != nil {
+		t.Fatalf("runTransition: %v", err)
+	}
+	output := stdout.String()
 
 	assertContains(t, output, "✓ backlog → in progress")
 	assertContains(t, output, "Status: in progress")
@@ -104,12 +123,11 @@ func TestRunTransitionPrintsPostTransitionState(t *testing.T) {
 
 func TestRunTransitionJSONIncludesPostTransitionFields(t *testing.T) {
 	proj, _ := makeTransitionFixture(t)
-	jsonOutput = true
-	defer func() { jsonOutput = false }()
-
-	output := captureStdout(t, func() {
-		runTransition(proj, "cli/sample", "in progress", nil)
-	})
+	ctx, stdout, _ := newTestContext(proj, true)
+	if err := runTransition(ctx, []string{"cli/sample", "--to", "in progress"}); err != nil {
+		t.Fatalf("runTransition: %v", err)
+	}
+	output := stdout.String()
 
 	var got transitionOutput
 	if err := json.Unmarshal([]byte(output), &got); err != nil {
@@ -144,7 +162,6 @@ func TestRunTransitionJSONIncludesPostTransitionFields(t *testing.T) {
 		t.Fatalf("guidance len = %d, want 3", len(got.Guidance))
 	}
 }
-
 
 func TestNormalizeEscapedText(t *testing.T) {
 	got := normalizeEscapedText(`line1\nline2\r\nline3\tend`)
@@ -312,11 +329,12 @@ Body
 	}
 
 	proj := &tracker.Project{Name: "test", Slug: "test", IssueDir: issuesDir}
-	jsonOutput = false
+	ctx, stdout, _ := newTestContext(proj, false)
 
-	output := captureStdout(t, func() {
-		runSetMeta(proj, "cli/sample", "waiting", "design review", false)
-	})
+	if err := runSetMeta(ctx, []string{"cli/sample", "--key", "waiting", "--value", "design review"}); err != nil {
+		t.Fatalf("runSetMeta set: %v", err)
+	}
+	output := stdout.String()
 	assertContains(t, output, `✓ Set waiting = "design review"`)
 	assertContains(t, output, "file: "+issuePath)
 
@@ -331,10 +349,11 @@ Body
 		t.Fatalf("waiting = %q, want %q", waiting, "design review")
 	}
 
-	clearOutput := captureStdout(t, func() {
-		runSetMeta(proj, "cli/sample", "waiting", "", true)
-	})
-	assertContains(t, clearOutput, "✓ Cleared waiting")
+	stdout.Reset()
+	if err := runSetMeta(ctx, []string{"cli/sample", "--key", "waiting", "--clear"}); err != nil {
+		t.Fatalf("runSetMeta clear: %v", err)
+	}
+	assertContains(t, stdout.String(), "✓ Cleared waiting")
 
 	got = loadIssueByPath(t, issuesDir, issuePath)
 	for _, ef := range got.ExtraFields {
@@ -346,12 +365,12 @@ Body
 
 func TestRunTransitionNextHintSkipsOptionalStatus(t *testing.T) {
 	proj, _ := makeOptionalNextFixture(t)
-	jsonOutput = false
-	output := captureStdout(t, func() {
-		runTransition(proj, "cli/sample", "in progress", nil)
-	})
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runTransition(ctx, []string{"cli/sample", "--to", "in progress"}); err != nil {
+		t.Fatalf("runTransition: %v", err)
+	}
+	output := stdout.String()
 
-	// Primary Next must point at the required status, not the optional side-path.
 	assertContains(t, output, "== Next ==\n  issue-cli transition cli/sample --to \"testing\"")
 	assertContains(t, output, "Optional side-paths:")
 	assertContains(t, output, "issue-cli transition cli/sample --to \"team-feedback\"")
@@ -362,16 +381,14 @@ func TestRunTransitionNextHintSkipsOptionalStatus(t *testing.T) {
 
 func TestRunTransitionJSONCarriesOptionalNextStatuses(t *testing.T) {
 	proj, _ := makeOptionalNextFixture(t)
-	jsonOutput = true
-	defer func() { jsonOutput = false }()
-
-	output := captureStdout(t, func() {
-		runTransition(proj, "cli/sample", "in progress", nil)
-	})
+	ctx, stdout, _ := newTestContext(proj, true)
+	if err := runTransition(ctx, []string{"cli/sample", "--to", "in progress"}); err != nil {
+		t.Fatalf("runTransition: %v", err)
+	}
 
 	var got transitionOutput
-	if err := json.Unmarshal([]byte(output), &got); err != nil {
-		t.Fatalf("unmarshal transition output: %v\noutput:\n%s", err, output)
+	if err := json.Unmarshal([]byte(stdout.String()), &got); err != nil {
+		t.Fatalf("unmarshal transition output: %v\noutput:\n%s", err, stdout.String())
 	}
 	if got.NextStatus != "testing" {
 		t.Fatalf("next_status = %q, want testing", got.NextStatus)
@@ -385,8 +402,7 @@ func TestRunTransitionJSONCarriesOptionalNextStatuses(t *testing.T) {
 }
 
 // makeOptionalNextFixture builds a workflow where the status following "in progress"
-// is declared optional, and the required path sits after it. Used to verify the
-// "Next:" hint skips optional statuses when suggesting the default forward target.
+// is declared optional, and the required path sits after it.
 func makeOptionalNextFixture(t *testing.T) (*tracker.Project, string) {
 	t.Helper()
 
@@ -524,31 +540,6 @@ func loadIssueByPath(t *testing.T, issuesDir, issuePath string) *tracker.Issue {
 	return nil
 }
 
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-
-	old := os.Stdout
-	r, w, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("pipe: %v", err)
-	}
-	os.Stdout = w
-	defer func() {
-		os.Stdout = old
-	}()
-
-	fn()
-
-	if err := w.Close(); err != nil {
-		t.Fatalf("close writer: %v", err)
-	}
-	data, err := io.ReadAll(r)
-	if err != nil {
-		t.Fatalf("read stdout: %v", err)
-	}
-	return string(data)
-}
-
 func assertContains(t *testing.T, got, want string) {
 	t.Helper()
 	if !strings.Contains(got, want) {
@@ -557,14 +548,12 @@ func assertContains(t *testing.T, got, want string) {
 }
 
 func TestProcessSchemaIncludesEveryTaggedField(t *testing.T) {
-	out := captureStdout(t, func() {
-		runProcessSchema()
-	})
+	ctx, stdout, _ := newTestContext(nil, false)
+	if err := runProcessSchema(ctx); err != nil {
+		t.Fatalf("runProcessSchema: %v", err)
+	}
+	out := stdout.String()
 
-	// Every yaml-tagged field across every workflow struct must appear.
-	// This is the anti-drift guarantee: a new field added to a workflow
-	// struct will fail this test until it is also given a `desc:"..."` tag
-	// (and thus surfaces in the schema output).
 	for _, section := range tracker.WorkflowSchemaSections() {
 		for _, f := range section.Fields {
 			if !strings.Contains(out, f.Name) {
@@ -594,15 +583,14 @@ func TestProcessSchemaIncludesEveryTaggedField(t *testing.T) {
 }
 
 func TestProcessSchemaMarksOptionalFields(t *testing.T) {
-	out := captureStdout(t, func() {
-		runProcessSchema()
-	})
+	ctx, stdout, _ := newTestContext(nil, false)
+	if err := runProcessSchema(ctx); err != nil {
+		t.Fatalf("runProcessSchema: %v", err)
+	}
+	out := stdout.String()
 
-	// `optional` on WorkflowStatus carries `omitempty`, so the schema must
-	// mark it as such. This anchors the '?' suffix convention.
 	assertContains(t, out, "optional?")
 	assertContains(t, out, "prompt?")
-	// `name` is required (no omitempty) — must not have a '?'.
 	if strings.Contains(out, "name?") {
 		t.Errorf("required field `name` should not be suffixed with ?")
 	}
@@ -615,13 +603,14 @@ func TestProcessChangesEmbedsChangelog(t *testing.T) {
 	}
 	t.Cleanup(func() { fetchReleases = orig })
 
-	out := captureStdout(t, func() {
-		runProcessChanges()
-	})
+	ctx, stdout, _ := newTestContext(nil, false)
+	if err := runProcessChanges(ctx); err != nil {
+		t.Fatalf("runProcessChanges: %v", err)
+	}
+	out := stdout.String()
 
 	assertContains(t, out, "release history")
 	assertContains(t, out, "# Changelog")
-	// Every versioned entry in the embedded CHANGELOG must be reachable.
 	for _, line := range strings.Split(changelogMD, "\n") {
 		if strings.HasPrefix(line, "## v") {
 			if !strings.Contains(out, line) {
@@ -648,15 +637,16 @@ func TestProcessChangesPrefersGitHubReleases(t *testing.T) {
 	}
 	t.Cleanup(func() { fetchReleases = orig })
 
-	out := captureStdout(t, func() {
-		runProcessChanges()
-	})
+	ctx, stdout, _ := newTestContext(nil, false)
+	if err := runProcessChanges(ctx); err != nil {
+		t.Fatalf("runProcessChanges: %v", err)
+	}
+	out := stdout.String()
 
 	assertContains(t, out, "release history")
 	assertContains(t, out, "v9.9.9 — test release")
 	assertContains(t, out, "2026-04-24")
 	assertContains(t, out, "first test change")
-	// Must not fall through to the embedded changelog when releases succeed.
 	if strings.Contains(out, "# Changelog") {
 		t.Error("releases path should not print embedded CHANGELOG heading")
 	}
@@ -677,14 +667,10 @@ func TestTrimChangelogToVersions(t *testing.T) {
 	if omitted != 5 {
 		t.Fatalf("omitted = %d, want 5", omitted)
 	}
-	// Preamble preserved.
 	assertContains(t, trimmed, "# Changelog")
 	assertContains(t, trimmed, "preamble here")
-	// Newest 20 kept (v0.0.25 .. v0.0.6).
 	assertContains(t, trimmed, "## v0.0.25")
 	assertContains(t, trimmed, "## v0.0.6")
-	// Older ones dropped. Use a trailing space/newline-anchored check so
-	// "## v0.0.1" does not falsely match "## v0.0.10".
 	if strings.Contains(trimmed, "## v0.0.5 ") {
 		t.Errorf("v0.0.5 should have been trimmed")
 	}
@@ -816,42 +802,37 @@ body
 
 func TestProcessTransitionsRendersFromActiveWorkflow(t *testing.T) {
 	proj := makeProcessTransitionsFixture(t)
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runProcessTransitions(ctx, nil); err != nil {
+		t.Fatalf("runProcessTransitions: %v", err)
+	}
+	out := stdout.String()
 
-	out := captureStdout(t, func() {
-		runProcessTransitions(proj, nil)
-	})
-
-	// Header indicates the default workflow is being shown.
 	assertContains(t, out, "== Transition Rules ==")
-	// Initial state line.
 	assertContains(t, out, "→ idea")
-	// Each configured edge appears.
 	assertContains(t, out, "idea → in design")
 	assertContains(t, out, "in design → backlog")
 	assertContains(t, out, "backlog → in progress")
-	// Validation rules and action types are humanized.
 	assertContains(t, out, "Validate issue body is not empty")
 	assertContains(t, out, "Validate issue has assignee")
 	assertContains(t, out, `Must be human-approved for "backlog" in the issue viewer`)
 	assertContains(t, out, "Side-effect: clears assignee")
 	assertContains(t, out, "Side-effect: appends ## Implementation section")
-	// Optional and global statuses surfaced.
 	assertContains(t, out, "Optional statuses (skippable on forward transitions): deferred")
 	assertContains(t, out, "Global statuses (transitions from them to any status are allowed): blocked")
-	// Hints about per-system overlays when no scope was supplied.
 	assertContains(t, out, "Per-system overlays are configured for:")
 	assertContains(t, out, "CLI")
 }
 
 func TestProcessTransitionsScopedBySystemFlag(t *testing.T) {
 	proj := makeProcessTransitionsFixture(t)
-
-	out := captureStdout(t, func() {
-		runProcessTransitions(proj, []string{"--system", "CLI"})
-	})
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runProcessTransitions(ctx, []string{"--system", "CLI"}); err != nil {
+		t.Fatalf("runProcessTransitions: %v", err)
+	}
+	out := stdout.String()
 
 	assertContains(t, out, `== Transition Rules — system "CLI"`)
-	// CLI overlay overrides backlog → in progress and adds an inject_prompt.
 	assertContains(t, out, "Side-effect: injects entry guidance prompt")
 	if strings.Contains(out, "Per-system overlays are configured for:") {
 		t.Errorf("scoped output should not list per-system overlay hint:\n%s", out)
@@ -860,16 +841,19 @@ func TestProcessTransitionsScopedBySystemFlag(t *testing.T) {
 
 func TestProcessTransitionsScopedByIssueSlug(t *testing.T) {
 	proj := makeProcessTransitionsFixture(t)
-
-	cliOut := captureStdout(t, func() {
-		runProcessTransitions(proj, []string{"cli-sample"})
-	})
+	ctx, cliStdout, _ := newTestContext(proj, false)
+	if err := runProcessTransitions(ctx, []string{"cli-sample"}); err != nil {
+		t.Fatalf("runProcessTransitions cli-sample: %v", err)
+	}
+	cliOut := cliStdout.String()
 	assertContains(t, cliOut, `== Transition Rules — system "CLI" (issue cli/cli-sample) ==`)
 	assertContains(t, cliOut, "Side-effect: injects entry guidance prompt")
 
-	plainOut := captureStdout(t, func() {
-		runProcessTransitions(proj, []string{"plain-sample"})
-	})
+	ctx2, plainStdout, _ := newTestContext(proj, false)
+	if err := runProcessTransitions(ctx2, []string{"plain-sample"}); err != nil {
+		t.Fatalf("runProcessTransitions plain-sample: %v", err)
+	}
+	plainOut := plainStdout.String()
 	assertContains(t, plainOut, "== Transition Rules — issue plain-sample (no system overlay; project default) ==")
 }
 
@@ -949,22 +933,19 @@ body
 
 func TestRunListJSONIncludesScoreWhenScoringEnabled(t *testing.T) {
 	proj := makeListScoringFixture(t, true)
-	jsonOutput = true
-	defer func() { jsonOutput = false }()
-
-	output := captureStdout(t, func() {
-		runList(proj, nil)
-	})
+	ctx, stdout, _ := newTestContext(proj, true)
+	if err := runList(ctx, nil); err != nil {
+		t.Fatalf("runList: %v", err)
+	}
 
 	var got []listJSONIssue
-	if err := json.Unmarshal([]byte(output), &got); err != nil {
-		t.Fatalf("unmarshal list output: %v\noutput:\n%s", err, output)
+	if err := json.Unmarshal([]byte(stdout.String()), &got); err != nil {
+		t.Fatalf("unmarshal list output: %v\noutput:\n%s", err, stdout.String())
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %d issues, want 2", len(got))
 	}
 
-	// default_sort: score_desc — P0 (100) ranks above P2 (50).
 	if got[0].Slug != "high-priority" {
 		t.Fatalf("first slug = %q, want high-priority (sorted by score desc)", got[0].Slug)
 	}
@@ -994,16 +975,14 @@ func TestRunListJSONIncludesScoreWhenScoringEnabled(t *testing.T) {
 
 func TestRunListJSONOmitsScoreWhenScoringDisabled(t *testing.T) {
 	proj := makeListScoringFixture(t, false)
-	jsonOutput = true
-	defer func() { jsonOutput = false }()
-
-	output := captureStdout(t, func() {
-		runList(proj, nil)
-	})
+	ctx, stdout, _ := newTestContext(proj, true)
+	if err := runList(ctx, nil); err != nil {
+		t.Fatalf("runList: %v", err)
+	}
 
 	var got []listJSONIssue
-	if err := json.Unmarshal([]byte(output), &got); err != nil {
-		t.Fatalf("unmarshal list output: %v\noutput:\n%s", err, output)
+	if err := json.Unmarshal([]byte(stdout.String()), &got); err != nil {
+		t.Fatalf("unmarshal list output: %v\noutput:\n%s", err, stdout.String())
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %d issues, want 2", len(got))
@@ -1034,3 +1013,4 @@ func TestChangelogEmbeddedAndHasEntries(t *testing.T) {
 		t.Fatal("CHANGELOG.md has no '## v...' entries")
 	}
 }
+

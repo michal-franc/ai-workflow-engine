@@ -1,6 +1,7 @@
 package tracker
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,6 +15,34 @@ type TransitionResult struct {
 	BodyAppended    bool        `json:"body_appended"`
 	ClearedApproval bool        `json:"cleared_approval"`
 	InjectedPrompts []string    `json:"injected_prompts"`
+}
+
+// ErrApprovalMissing is the sentinel returned when StartIssueOnce or a
+// transition refuses to proceed because the workflow requires human approval
+// in the issue viewer and the issue is not yet approved for the target status.
+//
+// Callers should use errors.Is(err, tracker.ErrApprovalMissing) rather than
+// matching on the error message.
+var ErrApprovalMissing = errors.New("human approval missing")
+
+// ApprovalMissingError describes a missing approval. Its message preserves the
+// historical phrasing used by string-matching tests; programmatic callers
+// should use errors.Is(err, ErrApprovalMissing).
+type ApprovalMissingError struct {
+	Slug       string
+	FromStatus string
+	Required   string
+}
+
+func (e *ApprovalMissingError) Error() string {
+	if e.FromStatus == "" || e.FromStatus == "backlog" {
+		return fmt.Sprintf("cannot start %s: human approval for %q is missing; no changes were made", e.Slug, e.Required)
+	}
+	return fmt.Sprintf("cannot start %s from %q: human approval for %q is missing; no changes were made", e.Slug, e.FromStatus, e.Required)
+}
+
+func (e *ApprovalMissingError) Is(target error) bool {
+	return target == ErrApprovalMissing
 }
 
 func (w *WorkflowConfig) IsValidTransition(from, to string) bool {
@@ -359,10 +388,7 @@ func (w *WorkflowConfig) StartIssueOnce(filePath, slug, assignee string) (*Start
 
 			if err := w.ValidateTransition(&candidate, fromStatus, toStatus, comments); err != nil {
 				if required := w.RequiredHumanApproval(fromStatus, toStatus); required != "" && !strings.EqualFold(issue.HumanApproval, required) {
-					if fromStatus == "backlog" {
-						return fmt.Errorf("cannot start %s: human approval for %q is missing; no changes were made", slug, required)
-					}
-					return fmt.Errorf("cannot start %s from %q: human approval for %q is missing; no changes were made", slug, fromStatus, required)
+					return &ApprovalMissingError{Slug: slug, FromStatus: fromStatus, Required: required}
 				}
 				return err
 			}

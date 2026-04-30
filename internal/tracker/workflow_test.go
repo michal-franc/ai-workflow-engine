@@ -1,6 +1,7 @@
 package tracker
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1336,6 +1337,36 @@ status: "backlog"
 	}
 	if issue.Status != "backlog" {
 		t.Fatalf("issue status = %q, want backlog", issue.Status)
+	}
+}
+
+// TestValidateTransition_ReturnsApprovalMissingError pins the contract the CLI
+// hint helper relies on: the validate path must surface a structured error so
+// the top-level decorator can extract the required status and emit a deep link
+// instead of a vague "approve in the viewer" message.
+func TestValidateTransition_ReturnsApprovalMissingError(t *testing.T) {
+	wf := DefaultWorkflow()
+	issue := &Issue{Slug: "demo", BodyRaw: "- [ ] task", Assignee: "alice"}
+
+	err := wf.ValidateTransition(issue, "backlog", "in progress", nil)
+	if err == nil {
+		t.Fatal("expected approval-missing error")
+	}
+	if !errors.Is(err, ErrApprovalMissing) {
+		t.Fatalf("errors.Is(err, ErrApprovalMissing) = false; err = %v", err)
+	}
+	var approvalErr *ApprovalMissingError
+	if !errors.As(err, &approvalErr) {
+		t.Fatalf("errors.As(err, *ApprovalMissingError) = false; err = %v", err)
+	}
+	if approvalErr.Required != "in progress" {
+		t.Errorf("Required = %q, want %q", approvalErr.Required, "in progress")
+	}
+	if approvalErr.Slug != "demo" {
+		t.Errorf("Slug = %q, want %q", approvalErr.Slug, "demo")
+	}
+	if !strings.Contains(err.Error(), `not human-approved for "in progress"`) {
+		t.Errorf("error message lost back-compat phrasing: %q", err.Error())
 	}
 }
 

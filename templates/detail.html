@@ -119,7 +119,7 @@
                     <h3>Human Approval</h3>
                     {{if .NeedsApproval}}
                     <div class="sidebar-value">
-                        <button class="approve-btn {{if eq .Issue.HumanApproval .NeedsApproval}}approved{{end}}" data-status="{{.NeedsApproval}}" onclick="toggleApproval('{{.NeedsApproval}}')">
+                        <button id="approve-{{statusFragment .NeedsApproval}}" class="approve-btn {{if eq .Issue.HumanApproval .NeedsApproval}}approved{{end}}" data-status="{{.NeedsApproval}}" onclick="toggleApproval('{{.NeedsApproval}}')">
                             <span class="approve-check">{{if eq .Issue.HumanApproval .NeedsApproval}}&#10003;{{else}}&#9744;{{end}}</span>
                             Human-approved for {{.NeedsApproval}}
                         </button>
@@ -132,7 +132,7 @@
                             {{if .CTALabel}}{{.CTALabel}}{{else}}Divert to {{.Status}}{{if .Description}} — {{.Description}}{{end}}{{end}}
                         </button>
                         <div class="optional-approval-widget{{if not $open}} hidden{{end}}">
-                            <button class="approve-btn {{if $open}}approved{{end}}" data-status="{{.Status}}" onclick="toggleApproval('{{.Status}}')">
+                            <button id="approve-{{statusFragment .Status}}" class="approve-btn {{if $open}}approved{{end}}" data-status="{{.Status}}" onclick="toggleApproval('{{.Status}}')">
                                 <span class="approve-check">{{if $open}}&#10003;{{else}}&#9744;{{end}}</span>
                                 Human-approved for {{.Status}}
                             </button>
@@ -756,8 +756,26 @@
         document.getElementById('dispatch-modal').style.display = 'none';
     }
 
+    function revealApprovalFromHash() {
+        if (!location.hash || !location.hash.startsWith('#approve-')) return;
+        const target = document.getElementById(location.hash.slice(1));
+        if (!target) return;
+        const group = target.closest('.optional-approval-group');
+        if (group) {
+            const cta = group.querySelector('.optional-approval-cta');
+            const widget = group.querySelector('.optional-approval-widget');
+            if (cta) cta.classList.add('hidden');
+            if (widget) widget.classList.remove('hidden');
+        }
+        target.scrollIntoView({block: 'center'});
+        target.classList.add('approve-btn-flash');
+        setTimeout(() => target.classList.remove('approve-btn-flash'), 1500);
+    }
+
     document.addEventListener('DOMContentLoaded', initComments);
     document.addEventListener('DOMContentLoaded', initCheckboxes);
+    document.addEventListener('DOMContentLoaded', revealApprovalFromHash);
+    window.addEventListener('hashchange', revealApprovalFromHash);
     </script>
     <script src="/static/auto-refresh.js"></script>
 </body>

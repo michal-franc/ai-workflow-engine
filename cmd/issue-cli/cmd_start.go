@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -48,9 +47,6 @@ func runStart(ctx *Context, args []string) error {
 
 	started, err := wf.StartIssueOnce(issue.FilePath, slug, assignee)
 	if err != nil {
-		if errors.Is(err, tracker.ErrApprovalMissing) {
-			return fmt.Errorf("%s\n\nNext step: approve the required status in the issue viewer, then rerun:\n  issue-cli start %s", err.Error(), slug)
-		}
 		return err
 	}
 	issue = started.Issue

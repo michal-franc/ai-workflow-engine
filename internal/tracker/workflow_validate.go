@@ -24,7 +24,12 @@ func (w *WorkflowConfig) ValidateTransition(issue *Issue, fromStatus, toStatus s
 				status = toStatus
 			}
 			if !strings.EqualFold(issue.HumanApproval, status) {
-				return fmt.Errorf("issue is not human-approved for %q — a human must approve it in the issue viewer first", status)
+				return &ApprovalMissingError{
+					Slug:       issue.Slug,
+					FromStatus: fromStatus,
+					Required:   status,
+					Verb:       "validate",
+				}
 			}
 		}
 	}
@@ -193,7 +198,11 @@ func (w *WorkflowConfig) checkRule(rule string, issue *Issue, comments []Comment
 			return fmt.Errorf("human_approval rule requires a status argument")
 		}
 		if !strings.EqualFold(issue.HumanApproval, ruleArg) {
-			return fmt.Errorf("issue is not human-approved for %q — a human must approve it in the issue viewer first", ruleArg)
+			return &ApprovalMissingError{
+				Slug:     issue.Slug,
+				Required: ruleArg,
+				Verb:     "validate",
+			}
 		}
 	default:
 		return fmt.Errorf("unknown validation rule: %s", ruleName)

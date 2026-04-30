@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.12.0 — 2026-04-30
+
+- Approval-gate errors now point at the right approve button. `issue-cli start` and `issue-cli transition` failures with a missing `human_approval` print a deep link to `<viewer>/p/<project>/issue/<slug>#approve-<status>`; the detail page adds matching `id="approve-<status>"` anchors and an on-load fragment handler that scrolls to the target, visually flashes it, and auto-reveals optional-approval CTAs that would otherwise be hidden behind a "Divert to..." button. The base URL comes from the new `ISSUE_VIEWER_URL` env var, falling back to `http://localhost:8080`. Dispatched bot sessions inherit the URL automatically: the dispatcher reconstructs `<scheme>://<host>` from the inbound request (honouring `X-Forwarded-Proto`/`X-Forwarded-Host`) and exports it into the agent's tmux session next to the existing `ISSUE_VIEWER_SERVER_PWD`/`ISSUE_VIEWER_ISSUE_SLUG` envs. The `tracker.ApprovalMissingError` type now carries a `Verb` discriminator so both the `start`-form and the `transition`-form messages flow through a single `errors.As`-compatible value, and the two plain `fmt.Errorf` callers in `workflow_validate.go` were converted to return `*ApprovalMissingError` so `errors.Is(err, ErrApprovalMissing)` works uniformly across both code paths. See `docs/agent-dispatch.md` (Approval-gate Deep Links section) for the URL contract.
+
 ## v0.11.0 — 2026-04-30
 
 - Multi-project ergonomics for dispatched bots. Resolution order in `loadProjectOrErr` is now explicit: passing `--project <slug>` always wins, even when cwd has its own `./issues/`, so a bot inside one project workdir can still query a sibling project. With no `--project`, a local `./issues/` triggers bootstrap mode (single-project) and otherwise `projects.yaml` is consulted; a multi-project setup with no `--project` exits non-zero with a fail-loud error enumerating configured slugs instead of silently using `projects[0]`. Single-project setups produce byte-identical output and exit codes — pinned by new regression-guard tests.

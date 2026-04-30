@@ -82,6 +82,12 @@ var funcMap = template.FuncMap{
 	"urlEncodeColor": func(s string) string {
 		return strings.ReplaceAll(s, "#", "%23")
 	},
+	// statusFragment normalises a status name into the form used by the
+	// `id="approve-<status>"` anchors on the detail page so deep links emitted
+	// by the CLI (`#approve-in-progress`) line up with the DOM.
+	"statusFragment": func(s string) string {
+		return strings.ReplaceAll(strings.TrimSpace(s), " ", "-")
+	},
 	"assigneeColor": func(name string) string {
 		if name == "" {
 			return ""

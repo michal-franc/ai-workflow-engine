@@ -156,6 +156,33 @@ type DispatchResponse struct {
 
 var dispatchAgentSession = startAgentSession
 
+// viewerURLFromRequest reconstructs the externally-visible base URL of the
+// viewer from the inbound request, so dispatched bot sessions can later emit
+// deep-link approval hints that point back at the same host the human just
+// clicked from. Falls back to ISSUE_VIEWER_URL on the server's environment if
+// the request doesn't carry a Host header (rare, but possible behind some
+// proxies).
+func viewerURLFromRequest(r *http.Request) string {
+	if r == nil {
+		return strings.TrimSpace(os.Getenv("ISSUE_VIEWER_URL"))
+	}
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		scheme = proto
+	}
+	host := r.Host
+	if fwd := r.Header.Get("X-Forwarded-Host"); fwd != "" {
+		host = fwd
+	}
+	if host == "" {
+		return strings.TrimSpace(os.Getenv("ISSUE_VIEWER_URL"))
+	}
+	return scheme + "://" + host
+}
+
 func agentLaunchCommand(agentType string, promptPath string) string {
 	if agentType == "codex" {
 		return fmt.Sprintf("codex \"$(cat %q)\"", promptPath)
@@ -203,7 +230,7 @@ func openTerminalStep(proj *tracker.Project, session string, steps *[]DispatchSt
 		exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -e tmux attach -t %s", session)))
 }
 
-func startAgentSession(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string) DispatchResponse {
+func startAgentSession(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string, viewerURL string) DispatchResponse {
 	workDir := resolveProjectWorkDir(proj)
 
 	promptFile, err := os.CreateTemp("", "agent-prompt-*.txt")
@@ -265,6 +292,10 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 	if issueSlug != "" {
 		runStep(&steps, fmt.Sprintf("Issue slug env %s", issueSlug),
 			exec.Command("tmux", "send-keys", "-t", session, fmt.Sprintf("export ISSUE_VIEWER_ISSUE_SLUG=%q", issueSlug), "Enter"))
+	}
+	if viewerURL != "" {
+		runStep(&steps, fmt.Sprintf("Viewer URL env %s", viewerURL),
+			exec.Command("tmux", "send-keys", "-t", session, fmt.Sprintf("export ISSUE_VIEWER_URL=%q", viewerURL), "Enter"))
 	}
 
 	runStep(&steps, fmt.Sprintf("cd %s", workDir),
@@ -393,7 +424,7 @@ func (s *Server) handleRetrosReviewDispatch(w http.ResponseWriter, r *http.Reque
 
 	prompt := buildRetrosReviewPrompt(proj, retros, bugs)
 	session := tmuxSessionName(proj.Slug + "-retros-review")
-	resp := dispatchAgentSession(proj, session, prompt, "", agentType)
+	resp := dispatchAgentSession(proj, session, prompt, "", agentType, viewerURLFromRequest(r))
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -421,7 +452,7 @@ func (s *Server) handleDispatchAgent(w http.ResponseWriter, r *http.Request, pro
 	wf := proj.LoadWorkflowForIssue(issue)
 	prompt := buildAgentPrompt(proj, issue, wf)
 	session := tmuxSessionName(slug)
-	resp := dispatchAgentSession(proj, session, prompt, issue.Slug, agentType)
+	resp := dispatchAgentSession(proj, session, prompt, issue.Slug, agentType, viewerURLFromRequest(r))
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }

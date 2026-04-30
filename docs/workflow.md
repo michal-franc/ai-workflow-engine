@@ -44,6 +44,8 @@ transitions:
 
 When `cta_label` is unset, the button falls back to `Divert to <status> — <description>`.
 
+When a CLI transition fails on a missing approval, the error includes a deep link to the corresponding approve button (`/p/<project>/issue/<slug>#approve-<status>`). See [Agent Dispatch — Approval-gate Deep Links](agent-dispatch.md#approval-gate-deep-links) for the URL contract.
+
 ## Updating Status
 
 Edit the `status` field in the issue's frontmatter:

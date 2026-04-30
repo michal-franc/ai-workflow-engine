@@ -206,7 +206,7 @@ Needs triage.
 	var gotIssueSlug string
 	var gotAgent string
 	origDispatch := dispatchAgentSession
-	dispatchAgentSession = func(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string) DispatchResponse {
+	dispatchAgentSession = func(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string, viewerURL string) DispatchResponse {
 		gotPrompt = prompt
 		gotSession = session
 		gotIssueSlug = issueSlug

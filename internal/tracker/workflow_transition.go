@@ -28,13 +28,23 @@ var ErrApprovalMissing = errors.New("human approval missing")
 // ApprovalMissingError describes a missing approval. Its message preserves the
 // historical phrasing used by string-matching tests; programmatic callers
 // should use errors.Is(err, ErrApprovalMissing).
+//
+// Verb selects the message form. "" (default) is the StartIssueOnce form
+// ("cannot start <slug>..."). "validate" is the form returned by the
+// transition validation path ("issue is not human-approved for <status>...").
+// The validate form is slug-agnostic because ValidateTransition does not
+// always have a meaningful slug to cite.
 type ApprovalMissingError struct {
 	Slug       string
 	FromStatus string
 	Required   string
+	Verb       string
 }
 
 func (e *ApprovalMissingError) Error() string {
+	if e.Verb == "validate" {
+		return fmt.Sprintf("issue is not human-approved for %q — a human must approve it in the issue viewer first", e.Required)
+	}
 	if e.FromStatus == "" || e.FromStatus == "backlog" {
 		return fmt.Sprintf("cannot start %s: human approval for %q is missing; no changes were made", e.Slug, e.Required)
 	}

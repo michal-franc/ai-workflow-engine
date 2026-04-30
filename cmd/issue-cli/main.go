@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
 //go:embed CHANGELOG.md
@@ -200,7 +202,22 @@ func run(args []string, in io.Reader, out, errw io.Writer) error {
 		// error message in main()'s error path.
 		return nil
 	}
-	return err
+	return decorateApprovalError(err, ctx)
+}
+
+// decorateApprovalError appends a deep-link to the issue viewer when err
+// represents a missing human-approval gate. The original error is preserved
+// in the wrap chain so errors.Is/As callers (and tests) keep working.
+func decorateApprovalError(err error, ctx *Context) error {
+	if err == nil {
+		return nil
+	}
+	var approvalErr *tracker.ApprovalMissingError
+	if !errors.As(err, &approvalErr) {
+		return err
+	}
+	hint := approvalHint(ctx.Project, approvalErr.Slug, approvalErr.Required)
+	return fmt.Errorf("%w\n\n%s", err, hint)
 }
 
 // splitArgs separates the global flags (everything before the first non-flag

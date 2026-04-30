@@ -181,7 +181,11 @@ func run(args []string, in io.Reader, out, errw io.Writer) error {
 	// command must surface project-resolution errors so a nil project doesn't
 	// propagate into a downstream nil-pointer panic — covers ambiguous
 	// multi-project, missing config file, and unknown --project slug.
-	if projErr != nil && rest.command != "help" && rest.command != "process" && rest.command != "projects" {
+	// When --project was passed explicitly the user wants that project, so
+	// always surface the error — the project-agnostic bypass is only for
+	// discovery without --project.
+	bypassProjErr := rest.command == "help" || rest.command == "process" || rest.command == "projects"
+	if projErr != nil && (!bypassProjErr || *projectSlug != "") {
 		return projErr
 	}
 	ctx := &Context{

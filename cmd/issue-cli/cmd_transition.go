@@ -44,6 +44,8 @@ type transitionOutput struct {
 	NextStatus           string                    `json:"next_status,omitempty"`
 	NextStatusOptional   bool                      `json:"next_status_optional,omitempty"`
 	OptionalNextStatuses []string                  `json:"optional_next_statuses,omitempty"`
+	NextRequires         []string                  `json:"next_requires,omitempty"`
+	NextSideEffects      []string                  `json:"next_side_effects,omitempty"`
 	Guidance             []string                  `json:"guidance,omitempty"`
 }
 
@@ -137,6 +139,10 @@ func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, fro
 	if s := wf.GetStatus(issue.Status); s != nil {
 		statusOptional = s.Optional
 	}
+	var nextRequires, nextSideEffects []string
+	if next != "" {
+		nextRequires, nextSideEffects = nextTransitionContract(wf, issue.Status, next)
+	}
 	return transitionOutput{
 		From:                 from,
 		To:                   to,
@@ -151,6 +157,8 @@ func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, fro
 		NextStatus:           next,
 		NextStatusOptional:   nextOptional,
 		OptionalNextStatuses: optionals,
+		NextRequires:         nextRequires,
+		NextSideEffects:      nextSideEffects,
 		Guidance:             guidance,
 	}
 }
@@ -209,11 +217,11 @@ func printTransitionResult(ctx *Context, output transitionOutput) error {
 	}
 	fmt.Fprintln(ctx.Stdout)
 
-	printWorkflowNextStepsFromData(ctx.Stdout, output.Checklist, output.Guidance, output.NextStatus, output.NextStatusOptional, output.OptionalNextStatuses, output.Slug)
+	printWorkflowNextStepsFromData(ctx.Stdout, output.Checklist, output.Guidance, output.NextStatus, output.NextStatusOptional, output.OptionalNextStatuses, output.NextRequires, output.NextSideEffects, output.Slug)
 	return nil
 }
 
-func printWorkflowNextStepsFromData(w io.Writer, checklist []transitionChecklistItem, guidance []string, nextStatus string, nextStatusOptional bool, optionalSidePaths []string, slug string) {
+func printWorkflowNextStepsFromData(w io.Writer, checklist []transitionChecklistItem, guidance []string, nextStatus string, nextStatusOptional bool, optionalSidePaths []string, nextRequires, nextSideEffects []string, slug string) {
 	if len(checklist) > 0 {
 		checked := 0
 		for _, item := range checklist {
@@ -245,6 +253,7 @@ func printWorkflowNextStepsFromData(w io.Writer, checklist []transitionChecklist
 			suffix = "   (optional — every remaining status is optional)"
 		}
 		fmt.Fprintf(w, "  issue-cli transition %s --to \"%s\"%s\n", slug, nextStatus, suffix)
+		renderNextTransitionContract(w, nextRequires, nextSideEffects)
 		if len(optionalSidePaths) > 0 {
 			fmt.Fprintln(w)
 			fmt.Fprintln(w, "Optional side-paths:")

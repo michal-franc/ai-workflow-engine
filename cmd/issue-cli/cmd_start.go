@@ -129,6 +129,8 @@ func printWorkflowNextSteps(w io.Writer, wf *tracker.WorkflowConfig, issue *trac
 			suffix = "   (optional — every remaining status is optional)"
 		}
 		fmt.Fprintf(w, "  issue-cli transition %s --to \"%s\"%s\n", issue.Slug, next, suffix)
+		requires, sideEffects := nextTransitionContract(wf, issue.Status, next)
+		renderNextTransitionContract(w, requires, sideEffects)
 		if len(optionals) > 0 {
 			fmt.Fprintln(w)
 			fmt.Fprintln(w, "Optional side-paths:")
@@ -143,6 +145,26 @@ func printWorkflowNextSteps(w io.Writer, wf *tracker.WorkflowConfig, issue *trac
 			for _, prompt := range prompts {
 				fmt.Fprintf(w, "- %s\n", prompt)
 			}
+		}
+	}
+}
+
+// renderNextTransitionContract prints the "Requires:" and "Will:" sub-blocks
+// under the next-transition command line. Each bucket is omitted when empty so
+// transitions with no rules render unchanged.
+func renderNextTransitionContract(w io.Writer, requires, sideEffects []string) {
+	if len(requires) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "  Requires:")
+		for _, r := range requires {
+			fmt.Fprintf(w, "    - %s\n", r)
+		}
+	}
+	if len(sideEffects) > 0 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "  Will:")
+		for _, s := range sideEffects {
+			fmt.Fprintf(w, "    - %s\n", s)
 		}
 	}
 }

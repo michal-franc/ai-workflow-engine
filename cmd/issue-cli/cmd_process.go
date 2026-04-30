@@ -72,6 +72,9 @@ func runProcess(ctx *Context, args []string) error {
 }
 
 func runProcessWorkflow(ctx *Context, _ []string) error {
+	if ctx.Project == nil {
+		return fmt.Errorf("process workflow needs a project — pass --project <slug> or run from a project root")
+	}
 	wf := ctx.Project.LoadWorkflow()
 	statusOrder := wf.GetStatusOrder()
 	statusDescs := wf.GetStatusDescriptions()
@@ -97,6 +100,9 @@ func runProcessWorkflow(ctx *Context, _ []string) error {
 }
 
 func runProcessSystems(ctx *Context) error {
+	if ctx.Project == nil {
+		return fmt.Errorf("process systems needs a project — pass --project <slug> or run from a project root")
+	}
 	proj := ctx.Project
 	issues, _ := tracker.LoadIssues(proj.IssueDir)
 	_, systems, _, _, _ := tracker.CollectFilterValues(issues)
@@ -120,6 +126,9 @@ func runProcessSystems(ctx *Context) error {
 }
 
 func runProcessTransitions(ctx *Context, args []string) error {
+	if ctx.Project == nil {
+		return fmt.Errorf("process transitions needs a project — pass --project <slug> or run from a project root")
+	}
 	proj := ctx.Project
 	wf := proj.LoadWorkflow()
 
@@ -292,6 +301,26 @@ func transitionActionDescriptions(t tracker.WorkflowTransition, wf *tracker.Work
 		}
 	}
 	return descs
+}
+
+// nextTransitionContract returns the validations/approvals (requires) and the
+// side-effects (will) of the transition that would move the issue from
+// fromStatus to toStatus, using the same wording as `process transitions`.
+// Returns empty slices when no rule applies (or no matching transition exists),
+// so callers can render each bucket only when non-empty.
+func nextTransitionContract(wf *tracker.WorkflowConfig, fromStatus, toStatus string) (requires, sideEffects []string) {
+	t := wf.ResolveTransition(fromStatus, toStatus)
+	if t == nil {
+		return nil, nil
+	}
+	for _, d := range transitionActionDescriptions(*t, wf) {
+		if strings.HasPrefix(d, "Side-effect:") {
+			sideEffects = append(sideEffects, d)
+		} else {
+			requires = append(requires, d)
+		}
+	}
+	return requires, sideEffects
 }
 
 func runProcessSchema(ctx *Context) error {

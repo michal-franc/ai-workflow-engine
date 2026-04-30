@@ -72,7 +72,7 @@ func runDataAdd(ctx *Context, args []string) error {
 	}
 	status := normalizeEscapedText(*statusFlag)
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}
@@ -98,7 +98,7 @@ func runDataList(ctx *Context, args []string) error {
 		return err
 	}
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func runDataSetStatus(ctx *Context, args []string) error {
 	}
 	status := args[2]
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func runDataSetComment(ctx *Context, args []string) error {
 		text = strings.Join(fs.Args(), " ")
 	}
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func runDataRemove(ctx *Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}

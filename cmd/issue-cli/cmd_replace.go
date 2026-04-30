@@ -47,7 +47,7 @@ func runReplace(ctx *Context, args []string) error {
 		return fmt.Errorf("replace requires --body\n\nExample:\n  issue-cli replace %s --section \"Design\" --body \"updated approach\"", slug)
 	}
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}

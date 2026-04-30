@@ -23,6 +23,13 @@ type Context struct {
 	Stdin      io.Reader
 	Project    *tracker.Project
 
+	// AllProjects is every project parsed from projects.yaml (or a
+	// single-element slice in bootstrap/local-issues mode). Used by error
+	// helpers to enumerate configured slugs when an issue can't be found in a
+	// multi-project setup so dispatched bots get a clear "retry with --project"
+	// pointer instead of a flat "not found".
+	AllProjects []tracker.Project
+
 	// ConfigPath / ProjectSlug capture the global flags for the few commands
 	// that reload the project (e.g. process subcommands that re-resolve a
 	// system-scoped workflow).
@@ -86,10 +93,16 @@ func flagWasSet(fs *flag.FlagSet, name string) bool {
 }
 
 // findIssueOrErr is the error-returning replacement for findIssue. It searches
-// the project's issue directory by exact slug (case-insensitive), falling back
-// to suffix/contains matching, and returns ErrIssueNotFound when nothing
-// matches.
-func findIssueOrErr(proj *tracker.Project, slug string) (*tracker.Issue, []*tracker.Issue, error) {
+// the active project's issue directory by exact slug (case-insensitive),
+// falling back to suffix/contains matching, and returns a not-found error
+// when nothing matches.
+//
+// In multi-project setups the not-found error additionally enumerates the
+// configured project slugs and points at --project, so a bot that ran the
+// command against the wrong project can self-correct without a human editing
+// the prompt.
+func findIssueOrErr(ctx *Context, slug string) (*tracker.Issue, []*tracker.Issue, error) {
+	proj := ctx.Project
 	issues, err := tracker.LoadIssues(proj.IssueDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot load issues: %w", err)
@@ -112,5 +125,26 @@ func findIssueOrErr(proj *tracker.Project, slug string) (*tracker.Issue, []*trac
 			return issue, issues, nil
 		}
 	}
-	return nil, issues, fmt.Errorf("issue not found: %s\n\nRun: issue-cli list", slug)
+	return nil, issues, notFoundError(ctx, slug)
+}
+
+// notFoundError builds the agent-facing "issue not found" message. In
+// single-project setups the format is unchanged from before (regression
+// guard for the byte-identical AC). In multi-project setups it appends the
+// configured project list and a --project hint so a bot that ran against the
+// wrong project can immediately retry with the right slug.
+func notFoundError(ctx *Context, slug string) error {
+	base := fmt.Sprintf("issue not found: %s\n\nRun: issue-cli list", slug)
+	if ctx == nil || len(ctx.AllProjects) <= 1 {
+		return fmt.Errorf("%s", base)
+	}
+	defaultSlug := ""
+	if ctx.ProjectSlug == "" && len(ctx.AllProjects) > 0 {
+		defaultSlug = ctx.AllProjects[0].Slug
+	}
+	activeSlug := defaultSlug
+	if ctx.Project != nil {
+		activeSlug = ctx.Project.Slug
+	}
+	return fmt.Errorf("%s\n\nSearched project: %s\n%s", base, activeSlug, formatProjectList(ctx.AllProjects, defaultSlug))
 }

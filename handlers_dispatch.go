@@ -13,7 +13,7 @@ import (
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
-func buildAgentPrompt(issue *tracker.Issue, wf *tracker.WorkflowConfig) string {
+func buildAgentPrompt(proj *tracker.Project, issue *tracker.Issue, wf *tracker.WorkflowConfig) string {
 	currentPrompt := "Use issue-cli to inspect the current workflow requirements for this status before making changes."
 	if wf != nil {
 		if prompt := wf.StatusPrompt(issue.Status); strings.TrimSpace(prompt) != "" {
@@ -29,7 +29,7 @@ func buildAgentPrompt(issue *tracker.Issue, wf *tracker.WorkflowConfig) string {
 		statusReminder = "Do not run `issue-cli start` until the issue is human-approved for `in progress` in the issue viewer."
 	}
 
-	return fmt.Sprintf(`You have been assigned this issue: %s
+	prompt := fmt.Sprintf(`You have been assigned this issue: %s
 
 ## Before you start
 
@@ -127,6 +127,16 @@ If you hit friction, ambiguity, or missing guardrails while using issue-cli or t
 		issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.System, issue.System, issue.Slug,
 		issue.Title, issue.Status, issue.Priority,
 		issue.BodyRaw)
+
+	// Inject --project so dispatched bots in a multi-project projects.yaml
+	// setup don't silently run against the default project. The web app
+	// already knows the project; the bot would otherwise have to discover or
+	// guess it. Replace bare `issue-cli ` (trailing space) so we don't break
+	// adjacent tokens, and skip when the project has no slug (bootstrap mode).
+	if proj != nil && proj.Slug != "" {
+		prompt = strings.ReplaceAll(prompt, "issue-cli ", "issue-cli --project "+proj.Slug+" ")
+	}
+	return prompt
 }
 
 type DispatchStep struct {
@@ -409,7 +419,7 @@ func (s *Server) handleDispatchAgent(w http.ResponseWriter, r *http.Request, pro
 	}
 
 	wf := proj.LoadWorkflowForIssue(issue)
-	prompt := buildAgentPrompt(issue, wf)
+	prompt := buildAgentPrompt(proj, issue, wf)
 	session := tmuxSessionName(slug)
 	resp := dispatchAgentSession(proj, session, prompt, issue.Slug, agentType)
 	w.Header().Set("Content-Type", "application/json")

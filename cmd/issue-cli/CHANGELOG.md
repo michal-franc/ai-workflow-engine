@@ -16,6 +16,12 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.11.0 — 2026-04-30
+
+- Multi-project ergonomics for dispatched bots. Resolution order in `loadProjectOrErr` is now explicit: passing `--project <slug>` always wins, even when cwd has its own `./issues/`, so a bot inside one project workdir can still query a sibling project. With no `--project`, a local `./issues/` triggers bootstrap mode (single-project) and otherwise `projects.yaml` is consulted; a multi-project setup with no `--project` exits non-zero with a fail-loud error enumerating configured slugs instead of silently using `projects[0]`. Single-project setups produce byte-identical output and exit codes — pinned by new regression-guard tests.
+- New `issue-cli projects` command lists configured projects (`slug`, `name`, `issue_dir`) with `(active)` / `(historical default)` markers; `--json` for scripting. The command tolerates missing or unreadable config so it stays useful as the discovery surface a confused bot reaches for first — same allow-list as `help` and `process`.
+- `issue not found` errors now enumerate configured projects and point at `--project` in multi-project setups; single-project format is unchanged. `issue-cli --help` (and bare `issue-cli`) prints a `Configured projects:` block when more than one project is configured. Web-app dispatch prompts (`buildAgentPrompt`) rewrite every `issue-cli ` invocation to `issue-cli --project <slug>` so the bot does not have to discover the project; bootstrap mode (no slug) leaves prompts unchanged.
+
 ## v0.10.4 — 2026-04-30
 
 - Internal refactor: `cmd/issue-cli/main.go` (2380 lines, ~250-line dispatch switch) split into one `cmd_<name>.go` per subcommand plus a `Command`/`Context` registry (`commands.go`, `context.go`, `helpers.go`). `main()` is now 12 lines and only logs the invocation, parses globals, and delegates to `run()`. Every subcommand owns its own `flag.FlagSet` and returns errors instead of calling `os.Exit`; the package-global `jsonOutput` is gone (`Context.JSONOutput` carries the flag), so two CLI invocations with different `--json` modes can run concurrently without racing — verified by a new `TestConcurrentJSONOutputDoesNotRace` under `go test -race`. Top-level help is generated from the registry rather than a hand-rolled blob, so adding a subcommand no longer requires editing `printHelp`. No public CLI behavior change: text and `--json` shapes are byte-for-byte identical to v0.10.3.

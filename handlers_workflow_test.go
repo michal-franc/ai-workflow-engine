@@ -267,7 +267,7 @@ func TestBuildAgentPrompt_IncludesCurrentStatusGuidanceAndRetrospectiveTrigger(t
 		},
 	}
 
-	prompt := buildAgentPrompt(issue, wf)
+	prompt := buildAgentPrompt(nil, issue, wf)
 
 	for _, want := range []string{
 		"## Current status guidance",
@@ -281,6 +281,50 @@ func TestBuildAgentPrompt_IncludesCurrentStatusGuidanceAndRetrospectiveTrigger(t
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("expected prompt to contain %q\n\n%s", want, prompt)
+		}
+	}
+	// nil project (bootstrap mode) must NOT inject --project — there's no
+	// slug to inject and bots running in a single-project repo don't need it.
+	if strings.Contains(prompt, "--project") {
+		t.Fatalf("expected nil-project prompt to omit --project flag\n\n%s", prompt)
+	}
+}
+
+func TestBuildAgentPrompt_InjectsProjectFlagForMultiProjectDispatch(t *testing.T) {
+	// In a multi-project setup the dispatcher knows the project; the bot
+	// shouldn't have to discover it. Every issue-cli invocation in the
+	// prompt must already be scoped with --project <slug> so a
+	// dispatched session running from any cwd hits the right project.
+	proj := &tracker.Project{Name: "CLI", Slug: "cli"}
+	issue := &tracker.Issue{
+		Slug:    "cli/some-bug",
+		Title:   "Some bug",
+		Status:  "in progress",
+		System:  "CLI",
+		BodyRaw: "body",
+	}
+	prompt := buildAgentPrompt(proj, issue, &tracker.WorkflowConfig{})
+
+	for _, want := range []string{
+		"issue-cli --project cli process workflow",
+		"issue-cli --project cli show cli/some-bug",
+		"issue-cli --project cli check cli/some-bug",
+		"issue-cli --project cli transition cli/some-bug",
+		"issue-cli --project cli start cli/some-bug",
+		"issue-cli --project cli retrospective cli/some-bug",
+		"issue-cli --project cli report-bug",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("expected prompt to contain %q\n\n%s", want, prompt)
+		}
+	}
+	// Defense in depth: no bare "issue-cli " (no flag) should remain after
+	// the rewrite — a plain `issue-cli foo` in a multi-project bot prompt is
+	// exactly the bug this code fixes.
+	for _, line := range strings.Split(prompt, "\n") {
+		trimmed := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmed, "issue-cli ") && !strings.HasPrefix(trimmed, "issue-cli --project ") {
+			t.Fatalf("unrewritten issue-cli call leaked into prompt: %q", trimmed)
 		}
 	}
 }

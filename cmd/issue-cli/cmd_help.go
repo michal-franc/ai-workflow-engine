@@ -19,5 +19,5 @@ func runHelp(ctx *Context, args []string) error {
 	if len(args) > 0 {
 		return runProcess(ctx, args)
 	}
-	return printHelp(ctx.Stdout)
+	return printHelp(ctx.Stdout, ctx.AllProjects, ctx.ProjectSlug)
 }

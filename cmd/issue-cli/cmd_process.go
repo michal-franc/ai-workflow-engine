@@ -151,7 +151,7 @@ func runProcessTransitions(ctx *Context, args []string) error {
 	var issueSlug string
 	switch {
 	case hasIssueRef:
-		issue, _, err := findIssueOrErr(proj, issueRef)
+		issue, _, err := findIssueOrErr(ctx, issueRef)
 		if err != nil {
 			return err
 		}

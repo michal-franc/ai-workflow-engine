@@ -46,7 +46,7 @@ func runSetMeta(ctx *Context, args []string) error {
 		return fmt.Errorf("set-meta requires --value or --clear\n\nExamples:\n  issue-cli set-meta %s --key waiting --value \"...\"\n  issue-cli set-meta %s --key waiting --clear", slug, slug)
 	}
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}

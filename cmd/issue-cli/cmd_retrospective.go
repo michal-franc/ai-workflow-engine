@@ -44,7 +44,7 @@ func runRetrospective(ctx *Context, args []string) error {
 		return fmt.Errorf("retrospective requires --body\n\nExample:\n  issue-cli retrospective %s --body \"Base workflow: ...\\nSubsystem workflow: ...\\nTooling friction: ...\"", slug)
 	}
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}

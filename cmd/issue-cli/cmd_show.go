@@ -28,7 +28,7 @@ func runShow(ctx *Context, args []string) error {
 		return err
 	}
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}

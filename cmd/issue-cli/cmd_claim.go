@@ -34,7 +34,7 @@ func runClaim(ctx *Context, args []string) error {
 		assignee = agentNameForSlug(slug)
 	}
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}

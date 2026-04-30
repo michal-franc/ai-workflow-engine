@@ -37,7 +37,7 @@ func runStart(ctx *Context, args []string) error {
 	}
 	assignee := *assigneeFlag
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}

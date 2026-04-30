@@ -46,7 +46,7 @@ func runAppend(ctx *Context, args []string) error {
 		return fmt.Errorf("append requires --body\n\nExamples:\n  issue-cli append <slug> --section \"Design\" --body \"- [ ] edge case covered\"\n  issue-cli append <slug> --body \"## Test Plan\\n\\n### Automated\\n- test 1\"")
 	}
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}

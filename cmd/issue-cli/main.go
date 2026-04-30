@@ -161,7 +161,11 @@ func run(args []string, in io.Reader, out, errw io.Writer) error {
 		return err
 	}
 	if rest.command == "" {
-		return printHelp(out)
+		// Help must work even when --project is missing in a multi-project
+		// setup, so we deliberately swallow the resolution error and surface
+		// the project list (loaded best-effort) to the bot reading --help.
+		_, allProjects, _ := loadProjectOrErr(*configPath, *projectSlug)
+		return printHelp(out, allProjects, *projectSlug)
 	}
 
 	cmd := lookupCommand(rest.command)
@@ -169,13 +173,22 @@ func run(args []string, in io.Reader, out, errw io.Writer) error {
 		return fmt.Errorf("unknown command: %s\n\nRun: issue-cli help", rest.command)
 	}
 
-	proj, _ := loadProjectOrErr(*configPath, *projectSlug)
+	proj, allProjects, projErr := loadProjectOrErr(*configPath, *projectSlug)
+	// Help, process, and projects are project-agnostic surfaces (top-level
+	// help, releases, workflow reference, project listing). Every other
+	// command must surface project-resolution errors so a nil project doesn't
+	// propagate into a downstream nil-pointer panic — covers ambiguous
+	// multi-project, missing config file, and unknown --project slug.
+	if projErr != nil && rest.command != "help" && rest.command != "process" && rest.command != "projects" {
+		return projErr
+	}
 	ctx := &Context{
 		JSONOutput:  *jsonOut,
 		Stdout:      out,
 		Stderr:      errw,
 		Stdin:       in,
 		Project:     proj,
+		AllProjects: allProjects,
 		ConfigPath:  *configPath,
 		ProjectSlug: *projectSlug,
 		Now:         time.Now,

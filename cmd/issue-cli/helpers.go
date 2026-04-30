@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,76 +14,134 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// loadProjectOrErr loads the active project. If a local ./issues directory
-// exists it is used directly (the bootstrap-friendly path); otherwise the
-// configured projects.yaml is consulted. Errors when no usable project is
-// found.
-func loadProjectOrErr(configPath, projectSlug string) (*tracker.Project, error) {
+// errAmbiguousProject is returned by loadProjectOrErr when the configured
+// projects.yaml has more than one project and the caller did not pass
+// --project. The dispatcher in main.go checks for this with errors.Is so it
+// can keep `help` and `process` working in multi-project setups while every
+// other command fails loud with a list of the configured slugs.
+var errAmbiguousProject = errors.New("ambiguous project — pass --project")
+
+// loadProjectOrErr resolves the active project and returns the full
+// configured project list alongside it.
+//
+// Resolution order:
+//  1. Explicit --project always wins. We consult projects.yaml even when the
+//     cwd has its own ./issues/ — a bot inside one project workdir must still
+//     be able to query a sibling project by passing --project <slug>.
+//  2. No --project + a local ./issues/ → bootstrap mode synthesizes a single
+//     project from cwd. Single-project semantics; --project is unused.
+//  3. No --project + no local ./issues/ → consult projects.yaml. >1 project
+//     in that file returns errAmbiguousProject so the bot fails loud instead
+//     of silently using projects[0].
+func loadProjectOrErr(configPath, projectSlug string) (*tracker.Project, []tracker.Project, error) {
+	if projectSlug != "" {
+		return resolveFromConfig(configPath, projectSlug)
+	}
 	if info, err := os.Stat("./issues"); err == nil && info.IsDir() {
-		docsDir := "./docs"
-		if info, err := os.Stat(docsDir); err != nil || !info.IsDir() {
-			docsDir = ""
+		return resolveBootstrap(configPath)
+	}
+	return resolveFromConfig(configPath, "")
+}
+
+// resolveBootstrap synthesizes a single-project config from cwd when ./issues
+// exists. configPath is consulted only for version / workflow metadata.
+func resolveBootstrap(configPath string) (*tracker.Project, []tracker.Project, error) {
+	docsDir := "./docs"
+	if info, err := os.Stat(docsDir); err != nil || !info.IsDir() {
+		docsDir = ""
+	}
+	cwd, _ := os.Getwd()
+	name := filepath.Base(cwd)
+	proj := &tracker.Project{
+		Name:     name,
+		Slug:     tracker.Slugify(name),
+		IssueDir: "./issues",
+		DocsDir:  docsDir,
+	}
+	for _, f := range []string{"project.yaml", configPath} {
+		data, readErr := os.ReadFile(f)
+		if readErr != nil {
+			continue
 		}
-		cwd, _ := os.Getwd()
-		name := filepath.Base(cwd)
-		proj := &tracker.Project{
-			Name:     name,
-			Slug:     tracker.Slugify(name),
-			IssueDir: "./issues",
-			DocsDir:  docsDir,
-		}
-		for _, f := range []string{"project.yaml", configPath} {
-			data, readErr := os.ReadFile(f)
-			if readErr != nil {
-				continue
+		var local tracker.Project
+		if yaml.Unmarshal(data, &local) == nil {
+			if local.Version != "" {
+				proj.Version = local.Version
 			}
-			var local tracker.Project
-			if yaml.Unmarshal(data, &local) == nil {
-				if local.Version != "" {
-					proj.Version = local.Version
-				}
-				if local.WorkflowFile != "" {
-					proj.WorkflowFile = local.WorkflowFile
-				}
-				if proj.Version != "" {
-					break
-				}
-			}
-			var cfg tracker.ProjectsConfig
-			if yaml.Unmarshal(data, &cfg) == nil {
-				for _, p := range cfg.Projects {
-					if p.Version != "" {
-						proj.Version = p.Version
-						break
-					}
-					if p.WorkflowFile != "" {
-						proj.WorkflowFile = p.WorkflowFile
-					}
-				}
+			if local.WorkflowFile != "" {
+				proj.WorkflowFile = local.WorkflowFile
 			}
 			if proj.Version != "" {
 				break
 			}
 		}
-		return proj, nil
+		var cfg tracker.ProjectsConfig
+		if yaml.Unmarshal(data, &cfg) == nil {
+			for _, p := range cfg.Projects {
+				if p.Version != "" {
+					proj.Version = p.Version
+					break
+				}
+				if p.WorkflowFile != "" {
+					proj.WorkflowFile = p.WorkflowFile
+				}
+			}
+		}
+		if proj.Version != "" {
+			break
+		}
 	}
+	return proj, []tracker.Project{*proj}, nil
+}
 
+// resolveFromConfig reads projects.yaml and resolves projectSlug against it.
+// An empty slug triggers the fail-loud / silent-fallback decision based on
+// project count.
+func resolveFromConfig(configPath, projectSlug string) (*tracker.Project, []tracker.Project, error) {
 	projects, err := tracker.LoadProjects(configPath)
 	if err != nil {
-		return nil, fmt.Errorf("no ./issues/ directory found and cannot load config: %w\n\nEither run from a project root with an issues/ directory, or use --config <path>", err)
+		return nil, nil, fmt.Errorf("cannot load config %s: %w\n\nEither run from a project root with an issues/ directory, or use --config <path>", configPath, err)
 	}
 	if projectSlug != "" {
 		for i := range projects {
 			if projects[i].Slug == projectSlug {
-				return &projects[i], nil
+				return &projects[i], projects, nil
 			}
 		}
-		return nil, fmt.Errorf("project %q not found in config", projectSlug)
+		return nil, projects, fmt.Errorf("project %q not found in config\n%s", projectSlug, formatProjectList(projects, ""))
 	}
 	if len(projects) == 0 {
-		return nil, fmt.Errorf("no projects configured in %s", configPath)
+		return nil, projects, fmt.Errorf("no projects configured in %s", configPath)
 	}
-	return &projects[0], nil
+	if len(projects) > 1 {
+		// Fail loud: silent fallback to projects[0] is the bug this code
+		// solves. Return projects[0] as the conventional default in the
+		// listing so the bot can re-run with the right --project.
+		return nil, projects, fmt.Errorf("%w\n%s", errAmbiguousProject, formatProjectList(projects, projects[0].Slug))
+	}
+	return &projects[0], projects, nil
+}
+
+// formatProjectList renders a fixed-format enumeration of configured project
+// slugs for the agent-facing error messages. defaultSlug, when non-empty, is
+// marked "(default)" so the bot knows which project the silent fallback would
+// have chosen historically. The leading "Available projects:" line and
+// trailing hint are part of the contract — tests and bots match on them.
+func formatProjectList(projects []tracker.Project, defaultSlug string) string {
+	if len(projects) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("Available projects:\n")
+	for _, p := range projects {
+		if p.Slug == defaultSlug {
+			fmt.Fprintf(&b, "  %s (default)\n", p.Slug)
+		} else {
+			fmt.Fprintf(&b, "  %s\n", p.Slug)
+		}
+	}
+	b.WriteString("\nRetry with: issue-cli --project <slug> ...")
+	return b.String()
 }
 
 // agentNameForSlug returns the assignee name used by `start` and `claim` when

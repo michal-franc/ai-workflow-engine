@@ -39,7 +39,7 @@ func runUpdate(ctx *Context, args []string) error {
 		return fmt.Errorf("update requires --title and/or --body\n\nExample:\n  issue-cli update %s --title \"new title\" --body \"new body content\"", slug)
 	}
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}

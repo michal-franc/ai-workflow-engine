@@ -81,7 +81,7 @@ func runTransition(ctx *Context, args []string) error {
 	}
 	to = strings.ToLower(to)
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func runTransition(ctx *Context, args []string) error {
 		return fmt.Errorf("failed to transition: %w", err)
 	}
 
-	issue, _, err = findIssueOrErr(ctx.Project, slug)
+	issue, _, err = findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}

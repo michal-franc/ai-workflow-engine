@@ -36,7 +36,7 @@ func runCheck(ctx *Context, args []string) error {
 	}
 	query := strings.Join(queryParts, " ")
 
-	issue, _, err := findIssueOrErr(ctx.Project, slug)
+	issue, _, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}

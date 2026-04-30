@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"sort"
+
+	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
 // commandRegistry holds every top-level subcommand. Entries are appended via
@@ -55,10 +57,12 @@ func commandNames() []string {
 }
 
 // printHelp renders the top-level help text from the registry. Each command's
-// ShortHelp is shown next to its name. The trailing block lists global flags
-// and the recommended bootstrap commands so the output stays close to the old
-// hand-rolled help blob.
-func printHelp(w io.Writer) error {
+// ShortHelp is shown next to its name. When a multi-project projects.yaml is
+// loaded the configured slugs are listed under "Configured projects:" so a
+// dispatched bot reading --help can see exactly what to pass to --project
+// without scraping the config file. Single-project setups omit the section to
+// keep output identical to before.
+func printHelp(w io.Writer, projects []tracker.Project, activeSlug string) error {
 	fmt.Fprintln(w, "== issue-cli — AI-Native Project Viewer CLI ==")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
@@ -87,8 +91,25 @@ func printHelp(w io.Writer) error {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Global flags:")
 	fmt.Fprintln(w, "  --config <path>      Path to projects.yaml (default: projects.yaml)")
-	fmt.Fprintln(w, "  --project <slug>     Select project (default: first in config)")
+	fmt.Fprintln(w, "  --project <slug>     Select project (required when >1 project is configured)")
 	fmt.Fprintln(w, "  --json               Output as JSON")
+	if len(projects) > 1 {
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "Configured projects:")
+		defaultSlug := ""
+		if activeSlug == "" && len(projects) > 0 {
+			defaultSlug = projects[0].Slug
+		}
+		for _, p := range projects {
+			marker := ""
+			if p.Slug == activeSlug {
+				marker = " (active)"
+			} else if p.Slug == defaultSlug {
+				marker = " (historical default)"
+			}
+			fmt.Fprintf(w, "  %s%s\n", p.Slug, marker)
+		}
+	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "First time? Run these:")
 	fmt.Fprintln(w, "  1. issue-cli process")

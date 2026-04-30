@@ -31,6 +31,7 @@ handlers_comments.go        — comment add/get/toggle/delete
 handlers_workflow.go        — designer, retros, bug status, docs handlers
 handlers_dispatch.go        — agent dispatch + prompt builders
 handlers_github.go          — github page, fetch, import
+handlers_stats.go           — /stats workflow token-cost view
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
 templates/                  — Go HTML templates (list.html, board.html, detail.html, docs.html)
@@ -122,6 +123,7 @@ Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI
 - [Agent Dispatch](docs/agent-dispatch.md) — terminal config, approval notifications
 - [GitHub Integration](docs/github-integration.md) — sync, issue reference, auto-close
 - [Per-issue Data Store](docs/data-store.md) — sidecar JSON, `<!-- data -->` marker, `issue-cli data` commands
+- [Workflow Stats](docs/workflow-stats.md) — `/stats` tab, per-issue stats sidecar, token-cost estimation
 
 Per-system docs:
 

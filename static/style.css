@@ -2305,3 +2305,25 @@ select.modal-input option {
     font-style: italic;
     text-align: center;
 }
+
+.stats-intro {
+    color: var(--text-secondary, #8b949e);
+    font-size: 13px;
+    margin: 16px 0;
+    line-height: 1.5;
+}
+.stats-sub {
+    color: var(--text-secondary, #8b949e);
+    font-size: 12px;
+    margin: 4px 0 8px;
+}
+.stats-empty {
+    color: var(--text-secondary, #8b949e);
+    font-style: italic;
+    margin: 8px 0 24px;
+}
+.data-table .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-family: var(--font-mono, monospace);
+}

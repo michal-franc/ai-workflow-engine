@@ -316,8 +316,24 @@ func (w *WorkflowConfig) ApplyTransitionToFileWithFields(filePath, toStatus stri
 			return err
 		}
 
+		preBody := issue.BodyRaw
+
 		result = w.ApplyTransitionWithFields(issue, fromStatus, toStatus, fieldValues)
-		return updateIssueFrontmatterLocked(filePath, result.Update)
+		if err := updateIssueFrontmatterLocked(filePath, result.Update); err != nil {
+			return err
+		}
+
+		stat := TransitionStat{
+			From:          fromStatus,
+			To:            toStatus,
+			TS:            time.Now().UTC(),
+			StaticTokens:  StaticTransitionCost(w, fromStatus, toStatus),
+			DynamicTokens: DynamicTransitionCost(w, fromStatus, toStatus, preBody, comments),
+		}
+		if err := AppendTransitionStat(filePath, stat); err != nil {
+			return fmt.Errorf("appending transition stat for %s: %w", filePath, err)
+		}
+		return nil
 	})
 
 	return fromStatus, result, err

@@ -1,0 +1,114 @@
+{{define "stats.html"}}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{.ProjectName}} — Workflow Stats</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="page-header">
+        <div class="header-row">
+            <div class="page-title-row">
+                <a href="/" class="project-back-link">Projects</a>
+                <span class="header-sep">/</span>
+                <h1>{{.ProjectName}}</h1>
+            </div>
+            <nav class="view-tabs">
+                <a href="{{.Prefix}}/" class="view-tab">List</a>
+                <a href="{{.Prefix}}/board" class="view-tab">Board</a>
+                <a href="{{.Prefix}}/graph" class="view-tab">Graph</a>
+                <a href="{{.Prefix}}/docs" class="view-tab">Docs</a>
+                <a href="{{.Prefix}}/retros" class="view-tab">Retros</a>
+                <a href="{{.Prefix}}/workflow-designer" class="view-tab">Workflow</a>
+                <a href="{{.Prefix}}/stats" class="view-tab active">Stats</a>
+                {{if .SupportsGitHub}}
+                <a href="{{.Prefix}}/github" class="view-tab">GitHub</a>
+                {{end}}
+            </nav>
+        </div>
+    </div>
+
+    <div class="container">
+        <p class="stats-intro">
+            Approximate token cost of workflow steps. <strong>Static</strong> is the workflow scaffolding the bot reads on transition (validations, prompts, appended sections, entry guidance). <strong>Dynamic</strong> adds the issue body and comments at the moment of transition. Token counts use a <code>len(s)/4</code> approximation — useful for relative comparison, not exact for any specific model.
+        </p>
+
+        <h2>Dispatch base prompt</h2>
+        <p class="stats-sub">Constant scaffolding sent on every fresh agent dispatch (separate from per-transition workflow weight). Excludes issue body and slug substitutions, which add to the per-dispatch dynamic cost.</p>
+        <table class="data-table">
+            <thead><tr><th>Component</th><th class="num">Static tokens</th></tr></thead>
+            <tbody>
+                <tr>
+                    <td>Agent dispatch prompt template</td>
+                    <td class="num">{{.DispatchPromptCost}}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Static reference — by transition</h2>
+        <p class="stats-sub">Pure workflow weight per (from→to) declared in <code>workflow.yaml</code>. No issue context. Excludes the dispatch base prompt above.</p>
+        {{if .StaticReference}}
+        <table class="data-table">
+            <thead><tr><th>From</th><th>→</th><th>To</th><th class="num">Static tokens</th></tr></thead>
+            <tbody>
+            {{range .StaticReference}}
+                <tr>
+                    <td>{{.From}}</td>
+                    <td>→</td>
+                    <td>{{.To}}</td>
+                    <td class="num">{{.Tokens}}</td>
+                </tr>
+            {{end}}
+            </tbody>
+        </table>
+        {{else}}
+        <p class="stats-empty">No transitions declared in this project's workflow.</p>
+        {{end}}
+
+        <h2>Recorded transitions — average cost</h2>
+        <p class="stats-sub">Averaged across all recorded transitions, sorted by avg dynamic descending.</p>
+        {{if .RecordedTransitions}}
+        <table class="data-table">
+            <thead><tr><th>From</th><th>→</th><th>To</th><th class="num">Count</th><th class="num">Avg static</th><th class="num">Avg dynamic</th></tr></thead>
+            <tbody>
+            {{range .RecordedTransitions}}
+                <tr>
+                    <td>{{.From}}</td>
+                    <td>→</td>
+                    <td>{{.To}}</td>
+                    <td class="num">{{.Count}}</td>
+                    <td class="num">{{.AvgStatic}}</td>
+                    <td class="num">{{.AvgDynamic}}</td>
+                </tr>
+            {{end}}
+            </tbody>
+        </table>
+        {{else}}
+        <p class="stats-empty">No transitions recorded yet. Record some by performing workflow transitions in this project.</p>
+        {{end}}
+
+        <h2>Per-issue totals</h2>
+        <p class="stats-sub">Total dynamic-token cost across each issue's recorded transitions.</p>
+        {{if .IssueTotals}}
+        <table class="data-table">
+            <thead><tr><th>Issue</th><th>Status</th><th class="num">Transitions</th><th class="num">Total static</th><th class="num">Total dynamic</th></tr></thead>
+            <tbody>
+            {{range .IssueTotals}}
+                <tr>
+                    <td><a href="{{$.Prefix}}/issue/{{.Slug}}">{{.Title}}</a></td>
+                    <td>{{.Status}}</td>
+                    <td class="num">{{.TransitionCount}}</td>
+                    <td class="num">{{.TotalStaticTokens}}</td>
+                    <td class="num">{{.TotalDynamicTokens}}</td>
+                </tr>
+            {{end}}
+            </tbody>
+        </table>
+        {{else}}
+        <p class="stats-empty">No per-issue stats yet.</p>
+        {{end}}
+    </div>
+</body>
+</html>
+{{end}}

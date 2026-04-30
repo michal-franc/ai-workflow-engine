@@ -25,6 +25,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 | `/graph`          | `graph.html`  | Workflow DAG with stale highlighting             |
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
 | `/issue/<slug>`   | `detail.html` | Detail with edit, approve, dispatch, comments    |
+| `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
 
 ## Design Considerations
 

@@ -97,6 +97,8 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleGitHubFetch(w, r, proj)
 	case rest == "github/import" && r.Method == http.MethodPost:
 		s.handleGitHubImport(w, r, proj)
+	case rest == "stats":
+		s.handleStats(w, r, proj, prefix)
 	case rest == "retros":
 		s.handleRetros(w, r, proj, prefix)
 	case rest == "retros/review" && r.Method == http.MethodPost:

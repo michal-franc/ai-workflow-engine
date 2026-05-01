@@ -210,6 +210,13 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 		runStep(&steps, fmt.Sprintf("Viewer URL env %s", viewerURL),
 			exec.Command("tmux", "send-keys", "-t", session, fmt.Sprintf("export ISSUE_VIEWER_URL=%q", viewerURL), "Enter"))
 	}
+	// Propagate the config path the viewer was launched with so the CLI can
+	// resolve `--project <slug>` against it without the bot having to know
+	// the file name (e.g. projects-mfranc.yaml vs the default projects.yaml).
+	if cfg := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_CONFIG")); cfg != "" {
+		runStep(&steps, fmt.Sprintf("Viewer config env %s", cfg),
+			exec.Command("tmux", "send-keys", "-t", session, fmt.Sprintf("export ISSUE_VIEWER_CONFIG=%q", cfg), "Enter"))
+	}
 
 	runStep(&steps, fmt.Sprintf("cd %s", workDir),
 		exec.Command("tmux", "send-keys", "-t", session, fmt.Sprintf("cd %q", workDir), "Enter"))

@@ -151,7 +151,17 @@ func main() {
 func run(args []string, in io.Reader, out, errw io.Writer) error {
 	global := flag.NewFlagSet("issue-cli", flag.ContinueOnError)
 	global.SetOutput(errw)
-	configPath := global.String("config", "projects.yaml", "path to projects.yaml")
+	// Precedence for the config path: explicit --config > $ISSUE_VIEWER_CONFIG
+	// (set by the viewer when it dispatches a bot, so the bot inherits the
+	// exact config the human is browsing) > the historical "projects.yaml"
+	// default. The env-var route exists because the viewer can be launched
+	// with any config name (projects-mfranc.yaml etc.) and we don't want
+	// dispatched bots to have to discover or guess the file.
+	defaultConfig := "projects.yaml"
+	if env := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_CONFIG")); env != "" {
+		defaultConfig = env
+	}
+	configPath := global.String("config", defaultConfig, "path to projects.yaml")
 	projectSlug := global.String("project", "", "select project (default: first in config)")
 	jsonOut := global.Bool("json", false, "output as JSON")
 

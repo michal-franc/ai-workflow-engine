@@ -358,3 +358,62 @@ func TestNotFoundError_MultiProjectListsProjects(t *testing.T) {
 		}
 	}
 }
+
+func TestRun_EnvVarSuppliesConfigPath(t *testing.T) {
+	// When the viewer dispatches a bot it exports ISSUE_VIEWER_CONFIG so the
+	// CLI can resolve --project against the same config the human is browsing.
+	// The default "projects.yaml" filename does not exist here — the test
+	// passes only if the env var is being honored.
+	dir := t.TempDir()
+	withCwd(t, dir)
+	cfgPath := filepath.Join(dir, "projects-mfranc.yaml")
+	if err := os.WriteFile(cfgPath, []byte("projects:\n  - name: Alpha\n    slug: alpha\n    issues: "+filepath.Join(dir, "alpha-issues")+"\n"), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "alpha-issues"), 0755); err != nil {
+		t.Fatalf("mkdir issues: %v", err)
+	}
+	t.Setenv("ISSUE_VIEWER_CONFIG", cfgPath)
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"projects"}, strings.NewReader(""), &stdout, &stderr); err != nil {
+		t.Fatalf("run projects with env config: %v\nstderr: %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "alpha") {
+		t.Fatalf("expected env-supplied config to surface 'alpha'\n%s", stdout.String())
+	}
+}
+
+func TestRun_ExplicitConfigBeatsEnvVar(t *testing.T) {
+	// Precedence: explicit --config wins over $ISSUE_VIEWER_CONFIG. A human
+	// debugging from a viewer-dispatched shell must still be able to point
+	// the CLI at a different config without unsetting the inherited env.
+	dir := t.TempDir()
+	withCwd(t, dir)
+	envCfg := filepath.Join(dir, "env.yaml")
+	if err := os.WriteFile(envCfg, []byte("projects:\n  - name: FromEnv\n    slug: fromenv\n    issues: "+filepath.Join(dir, "env-issues")+"\n"), 0644); err != nil {
+		t.Fatalf("write env config: %v", err)
+	}
+	flagCfg := filepath.Join(dir, "flag.yaml")
+	if err := os.WriteFile(flagCfg, []byte("projects:\n  - name: FromFlag\n    slug: fromflag\n    issues: "+filepath.Join(dir, "flag-issues")+"\n"), 0644); err != nil {
+		t.Fatalf("write flag config: %v", err)
+	}
+	for _, sub := range []string{"env-issues", "flag-issues"} {
+		if err := os.MkdirAll(filepath.Join(dir, sub), 0755); err != nil {
+			t.Fatalf("mkdir %s: %v", sub, err)
+		}
+	}
+	t.Setenv("ISSUE_VIEWER_CONFIG", envCfg)
+
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"--config", flagCfg, "projects"}, strings.NewReader(""), &stdout, &stderr); err != nil {
+		t.Fatalf("run with explicit --config: %v\nstderr: %s", err, stderr.String())
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "fromflag") {
+		t.Fatalf("expected explicit --config to win, got:\n%s", out)
+	}
+	if strings.Contains(out, "fromenv") {
+		t.Fatalf("env-var config should be ignored when --config is explicit, got:\n%s", out)
+	}
+}

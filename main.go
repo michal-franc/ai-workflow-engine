@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
@@ -24,6 +25,14 @@ func main() {
 		projects, err = tracker.LoadProjects(*configFile)
 		if err != nil {
 			log.Fatalf("Failed to load config: %v", err)
+		}
+		// Make the config path discoverable to dispatched bot sessions so the
+		// CLI doesn't fall back to its hard-coded "projects.yaml" default when
+		// the viewer was launched with a differently-named config.
+		if abs, absErr := filepath.Abs(*configFile); absErr == nil {
+			os.Setenv("ISSUE_VIEWER_CONFIG", abs)
+		} else {
+			os.Setenv("ISSUE_VIEWER_CONFIG", *configFile)
 		}
 		fmt.Printf("Loaded %d projects from %s\n", len(projects), *configFile)
 	} else {

@@ -14,6 +14,12 @@ Flags:
 - `-docs` — documentation markdown directory (default `./docs`)
 - `-port` — HTTP port (default `8080`)
 
+## Validation
+
+`make validate` runs `go vet ./...`, the full test suite, and a coverage gate on
+`cmd/issue-cli` (floor: `CLI_COVERAGE_FLOOR`, default 70). Use it before
+proposing a change that touches `cmd/issue-cli/`.
+
 ## Project Structure
 
 ```

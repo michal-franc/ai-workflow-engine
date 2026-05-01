@@ -16,6 +16,11 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.14.1 — 2026-05-01
+
+- Filled the test-coverage gap in `cmd/issue-cli/`. Every previously-untested `runX` subcommand now has at least one happy-path and one error-path test in the new `cmd_subcommands_test.go`: `claim`, `unclaim`, `done`, `comment`, `check`, `update`, `replace`, `append`, `retrospective`, `report-bug`, `search`, `next`, `checklist`, `show`/`context`, `create`, `help`, `stats`, the six `data` subcommands (with on-disk sidecar JSON shape assertions against `tracker.DataStore`), the `process` and `workflow` dispatchers, plus `runProcessWorkflow` / `runProcessSystems`. Package coverage moved from 47.0% to 77.3%.
+- New `make validate` target runs `go vet ./...`, the full test suite, and a coverage gate on `cmd/issue-cli/` that fails when coverage drops below `CLI_COVERAGE_FLOOR` (default 70). `make vet`, `make test`, and `make cover-cli` are exposed as standalone steps for incremental use. `CLAUDE.md` gains a `## Validation` section describing the chain.
+
 ## v0.14.0 — 2026-04-30
 
 - New per-project Stats tab at `/p/<project>/stats` surfacing the approximate token cost of the workflow itself. Four blocks: a constant Dispatch base prompt cost (the scaffolding text the issue viewer writes into every fresh agent dispatch), a Static reference table covering every (from→to) declared in `workflow.yaml`, an averaged Recorded transitions table sorted by avg dynamic descending, and Per-issue totals sorted by total dynamic cost. Token counts use a `len(s)/4` approximation — useful for relative comparison, not exact for any specific model.

@@ -16,6 +16,12 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.14.2 — 2026-05-02
+
+- 13 new structured workflow validators land in `internal/tracker/validations/` (one file per validator). Frontmatter: `field_present`, `field_not_empty`, `field_in`, `field_matches`, `has_label`, `has_any_label`. Linkage: `has_pr_url`, `linked_issue_in_status`. Body-structure: `has_section`, `section_min_length`, `section_max_length`, `no_todo_markers`. Shell: `command_succeeds` — opt-in via top-level `allow_shell: true` on `workflow.yaml`; templated with `{{slug}}/{{number}}/{{repo}}/{{system}}`; per-action `timeout_seconds` (default 10s); env scrubbed to `PATH`/`HOME`/`GH_TOKEN`; captured stdout/stderr surfaced in the failure message.
+- Validators land in the new structured action-param form (companion fields on `transitions[].actions[]`: `field`, `values`, `pattern`, `section`, `min`, `max`, `command`, `ref_key`, `linked_status`, `hint`); legacy colon-string rules continue to parse unchanged through the existing `checkRule` shim. Every validator returns a failure message of the form `<problem> — <hint>` with a concrete `issue-cli` remediation command; per-action `hint:` overrides the default and is templated.
+- See `docs/workflow.md` (new "Validation Rules" section) for the catalog with workflow.yaml usage examples, and `docs/Workflow/overview.md` for the architecture (leaf `validations` package, `Registry`-based dispatch, how to add a new validator).
+
 ## v0.14.1 — 2026-05-01
 
 - Filled the test-coverage gap in `cmd/issue-cli/`. Every previously-untested `runX` subcommand now has at least one happy-path and one error-path test in the new `cmd_subcommands_test.go`: `claim`, `unclaim`, `done`, `comment`, `check`, `update`, `replace`, `append`, `retrospective`, `report-bug`, `search`, `next`, `checklist`, `show`/`context`, `create`, `help`, `stats`, the six `data` subcommands (with on-disk sidecar JSON shape assertions against `tracker.DataStore`), the `process` and `workflow` dispatchers, plus `runProcessWorkflow` / `runProcessSystems`. Package coverage moved from 47.0% to 77.3%.

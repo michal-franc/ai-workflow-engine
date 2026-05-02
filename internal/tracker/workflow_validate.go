@@ -15,6 +15,12 @@ func (w *WorkflowConfig) ValidateTransition(issue *Issue, fromStatus, toStatus s
 	for _, action := range w.transitionActions(fromStatus, toStatus) {
 		switch action.Type {
 		case "validate":
+			if isStructuredRule(action.Rule) {
+				if err := w.checkAction(action, issue, comments); err != nil {
+					return err
+				}
+				break
+			}
 			if err := w.checkRule(action.Rule, issue, comments); err != nil {
 				return err
 			}
@@ -56,6 +62,9 @@ func ValidationSummary(rule string) string {
 func DescribeAction(action WorkflowAction, defaultStatus string) string {
 	switch action.Type {
 	case "validate":
+		if isStructuredRule(action.Rule) {
+			return structuredSummary(action)
+		}
 		return ValidationSummary(action.Rule)
 	case "require_human_approval":
 		status := strings.TrimSpace(action.Status)

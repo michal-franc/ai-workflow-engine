@@ -109,6 +109,88 @@ Statuses support a `side_effects` field — actions that run automatically after
 
 This is used so design agents are unassigned when an issue moves to backlog, before a different agent picks it up for implementation.
 
+## Validation Rules
+
+Each `transitions[].actions[]` entry of `type: validate` runs one rule against the issue. There are two flavors of rule encoding:
+
+- **Legacy colon-string** — the rule and (optional) argument live in a single `rule:` string, e.g. `rule: "section_checkboxes_checked: Design"`. Used by the original 10 rules: `body_not_empty`, `has_checkboxes`, `section_has_checkboxes`, `has_assignee`, `all_checkboxes_checked`, `section_checkboxes_checked`, `has_test_plan`, `has_comment_prefix`, `approved_for` / `human_approval`.
+- **Structured action params** — the rule name in `rule:` plus companion fields on the same action (e.g. `field`, `values`, `pattern`, `section`, `min`, `max`, `command`, `ref_key`, `linked_status`, `hint`). All new validators use this form.
+
+Both flavors can mix freely in the same workflow. New validators should use the structured form for clarity; existing legacy rules keep working unchanged.
+
+### Frontmatter validators
+
+```yaml
+- type: validate
+  rule: field_in
+  field: priority
+  values: [low, medium, high, critical]
+  hint: "set with: issue-cli set-meta {{slug}} --key priority --value high"
+```
+
+- `field_present` — frontmatter `action.field` exists, regardless of value.
+- `field_not_empty` — frontmatter `action.field` exists and is non-blank.
+- `field_in` — frontmatter `action.field` value is one of `action.values`.
+- `field_matches` — frontmatter `action.field` value matches the Go RE2 regex `action.pattern` (no backreferences or lookarounds).
+- `has_label` — issue labels contain the name in `action.field`.
+- `has_any_label` — issue has at least one label.
+
+### Linkage validators
+
+```yaml
+# Block shipping until the parent issue is done.
+- type: validate
+  rule: linked_issue_in_status
+  ref_key: parent
+  linked_status: done
+```
+
+- `has_pr_url` — frontmatter `pr` is a github pull request URL (`https://github.com/<org>/<repo>/pull/<N>`).
+- `linked_issue_in_status` — the issue referenced by `action.ref_key` (a frontmatter key whose value is another issue's slug) has the status `action.linked_status`.
+
+### Body-structure validators
+
+```yaml
+- type: validate
+  rule: section_min_length
+  section: Design
+  min: 200
+- type: validate
+  rule: no_todo_markers
+```
+
+- `has_section` — body contains `## <action.section>`.
+- `section_min_length` — section `## <action.section>` has at least `action.min` non-whitespace chars.
+- `section_max_length` — section `## <action.section>` has at most `action.max` non-whitespace chars (a missing section passes; pair with `has_section` if presence matters).
+- `no_todo_markers` — body contains no whole-word `TODO` or `FIXME` (case-sensitive).
+
+### Shell / external
+
+`command_succeeds` runs a shell command and passes when the exit code is 0. It is **opt-in** — set `allow_shell: true` at the top of `workflow.yaml` to enable it; otherwise every `command_succeeds` action fails with a fix-it hint.
+
+```yaml
+allow_shell: true
+
+transitions:
+  - from: shipping
+    to: done
+    actions:
+      - type: validate
+        rule: command_succeeds
+        command: "gh pr view {{number}} --json state -q .state | grep -q MERGED"
+        timeout_seconds: 15
+        hint: "land or close PR #{{number}} before marking done"
+```
+
+- The command is run via `/bin/sh -c <command>` with `text/template` substitution of `{{slug}}`, `{{number}}`, `{{repo}}`, `{{system}}` from the issue's frontmatter.
+- Working directory is the project's issue root.
+- Environment is scrubbed to `PATH`, `HOME`, `GH_TOKEN` only.
+- Timeout: `timeout_seconds` (default 10s). On non-zero exit or timeout, captured stdout/stderr (truncated to 400 chars) is included in the failure message.
+
+### Failure hints
+
+Every validator returns a failure message of the form `<problem> — <hint>`, where `<hint>` is a concrete `issue-cli` command bots can run to fix the gate. Set `action.hint` on any structured validator to override the default hint with project-specific guidance (the override is templated with the same `{{slug}}/{{number}}/{{repo}}/{{system}}` vars as `command_succeeds`).
+
 ## Scoring
 
 The `scoring` block in `workflow.yaml` turns on a score that ranks issues by urgency + importance + staleness. Scores are computed server-side on every page load from frontmatter — no cache, no background job — and surface in three places:

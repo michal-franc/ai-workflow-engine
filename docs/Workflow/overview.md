@@ -12,7 +12,9 @@ The Workflow system covers the workflow engine, transition logic, validation rul
 - `workflow.yaml` — project workflow definition (statuses, transitions, actions, board config, system overlays)
 - `internal/tracker/workflow_config.go` — `WorkflowConfig`, `LoadWorkflow`, `DefaultWorkflow`, status/transition accessors, prompts/templates
 - `internal/tracker/workflow_transition.go` — `ApplyTransition*`, `StartIssueOnce`, `MarkIssueDoneOnce`, `IsValidTransition`, `Next*Status`
-- `internal/tracker/workflow_validate.go` — `ValidateTransition`, `Validate`, `checkRule`, `DescribeAction` (rule and approval checks)
+- `internal/tracker/workflow_validate.go` — `ValidateTransition`, `Validate`, `checkRule` (legacy colon-string rules), `DescribeAction`
+- `internal/tracker/workflow_validators.go` — dispatcher for structured rules: translates `WorkflowAction` + `Issue` into the narrow types accepted by the validations sub-package
+- `internal/tracker/validations/` — leaf package with one file per structured validator (`field_in.go`, `has_section.go`, `command_succeeds.go`, …); each file registers its `CheckFn` in the `Registry` map. Add a new validator by dropping a file in here and ensuring `init()` calls `register(name, fn)`
 - `internal/tracker/workflow_preview.go` — `PreviewTransition` and the `TransitionPreview*` types
 - `internal/tracker/workflow_merge.go` — `Clone`, `ForSystem`, `Merge` (per-system overlay handling)
 - `internal/tracker/workflow_schema.go` — reflection-based YAML schema docs
@@ -162,11 +164,30 @@ systems:
     transitions: []
 ```
 
+## Validation Rules
+
+Validators come in two flavors:
+
+- **Legacy colon-string rules** live in `workflow_validate.go:checkRule` (one switch case per rule name). Encoded as `rule: "name: arg"` on the action — the tracker splits at `: ` and dispatches to the switch.
+- **Structured rules** live one per file under `internal/tracker/validations/`. Each file registers a `CheckFn` against a rule name in the package-level `Registry`. The tracker (`workflow_validators.go:checkAction`) translates `WorkflowAction` + `Issue` into the narrow `validations.Action` + `IssueView` and calls `validations.Check(action, view, cfg)`.
+
+To add a new structured validator:
+
+1. Drop a file `internal/tracker/validations/<rule_name>.go` with an `init() { register("<rule_name>", <Fn>) }` and the `CheckFn` body.
+2. Add a corresponding `_test.go` in the same package (cover pass + fail).
+3. Append a `SchemaNamedDoc` entry to `WorkflowValidationRules` in `workflow_schema.go` so `issue-cli process schema` lists it.
+4. Extend the catalog in `docs/workflow.md` and the schema fields on `WorkflowAction` in `workflow_config.go` if the validator needs new companion fields.
+5. Extend `structuredSummary` in `workflow_validators.go` so the transition preview renders a meaningful one-liner.
+
+The `validations` package is a leaf — it does not import `tracker`. This is what makes the per-validator-per-file split possible without import cycles.
+
+`linked_issue_in_status` and `command_succeeds` need runtime context (an issue lookup and the project's working directory); both are populated automatically by `Project.LoadWorkflow` via `attachRuntime`. `command_succeeds` is gated by the top-level `allow_shell: true` flag in `workflow.yaml`.
+
 ## Design Considerations
 
 When working on workflow changes:
 
 - State which statuses, rules, templates, or overlays will change
 - Consider whether existing issues need migration or compatibility handling
-- Validation rules are defined in `workflow_validate.go` (`checkRule` switch) — new rules need both the rule implementation there and a matching entry in `WorkflowValidationRules` in `workflow_schema.go`, plus yaml support
-- Test with `go test ./internal/tracker/...` — workflow tests are comprehensive
+- For new validators, follow the steps in *Validation Rules* above
+- Test with `go test ./internal/tracker/...` (engine) and `go test ./internal/tracker/validations/...` (per-validator suite)

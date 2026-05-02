@@ -32,8 +32,22 @@ type WorkflowAction struct {
 	Title  string `yaml:"title,omitempty" desc:"Section title for type=append_section"`
 	Body   string `yaml:"body,omitempty" desc:"Section body for type=append_section"`
 	Prompt string `yaml:"prompt,omitempty" desc:"Prompt text for type=inject_prompt"`
-	Field  string `yaml:"field,omitempty" desc:"Field name for type=set_fields (assignee, priority, status, human_approval)"`
+	Field  string `yaml:"field,omitempty" desc:"Field name for type=set_fields, frontmatter validators, and has_label"`
 	Value  string `yaml:"value,omitempty" desc:"Field value for type=set_fields (empty string clears)"`
+
+	// Structured-validator parameters. Used when Rule is one of the new
+	// rule names (field_in, field_matches, has_section, …); see
+	// workflow_validators.go for the full catalog.
+	Values         []string `yaml:"values,omitempty" desc:"Allowed values for field_in"`
+	Pattern        string   `yaml:"pattern,omitempty" desc:"Regex (Go RE2) for field_matches"`
+	Section        string   `yaml:"section,omitempty" desc:"Section title for has_section / section_min_length / section_max_length"`
+	Min            int      `yaml:"min,omitempty" desc:"Lower length bound for section_min_length"`
+	Max            int      `yaml:"max,omitempty" desc:"Upper length bound for section_max_length"`
+	Command        string   `yaml:"command,omitempty" desc:"Shell command for command_succeeds (templated with {{slug}}/{{number}}/{{repo}}/{{system}})"`
+	TimeoutSeconds int      `yaml:"timeout_seconds,omitempty" desc:"Per-action timeout for command_succeeds (default 10)"`
+	RefKey         string   `yaml:"ref_key,omitempty" desc:"Frontmatter key holding the linked issue slug for linked_issue_in_status"`
+	LinkedStatus   string   `yaml:"linked_status,omitempty" desc:"Required status of the linked issue for linked_issue_in_status"`
+	Hint           string   `yaml:"hint,omitempty" desc:"Custom failure hint; templated with {{slug}}/{{number}}/{{repo}}/{{system}}"`
 }
 
 type WorkflowField struct {
@@ -106,6 +120,15 @@ type WorkflowConfig struct {
 	Systems     map[string]WorkflowOverlay `yaml:"systems" desc:"Per-system overrides keyed by system name"`
 	Board       WorkflowBoardConfig        `yaml:"board" desc:"Board display configuration"`
 	Scoring     ScoringConfig              `yaml:"scoring,omitempty" desc:"Ticket scoring policy (opt-in)"`
+	// AllowShell opts in to the command_succeeds validator. When false, any
+	// transition with a command_succeeds rule fails at validate time.
+	AllowShell bool `yaml:"allow_shell,omitempty" desc:"Permit command_succeeds validators to run shell commands (default false)"`
+
+	// Runtime-only fields, populated by callers (server, CLI) after load.
+	// LookupIssue resolves another issue by slug for linked_issue_in_status;
+	// IssuesRoot is the working directory used by command_succeeds.
+	LookupIssue func(slug string) *Issue `yaml:"-"`
+	IssuesRoot  string                   `yaml:"-"`
 }
 
 var defaultBoardCardFields = []string{"system", "labels"}

@@ -29,6 +29,12 @@ type Project struct {
 // file exists, it falls back to a local workflow.yaml, and finally to the built-in
 // default workflow.
 func (p *Project) LoadWorkflow() *WorkflowConfig {
+	wf := p.loadWorkflowRaw()
+	p.attachRuntime(wf)
+	return wf
+}
+
+func (p *Project) loadWorkflowRaw() *WorkflowConfig {
 	if p.WorkflowFile != "" {
 		if custom, err := LoadWorkflow(p.WorkflowFile); err == nil && custom != nil {
 			return custom
@@ -38,6 +44,31 @@ func (p *Project) LoadWorkflow() *WorkflowConfig {
 		return custom
 	}
 	return DefaultWorkflow()
+}
+
+// attachRuntime populates IssuesRoot and a LookupIssue resolver so the
+// linked_issue_in_status and command_succeeds validators have what they need
+// without every caller wiring it themselves.
+func (p *Project) attachRuntime(wf *WorkflowConfig) {
+	if wf == nil || p == nil {
+		return
+	}
+	wf.IssuesRoot = p.IssueDir
+	if wf.LookupIssue == nil && p.IssueDir != "" {
+		dir := p.IssueDir
+		wf.LookupIssue = func(slug string) *Issue {
+			issues, err := LoadIssues(dir)
+			if err != nil {
+				return nil
+			}
+			for _, issue := range issues {
+				if issue.Slug == slug {
+					return issue
+				}
+			}
+			return nil
+		}
+	}
 }
 
 func (p *Project) LoadWorkflowForSystem(system string) *WorkflowConfig {

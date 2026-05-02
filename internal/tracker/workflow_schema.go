@@ -38,8 +38,11 @@ var WorkflowActionTypes = []SchemaNamedDoc{
 	{Name: "set_fields", Description: "Set or clear a frontmatter field (field=assignee|priority|status|human_approval, value=\"\" to clear)"},
 }
 
-// WorkflowValidationRules lists every validation rule recognized by checkRule.
-// Keep in sync with the switch in checkRule / validationSummary.
+// WorkflowValidationRules lists every validation rule recognized by checkRule
+// or the validations sub-package. The first block is the legacy colon-string
+// shorthand; the second block is the structured-action form (one validator
+// per file under internal/tracker/validations/), which uses companion
+// fields on transitions[].actions[] (field, values, pattern, section, etc.).
 var WorkflowValidationRules = []SchemaNamedDoc{
 	{Name: "body_not_empty", Description: "Issue body must contain non-whitespace content"},
 	{Name: "has_checkboxes", Description: "Body must contain at least one '- [ ]' or '- [x]' checkbox anywhere"},
@@ -51,6 +54,21 @@ var WorkflowValidationRules = []SchemaNamedDoc{
 	{Name: "has_comment_prefix: <prefix>", Description: "At least one comment must start with the given prefix (e.g. 'tests:', 'docs:')"},
 	{Name: "approved_for: <status>", Description: "Issue must be human-approved for the given status"},
 	{Name: "human_approval: <status>", Description: "Alias for 'approved_for: <status>'"},
+
+	// Structured validators — populate companion fields on the action.
+	{Name: "field_present", Description: "Frontmatter key (action.field) exists on the issue"},
+	{Name: "field_not_empty", Description: "Frontmatter key (action.field) exists and has a non-blank value"},
+	{Name: "field_in", Description: "Frontmatter key (action.field) value is one of action.values"},
+	{Name: "field_matches", Description: "Frontmatter key (action.field) value matches Go RE2 regex action.pattern"},
+	{Name: "has_label", Description: "Issue labels contain the name in action.field"},
+	{Name: "has_any_label", Description: "Issue has at least one label"},
+	{Name: "has_pr_url", Description: "Frontmatter \"pr\" is a github pull request URL"},
+	{Name: "linked_issue_in_status", Description: "Issue referenced by action.ref_key (frontmatter key holding a slug) has status action.linked_status"},
+	{Name: "has_section", Description: "Body contains a '## <action.section>' heading"},
+	{Name: "section_min_length", Description: "Section '## <action.section>' has at least action.min non-whitespace chars"},
+	{Name: "section_max_length", Description: "Section '## <action.section>' has at most action.max non-whitespace chars (missing section passes)"},
+	{Name: "no_todo_markers", Description: "Body contains no whole-word TODO or FIXME markers"},
+	{Name: "command_succeeds", Description: "Shell command in action.command exits 0; templated with {{slug}}/{{number}}/{{repo}}/{{system}}; requires top-level allow_shell=true"},
 }
 
 // WorkflowSchemaSections returns the YAML schema for workflow.yaml, derived by

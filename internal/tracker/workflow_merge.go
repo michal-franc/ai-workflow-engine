@@ -44,6 +44,9 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 		Systems:     make(map[string]WorkflowOverlay, len(w.Systems)),
 		Board:       cloneBoardConfig(w.Board),
 		Scoring:     cloneScoringConfig(w.Scoring),
+		AllowShell:  w.AllowShell,
+		LookupIssue: w.LookupIssue,
+		IssuesRoot:  w.IssuesRoot,
 	}
 	for i := range w.Transitions {
 		clone.Transitions[i] = WorkflowTransition{
@@ -189,6 +192,13 @@ func appendUniqueActions(base, extra []WorkflowAction) []WorkflowAction {
 			action.Prompt,
 			action.Field,
 			action.Value,
+			strings.Join(action.Values, ","),
+			action.Pattern,
+			action.Section,
+			action.Command,
+			action.RefKey,
+			action.LinkedStatus,
+			action.Hint,
 		}, "\x00")
 	}
 	for _, action := range base {

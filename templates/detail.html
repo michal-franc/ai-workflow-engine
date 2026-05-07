@@ -459,6 +459,68 @@
             });
     }
 
+    // --- Data table view preferences (persisted) ---
+    const DATA_TABLE_WIDE_KEY = 'dataTable.wide';
+    const DATA_TABLE_FILTER_KEY = 'dataTable.statusFilter';
+
+    function dataTableSetWide(wrap, wide) {
+        wrap.classList.toggle('wide', wide);
+        const btn = wrap.querySelector('.data-table-wide-btn');
+        if (btn) btn.textContent = wide ? '↔ Shrink' : '↔ Expand';
+    }
+
+    function dataTableInit() {
+        const wideStored = localStorage.getItem(DATA_TABLE_WIDE_KEY);
+        const wide = wideStored === null ? false : wideStored === 'true';
+        const storedFilter = localStorage.getItem(DATA_TABLE_FILTER_KEY) || '';
+        document.querySelectorAll('.data-table-wrap').forEach(wrap => {
+            dataTableSetWide(wrap, wide);
+            const filterEl = wrap.querySelector('.data-table-filter');
+            if (filterEl) {
+                const seen = new Set();
+                wrap.querySelectorAll('.data-row .data-status select').forEach(sel => {
+                    if (sel.value) seen.add(sel.value);
+                });
+                Array.from(seen).sort().forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s;
+                    opt.textContent = s;
+                    filterEl.appendChild(opt);
+                });
+                filterEl.value = seen.has(storedFilter) ? storedFilter : '';
+                dataTableApplyFilter(wrap, filterEl.value);
+            }
+        });
+    }
+
+    function dataTableFilter(selectEl) {
+        const value = selectEl.value;
+        localStorage.setItem(DATA_TABLE_FILTER_KEY, value);
+        const wrap = selectEl.closest('.data-table-wrap');
+        if (wrap) dataTableApplyFilter(wrap, value);
+    }
+
+    function dataTableApplyFilter(wrap, value) {
+        wrap.querySelectorAll('.data-row').forEach(row => {
+            if (!value) {
+                row.style.display = '';
+                return;
+            }
+            const sel = row.querySelector('.data-status select');
+            row.style.display = sel && sel.value === value ? '' : 'none';
+        });
+    }
+
+    function dataTableToggleWide() {
+        const wraps = document.querySelectorAll('.data-table-wrap');
+        if (!wraps.length) return;
+        const next = !wraps[0].classList.contains('wide');
+        wraps.forEach(w => dataTableSetWide(w, next));
+        localStorage.setItem(DATA_TABLE_WIDE_KEY, String(next));
+    }
+
+    dataTableInit();
+
     // --- Inline comments ---
     const commentsURL = issueURL + '/comments';
     let allComments = [];

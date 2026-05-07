@@ -306,7 +306,12 @@
             Show done
         </label>
 
-        {{if or .System .ShowDone}}
+        <label title="Hide statuses with no issues">
+            <input type="checkbox" name="hide_empty" value="1" {{if .HideEmpty}}checked{{end}} onchange="this.form.submit()">
+            Hide empty
+        </label>
+
+        {{if or .System .ShowDone .HideEmpty}}
         <a href="{{.Prefix}}/graph" class="clear-btn">Clear</a>
         {{end}}
 

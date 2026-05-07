@@ -88,9 +88,14 @@
             {{end}}
         </select>
 
-        {{if or .Version .System .Assignee}}
+        {{if or .Version .System .Assignee .HideEmpty}}
         <a href="{{.Prefix}}/board" class="clear-btn">Clear filters</a>
         {{end}}
+
+        <label class="board-hide-empty" title="Hide statuses with no issues">
+            <input type="checkbox" name="hide_empty" value="1" {{if .HideEmpty}}checked{{end}} onchange="this.form.submit()">
+            Hide empty
+        </label>
 
         <button class="board-layout-btn" id="layout-toggle" title="Toggle layout" onclick="toggleBoardLayout()">
             <svg id="layout-icon-h" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v12H6V2zm5 0h4v12h-4V2z"/></svg>

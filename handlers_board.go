@@ -42,6 +42,7 @@ type BoardData struct {
 	SupportsGitHub bool
 	ScoringEnabled bool
 	Sort           string
+	HideEmpty      bool
 }
 
 type GraphStatusNode struct {
@@ -71,6 +72,7 @@ type GraphData struct {
 	Systems        []string
 	System         string
 	ShowDone       bool
+	HideEmpty      bool
 	TotalIssues    int
 	SupportsGitHub bool
 }
@@ -133,6 +135,7 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 	versionFilter := r.URL.Query().Get("version")
 	systemFilter := r.URL.Query().Get("system")
 	assigneeFilter := r.URL.Query().Get("assignee")
+	hideEmpty := r.URL.Query().Get("hide_empty") == "1"
 
 	var filtered []*tracker.Issue
 	for _, issue := range issues {
@@ -206,6 +209,16 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 		}
 	}
 
+	if hideEmpty {
+		filteredCols := columns[:0]
+		for _, c := range columns {
+			if len(c.Issues) > 0 {
+				filteredCols = append(filteredCols, c)
+			}
+		}
+		columns = filteredCols
+	}
+
 	data := BoardData{
 		Columns:        columns,
 		Total:          len(issues),
@@ -224,6 +237,7 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 		SupportsGitHub: proj.SupportsGitHub,
 		ScoringEnabled: scoring.Enabled,
 		Sort:           sortKey,
+		HideEmpty:      hideEmpty,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -256,6 +270,7 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request, proj *track
 
 	systemFilter := r.URL.Query().Get("system")
 	showDone := r.URL.Query().Get("done") == "1"
+	hideEmpty := r.URL.Query().Get("hide_empty") == "1"
 
 	systemSet := map[string]bool{}
 	for _, issue := range issues {
@@ -326,6 +341,9 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request, proj *track
 			continue
 		}
 		if sn, ok := nodeMap[name]; ok {
+			if hideEmpty && len(sn.Issues) == 0 {
+				continue
+			}
 			nodes = append(nodes, sn)
 		}
 	}
@@ -340,6 +358,7 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request, proj *track
 		Systems:        systems,
 		System:         systemFilter,
 		ShowDone:       showDone,
+		HideEmpty:      hideEmpty,
 		TotalIssues:    totalIssues,
 		SupportsGitHub: proj.SupportsGitHub,
 	}

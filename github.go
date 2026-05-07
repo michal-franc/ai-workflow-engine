@@ -80,7 +80,8 @@ func RemoteIssueURL(repo string, number int) string {
 	return fmt.Sprintf("https://github.com/%s/issues/%d", repo, number)
 }
 
-// ImportGitHubIssue writes a single GitHub issue to <issueDir>/<number>.md with status=backlog.
+// ImportGitHubIssue writes a single GitHub issue to <issueDir>/<number>.md.
+// The imported status is taken from proj.ImportStatus, defaulting to "backlog".
 // Refuses to overwrite an existing file.
 func ImportGitHubIssue(proj *tracker.Project, gh GitHubIssue) (string, error) {
 	if gh.Number <= 0 {
@@ -91,10 +92,15 @@ func ImportGitHubIssue(proj *tracker.Project, gh GitHubIssue) (string, error) {
 		return "", fmt.Errorf("already exists: %s", filename)
 	}
 
+	status := proj.ImportStatus
+	if status == "" {
+		status = "backlog"
+	}
+
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString(fmt.Sprintf("title: %q\n", gh.Title))
-	b.WriteString("status: \"backlog\"\n")
+	b.WriteString(fmt.Sprintf("status: %q\n", status))
 	b.WriteString(fmt.Sprintf("number: %d\n", gh.Number))
 	if proj.Repo != "" {
 		b.WriteString(fmt.Sprintf("repo: %q\n", proj.Repo))

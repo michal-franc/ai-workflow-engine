@@ -98,8 +98,15 @@ The detail view scans the rendered body for the first `<!-- data ... -->` commen
 Each row exposes:
 
 - A status `<select>` populated from the marker statuses (plus the row's current status if not declared) — `onchange` posts to the status endpoint.
-- A `contenteditable` comment cell — `onblur` posts to the comment endpoint when the value changed.
+- A `contenteditable` comment cell — `onblur` posts to the comment endpoint when the value changed. Long comments truncate with `text-overflow: ellipsis` and a hover `title`; clicking into the cell expands to full content for editing.
 - A `×` remove button — `onclick` confirms then DELETEs.
+
+A toolbar above the table provides view preferences, persisted per-user in localStorage:
+
+- **Status filter** — dropdown listing every status currently in use; selecting one hides non-matching rows. Key: `dataTable.statusFilter`.
+- **↔ Expand / ↔ Shrink** — toggles a `.wide` class that lets the table spill rightward under the metadata sidebar (negative margin equal to the sidebar + gap). Default is shrunk; the breakout is automatically disabled below the 768px viewport breakpoint. Key: `dataTable.wide`.
+
+The table itself uses `table-layout: fixed` so column widths are stable and a long unbroken string in any cell does not steal width from siblings (in particular, the status column always renders the full label).
 
 A toast confirms each save (or surfaces the error). Embedded templates and CSS do not hot-reload, so a server restart is required after rebuilding to pick up changes.
 
@@ -108,7 +115,7 @@ A toast confirms each save (or surfaces the error). Embedded templates and CSS d
 - `internal/tracker/data.go` — `DataStore`, `DataEntry`, `LoadData`, `SaveData`, `AddEntry`, `SetEntryStatus`, `SetEntryComment`, `RemoveEntry`, `ParseDataMarker`, `ResolveDataStatuses`.
 - `cmd/issue-cli/main.go` — `case "data":` in the top-level switch dispatches to `runDataAdd` / `runDataList` / `runDataSetStatus` / `runDataSetComment` / `runDataRemove`.
 - `handlers.go` — `handleDataAdd` / `handleDataSetStatus` / `handleDataSetComment` / `handleDataRemove`; `renderDataTable` builds the inline HTML; `renderBodyWithDataTable` does the marker substitution.
-- `templates/detail.html` — `dataSetStatus`, `dataSetComment`, `dataRemove` row-action JS.
+- `templates/detail.html` — `dataSetStatus`, `dataSetComment`, `dataRemove` row-action JS; `dataTableInit`, `dataTableFilter`, `dataTableToggleWide` for toolbar/persistence.
 - `static/style.css` — `.data-table-wrap` / `.data-table` styles.
 
 ## Out of scope (v1)

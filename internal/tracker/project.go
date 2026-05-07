@@ -22,6 +22,9 @@ type Project struct {
 	// sync tab and auto-closing the remote issue when an issue is marked done.
 	// Defaults to false — the GitHub tab is hidden and auto-close is skipped.
 	SupportsGitHub bool `yaml:"supports_github"`
+	// ImportStatus is the status assigned to issues imported from GitHub.
+	// Empty falls back to "backlog".
+	ImportStatus string `yaml:"import_status"`
 }
 
 // LoadWorkflow loads the project's workflow config.

@@ -198,6 +198,10 @@ func renderDataTable(prefix, slug string, statuses []string, entries []tracker.D
 	b.WriteString(`" data-prefix="`)
 	b.WriteString(template.HTMLEscapeString(prefix))
 	b.WriteString(`">`)
+	b.WriteString(`<div class="data-table-toolbar">`)
+	b.WriteString(`<select class="data-table-filter" onchange="dataTableFilter(this)" title="Filter by status"><option value="">All statuses</option></select>`)
+	b.WriteString(`<button type="button" class="data-table-tb-btn data-table-wide-btn" onclick="dataTableToggleWide()" title="Expand / shrink the table (spill under sidebar)">↔ Expand</button>`)
+	b.WriteString(`</div>`)
 	b.WriteString(`<table class="data-table"><thead><tr><th>#</th><th>Description</th><th>Status</th><th>Comment</th><th></th></tr></thead><tbody>`)
 	if len(entries) == 0 {
 		b.WriteString(`<tr class="data-table-empty"><td colspan="5">No entries yet. Add some with <code>issue-cli data add &lt;slug&gt; --description "..."</code>.</td></tr>`)
@@ -234,7 +238,9 @@ func renderDataTable(prefix, slug string, statuses []string, entries []tracker.D
 			b.WriteString(template.HTMLEscapeString(s))
 			b.WriteString(`</option>`)
 		}
-		b.WriteString(`</select></td><td class="data-comment" contenteditable="true" onblur="dataSetComment(this)" data-original="`)
+		b.WriteString(`</select></td><td class="data-comment" contenteditable="true" onblur="dataSetComment(this)" title="`)
+		b.WriteString(template.HTMLEscapeString(e.Comment))
+		b.WriteString(`" data-original="`)
 		b.WriteString(template.HTMLEscapeString(e.Comment))
 		b.WriteString(`">`)
 		b.WriteString(template.HTMLEscapeString(e.Comment))

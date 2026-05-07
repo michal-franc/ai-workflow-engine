@@ -1,240 +1,217 @@
-# AI-Native Project Viewer
+# Markdown Workflow Engine
 
-A self-hosted project tracker that reads markdown files. Kanban board, docs viewer, inline comments — all from plain `.md` files on disk.
+A self-hosted workflow engine for AI-driven projects. You describe how work flows — statuses, transitions, validation gates, human-approval checkpoints, side-effects — in a single `workflow.yaml`. The engine runs that contract against issues stored as plain markdown files, and a kanban-style web UI gives humans a window into what the agents are doing.
 
-## Why?
-
-AI coding agents (Claude, Copilot, Cursor) work with files. They read them, write them, grep them. That's it. Every API call to GitHub Issues, Jira, or Linear is wasted tokens, authentication overhead, and fragile integration code.
-
-Plain markdown files on disk are the fastest, simplest interface for AI agents to manage project work. An agent can create an issue with `echo`, update status with `sed`, search with `grep`, and read context with `cat`. No API keys, no rate limits, no SDKs.
-
-This viewer gives you the human-friendly UI on top — kanban board, filters, inline editing — while keeping the data in the format that agents already understand: files.
+Issues are markdown. Workflow is YAML. Everything is on disk.
 
 ![List View](.images/note-1774784264.png) ![Board View](.images/note-1774784286.png) ![Docs View](.images/note-1774784303.png)
+
+## Why a workflow engine?
+
+AI coding agents (Claude, Codex, Cursor) are great at writing code and terrible at knowing when to stop, what to verify, and when to hand off to a human. Left alone they'll mark anything "done."
+
+A workflow gives them a contract:
+
+- A status lifecycle they must walk one step at a time (`idea → in design → backlog → in progress → testing → …`).
+- Validation rules at each transition (body has a Design section, all Test Plan checkboxes ticked, linked PR is merged, an arbitrary shell command exits 0).
+- Human approval gates at the points that matter (`backlog → in progress`, `shipping → done`).
+- Side-effects that happen automatically (clear assignee on backlog, inject extra prompt context for a specific transition, append a checklist scaffold).
+- Per-system overlays so the API, CLI, and UI parts of your project can have their own design prompts and extra rules without forking the whole workflow.
+
+Agents drive issues through this lifecycle from the CLI. Humans observe, override, and approve from the web UI.
+
+The data is just files: `echo`, `grep`, `sed`, and `cat` are valid clients. No API keys, no rate limits, no SDKs.
 
 ## Demo
 
 ```bash
 make demo
+# open http://localhost:8080
 ```
 
-Open `http://localhost:8080` to see a sample project with issues and docs.
+A sample project with issues, docs, and a configured workflow.
 
-## Features
+## What it looks like
 
-### Web UI
+A minimal `workflow.yaml`:
 
-- **List view** with filters (status, system, priority, labels, assignee, search)
-- **Kanban board** with drag-and-drop to change status, version/system/assignee filters
-- **Create issues** from the board — click "+" on any column header
-- **Delete issues** from the board — hover a card and click the trash icon (with confirmation)
-- **Documentation** viewer with folder tree sidebar
-- **Multi-project** support via `projects.yaml`
-- **Inline editing** — change status, priority, version, labels, assignee, and body from the UI
-- **External body editing** — open an issue body in `nvim` from the detail view using the same local `tmux`/terminal workspace flow as agent sessions
-- **Inline comments** on issue body blocks with open/done status
-- **Inline data table** — drop `<!-- data statuses=open,resolved,wontfix -->` in a body to render a per-issue table of `{description, status, comment}` rows with inline status dropdown and contenteditable comments. Backed by a sidecar `<slug>.data.json`. See [docs/data-store.md](docs/data-store.md).
-- **Issue references** — `#123` auto-links to other issues
-- **Theme picker** — dark, dracula, light
-- **Agent dispatch** — send issues to Claude or Codex from the board (hover play button) or detail view
-- **Live agent activity** — tmux session names that match issue slugs show active-agent badges on list and board views, session details on the issue page, and a project-level active bot count in the header
-- **Approval follow-up** — granting human approval from the issue detail page can notify the active tmux-backed agent session so the bot can continue without manual terminal input
+```yaml
+statuses:
+  - name: "idea"
+    prompt: |
+      Clarify scope with the human before proposing a design.
+  - name: "in design"
+    prompt: |
+      Turn the idea into checklists, assumptions, and open questions.
+  - name: "backlog"
+    description: "Ready to work on"
+    side_effects: [clear_assignee]
+  - name: "in progress"
+  - name: "testing"
+  - name: "done"
+
+transitions:
+  - from: "idea"
+    to: "in design"
+    actions:
+      - type: validate
+        rule: body_not_empty
+      - type: append_section
+        title: "Design"
+        body: |
+          - [ ] Approach
+          - [ ] Edge cases
+          - [ ] Test plan
+
+  - from: "backlog"
+    to: "in progress"
+    actions:
+      - type: require_human_approval
+        status: "in progress"
+
+  - from: "testing"
+    to: "done"
+    actions:
+      - type: validate
+        rule: section_checkboxes_checked
+        section: "Test Plan"
+      - type: validate
+        rule: command_succeeds
+        command: "go test ./..."
+```
+
+That's the whole contract. Validators, approval gates, prompt injection, scoring, system overlays, optional parking states — all live here. See [docs/workflow.md](docs/workflow.md) and [docs/Workflow/overview.md](docs/Workflow/overview.md) for the full schema.
+
+## The pieces
+
+### Workflow engine
+
+- **Configurable lifecycle** — statuses, descriptions, prompts, board column order, all in `workflow.yaml`.
+- **Strict transitions** — agents move one step at a time; humans can drag-and-drop in the UI to bypass.
+- **Validation library** — `body_not_empty`, `has_section`, `section_min_length`, `section_checkboxes_checked`, `field_in`, `field_matches`, `has_label`, `has_pr_url`, `linked_issue_in_status`, `no_todo_markers`, `command_succeeds` (opt-in shell), and more. Each failure returns a hint with the exact `issue-cli` command to fix it.
+- **Approval gates** — `require_human_approval` blocks a transition until a human ticks a box in the web UI. The CLI surfaces a deep link to that box on failure.
+- **Side-effects** — auto-clear assignee, append section scaffolds, set frontmatter fields, inject prompt context.
+- **Optional statuses** — parking states (`waiting-for-team-input`) that are skippable on the happy path but available as a CTA when needed.
+- **System overlays** — per-system status prompts and extra transition actions for project subsystems (API, CLI, UI, …).
+- **Scoring** — opt-in priority/urgency/staleness scoring that ranks issues across the list and board views.
 
 ### CLI (`issue-cli`)
 
-- **Bot-friendly** — designed for AI agents to manage issues via commands
-- **Workflow enforcement** — strict status lifecycle: `idea` → `in design` → `backlog` → `in progress` → `testing` → `human-testing` → `documentation` → `shipping` → `done`
-- **Auto agent naming** — `claim` and `start` default assignee to `agent-<ticket-slug>`
-- **Project version** — set `version` in `project.yaml` to auto-filter `list` and `next` commands
-- **Status aliases** — `--status open` (all non-done) and `--status closed` (done only)
-- **Category alias** — `--category` works as alias for `--system`
-- **Checkbox management** — `check` command to tick off checklist items by text match
-- **Configurable workflows** — custom statuses, status prompts, validation rules, transition actions, and side-effects via `workflow.yaml`
-- **Workflow side-effects** — automatic actions on transition (e.g., `clear_assignee` when entering backlog)
-- **Per-issue data store** — `issue-cli data add | list | set-status | set-comment | remove` writes a sidecar JSON of `{id, description, status, comment}` rows next to the issue file. Designed for agent code-review findings that the human triages inline in the UI.
-
-### Syncing
-
-- **GitHub sync** script to import from GitHub Projects
-
-## Quick Start
+Bot-friendly. Walks an agent through the workflow without it having to read this README.
 
 ```bash
-go build
-./issue-viewer -dir ./my-issues -docs ./my-docs
+issue-cli process              # learn the project's workflow (run first)
+issue-cli next --version 0.2   # find work for a version
+issue-cli start <slug>         # claim + transition to in-progress
+issue-cli context <slug>       # full body, comments, checklist
+issue-cli transition <slug>    # one step forward
+issue-cli done <slug>          # only valid from documentation status
 ```
 
-Open `http://localhost:8080`.
+`process` prints the live workflow contract — statuses, prompts, transitions, validators, side-effects — so an agent can read it directly without any external doc. Every transition prints a `Requires:` / `Will:` block so agents know the gates *before* hitting them.
 
-## CLI Tool
+Other useful subcommands: `create`, `claim`, `unclaim`, `comment`, `check`, `checklist`, `append`, `replace`, `list`, `search`, `stats`, `data`. Full reference in [docs/CLI/overview.md](docs/CLI/overview.md).
 
-Install:
+### Web UI
 
-```bash
-make install
-```
+The human window into the workflow.
 
-### Commands
+- **Kanban board** with drag-and-drop, version/system/assignee filters, score badges, active-agent indicators on each card.
+- **List view** with filters and score-sortable columns.
+- **Detail view** with inline frontmatter editing, body editing in `nvim`, transition preview, approval checkboxes, score breakdown.
+- **Inline data tables** — `<!-- data statuses=open,resolved -->` renders an editable triage table backed by a sidecar JSON. Designed for code-review findings.
+- **Inline comments** on body blocks, with open/done status, stored at the bottom of each markdown file in an HTML comment block (invisible to other renderers).
+- **Docs viewer** with folder tree, for the project's own documentation.
+- **Workflow designer** and **stats** tabs for inspecting the workflow contract and per-status token-cost estimates.
+- **Themes** — dark, dracula, light.
 
-| Command                | Description                                                  |
-|:-----------------------|:-------------------------------------------------------------|
-| `process`              | Learn how the project works (run this first)                 |
-| `process schema`       | Print the `workflow.yaml` schema (fields, action types, rules) |
-| `process changes`      | Print the release history (last 20 versions)                 |
-| `start <slug>`        | Claim approved backlog issue, transition to in-progress, show next steps |
-| `next --version <v>`  | Find work for a version (backlog + in-progress + testing)    |
-| `next --design`       | Find ideas and in-design issues needing design work          |
-| `context <slug>`      | Full context dump (body, comments, checklist)                |
-| `create`              | Create a new issue                                           |
-| `transition <slug>`   | Move issue to next status (strict ordering)                  |
-| `claim <slug>`        | Set assignee (defaults to `agent-<slug>`)                    |
-| `unclaim <slug>`      | Remove assignee                                              |
-| `done <slug>`         | Mark as done (must be in documentation status)               |
-| `check <slug> <text>` | Check off a checkbox item by text match                      |
-| `comment <slug>`      | Add a comment                                                |
-| `checklist <slug>`    | Show checkbox progress                                       |
-| `append <slug>`       | Append body content, or target an existing section           |
-| `replace <slug>`      | Replace the content of an existing section in place          |
-| `list`                | List issues with filters                                     |
-| `search <query>`      | Search across titles, bodies, and statuses                   |
-| `stats`               | Project health overview                                      |
+### Agent dispatch
 
-### Global Flags
+- Send an issue to Claude or Codex from the board (hover, click ▶) or detail page.
+- Agents run in `tmux` sessions inside `alacritty` windows tiled by `i3`. Sessions named after issue slugs surface as live activity badges in the UI.
+- Granting human approval from the detail page can notify the running tmux session so the agent picks up immediately.
 
-| Flag              | Description                                      |
-|:------------------|:-------------------------------------------------|
-| `--config <path>` | Path to `projects.yaml` (default: `projects.yaml`) |
-| `--project <slug>` | Select project (default: first in config)       |
-| `--json`          | Output as JSON                                   |
+See [docs/agent-dispatch.md](docs/agent-dispatch.md) and [docs/agent-workflow-flow.md](docs/agent-workflow-flow.md).
 
-### List Filters
+### Multi-project
 
-| Flag                | Description                                           |
-|:--------------------|:------------------------------------------------------|
-| `--status <name>`   | Filter by status (`open`, `closed`, or exact name)    |
-| `--system <name>`   | Filter by system                                      |
-| `--category <name>` | Alias for `--system`                                  |
-| `--assignee <name>` | Filter by assignee                                    |
-| `--version <v>`     | Filter by version (auto-inferred from `project.yaml`) |
-
-### Workflow Enforcement (CLI only)
-
-The CLI enforces strict status progression for bots:
-
-- **`create`** — only allows `idea` or `in design` status
-- **`start`** — only transitions from `backlog` to `in progress`, and only after human approval for `in progress`; if approval is missing, it fails without mutating the issue and tells the user no changes were made
-- **`transition`** — sequential only, one step at a time
-- **`done`** — only from `documentation` status
-
-The web UI (drag-and-drop) has no restrictions — humans have full power.
-
-### Append Behavior
-
-`issue-cli append` supports both raw body append and section-aware append:
-
-- `issue-cli append <slug> --section "Design" --body "- [ ] cover edge case"`
-  Appends into the existing normalized `Design` section, or creates it if missing.
-- `issue-cli append <slug> --section "Design" --body "..." --force`
-  Required when multiple normalized matches exist; merges into the deterministic target section.
-- `issue-cli append <slug> --body "## Test Plan\n\n### Automated\n- test 1"`
-  Raw append still works, but it now rejects input that would introduce a normalized duplicate heading already present in the issue body.
-
-Escaped newlines in `--body` and `--text` are interpreted, so `\n` becomes a real newline before the append logic runs.
-
-### Replace Behavior
-
-`issue-cli replace` swaps the content of an existing section without rewriting the rest of the body. It finds the section heading at any depth, replaces everything between it and the next heading of equal or shallower depth, and preserves the heading line itself.
-
-- `issue-cli replace <slug> --section "Design" --body "new approach"` — replace the matched section in place.
-- `issue-cli replace <slug> --section "Design" --body "..." --force` — required when multiple normalized matches exist; replaces the first match.
-- Errors if no section matches — use `append --section` to create a new section.
-
-Use `replace` when an evolving section (status table, checklist progress, summary paragraph) needs to be rewritten rather than extended.
-
-### Project Version
-
-Set a default version in `project.yaml` at your project root:
-
-```yaml
-version: "0.1"
-```
-
-This auto-filters `list` and `next` commands so bots don't need `--version` every time. Also works in `projects.yaml`:
+`projects.yaml` lets one server host several independent projects, each with its own issues, docs, and workflow.
 
 ```yaml
 projects:
-  - name: "My Project"
-    issues: "./issues"
-    version: "0.1"
-```
-
-### Agent Naming
-
-When `claim` or `start` is called without `--assignee`, the CLI assigns `agent-<ticket-slug>` (e.g., `agent-fix-heat-overflow`). Override with `--assignee` or the `AGENT_NAME` env var.
-
-## Multi-Project Mode
-
-Create a `projects.yaml` (see `projects.yaml.example`):
-
-```yaml
-projects:
-
-  - name: "My Project"
-    slug: "my-project"
-    issues: "./project-a/issues"
-    docs: "./project-a/docs"
-
-  - name: "Another"
-    slug: "another"
-    issues: "/absolute/path/to/issues"
-    docs: "/absolute/path/to/docs"
+  - name: "Combat System"
+    slug: "combat"
+    issues: "./combat/issues"
+    docs: "./combat/docs"
+    version: "0.3"
+  - name: "Renderer"
+    slug: "renderer"
+    issues: "./renderer/issues"
+    docs: "./renderer/docs"
 ```
 
 ```bash
 ./issue-viewer -config projects.yaml
 ```
 
-## Issue Format
+### GitHub sync (optional)
 
-Markdown files with YAML frontmatter in the issues directory (supports subdirectories):
+```bash
+./sync-issues.sh <owner> <project-number> ./issues
+```
+
+Pulls items from a GitHub Project into `issues/<System>/<number>.md`. The workflow runs on those imports the same as on hand-authored issues.
+
+## Quick start
+
+```bash
+go build
+./issue-viewer -dir ./issues -docs ./docs
+# http://localhost:8080
+```
+
+Install the CLI:
+
+```bash
+make install
+```
+
+Validate before changes:
+
+```bash
+make validate   # vet + tests + cmd/issue-cli coverage gate
+```
+
+## Issue file format
 
 ```markdown
 ---
 title: "Fix heat calculation"
 status: "in progress"
 system: "Combat"
-version: "0.1"
-assignee: "expedition_designer"
+version: "0.3"
 priority: "high"
-labels:
-
-  - bug
-  - combat
+labels: [bug, combat]
 ---
 
-Description in markdown. Supports tables, checkboxes, and `#123` issue references.
+Description in markdown. Supports tables, `[x]` checkboxes, and `#123` issue references.
 ```
 
-### Fields
+| Field                | Description                                     |
+|:---------------------|:------------------------------------------------|
+| `title`              | Required.                                       |
+| `status`             | One of the statuses in `workflow.yaml`.         |
+| `system`             | Category tag; also used as a subdirectory name. |
+| `version`            | String; filterable on board and `next`/`list`.  |
+| `priority`           | `low` / `medium` / `high` / `critical`.         |
+| `labels`             | List of strings.                                |
+| `assignee`           | Free-text; agents default to `agent-<slug>`.    |
+| `created`            | Sort key; auto-set on creation.                 |
+| `score_boost`, `due` | Participate in scoring if enabled.              |
 
-| Field      | Required | Description                                     |
-|:-----------|:---------|:------------------------------------------------|
-| `title`    | Yes      | Issue title                                     |
-| `status`   | No       | Workflow stage (see below)                      |
-| `system`   | No       | Category tag, also used as subdirectory name    |
-| `version`  | No       | Version string, filterable on the board         |
-| `assignee` | No       | Who is working on it                            |
-| `priority` | No       | `low`, `medium`, `high`, or `critical`          |
-| `labels`   | No       | List of label strings                           |
-| `created`  | No       | Date string for sorting                         |
+Any other key becomes a custom sidebar field. URLs render as links, lists render as bullets.
 
-### Statuses
-
-`idea` → `in design` → `backlog` → `in progress` → `testing` → `human-testing` → `documentation` → `shipping` → `done`
-
-## Documentation Pages
-
-Markdown files in the docs directory (supports subdirectories as sections):
+## Docs page format
 
 ```markdown
 ---
@@ -245,51 +222,23 @@ order: 1
 Content here.
 ```
 
-Frontmatter is optional. Title defaults to the filename. `order` controls sort position.
+Frontmatter optional; subdirectories become sections in the sidebar.
 
-## Syncing from GitHub Projects
+## Server flags
 
-```bash
-./sync-issues.sh <owner> <project-number> [output-dir]
-./sync-issues.sh my-username 4 ./issues
-```
+| Flag      | Default    | Description                                |
+|:----------|:-----------|:-------------------------------------------|
+| `-config` | —          | Path to `projects.yaml` (multi-project).   |
+| `-dir`    | `./issues` | Issues directory (single-project mode).    |
+| `-docs`   | `./docs`   | Docs directory (single-project mode).      |
+| `-port`   | `8080`     | HTTP port.                                 |
 
-Downloads all items from a GitHub Project and writes them as `issues/<System>/<number>.md`.
+## Where to read next
 
-## Server CLI Flags
-
-| Flag      | Default    | Description                             |
-|:----------|:-----------|:----------------------------------------|
-| `-config` | —          | Path to `projects.yaml` (multi-project) |
-| `-dir`    | `./issues` | Issues directory (single-project mode)  |
-| `-docs`   | `./docs`   | Docs directory (single-project mode)    |
-| `-port`   | `8080`     | HTTP port                               |
-
-## Inline Comments
-
-Comments are stored at the bottom of issue files in an HTML comment block (invisible to other markdown renderers):
-
-```html
-<!-- issue-viewer-comments
-{"id":1,"block":0,"date":"2026-03-28","text":"Needs more detail","status":"open","source":"app"}
--->
-```
-
-## API
-
-| Method | Path                                        | Description         |
-|:-------|:--------------------------------------------|:--------------------|
-| POST   | `/p/<project>/issue/<slug>`                 | Update frontmatter  |
-| POST   | `/p/<project>/issue/<slug>/delete`          | Delete issue        |
-| POST   | `/p/<project>/issues/create`                | Create issue        |
-| GET    | `/p/<project>/issue/<slug>/comments`        | List comments       |
-| POST   | `/p/<project>/issue/<slug>/comments`        | Add comment         |
-| POST   | `/p/<project>/issue/<slug>/comments/toggle` | Toggle comment done |
-| POST   | `/p/<project>/issue/<slug>/comments/delete` | Delete comment      |
-| POST   | `/p/<project>/issue/<slug>/dispatch`        | Dispatch to agent   |
-
-## Testing
-
-```bash
-go test ./...
-```
+- [Workflow](docs/workflow.md) — lifecycle, prompts, validators, side-effects, scoring, overlays.
+- [Workflow Overview](docs/Workflow/overview.md) — engine internals and YAML schema.
+- [Agent Workflow Flow](docs/agent-workflow-flow.md) — full dispatch-to-done flow.
+- [CLI Overview](docs/CLI/overview.md) — every subcommand and its output contract.
+- [Agent Dispatch](docs/agent-dispatch.md) — terminal config and approval notifications.
+- [Per-issue Data Store](docs/data-store.md) — sidecar JSON and inline triage tables.
+- [Workflow Stats](docs/workflow-stats.md) — `/stats` tab and token-cost estimation.

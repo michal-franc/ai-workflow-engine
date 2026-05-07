@@ -1,0 +1,47 @@
+{
+  "next_id": 7,
+  "entries": [
+    {
+      "id": 1,
+      "description": "Race condition in tracker.LoadIssues — concurrent map write panics under load when multiple HTTP handlers walk the issue dir simultaneously",
+      "status": "💬 commented",
+      "tier": "🔴 critical",
+      "comment": "https://github.com/michal-franc/ai-native-project-viewer/pull/1234#discussion_r9876543210"
+    },
+    {
+      "id": 2,
+      "description": "Rename helper for clarity",
+      "status": "✅ addressed",
+      "tier": "🟢 nice",
+      "comment": "took the suggestion verbatim"
+    },
+    {
+      "id": 3,
+      "description": "Frontmatter parser silently drops keys whose values contain unescaped colons; this has burned us before",
+      "status": "🤝 aligned",
+      "tier": "🔴 critical",
+      "comment": "https://github.com/michal-franc/ai-native-project-viewer/pull/42#discussion_r555"
+    },
+    {
+      "id": 4,
+      "description": "Could trim trailing whitespace from titles",
+      "status": "✨ positive (no action)",
+      "tier": "🟢 nice",
+      "comment": ""
+    },
+    {
+      "id": 5,
+      "description": "Add test for empty workflow yaml fallback path",
+      "status": "💬 commented",
+      "tier": "🟢 nice",
+      "comment": "small unit test would do"
+    },
+    {
+      "id": 6,
+      "description": "handlers_dispatch.go does not sanitize prompt input before passing it to tmux send-keys — shell injection risk on malicious frontmatter",
+      "status": "🤝 aligned",
+      "tier": "🔴 critical",
+      "comment": "see thread"
+    }
+  ]
+}

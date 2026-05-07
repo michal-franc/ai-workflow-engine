@@ -56,8 +56,9 @@ When working on API changes:
 | POST   | `/issue/<slug>/approve`                       | Toggle human approval          |
 | GET    | `/issue/<slug>/comments`                      | List issue comments            |
 | POST   | `/issue/<slug>/comments`                      | Add comment                    |
-| POST   | `/issue/<slug>/data`                          | Add a row to the per-issue data store — body `{description, status}`, returns `{id}` |
+| POST   | `/issue/<slug>/data`                          | Add a row to the per-issue data store — body `{description, status, tier?}`, returns `{id}` |
 | POST   | `/issue/<slug>/data/<id>/status`              | Set a row's status — body `{status}` |
+| POST   | `/issue/<slug>/data/<id>/tier`                | Set a row's tier (second axis; pass empty string to clear) — body `{tier}` |
 | POST   | `/issue/<slug>/data/<id>/comment`             | Set a row's comment — body `{comment}` |
 | DELETE | `/issue/<slug>/data/<id>`                     | Remove a row (id is not reused) |
 | GET    | `/hash`                                       | Content hash for polling       |

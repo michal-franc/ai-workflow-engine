@@ -429,6 +429,16 @@
         }).then(res => dataTableToast(res.ok, res.ok ? 'Status updated' : 'Failed'));
     }
 
+    function dataSetTier(selectEl) {
+        const id = dataRowID(selectEl);
+        if (!id) return;
+        fetch(issueURL + '/data/' + id + '/tier', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tier: selectEl.value })
+        }).then(res => dataTableToast(res.ok, res.ok ? 'Tier updated' : 'Failed'));
+    }
+
     function dataSetComment(cellEl) {
         const id = dataRowID(cellEl);
         if (!id) return;
@@ -462,6 +472,7 @@
     // --- Data table view preferences (persisted) ---
     const DATA_TABLE_WIDE_KEY = 'dataTable.wide';
     const DATA_TABLE_FILTER_KEY = 'dataTable.statusFilter';
+    const DATA_TABLE_TIER_FILTER_KEY = 'dataTable.tierFilter';
 
     function dataTableSetWide(wrap, wide) {
         wrap.classList.toggle('wide', wide);
@@ -469,45 +480,63 @@
         if (btn) btn.textContent = wide ? '↔ Shrink' : '↔ Expand';
     }
 
+    function dataTablePopulateFilter(wrap, filterEl, rowSelector, storedValue) {
+        const seen = new Set();
+        wrap.querySelectorAll(rowSelector).forEach(sel => {
+            if (sel.value) seen.add(sel.value);
+        });
+        Array.from(seen).sort().forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            filterEl.appendChild(opt);
+        });
+        filterEl.value = seen.has(storedValue) ? storedValue : '';
+        return filterEl.value;
+    }
+
     function dataTableInit() {
         const wideStored = localStorage.getItem(DATA_TABLE_WIDE_KEY);
         const wide = wideStored === null ? false : wideStored === 'true';
-        const storedFilter = localStorage.getItem(DATA_TABLE_FILTER_KEY) || '';
+        const storedStatus = localStorage.getItem(DATA_TABLE_FILTER_KEY) || '';
+        const storedTier = localStorage.getItem(DATA_TABLE_TIER_FILTER_KEY) || '';
         document.querySelectorAll('.data-table-wrap').forEach(wrap => {
             dataTableSetWide(wrap, wide);
-            const filterEl = wrap.querySelector('.data-table-filter');
-            if (filterEl) {
-                const seen = new Set();
-                wrap.querySelectorAll('.data-row .data-status select').forEach(sel => {
-                    if (sel.value) seen.add(sel.value);
-                });
-                Array.from(seen).sort().forEach(s => {
-                    const opt = document.createElement('option');
-                    opt.value = s;
-                    opt.textContent = s;
-                    filterEl.appendChild(opt);
-                });
-                filterEl.value = seen.has(storedFilter) ? storedFilter : '';
-                dataTableApplyFilter(wrap, filterEl.value);
+            const statusFilter = wrap.querySelector('.data-table-filter');
+            if (statusFilter) {
+                dataTablePopulateFilter(wrap, statusFilter, '.data-row .data-status select', storedStatus);
             }
+            const tierFilter = wrap.querySelector('.data-table-tier-filter');
+            if (tierFilter) {
+                dataTablePopulateFilter(wrap, tierFilter, '.data-row .data-tier select', storedTier);
+            }
+            dataTableApplyFilters(wrap);
         });
     }
 
     function dataTableFilter(selectEl) {
-        const value = selectEl.value;
-        localStorage.setItem(DATA_TABLE_FILTER_KEY, value);
+        localStorage.setItem(DATA_TABLE_FILTER_KEY, selectEl.value);
         const wrap = selectEl.closest('.data-table-wrap');
-        if (wrap) dataTableApplyFilter(wrap, value);
+        if (wrap) dataTableApplyFilters(wrap);
     }
 
-    function dataTableApplyFilter(wrap, value) {
+    function dataTableTierFilter(selectEl) {
+        localStorage.setItem(DATA_TABLE_TIER_FILTER_KEY, selectEl.value);
+        const wrap = selectEl.closest('.data-table-wrap');
+        if (wrap) dataTableApplyFilters(wrap);
+    }
+
+    function dataTableApplyFilters(wrap) {
+        const statusFilter = wrap.querySelector('.data-table-filter');
+        const tierFilter = wrap.querySelector('.data-table-tier-filter');
+        const wantStatus = statusFilter ? statusFilter.value : '';
+        const wantTier = tierFilter ? tierFilter.value : '';
         wrap.querySelectorAll('.data-row').forEach(row => {
-            if (!value) {
-                row.style.display = '';
-                return;
-            }
-            const sel = row.querySelector('.data-status select');
-            row.style.display = sel && sel.value === value ? '' : 'none';
+            const statusSel = row.querySelector('.data-status select');
+            const tierSel = row.querySelector('.data-tier select');
+            const statusOk = !wantStatus || (statusSel && statusSel.value === wantStatus);
+            const tierOk = !wantTier || (tierSel && tierSel.value === wantTier);
+            row.style.display = statusOk && tierOk ? '' : 'none';
         });
     }
 

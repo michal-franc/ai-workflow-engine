@@ -22,11 +22,16 @@ Schema (v1):
 {
   "next_id": 6,
   "entries": [
-    { "id": 1, "description": "...", "status": "🔥 must-fix", "comment": "..." },
+    { "id": 1, "description": "...", "status": "🔥 must-fix", "tier": "🔴 critical", "comment": "..." },
     { "id": 2, "description": "...", "status": "✅ resolved", "comment": "" }
   ]
 }
 ```
+
+`tier` is the optional **second axis** (e.g. critical / nice, S1 / S2 / S3,
+high / medium / low). It is `omitempty` in the JSON: entries that don't set
+a tier — including every entry written before this field existed — keep the
+old shape on disk and load as `Tier: ""`.
 
 `next_id` is a monotonic counter — `data remove` does not reuse ids. Writes are atomic (temp file + `fsync` + `rename`) so a crashed agent never leaves a half-written JSON file. There is **no locking**: two concurrent writers race, last-write-wins. The atomic rename only guarantees the file on disk is never corrupt, not that the read–modify–write was serialized.
 
@@ -37,19 +42,28 @@ Drop an HTML comment in the issue body to choose where the table renders:
 ```markdown
 ## Findings
 
-<!-- data statuses=🔥 must-fix,👍 nice-to-have,✅ resolved,❌ wontfix -->
+<!-- data statuses=🔥 must-fix,👍 nice-to-have,✅ resolved,❌ wontfix tiers=🔴 critical,🟢 nice -->
 ```
 
 The renderer replaces the marker with the table. Without a marker the table renders below the body if entries exist, or not at all if entries are empty.
 
-The `statuses=` attribute is the **per-issue dropdown menu** for the status column. Entries:
+The marker accepts two attributes; both are optional and may appear in any order:
+
+- `statuses=` — the **status dropdown** menu (review state).
+- `tiers=` — the **tier dropdown** menu, an optional orthogonal second axis (priority / severity / blast-radius).
+
+Both follow the same value rules:
 
 - Comma-separated; each entry is trimmed.
 - Spaces and emojis are allowed inside an entry (`🔥 must-fix` is one entry, not two).
-- Commas inside a status value are not supported in v1 (the comma is the separator).
-- Omitted → defaults to `open, resolved`.
+- Commas inside a value are not supported (the comma is the separator).
+- `statuses=` omitted → defaults to `open, resolved`. `tiers=` omitted → tier UI (column, filter, dropdown) is **hidden entirely**.
 
-If a row's current status is not in the declared list (e.g. an old value, or a status set by an agent that did not know about the marker), the dropdown shows it anyway so it stays selectable until the human picks a new value. Only the **first** marker in the body is replaced; subsequent markers render literally as HTML comments.
+If a row's current status (or tier) is not in the declared list, the dropdown shows it anyway so it stays selectable until the human picks a new value. Only the **first** marker in the body is replaced; subsequent markers render literally as HTML comments.
+
+### Why generic tiers, not "priority"
+
+Different workflows want different second axes — ADR review (critical / nice), bug triage (S1 / S2 / S3), operational (high / medium / low blast-radius). A free-form configurable enum mirrors how `statuses=` already works, without baking domain semantics into the engine.
 
 ## CLI
 
@@ -57,19 +71,23 @@ If a row's current status is not in the declared list (e.g. an old value, or a s
 
 ```bash
 # Append a row, prints the assigned id on stdout
-issue-cli data add <slug> --description "finding text" [--status "open"]
+issue-cli data add <slug> --description "finding text" [--status "open"] [--tier "🔴 critical"]
 
 # Read entries (table by default, JSON with --json)
+# Output includes a <tier> column when the body declares tiers= or any entry has one set.
 issue-cli data list <slug>
 issue-cli data list <slug> --json
 
 # Mutate an entry
 issue-cli data set-status  <slug> <id> "✅ resolved"
+issue-cli data set-tier    <slug> <id> "🔴 critical"   # pass "" to clear
 issue-cli data set-comment <slug> <id> --text "fixed in commit 8a1c2e0"
 
 # Delete an entry (id is not reused)
 issue-cli data remove <slug> <id>
 ```
+
+`--tier` (and `set-tier`) reject values that aren't declared in the body's `tiers=` marker, so typos like `🔴 critcal` fail loudly. When the marker omits `tiers=`, any value is accepted — the workflow is opting out of validation.
 
 The CLI prints the new id on stdout (and a human line on stderr) so agents can pipe into other commands:
 
@@ -82,12 +100,13 @@ issue-cli data set-comment <slug> "$id" --text "looked into it"
 
 The web UI's row actions hit the same tracker functions as the CLI. Routes live under the project prefix (`/p/<project-slug>`):
 
-| Method | Path                              | Description                                                  |
-|:-------|:----------------------------------|:-------------------------------------------------------------|
-| POST   | `/issue/<slug>/data`              | Add an entry. Body: `{description, status}`. Returns `{id}`. |
-| POST   | `/issue/<slug>/data/<id>/status`  | Set status. Body: `{status}`.                                |
-| POST   | `/issue/<slug>/data/<id>/comment` | Set comment. Body: `{comment}`.                              |
-| DELETE | `/issue/<slug>/data/<id>`         | Remove entry. NextID is unchanged.                           |
+| Method | Path                              | Description                                                          |
+|:-------|:----------------------------------|:---------------------------------------------------------------------|
+| POST   | `/issue/<slug>/data`              | Add an entry. Body: `{description, status, tier?}`. Returns `{id}`.  |
+| POST   | `/issue/<slug>/data/<id>/status`  | Set status. Body: `{status}`.                                        |
+| POST   | `/issue/<slug>/data/<id>/tier`    | Set tier (pass empty string to clear). Body: `{tier}`.               |
+| POST   | `/issue/<slug>/data/<id>/comment` | Set comment. Body: `{comment}`.                                      |
+| DELETE | `/issue/<slug>/data/<id>`         | Remove entry. NextID is unchanged.                                   |
 
 400 on missing description, 404 on unknown issue or unknown entry id.
 
@@ -98,12 +117,14 @@ The detail view scans the rendered body for the first `<!-- data ... -->` commen
 Each row exposes:
 
 - A status `<select>` populated from the marker statuses (plus the row's current status if not declared) — `onchange` posts to the status endpoint.
+- A tier `<select>` (rendered only when the marker declares `tiers=`) with an empty `—` option that clears the tier — `onchange` posts to the tier endpoint. When tiers are configured the status and tier selects share a single **Status / Tier** column, stacked vertically, so the second axis costs no extra horizontal space. With no tiers marker the column reverts to plain **Status**.
 - A `contenteditable` comment cell — `onblur` posts to the comment endpoint when the value changed. Long comments truncate with `text-overflow: ellipsis` and a hover `title`; clicking into the cell expands to full content for editing.
 - A `×` remove button — `onclick` confirms then DELETEs.
 
 A toolbar above the table provides view preferences, persisted per-user in localStorage:
 
 - **Status filter** — dropdown listing every status currently in use; selecting one hides non-matching rows. Key: `dataTable.statusFilter`.
+- **Tier filter** — same shape as the status filter but for the second axis; only rendered when the marker has `tiers=`. Composes with the status filter (AND). Key: `dataTable.tierFilter`.
 - **↔ Expand / ↔ Shrink** — toggles a `.wide` class that lets the table spill rightward under the metadata sidebar (negative margin equal to the sidebar + gap). Default is shrunk; the breakout is automatically disabled below the 768px viewport breakpoint. Key: `dataTable.wide`.
 
 The table itself uses `table-layout: fixed` so column widths are stable and a long unbroken string in any cell does not steal width from siblings (in particular, the status column always renders the full label).
@@ -112,16 +133,16 @@ A toast confirms each save (or surfaces the error). Embedded templates and CSS d
 
 ## Implementation pointers
 
-- `internal/tracker/data.go` — `DataStore`, `DataEntry`, `LoadData`, `SaveData`, `AddEntry`, `SetEntryStatus`, `SetEntryComment`, `RemoveEntry`, `ParseDataMarker`, `ResolveDataStatuses`.
-- `cmd/issue-cli/main.go` — `case "data":` in the top-level switch dispatches to `runDataAdd` / `runDataList` / `runDataSetStatus` / `runDataSetComment` / `runDataRemove`.
-- `handlers.go` — `handleDataAdd` / `handleDataSetStatus` / `handleDataSetComment` / `handleDataRemove`; `renderDataTable` builds the inline HTML; `renderBodyWithDataTable` does the marker substitution.
-- `templates/detail.html` — `dataSetStatus`, `dataSetComment`, `dataRemove` row-action JS; `dataTableInit`, `dataTableFilter`, `dataTableToggleWide` for toolbar/persistence.
-- `static/style.css` — `.data-table-wrap` / `.data-table` styles.
+- `internal/tracker/data.go` — `DataStore`, `DataEntry` (with `Tier`), `LoadData`, `SaveData`, `AddEntry` / `AddEntryWithTier`, `SetEntryStatus`, `SetEntryTier`, `SetEntryComment`, `RemoveEntry`, `ParseDataMarker`, `ResolveDataStatuses`, `ResolveDataTiers`.
+- `cmd/issue-cli/cmd_data.go` — `runDataAdd` (`--tier`), `runDataList` (tier column), `runDataSetStatus`, `runDataSetTier`, `runDataSetComment`, `runDataRemove`. `validateTier` enforces the body's `tiers=` enum.
+- `handlers_data.go` — `handleDataAdd` / `handleDataSetStatus` / `handleDataSetTier` / `handleDataSetComment` / `handleDataRemove`. `handlers_detail.go::renderDataTable` builds the inline HTML (Tier column conditional on `len(tiers) > 0`); `renderBodyWithDataTable` does the marker substitution.
+- `templates/detail.html` — `dataSetStatus`, `dataSetTier`, `dataSetComment`, `dataRemove` row-action JS; `dataTableInit`, `dataTableFilter`, `dataTableTierFilter`, `dataTableApplyFilters`, `dataTableToggleWide` for toolbar/persistence.
+- `static/style.css` — `.data-table-wrap`, `.data-table`, `.data-table.has-tier .data-status`, `.data-table .data-tier`, `.data-table-tier-filter` styles.
 
 ## Out of scope (v1)
 
 - Cross-issue querying (`data query 'status=open'` for board-level rollups).
 - Multiple tables per issue.
-- Richer columns (`severity`, `file`, `link`) — the schema is strictly `{id, description, status, comment}`.
+- More than two axes — the schema is strictly `{id, description, status, tier, comment}`.
 - Locking / optimistic concurrency.
-- Frontmatter-based config — the status list lives only on the marker.
+- Frontmatter-based config — the enum lists live only on the marker.

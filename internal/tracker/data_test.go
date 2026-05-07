@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -153,17 +154,22 @@ func TestParseDataMarker(t *testing.T) {
 	type want struct {
 		found    bool
 		statuses []string
+		tiers    []string
 	}
 	cases := []struct {
 		name string
 		body string
 		want want
 	}{
-		{"no marker", "just text", want{false, nil}},
-		{"plain marker", "before\n<!-- data -->\nafter", want{true, nil}},
-		{"declared statuses", "<!-- data statuses=open,resolved,wontfix -->", want{true, []string{"open", "resolved", "wontfix"}}},
-		{"spaces and emojis", "<!-- data statuses=✅ done, 🔥 must-fix , open -->", want{true, []string{"✅ done", "🔥 must-fix", "open"}}},
-		{"first marker wins", "<!-- data statuses=a,b --> <!-- data statuses=c -->", want{true, []string{"a", "b"}}},
+		{"no marker", "just text", want{false, nil, nil}},
+		{"plain marker", "before\n<!-- data -->\nafter", want{true, nil, nil}},
+		{"declared statuses", "<!-- data statuses=open,resolved,wontfix -->", want{true, []string{"open", "resolved", "wontfix"}, nil}},
+		{"spaces and emojis", "<!-- data statuses=✅ done, 🔥 must-fix , open -->", want{true, []string{"✅ done", "🔥 must-fix", "open"}, nil}},
+		{"first marker wins", "<!-- data statuses=a,b --> <!-- data statuses=c -->", want{true, []string{"a", "b"}, nil}},
+		{"declared tiers only", "<!-- data tiers=🔴 critical,🟢 nice -->", want{true, nil, []string{"🔴 critical", "🟢 nice"}}},
+		{"both axes", "<!-- data statuses=open,resolved tiers=S1,S2,S3 -->", want{true, []string{"open", "resolved"}, []string{"S1", "S2", "S3"}}},
+		{"tiers before statuses", "<!-- data tiers=high,low statuses=open,resolved -->", want{true, []string{"open", "resolved"}, []string{"high", "low"}}},
+		{"unknown attr ignored", "<!-- data foo=bar tiers=a,b -->", want{true, nil, []string{"a", "b"}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -173,6 +179,9 @@ func TestParseDataMarker(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got.Statuses, tc.want.statuses) {
 				t.Errorf("Statuses = %v, want %v", got.Statuses, tc.want.statuses)
+			}
+			if !reflect.DeepEqual(got.Tiers, tc.want.tiers) {
+				t.Errorf("Tiers = %v, want %v", got.Tiers, tc.want.tiers)
 			}
 		})
 	}
@@ -198,4 +207,69 @@ func TestResolveDataStatuses(t *testing.T) {
 			t.Errorf("got %v", got)
 		}
 	})
+}
+
+func TestResolveDataTiers(t *testing.T) {
+	t.Run("no declared returns nil (tier UI hidden)", func(t *testing.T) {
+		if got := ResolveDataTiers(nil, []DataEntry{{Tier: "ignored"}}); got != nil {
+			t.Errorf("got %v want nil", got)
+		}
+	})
+	t.Run("declared used as-is", func(t *testing.T) {
+		got := ResolveDataTiers([]string{"S1", "S2"}, nil)
+		if !reflect.DeepEqual(got, []string{"S1", "S2"}) {
+			t.Errorf("got %v", got)
+		}
+	})
+	t.Run("undeclared in-use tier appended", func(t *testing.T) {
+		got := ResolveDataTiers([]string{"S1"}, []DataEntry{{Tier: "S3"}, {Tier: "S1"}})
+		if !reflect.DeepEqual(got, []string{"S1", "S3"}) {
+			t.Errorf("got %v", got)
+		}
+	})
+}
+
+func TestAddEntryWithTierAndSetEntryTier(t *testing.T) {
+	dir := t.TempDir()
+	issuePath := writeIssueFile(t, dir, "x.md", "---\ntitle: x\n---\n")
+
+	id, err := AddEntryWithTier(issuePath, "thing", "open", "🔴 critical")
+	if err != nil {
+		t.Fatalf("AddEntryWithTier: %v", err)
+	}
+	store, _ := LoadData(issuePath)
+	if got := store.Entries[0].Tier; got != "🔴 critical" {
+		t.Errorf("tier after add = %q, want \"🔴 critical\"", got)
+	}
+
+	if err := SetEntryTier(issuePath, id, "🟢 nice"); err != nil {
+		t.Fatalf("SetEntryTier: %v", err)
+	}
+	store, _ = LoadData(issuePath)
+	if got := store.Entries[0].Tier; got != "🟢 nice" {
+		t.Errorf("tier after set = %q, want \"🟢 nice\"", got)
+	}
+
+	if err := SetEntryTier(issuePath, id, ""); err != nil {
+		t.Fatalf("clear tier: %v", err)
+	}
+	store, _ = LoadData(issuePath)
+	if got := store.Entries[0].Tier; got != "" {
+		t.Errorf("tier after clear = %q, want empty", got)
+	}
+}
+
+func TestAddEntry_NoTierOmittedFromJSON(t *testing.T) {
+	dir := t.TempDir()
+	issuePath := writeIssueFile(t, dir, "x.md", "---\ntitle: x\n---\n")
+	if _, err := AddEntry(issuePath, "no tier", "open"); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(SidecarPath(issuePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "\"tier\"") {
+		t.Errorf("expected tier field omitted when empty, got: %s", raw)
+	}
 }

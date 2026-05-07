@@ -175,7 +175,8 @@ func renderBodyWithDataTable(issue *tracker.Issue, prefix string, slugMap map[st
 	}
 	marker := tracker.ParseDataMarker(bodyHTML)
 	statuses := tracker.ResolveDataStatuses(marker.Statuses, store.Entries)
-	tableHTML := renderDataTable(prefix, issue.Slug, statuses, store.Entries)
+	tiers := tracker.ResolveDataTiers(marker.Tiers, store.Entries)
+	tableHTML := renderDataTable(prefix, issue.Slug, statuses, tiers, store.Entries)
 
 	var body string
 	if marker.Found {
@@ -189,20 +190,56 @@ func renderBodyWithDataTable(issue *tracker.Issue, prefix string, slugMap map[st
 }
 
 // renderDataTable produces the inline data-table HTML that replaces a
-// <!-- data --> marker in an issue body. statuses is the dropdown menu;
-// it should already include any status currently in use on an entry.
-func renderDataTable(prefix, slug string, statuses []string, entries []tracker.DataEntry) string {
+// <!-- data --> marker in an issue body. statuses is the status dropdown
+// menu; tiers is the optional second-axis dropdown.
+//
+// When tiers is non-empty the Status and Tier selects share a single
+// "Status / Tier" column with the two selects stacked vertically, freeing
+// horizontal space for description/comment. When tiers is empty the layout
+// reverts to a plain Status column so workflows without a tiers= marker
+// render exactly as before.
+func renderDataTable(prefix, slug string, statuses, tiers []string, entries []tracker.DataEntry) string {
+	hasTier := len(tiers) > 0
+
 	var b strings.Builder
-	b.WriteString(`<div class="data-table-wrap" data-issue-slug="`)
+	b.WriteString(`<div class="data-table-wrap`)
+	if hasTier {
+		b.WriteString(` has-tier`)
+	}
+	b.WriteString(`" data-issue-slug="`)
 	b.WriteString(template.HTMLEscapeString(slug))
 	b.WriteString(`" data-prefix="`)
 	b.WriteString(template.HTMLEscapeString(prefix))
 	b.WriteString(`">`)
 	b.WriteString(`<div class="data-table-toolbar">`)
 	b.WriteString(`<select class="data-table-filter" onchange="dataTableFilter(this)" title="Filter by status"><option value="">All statuses</option></select>`)
+	if hasTier {
+		b.WriteString(`<select class="data-table-tier-filter" onchange="dataTableTierFilter(this)" title="Filter by tier"><option value="">All tiers</option></select>`)
+	}
 	b.WriteString(`<button type="button" class="data-table-tb-btn data-table-wide-btn" onclick="dataTableToggleWide()" title="Expand / shrink the table (spill under sidebar)">↔ Expand</button>`)
 	b.WriteString(`</div>`)
-	b.WriteString(`<table class="data-table"><thead><tr><th>#</th><th>Description</th><th>Status</th><th>Comment</th><th></th></tr></thead><tbody>`)
+	// Explicit colgroup pins the small fixed-width columns so browsers don't
+	// redistribute leftover space into them under table-layout: fixed.
+	// Description and Comment share the remaining width via percentages.
+	b.WriteString(`<table class="data-table">`)
+	b.WriteString(`<colgroup>`)
+	b.WriteString(`<col class="col-id">`)
+	b.WriteString(`<col class="col-desc">`)
+	if hasTier {
+		b.WriteString(`<col class="col-status-tier">`)
+	} else {
+		b.WriteString(`<col class="col-status">`)
+	}
+	b.WriteString(`<col class="col-comment">`)
+	b.WriteString(`<col class="col-actions">`)
+	b.WriteString(`</colgroup>`)
+	b.WriteString(`<thead><tr><th>#</th><th>Description</th>`)
+	if hasTier {
+		b.WriteString(`<th>Status / Tier</th>`)
+	} else {
+		b.WriteString(`<th>Status</th>`)
+	}
+	b.WriteString(`<th>Comment</th><th></th></tr></thead><tbody>`)
 	if len(entries) == 0 {
 		b.WriteString(`<tr class="data-table-empty"><td colspan="5">No entries yet. Add some with <code>issue-cli data add &lt;slug&gt; --description "..."</code>.</td></tr>`)
 	}
@@ -213,32 +250,23 @@ func renderDataTable(prefix, slug string, statuses []string, entries []tracker.D
 		b.WriteString(strconv.Itoa(e.ID))
 		b.WriteString(`</td><td class="data-desc">`)
 		b.WriteString(template.HTMLEscapeString(e.Description))
-		b.WriteString(`</td><td class="data-status"><select onchange="dataSetStatus(this)">`)
-		statusList := append([]string(nil), statuses...)
-		seen := false
-		for _, s := range statusList {
-			if s == e.Status {
-				seen = true
-				break
+		b.WriteString(`</td>`)
+		if hasTier {
+			b.WriteString(`<td class="data-status-tier"><div class="data-status"><select onchange="dataSetStatus(this)">`)
+			writeOptions(&b, statuses, e.Status)
+			b.WriteString(`</select></div><div class="data-tier"><select onchange="dataSetTier(this)"><option value=""`)
+			if e.Tier == "" {
+				b.WriteString(` selected`)
 			}
+			b.WriteString(`>—</option>`)
+			writeOptions(&b, tiers, e.Tier)
+			b.WriteString(`</select></div></td>`)
+		} else {
+			b.WriteString(`<td class="data-status"><select onchange="dataSetStatus(this)">`)
+			writeOptions(&b, statuses, e.Status)
+			b.WriteString(`</select></td>`)
 		}
-		if !seen && e.Status != "" {
-			statusList = append(statusList, e.Status)
-		}
-		for _, s := range statusList {
-			selected := ""
-			if s == e.Status {
-				selected = " selected"
-			}
-			b.WriteString(`<option value="`)
-			b.WriteString(template.HTMLEscapeString(s))
-			b.WriteString(`"`)
-			b.WriteString(selected)
-			b.WriteString(`>`)
-			b.WriteString(template.HTMLEscapeString(s))
-			b.WriteString(`</option>`)
-		}
-		b.WriteString(`</select></td><td class="data-comment" contenteditable="true" onblur="dataSetComment(this)" title="`)
+		b.WriteString(`<td class="data-comment" contenteditable="true" onblur="dataSetComment(this)" title="`)
 		b.WriteString(template.HTMLEscapeString(e.Comment))
 		b.WriteString(`" data-original="`)
 		b.WriteString(template.HTMLEscapeString(e.Comment))
@@ -248,6 +276,36 @@ func renderDataTable(prefix, slug string, statuses []string, entries []tracker.D
 	}
 	b.WriteString(`</tbody></table></div>`)
 	return b.String()
+}
+
+// writeOptions renders <option> tags for a select, ensuring `current` is
+// present (appended if not declared) so an out-of-band value stays visible
+// until the user picks something else.
+func writeOptions(b *strings.Builder, choices []string, current string) {
+	list := append([]string(nil), choices...)
+	seen := false
+	for _, s := range list {
+		if s == current {
+			seen = true
+			break
+		}
+	}
+	if !seen && current != "" {
+		list = append(list, current)
+	}
+	for _, s := range list {
+		selected := ""
+		if s == current {
+			selected = " selected"
+		}
+		b.WriteString(`<option value="`)
+		b.WriteString(template.HTMLEscapeString(s))
+		b.WriteString(`"`)
+		b.WriteString(selected)
+		b.WriteString(`>`)
+		b.WriteString(template.HTMLEscapeString(s))
+		b.WriteString(`</option>`)
+	}
 }
 
 // handleTransitionPreview answers GET /p/<proj>/issue/<slug>/transition?to=<status>

@@ -377,6 +377,95 @@ Body
 	}
 }
 
+func TestHandleDetail_RendersTierColumnWhenMarkerHasTiers(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	issuePath := filepath.Join(proj.IssueDir, "with-tiers.md")
+	content := `---
+title: "With tiers"
+status: "in progress"
+---
+
+intro
+
+<!-- data statuses=open,resolved tiers=🔴 critical,🟢 nice -->
+`
+	if err := os.WriteFile(issuePath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tracker.AddEntryWithTier(issuePath, "must-fix thing", "open", "🔴 critical"); err != nil {
+		t.Fatal(err)
+	}
+
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/p/test-project/issue/with-tiers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	html := string(body)
+
+	for _, want := range []string{
+		`class="data-table-wrap has-tier`,
+		`<th>Status / Tier</th>`,
+		`class="data-status-tier"`,
+		`class="data-tier"`,
+		`onchange="dataSetTier(this)"`,
+		`value="🔴 critical" selected`,
+		`value="🟢 nice"`,
+		`data-table-tier-filter`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("expected detail to contain %q\n---\n%s", want, html)
+		}
+	}
+	// The legacy two-column header must NOT appear when tiers merge into one column.
+	if strings.Contains(html, `<th>Tier</th>`) {
+		t.Errorf("expected merged 'Status / Tier' header, not separate Tier column")
+	}
+}
+
+func TestHandleDetail_NoTierColumnWhenMarkerOmitsTiers(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	issuePath := filepath.Join(proj.IssueDir, "no-tiers.md")
+	content := `---
+title: "No tiers"
+status: "in progress"
+---
+
+<!-- data statuses=open,resolved -->
+`
+	if err := os.WriteFile(issuePath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tracker.AddEntry(issuePath, "x", "open"); err != nil {
+		t.Fatal(err)
+	}
+
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/p/test-project/issue/no-tiers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	html := string(body)
+
+	if strings.Contains(html, "<th>Tier</th>") {
+		t.Errorf("Tier column must be hidden when marker omits tiers=")
+	}
+	if strings.Contains(html, `class="data-table-tier-filter"`) {
+		t.Errorf("Tier filter <select> must be hidden when marker omits tiers=")
+	}
+	if strings.Contains(html, `class="data-table-wrap has-tier`) {
+		t.Errorf("has-tier class must not be set when marker omits tiers=")
+	}
+}
+
 func TestHandleDetail_RendersDataTableAtMarker(t *testing.T) {
 	proj, _ := setupTestProject(t)
 	issuePath := filepath.Join(proj.IssueDir, "with-marker.md")

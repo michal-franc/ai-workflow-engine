@@ -2256,13 +2256,22 @@ select.modal-input option {
     background: var(--bg-tertiary, #21262d);
     border-bottom: 1px solid var(--border, #30363d);
 }
-.data-table-filter {
+.data-table-filter,
+.data-table-tier-filter {
     background: var(--bg-primary, #0d1117);
     color: var(--text, #e6edf3);
     border: 1px solid var(--border, #30363d);
     border-radius: 4px;
     padding: 2px 6px;
     font-size: 12px;
+}
+.data-table-filter {
+    margin-right: 4px;
+}
+.data-table-tier-filter {
+    margin-right: auto;
+}
+.data-table-toolbar > .data-table-filter:last-of-type {
     margin-right: auto;
 }
 .data-table-tb-btn {
@@ -2301,19 +2310,40 @@ select.modal-input option {
 .data-table tbody tr:last-child td {
     border-bottom: none;
 }
+/* colgroup widths — table-layout: fixed honours these first.
+   Layout proportions:
+     #          : 36px  (tight, just fits 3-digit ids)
+     description: 30%   (wraps via word-break)
+     status     : 200px (single column, was 240)
+     status/tier: 200px (stacked selects share the same column width)
+     comment    : 70%   (gets the lion's share of the variable width)
+     actions    : 36px  (just the × button)                                  */
+.data-table .col-id        { width: 36px; }
+.data-table .col-desc      { width: 30%; }
+.data-table .col-status    { width: 200px; }
+.data-table .col-status-tier { width: 200px; }
+.data-table .col-comment   { width: 70%; }
+.data-table .col-actions   { width: 36px; }
+
 .data-table .data-id {
-    width: 40px;
     color: var(--text-secondary, #8b949e);
     font-family: var(--font-mono, monospace);
+    padding-left: 6px;
+    padding-right: 6px;
 }
 .data-table .data-desc {
-    width: 40%;
     word-break: break-word;
 }
-.data-table .data-status {
-    width: 240px;
+.data-table .data-status-tier .data-status,
+.data-table .data-status-tier .data-tier {
+    display: block;
+    width: auto;
 }
-.data-table .data-status select {
+.data-table .data-status-tier .data-status {
+    margin-bottom: 4px;
+}
+.data-table .data-status select,
+.data-table .data-tier select {
     width: 100%;
     background: var(--bg-primary, #0d1117);
     color: var(--text, #e6edf3);
@@ -2343,8 +2373,9 @@ select.modal-input option {
     color: var(--text-secondary, #8b949e);
 }
 .data-table .data-actions {
-    width: 32px;
     text-align: right;
+    padding-left: 4px;
+    padding-right: 6px;
 }
 .data-remove-btn {
     background: transparent;

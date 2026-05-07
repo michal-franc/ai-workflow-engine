@@ -113,14 +113,17 @@ shown in transition previews.
 
 ### `data`
 
-`issue-cli data <sub> <slug>` reads and writes the per-issue structured data store (`<slug>.data.json` next to the issue's markdown file). Subcommands are `add`, `list`, `set-status`, `set-comment`, `remove`. Agents must use the CLI rather than touching the JSON file directly so the on-disk shape can change without breaking them. Full reference: [Per-issue Data Store](../data-store.md).
+`issue-cli data <sub> <slug>` reads and writes the per-issue structured data store (`<slug>.data.json` next to the issue's markdown file). Subcommands are `add`, `list`, `set-status`, `set-tier`, `set-comment`, `remove`. Agents must use the CLI rather than touching the JSON file directly so the on-disk shape can change without breaking them. Full reference: [Per-issue Data Store](../data-store.md).
 
 ```bash
-id=$(issue-cli data add <slug> --description "finding")
+id=$(issue-cli data add <slug> --description "finding" --tier "🔴 critical")
 issue-cli data set-status  <slug> "$id" "🔥 must-fix"
+issue-cli data set-tier    <slug> "$id" "🟢 nice"        # pass "" to clear
 issue-cli data set-comment <slug> "$id" --text "see processor_test.go:142"
 issue-cli data list <slug> --json
 ```
+
+`--tier` and `set-tier` validate against the body's `<!-- data tiers=... -->` enum when present; without a tiers marker the workflow opts out of validation and any value is accepted.
 
 `add` prints the assigned id on stdout (and a human line on stderr) so it composes in shell pipelines. `--json` on `list` emits the entries array exactly.
 

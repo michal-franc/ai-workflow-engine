@@ -776,6 +776,122 @@ func TestRunDataDispatcherRejectsUnknownSubcommand(t *testing.T) {
 	}
 }
 
+// makeProjectWithTiersMarker builds a project whose issue body declares a
+// tiers= marker, so validateTier and tier-aware list output have something
+// to validate against.
+func makeProjectWithTiersMarker(t *testing.T) (proj *tracker.Project, slug, issuePath string) {
+	t.Helper()
+	dir := t.TempDir()
+	issuesDir := filepath.Join(dir, "issues")
+	if err := os.MkdirAll(issuesDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	issuePath = filepath.Join(issuesDir, "tiered.md")
+	body := strings.TrimSpace(`
+---
+title: "tiered"
+status: "in progress"
+---
+
+<!-- data statuses=open,resolved tiers=🔴 critical,🟢 nice -->
+`)
+	if err := os.WriteFile(issuePath, []byte(body), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	p := &tracker.Project{Name: "Test", Slug: "test-project", IssueDir: issuesDir}
+	return p, "tiered", issuePath
+}
+
+func TestRunDataAddPersistsTier(t *testing.T) {
+	proj, slug, issuePath := makeProjectWithTiersMarker(t)
+	ctx, _, _ := newTestContext(proj, false)
+	if err := runDataAdd(ctx, []string{slug, "--description", "f1", "--tier", "🔴 critical"}); err != nil {
+		t.Fatalf("runDataAdd: %v", err)
+	}
+	store, _ := tracker.LoadData(issuePath)
+	if store.Entries[0].Tier != "🔴 critical" {
+		t.Fatalf("tier = %q, want \"🔴 critical\"", store.Entries[0].Tier)
+	}
+}
+
+func TestRunDataAddRejectsTierNotInMarker(t *testing.T) {
+	proj, slug, _ := makeProjectWithTiersMarker(t)
+	ctx, _, _ := newTestContext(proj, false)
+	err := runDataAdd(ctx, []string{slug, "--description", "f1", "--tier", "💥 unknown"})
+	if err == nil || !strings.Contains(err.Error(), "not in the workflow's declared tiers") {
+		t.Fatalf("expected tier-not-declared error, got %v", err)
+	}
+}
+
+func TestRunDataAddAcceptsAnyTierWhenMarkerHasNone(t *testing.T) {
+	proj, slug, issuePath := makeSimpleProject(t, "in progress")
+	ctx, _, _ := newTestContext(proj, false)
+	if err := runDataAdd(ctx, []string{slug, "--description", "f1", "--tier", "ad-hoc"}); err != nil {
+		t.Fatalf("runDataAdd: %v", err)
+	}
+	store, _ := tracker.LoadData(issuePath)
+	if store.Entries[0].Tier != "ad-hoc" {
+		t.Fatalf("tier = %q, want \"ad-hoc\"", store.Entries[0].Tier)
+	}
+}
+
+func TestRunDataSetTierUpdatesAndClears(t *testing.T) {
+	proj, slug, issuePath := makeProjectWithTiersMarker(t)
+	ctx, _, _ := newTestContext(proj, false)
+	if err := runDataAdd(ctx, []string{slug, "--description", "f1"}); err != nil {
+		t.Fatalf("setup add: %v", err)
+	}
+	if err := runDataSetTier(ctx, []string{slug, "1", "🟢 nice"}); err != nil {
+		t.Fatalf("set-tier: %v", err)
+	}
+	store, _ := tracker.LoadData(issuePath)
+	if store.Entries[0].Tier != "🟢 nice" {
+		t.Fatalf("tier after set = %q", store.Entries[0].Tier)
+	}
+	if err := runDataSetTier(ctx, []string{slug, "1", ""}); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	store, _ = tracker.LoadData(issuePath)
+	if store.Entries[0].Tier != "" {
+		t.Fatalf("tier after clear = %q, want empty", store.Entries[0].Tier)
+	}
+}
+
+func TestRunDataSetTierRejectsUndeclared(t *testing.T) {
+	proj, slug, _ := makeProjectWithTiersMarker(t)
+	ctx, _, _ := newTestContext(proj, false)
+	if err := runDataAdd(ctx, []string{slug, "--description", "f1"}); err != nil {
+		t.Fatalf("setup add: %v", err)
+	}
+	err := runDataSetTier(ctx, []string{slug, "1", "💥 unknown"})
+	if err == nil || !strings.Contains(err.Error(), "not in the workflow's declared tiers") {
+		t.Fatalf("expected tier-not-declared error, got %v", err)
+	}
+}
+
+func TestRunDataSetTierRequiresArgs(t *testing.T) {
+	proj, slug, _ := makeProjectWithTiersMarker(t)
+	ctx, _, _ := newTestContext(proj, false)
+	if err := runDataSetTier(ctx, []string{slug, "1"}); err == nil {
+		t.Fatal("expected requires-args error")
+	}
+}
+
+func TestRunDataListShowsTierColumnWhenPresent(t *testing.T) {
+	proj, slug, _ := makeProjectWithTiersMarker(t)
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runDataAdd(ctx, []string{slug, "--description", "f1", "--tier", "🔴 critical"}); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if err := runDataList(ctx, []string{slug}); err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	out := stdout.String()
+	if !strings.Contains(out, "<🔴 critical>") {
+		t.Fatalf("expected tier in list output, got:\n%s", out)
+	}
+}
+
 func TestRunDataDispatcherRoutesToList(t *testing.T) {
 	proj, slug, _ := makeSimpleProject(t, "in progress")
 	ctx, stdout, _ := newTestContext(proj, false)

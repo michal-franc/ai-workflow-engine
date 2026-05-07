@@ -137,6 +137,8 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleDataAdd(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.Contains(rest, "/data/") && strings.HasSuffix(rest, "/status") && r.Method == http.MethodPost:
 		s.handleDataSetStatus(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.Contains(rest, "/data/") && strings.HasSuffix(rest, "/tier") && r.Method == http.MethodPost:
+		s.handleDataSetTier(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.Contains(rest, "/data/") && strings.HasSuffix(rest, "/comment") && r.Method == http.MethodPost:
 		s.handleDataSetComment(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.Contains(rest, "/data/") && r.Method == http.MethodDelete:

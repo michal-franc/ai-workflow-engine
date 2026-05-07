@@ -12,10 +12,15 @@ import (
 type dataAddRequest struct {
 	Description string `json:"description"`
 	Status      string `json:"status"`
+	Tier        string `json:"tier"`
 }
 
 type dataStatusRequest struct {
 	Status string `json:"status"`
+}
+
+type dataTierRequest struct {
+	Tier string `json:"tier"`
 }
 
 type dataCommentRequest struct {
@@ -65,7 +70,7 @@ func (s *Server) handleDataAdd(w http.ResponseWriter, r *http.Request, proj *tra
 		http.Error(w, "description is required", http.StatusBadRequest)
 		return
 	}
-	id, err := tracker.AddEntry(issue.FilePath, req.Description, req.Status)
+	id, err := tracker.AddEntryWithTier(issue.FilePath, req.Description, req.Status, req.Tier)
 	if err != nil {
 		http.Error(w, "failed to add: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -92,6 +97,30 @@ func (s *Server) handleDataSetStatus(w http.ResponseWriter, r *http.Request, pro
 		return
 	}
 	if err := tracker.SetEntryStatus(issue.FilePath, id, req.Status); err != nil {
+		http.Error(w, "failed: "+err.Error(), http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleDataSetTier(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	slug, id, ok := s.extractDataSlugAndID(r.URL.Path, prefix)
+	if !ok || id < 0 {
+		http.NotFound(w, r)
+		return
+	}
+	issue := s.findIssueBySlug(proj, slug)
+	if issue == nil {
+		http.NotFound(w, r)
+		return
+	}
+	var req dataTierRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := tracker.SetEntryTier(issue.FilePath, id, req.Tier); err != nil {
 		http.Error(w, "failed: "+err.Error(), http.StatusNotFound)
 		return
 	}

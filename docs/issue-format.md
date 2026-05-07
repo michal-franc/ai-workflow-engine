@@ -93,12 +93,12 @@ A `<!-- data -->` HTML comment in the body marks where the per-issue [data table
 ```markdown
 ## Findings
 
-<!-- data statuses=🔥 must-fix,👍 nice-to-have,✅ resolved,❌ wontfix -->
+<!-- data statuses=🔥 must-fix,👍 nice-to-have,✅ resolved,❌ wontfix tiers=🔴 critical,🟢 nice -->
 ```
 
-Statuses are comma-separated; spaces and emojis are allowed inside a token. Without `statuses=`, the dropdown defaults to `open, resolved`. With no marker at all, the table renders below the body when entries exist.
+The marker accepts `statuses=` (the row status dropdown) and an optional `tiers=` (a second-axis dropdown such as severity / priority / blast-radius). Both are comma-separated; spaces and emojis are allowed inside a token. Without `statuses=`, the dropdown defaults to `open, resolved`; without `tiers=`, the tier column / dropdown / filter are hidden entirely so existing tables render unchanged. With no marker at all, the table renders below the body when entries exist.
 
-The table reads from a sidecar JSON file (`<slug>.data.json`) — manage rows via `issue-cli data add | list | set-status | set-comment | remove`, never by editing the JSON directly.
+The table reads from a sidecar JSON file (`<slug>.data.json`) — manage rows via `issue-cli data add | list | set-status | set-tier | set-comment | remove`, never by editing the JSON directly.
 
 ## File Organization
 

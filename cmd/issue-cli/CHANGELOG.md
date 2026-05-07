@@ -16,6 +16,15 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.16.0 — 2026-05-07
+
+- Data entries gain a structured **second-axis field** (`tier`) orthogonal to `status`, configurable per-workflow via a parallel `<!-- data tiers=… -->` attribute on the data marker. Examples: ADR review (`🔴 critical` / `🟢 nice`), bug triage (`S1` / `S2` / `S3`), operational (high / medium / low blast-radius). Replaces the `[CRITICAL]` / `[NICE]` description-prefix workaround with a sortable, filterable, validated enum.
+- New CLI surface: `issue-cli data add --tier <value>`, `issue-cli data set-tier <slug> <id> <value>` (pass `""` to clear). `data list` grows a `<tier>` column when relevant. `--tier` and `set-tier` reject values not in the body's `tiers=` enum (when one is declared) so typos like `🔴 critcal` fail loudly; workflows without a `tiers=` marker accept any value (opt-out).
+- New API endpoint: `POST /issue/<slug>/data/<id>/tier` (body `{tier}`). The `POST /issue/<slug>/data` add endpoint now accepts an optional `tier` field.
+- Viewer: Status and Tier render as **stacked selects in a single "Status / Tier" column** to preserve horizontal space; the toolbar gains a second filter dropdown (`dataTable.tierFilter`) that composes with the status filter via AND. The data table now uses an explicit `<colgroup>` so column widths (especially `#` and the action button) stop reflowing under wide layouts.
+- Backward compatible: existing `*.data.json` sidecars without a `tier` field load and save as-is (`omitempty`); bodies without a `tiers=` marker render exactly as before (no Tier column, no tier filter, no `has-tier` class).
+- Resolves issue #23.
+
 ## v0.15.0 — 2026-05-07
 
 - Fix data-table layout brittleness on issue detail pages: the status column no longer clips long labels (e.g. `✨ positive (no action)`) and a long unbroken token in any cell no longer steals width from sibling columns. The table now uses `table-layout: fixed`, the status column is sized for the widest configured label, descriptions wrap with `word-break`, and the comment cell truncates with ellipsis + a hover `title` when not focused (full content shown on edit).

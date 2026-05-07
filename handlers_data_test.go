@@ -148,6 +148,67 @@ func TestHandleDataRemove_DeletesEntry(t *testing.T) {
 	}
 }
 
+func TestHandleDataAdd_PersistsTier(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	body := `{"description":"crit","status":"open","tier":"🔴 critical"}`
+	resp, err := http.Post(ts.URL+"/p/test-project/issue/bug-in-login/data", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", resp.StatusCode)
+	}
+
+	store, _ := tracker.LoadData(filepath.Join(proj.IssueDir, "bug-in-login.md"))
+	if len(store.Entries) != 1 || store.Entries[0].Tier != "🔴 critical" {
+		t.Errorf("tier not persisted: %+v", store)
+	}
+}
+
+func TestHandleDataSetTier_PersistsChange(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	issuePath := filepath.Join(proj.IssueDir, "bug-in-login.md")
+	id, _ := tracker.AddEntry(issuePath, "x", "open")
+
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	url := ts.URL + "/p/test-project/issue/bug-in-login/data/" + strconv.Itoa(id) + "/tier"
+	resp, err := http.Post(url, "application/json", strings.NewReader(`{"tier":"🟢 nice"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	store, _ := tracker.LoadData(issuePath)
+	if store.Entries[0].Tier != "🟢 nice" {
+		t.Errorf("tier not persisted: %+v", store)
+	}
+}
+
+func TestHandleDataSetTier_404ForMissingEntry(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	url := ts.URL + "/p/test-project/issue/bug-in-login/data/99/tier"
+	resp, err := http.Post(url, "application/json", strings.NewReader(`{"tier":"S1"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
 func TestHandleDataSetStatus_404ForMissingEntry(t *testing.T) {
 	proj, _ := setupTestProject(t)
 	ts := newTestServer(t, []tracker.Project{proj})

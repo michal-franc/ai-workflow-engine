@@ -16,6 +16,14 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.15.0 — 2026-05-07
+
+- Fix data-table layout brittleness on issue detail pages: the status column no longer clips long labels (e.g. `✨ positive (no action)`) and a long unbroken token in any cell no longer steals width from sibling columns. The table now uses `table-layout: fixed`, the status column is sized for the widest configured label, descriptions wrap with `word-break`, and the comment cell truncates with ellipsis + a hover `title` when not focused (full content shown on edit).
+- New view-preferences toolbar above the data-table, persisted per-user in localStorage:
+  - **Status filter** (`dataTable.statusFilter`) — dropdown listing each status currently in use; selecting one hides non-matching rows.
+  - **↔ Expand / ↔ Shrink** (`dataTable.wide`) — toggles a layout breakout that lets the table spill rightward under the metadata sidebar on wide viewports. Default is shrunk; auto-disabled below the 768px breakpoint.
+- Resolves issue #24.
+
 ## v0.14.2 — 2026-05-02
 
 - 13 new structured workflow validators land in `internal/tracker/validations/` (one file per validator). Frontmatter: `field_present`, `field_not_empty`, `field_in`, `field_matches`, `has_label`, `has_any_label`. Linkage: `has_pr_url`, `linked_issue_in_status`. Body-structure: `has_section`, `section_min_length`, `section_max_length`, `no_todo_markers`. Shell: `command_succeeds` — opt-in via top-level `allow_shell: true` on `workflow.yaml`; templated with `{{slug}}/{{number}}/{{repo}}/{{system}}`; per-action `timeout_seconds` (default 10s); env scrubbed to `PATH`/`HOME`/`GH_TOKEN`; captured stdout/stderr surfaced in the failure message.

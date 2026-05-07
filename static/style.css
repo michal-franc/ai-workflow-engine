@@ -1981,6 +1981,10 @@ select.modal-input option {
         grid-template-columns: 1fr;
     }
 
+    .data-table-wrap.wide {
+        margin-right: 0;
+    }
+
     .filter-bar {
         flex-direction: column;
         align-items: stretch;
@@ -2240,9 +2244,45 @@ select.modal-input option {
     overflow: hidden;
     background: var(--bg-secondary, #161b22);
 }
+.data-table-wrap.wide {
+    margin-right: -304px;
+}
+.data-table-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px;
+    background: var(--bg-tertiary, #21262d);
+    border-bottom: 1px solid var(--border, #30363d);
+}
+.data-table-filter {
+    background: var(--bg-primary, #0d1117);
+    color: var(--text, #e6edf3);
+    border: 1px solid var(--border, #30363d);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 12px;
+    margin-right: auto;
+}
+.data-table-tb-btn {
+    background: transparent;
+    border: 1px solid var(--border, #30363d);
+    color: var(--text-secondary, #8b949e);
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 12px;
+    line-height: 1.4;
+}
+.data-table-tb-btn:hover {
+    color: var(--text, #e6edf3);
+    border-color: var(--accent, #58a6ff);
+}
 .data-table {
     width: 100%;
     border-collapse: collapse;
+    table-layout: fixed;
     font-size: 13px;
 }
 .data-table thead th {
@@ -2268,9 +2308,10 @@ select.modal-input option {
 }
 .data-table .data-desc {
     width: 40%;
+    word-break: break-word;
 }
 .data-table .data-status {
-    width: 160px;
+    width: 240px;
 }
 .data-table .data-status select {
     width: 100%;
@@ -2279,17 +2320,23 @@ select.modal-input option {
     border: 1px solid var(--border, #30363d);
     border-radius: 4px;
     padding: 4px 6px;
-    font-size: 13px;
+    font-size: inherit;
 }
 .data-table .data-comment {
     color: var(--text, #e6edf3);
     cursor: text;
     min-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .data-table .data-comment:focus {
     outline: 2px solid var(--accent, #58a6ff);
     outline-offset: -2px;
     background: var(--bg-primary, #0d1117);
+    overflow: visible;
+    white-space: normal;
+    word-break: break-word;
 }
 .data-table .data-comment:empty::before {
     content: "—";

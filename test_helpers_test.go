@@ -114,6 +114,15 @@ func withMockTmuxSendKeys(t *testing.T, fn func(target string, lines []string) e
 	})
 }
 
+func withMockTmuxHasSession(t *testing.T, fn func(session string) bool) {
+	t.Helper()
+	original := tmuxHasSession
+	tmuxHasSession = fn
+	t.Cleanup(func() {
+		tmuxHasSession = original
+	})
+}
+
 func withWorkingDir(t *testing.T, dir string) {
 	t.Helper()
 	original, err := os.Getwd()

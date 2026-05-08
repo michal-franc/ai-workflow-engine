@@ -247,6 +247,36 @@ func approvalLabel(status string) string {
 	return fmt.Sprintf("Human-approved for %s", status)
 }
 
+// openEditorTerminal opens a terminal window attached to the given tmux
+// session, using project terminal config (or i3+alacritty as backwards-compat
+// fallback). Returns ("", nil) on success, a friendly attach hint when the
+// project is configured headless ("none"), or a wrapped error.
+func openEditorTerminal(proj *tracker.Project, session string) (string, error) {
+	terminal := ""
+	if proj != nil {
+		terminal = proj.Terminal
+	}
+	if terminal == "none" {
+		return fmt.Sprintf("tmux attach -t %s", session), nil
+	}
+	if terminal != "" {
+		termCmd := strings.ReplaceAll(terminal, "{{session}}", session)
+		if err := exec.Command("sh", "-c", termCmd).Run(); err != nil {
+			return "", fmt.Errorf("open terminal: %w", err)
+		}
+		return "", nil
+	}
+	if proj != nil && proj.I3Workspace != "" {
+		if err := exec.Command("i3-msg", "workspace", proj.I3Workspace).Run(); err != nil {
+			return "", fmt.Errorf("switch i3 workspace: %w", err)
+		}
+	}
+	if err := exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -e tmux attach -t %s", session)).Run(); err != nil {
+		return "", fmt.Errorf("open alacritty: %w", err)
+	}
+	return "", nil
+}
+
 func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEditResponse, error) {
 	if issue == nil {
 		return BodyEditResponse{}, fmt.Errorf("issue is required")
@@ -255,6 +285,29 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 	workDir := resolveProjectWorkDir(proj)
 	session := tmuxSessionName(issue.Slug) + "-edit"
 	waitSignal := session + "-done"
+
+	if tmuxHasSession(session) {
+		// A previous edit session is still alive (commonly leaked: the wait-for
+		// goroutine died before nvim exited). Don't try to reuse its temp
+		// body/status files — we don't know them and the previous request owns
+		// the save-on-exit goroutine. Just open a terminal pointed at the
+		// existing session so the user can finish or abandon their edit.
+		attachCmd, err := openEditorTerminal(proj, session)
+		if err != nil {
+			return BodyEditResponse{}, err
+		}
+		msg := "Existing edit session — attached without registering save-on-exit. Finish or kill the existing session before editing again."
+		if attachCmd != "" {
+			msg = fmt.Sprintf("Existing edit session at %q. Attach manually: %s", session, attachCmd)
+		}
+		return BodyEditResponse{
+			Status:     "reattached",
+			Session:    session,
+			Message:    msg,
+			Reattached: true,
+		}, nil
+	}
+
 	baseContent, err := os.ReadFile(issue.FilePath)
 	if err != nil {
 		return BodyEditResponse{}, fmt.Errorf("read issue file: %w", err)
@@ -308,27 +361,11 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 
 	exec.Command("tmux", "rename-window", "-t", session, issue.Slug).Run()
 
-	terminal := ""
-	if proj != nil {
-		terminal = proj.Terminal
-	}
-	if terminal == "none" {
+	if proj != nil && proj.Terminal == "none" {
 		return BodyEditResponse{}, fmt.Errorf("terminal is 'none': attach manually with: tmux attach -t %s", session)
-	} else if terminal != "" {
-		termCmd := strings.ReplaceAll(terminal, "{{session}}", session)
-		if err := exec.Command("sh", "-c", termCmd).Run(); err != nil {
-			return BodyEditResponse{}, fmt.Errorf("open terminal: %w", err)
-		}
-	} else {
-		// Backwards compat: i3 + alacritty
-		if proj != nil && proj.I3Workspace != "" {
-			if err := exec.Command("i3-msg", "workspace", proj.I3Workspace).Run(); err != nil {
-				return BodyEditResponse{}, fmt.Errorf("switch i3 workspace: %w", err)
-			}
-		}
-		if err := exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -e tmux attach -t %s", session)).Run(); err != nil {
-			return BodyEditResponse{}, fmt.Errorf("open alacritty: %w", err)
-		}
+	}
+	if _, err := openEditorTerminal(proj, session); err != nil {
+		return BodyEditResponse{}, err
 	}
 
 	time.Sleep(500 * time.Millisecond)

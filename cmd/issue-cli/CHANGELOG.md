@@ -26,6 +26,10 @@ Entries are newest-first. Each entry has the form:
 - See `docs/API/overview.md` (new "Edit in nvim" section) for the save-path contract.
 - Resolves api/edit-in-nvim-should-include-frontmatter.
 
+## v0.19.0 — 2026-05-08
+
+- Agent dispatch and "Edit in nvim" no longer fail with a `duplicate session` error when a tmux session of the target name is still alive. Both flows now probe `tmux has-session` first; on a hit they skip `new-session` plus all setup and just open a terminal attached to the existing session. The dispatch response carries `status: "reattached"` (with a single matching step); the edit response adds `reattached: true`. The web UI renders both as a yellow warning banner/toast, distinct from the regular success and error styling. The agent is not re-prompted and the body editor does not register a duplicate save-on-exit goroutine. Kill the session manually if you want a fresh dispatch.
+
 ## v0.18.0 — 2026-05-08
 
 - Per-issue git worktrees on dispatch. New optional top-level `worktree` field in `workflow.yaml` controls whether the dispatch handler creates an isolated working tree before launching the agent's tmux session.

@@ -1722,6 +1722,21 @@ html[data-sidebar-hidden="true"] .sidebar-show-btn { display: inline-block; }
     color: var(--text-muted);
 }
 
+.dispatch-step.reattached {
+    background: rgba(234, 179, 8, 0.12);
+    color: #eab308;
+}
+
+.dispatch-banner.reattached {
+    font-size: 13px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: rgba(234, 179, 8, 0.12);
+    color: #eab308;
+    border-left: 3px solid #eab308;
+    margin-bottom: 6px;
+}
+
 .dispatch-step-icon {
     font-weight: bold;
 }

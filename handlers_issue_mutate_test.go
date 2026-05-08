@@ -373,6 +373,63 @@ func TestHandleEditIssueInNvim_UsesLauncherAndPreservesComments(t *testing.T) {
 	t.Fatal("issue not found after nvim edit")
 }
 
+func TestStartIssueBodyEditor_ReattachWhenSessionExists(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	proj.Terminal = "none" // openEditorTerminal returns an attach hint, no exec.
+
+	issues, err := tracker.LoadIssues(proj.IssueDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var target *tracker.Issue
+	for _, issue := range issues {
+		if issue.Slug == "bug-in-login" {
+			target = issue
+			break
+		}
+	}
+	if target == nil {
+		t.Fatal("test fixture missing bug-in-login")
+	}
+
+	originalBody, err := os.ReadFile(target.FilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedSession := tmuxSessionName(target.Slug) + "-edit"
+	var probedSession string
+	withMockTmuxHasSession(t, func(name string) bool {
+		probedSession = name
+		return true
+	})
+
+	resp, err := startIssueBodyEditor(&proj, target)
+	if err != nil {
+		t.Fatalf("startIssueBodyEditor returned error on reattach: %v", err)
+	}
+	if probedSession != expectedSession {
+		t.Errorf("tmuxHasSession probed %q, want %q", probedSession, expectedSession)
+	}
+	if !resp.Reattached {
+		t.Errorf("response.Reattached = false, want true")
+	}
+	if resp.Status != "reattached" {
+		t.Errorf("response.Status = %q, want reattached", resp.Status)
+	}
+	if resp.Session != expectedSession {
+		t.Errorf("response.Session = %q, want %q", resp.Session, expectedSession)
+	}
+
+	currentBody, err := os.ReadFile(target.FilePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(originalBody, currentBody) {
+		t.Errorf("issue file modified during reattach; before=%q after=%q", originalBody, currentBody)
+	}
+}
+
 func TestHandleEditIssueInNvim_404ForUnknownSlug(t *testing.T) {
 	proj, _ := setupTestProject(t)
 	ts := newTestServer(t, []tracker.Project{proj})

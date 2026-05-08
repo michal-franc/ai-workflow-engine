@@ -13,6 +13,27 @@ The board and detail views can dispatch issues to AI agents (Claude or Codex) vi
 - **Detail view** — two buttons in the sidebar (Claude / Codex)
 - **API** — `POST /p/<project>/issue/<slug>/dispatch` with `{"agent": "claude"}` or `{"agent": "codex"}`
 
+## Re-dispatching to a live session
+
+Dispatching to an issue whose tmux session is still alive does **not** error out and does **not** re-prompt the agent. The handler probes `tmux has-session -t <name>` first; if the session exists it skips `new-session`, all logging/env setup, and the prompt-paste, and just opens a terminal attached to the existing session.
+
+The response in this case is:
+
+```json
+{
+  "status": "reattached",
+  "session": "agent-<slug>",
+  "steps": [
+    {"name": "Existing session — attaching", "status": "reattached"},
+    {"name": "Open terminal", "status": "ok"}
+  ]
+}
+```
+
+The dispatch modal renders this with a yellow warning banner. Kill the existing session manually (`tmux kill-session -t agent-<slug>`) if you want a fresh dispatch with a re-pasted prompt.
+
+The same pattern applies to **Edit in nvim**: re-triggering it while the previous edit session is still alive returns `{"status": "reattached", "reattached": true, ...}` and opens a terminal attached to the existing nvim instance. The reattach request does NOT register a new save-on-exit handler — the original request's goroutine still owns the sync-back when nvim exits.
+
 ## Terminal Configuration
 
 The terminal that opens for the agent session is configurable via the `terminal` field in `projects.yaml`:

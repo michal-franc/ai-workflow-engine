@@ -7,6 +7,16 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='{{urlEncodeColor (statusColor .Issue.Status)}}'/></svg>">
     <link rel="stylesheet" href="/static/style.css">
     <script src="/static/theme.js"></script>
+    <script>
+    (function() {
+        if (localStorage.getItem('sidebar-locked') !== 'false') {
+            document.documentElement.setAttribute('data-sidebar-locked', 'true');
+        }
+        if (localStorage.getItem('sidebar-hidden') === 'true') {
+            document.documentElement.setAttribute('data-sidebar-hidden', 'true');
+        }
+    })();
+    </script>
 </head>
 <body>
     <div class="header">
@@ -40,6 +50,7 @@
                     <button class="body-tab active" id="btn-preview" onclick="showPreview()">Preview</button>
                     <button class="body-tab" id="btn-edit" onclick="showEditor()">Edit</button>
                     <button class="body-toolbar-action" onclick="editInNvim()">Edit in nvim</button>
+                    <button class="body-toolbar-action sidebar-show-btn" onclick="toggleSidebarHide()" title="Show sidebar">Show sidebar</button>
                 </div>
                 <div class="detail-body" id="body-preview">
                     {{if .RenderedBody}}
@@ -91,6 +102,10 @@
             </div>
 
             <div class="detail-sidebar">
+                <div class="sidebar-toolbar">
+                    <button class="sidebar-toolbar-btn" id="sidebar-lock-btn" onclick="toggleSidebarLock()" title="Lock sidebar so it stays visible while body scrolls">Lock</button>
+                    <button class="sidebar-toolbar-btn" id="sidebar-hide-btn" onclick="toggleSidebarHide()" title="Hide sidebar">Hide</button>
+                </div>
                 <div class="sidebar-section">
                     <h3>Status</h3>
                     <div class="sidebar-value">
@@ -277,6 +292,22 @@
 
     <script>
     const issueURL = "{{.Prefix}}/issue/{{.Issue.Slug}}";
+
+    function toggleSidebarLock() {
+        const html = document.documentElement;
+        const next = html.getAttribute('data-sidebar-locked') !== 'true';
+        if (next) html.setAttribute('data-sidebar-locked', 'true');
+        else html.removeAttribute('data-sidebar-locked');
+        localStorage.setItem('sidebar-locked', next);
+    }
+
+    function toggleSidebarHide() {
+        const html = document.documentElement;
+        const next = html.getAttribute('data-sidebar-hidden') !== 'true';
+        if (next) html.setAttribute('data-sidebar-hidden', 'true');
+        else html.removeAttribute('data-sidebar-hidden');
+        localStorage.setItem('sidebar-hidden', next);
+    }
 
     function updateField(el) {
         const field = el.dataset.field;

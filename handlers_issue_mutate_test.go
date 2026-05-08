@@ -601,3 +601,4 @@ func TestHandleCreateIssue_BadJSON(t *testing.T) {
 		t.Fatalf("expected 400, got %d", resp.StatusCode)
 	}
 }
+

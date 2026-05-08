@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -266,15 +267,62 @@ func renderDataTable(prefix, slug string, statuses, tiers []string, entries []tr
 			writeOptions(&b, statuses, e.Status)
 			b.WriteString(`</select></td>`)
 		}
-		b.WriteString(`<td class="data-comment" contenteditable="true" onblur="dataSetComment(this)" title="`)
+		b.WriteString(`<td class="data-comment" contenteditable="true" onblur="dataSetComment(this)" onclick="dataCommentClick(event)" title="`)
 		b.WriteString(template.HTMLEscapeString(e.Comment))
 		b.WriteString(`" data-original="`)
 		b.WriteString(template.HTMLEscapeString(e.Comment))
 		b.WriteString(`">`)
-		b.WriteString(template.HTMLEscapeString(e.Comment))
+		b.WriteString(linkifyComment(e.Comment))
 		b.WriteString(`</td><td class="data-actions"><button class="data-remove-btn" onclick="dataRemove(this)" title="Remove entry">×</button></td></tr>`)
 	}
 	b.WriteString(`</tbody></table></div>`)
+	return b.String()
+}
+
+// commentURLRe matches a URL token at the start of a non-whitespace run:
+// either an explicit http(s) scheme, or a bare host.domain/path form
+// (at least one dot in the host, then a slash, e.g. github.com/owner/repo).
+var commentURLRe = regexp.MustCompile(`^(?:https?://\S+|[A-Za-z0-9][A-Za-z0-9-]*(?:\.[A-Za-z0-9-]+)+/\S*)`)
+
+// linkifyComment escapes a comment string for safe HTML and wraps any URL-ish
+// tokens in <a> tags. Trailing punctuation (.,;:!?)]) is kept outside the link
+// so "see github.com/x/y." doesn't trap the period inside the href.
+func linkifyComment(s string) string {
+	if s == "" {
+		return ""
+	}
+	var b strings.Builder
+	i := 0
+	for i < len(s) {
+		c := s[i]
+		if c == ' ' || c == '\t' || c == '\n' || c == '\r' {
+			b.WriteString(template.HTMLEscapeString(string(c)))
+			i++
+			continue
+		}
+		j := i
+		for j < len(s) && s[j] != ' ' && s[j] != '\t' && s[j] != '\n' && s[j] != '\r' {
+			j++
+		}
+		token := s[i:j]
+		if m := commentURLRe.FindString(token); m != "" {
+			stripped := strings.TrimRight(m, ".,;:!?)]")
+			rest := token[len(stripped):]
+			href := stripped
+			if !strings.HasPrefix(href, "http://") && !strings.HasPrefix(href, "https://") {
+				href = "https://" + href
+			}
+			b.WriteString(`<a href="`)
+			b.WriteString(template.HTMLEscapeString(href))
+			b.WriteString(`" target="_blank" rel="noopener noreferrer">`)
+			b.WriteString(template.HTMLEscapeString(stripped))
+			b.WriteString(`</a>`)
+			b.WriteString(template.HTMLEscapeString(rest))
+		} else {
+			b.WriteString(template.HTMLEscapeString(token))
+		}
+		i = j
+	}
 	return b.String()
 }
 

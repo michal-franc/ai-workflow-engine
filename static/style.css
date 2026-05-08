@@ -522,6 +522,51 @@ a:hover { text-decoration: underline; }
     gap: 16px;
 }
 
+.sidebar-toolbar {
+    display: flex;
+    gap: 6px;
+}
+
+.sidebar-toolbar-btn {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 12px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.sidebar-toolbar-btn:hover {
+    color: var(--text);
+    border-color: var(--accent);
+}
+
+html[data-sidebar-locked="true"] #sidebar-lock-btn {
+    background: var(--bg-tertiary);
+    color: var(--text);
+    border-color: var(--accent);
+}
+
+html[data-sidebar-locked="true"] .detail-sidebar {
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+}
+
+html[data-sidebar-hidden="true"] .detail-layout {
+    grid-template-columns: 1fr;
+}
+
+html[data-sidebar-hidden="true"] .detail-sidebar {
+    display: none;
+}
+
+.sidebar-show-btn { display: none; }
+html[data-sidebar-hidden="true"] .sidebar-show-btn { display: inline-block; }
+
 .sidebar-section {
     background: var(--bg-secondary);
     border: 1px solid var(--border);

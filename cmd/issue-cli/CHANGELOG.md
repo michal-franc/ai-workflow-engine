@@ -16,6 +16,14 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.17.0 — 2026-05-08
+
+- Issue detail page sidebar gains a small toolbar at the top with two toggles:
+  - **Lock** — pins the frontmatter sidebar with `position: sticky` so it stays visible while the body scrolls. Default is on, so long issues no longer scroll the metadata out of view.
+  - **Hide** — collapses the sidebar entirely; the body expands to full width and a "Show sidebar" button appears in the body toolbar to bring it back.
+- Both states persist independently in `localStorage` (`sidebar-locked`, `sidebar-hidden`). An early-load script in `<head>` reads them and sets `data-sidebar-locked` / `data-sidebar-hidden` on `<html>` before paint, so reloads do not flash the wrong layout.
+- A locked sidebar that is taller than the viewport scrolls internally (`max-height: calc(100vh - 48px); overflow-y: auto`) instead of clipping or growing the page.
+
 ## v0.16.0 — 2026-05-07
 
 - Data entries gain a structured **second-axis field** (`tier`) orthogonal to `status`, configurable per-workflow via a parallel `<!-- data tiers=… -->` attribute on the data marker. Examples: ADR review (`🔴 critical` / `🟢 nice`), bug triage (`S1` / `S2` / `S3`), operational (high / medium / low blast-radius). Replaces the `[CRITICAL]` / `[NICE]` description-prefix workaround with a sortable, filterable, validated enum.

@@ -15,4 +15,6 @@ projects-*.yaml
 /.agent-logs/
 /retros/
 /bugs/
-/.klaudiush/
+
+# Per-issue dispatch worktrees
+/.worktrees/

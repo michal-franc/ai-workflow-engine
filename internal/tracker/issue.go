@@ -596,6 +596,23 @@ func UpdateIssueFrontmatter(filePath string, update IssueUpdate) error {
 	})
 }
 
+// RewriteIssueFile replaces the issue file with the given bytes after
+// validating that they parse as a valid issue. The lock is held for the
+// duration of validation + write, and the write is atomic — on any failure
+// the file on disk is unchanged.
+func RewriteIssueFile(filePath string, content []byte) error {
+	if _, err := ParseIssue(filepath.Base(filePath), content); err != nil {
+		return err
+	}
+	return withIssueLock(filePath, func() error {
+		info, err := os.Stat(filePath)
+		if err != nil {
+			return fmt.Errorf("stat %s: %w", filePath, err)
+		}
+		return writeFileAtomically(filePath, content, info.Mode().Perm())
+	})
+}
+
 // ProtectedFrontmatterFields lists keys that SetFrontmatterField refuses to touch
 // because they are managed elsewhere (workflow transitions, claim/start, GitHub sync).
 var ProtectedFrontmatterFields = map[string]bool{

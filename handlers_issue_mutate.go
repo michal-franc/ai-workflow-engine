@@ -247,36 +247,6 @@ func approvalLabel(status string) string {
 	return fmt.Sprintf("Human-approved for %s", status)
 }
 
-// openEditorTerminal opens a terminal window attached to the given tmux
-// session, using project terminal config (or i3+alacritty as backwards-compat
-// fallback). Returns ("", nil) on success, a friendly attach hint when the
-// project is configured headless ("none"), or a wrapped error.
-func openEditorTerminal(proj *tracker.Project, session string) (string, error) {
-	terminal := ""
-	if proj != nil {
-		terminal = proj.Terminal
-	}
-	if terminal == "none" {
-		return fmt.Sprintf("tmux attach -t %s", session), nil
-	}
-	if terminal != "" {
-		termCmd := strings.ReplaceAll(terminal, "{{session}}", session)
-		if err := exec.Command("sh", "-c", termCmd).Run(); err != nil {
-			return "", fmt.Errorf("open terminal: %w", err)
-		}
-		return "", nil
-	}
-	if proj != nil && proj.I3Workspace != "" {
-		if err := exec.Command("i3-msg", "workspace", proj.I3Workspace).Run(); err != nil {
-			return "", fmt.Errorf("switch i3 workspace: %w", err)
-		}
-	}
-	if err := exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -e tmux attach -t %s", session)).Run(); err != nil {
-		return "", fmt.Errorf("open alacritty: %w", err)
-	}
-	return "", nil
-}
-
 func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEditResponse, error) {
 	if issue == nil {
 		return BodyEditResponse{}, fmt.Errorf("issue is required")
@@ -285,64 +255,41 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 	workDir := resolveProjectWorkDir(proj)
 	session := tmuxSessionName(issue.Slug) + "-edit"
 	waitSignal := session + "-done"
-
-	if tmuxHasSession(session) {
-		// A previous edit session is still alive (commonly leaked: the wait-for
-		// goroutine died before nvim exited). Don't try to reuse its temp
-		// body/status files — we don't know them and the previous request owns
-		// the save-on-exit goroutine. Just open a terminal pointed at the
-		// existing session so the user can finish or abandon their edit.
-		attachCmd, err := openEditorTerminal(proj, session)
-		if err != nil {
-			return BodyEditResponse{}, err
-		}
-		msg := "Existing edit session — attached without registering save-on-exit. Finish or kill the existing session before editing again."
-		if attachCmd != "" {
-			msg = fmt.Sprintf("Existing edit session at %q. Attach manually: %s", session, attachCmd)
-		}
-		return BodyEditResponse{
-			Status:     "reattached",
-			Session:    session,
-			Message:    msg,
-			Reattached: true,
-		}, nil
-	}
-
 	baseContent, err := os.ReadFile(issue.FilePath)
 	if err != nil {
 		return BodyEditResponse{}, fmt.Errorf("read issue file: %w", err)
 	}
 	baseHash := sha256.Sum256(baseContent)
 
-	bodyFile, err := os.CreateTemp("", "issue-body-*.md")
+	editFile, err := os.CreateTemp("", "issue-edit-*.md")
 	if err != nil {
-		return BodyEditResponse{}, fmt.Errorf("create temp body file: %w", err)
+		return BodyEditResponse{}, fmt.Errorf("create temp edit file: %w", err)
 	}
-	bodyPath := bodyFile.Name()
-	bodyContent := issue.BodyRaw
-	if bodyContent != "" && !strings.HasSuffix(bodyContent, "\n") {
-		bodyContent += "\n"
+	editPath := editFile.Name()
+	editContent := baseContent
+	if len(editContent) > 0 && editContent[len(editContent)-1] != '\n' {
+		editContent = append(editContent, '\n')
 	}
-	if _, err := bodyFile.WriteString(bodyContent); err != nil {
-		bodyFile.Close()
-		os.Remove(bodyPath)
-		return BodyEditResponse{}, fmt.Errorf("write temp body file: %w", err)
+	if _, err := editFile.Write(editContent); err != nil {
+		editFile.Close()
+		os.Remove(editPath)
+		return BodyEditResponse{}, fmt.Errorf("write temp edit file: %w", err)
 	}
-	if err := bodyFile.Close(); err != nil {
-		os.Remove(bodyPath)
-		return BodyEditResponse{}, fmt.Errorf("close temp body file: %w", err)
+	if err := editFile.Close(); err != nil {
+		os.Remove(editPath)
+		return BodyEditResponse{}, fmt.Errorf("close temp edit file: %w", err)
 	}
 
-	statusFile, err := os.CreateTemp("", "issue-body-edit-status-*.txt")
+	statusFile, err := os.CreateTemp("", "issue-edit-status-*.txt")
 	if err != nil {
-		os.Remove(bodyPath)
+		os.Remove(editPath)
 		return BodyEditResponse{}, fmt.Errorf("create temp status file: %w", err)
 	}
 	statusPath := statusFile.Name()
 	statusFile.Close()
 
 	cleanup := func() {
-		os.Remove(bodyPath)
+		os.Remove(editPath)
 		os.Remove(statusPath)
 	}
 
@@ -361,16 +308,32 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 
 	exec.Command("tmux", "rename-window", "-t", session, issue.Slug).Run()
 
-	if proj != nil && proj.Terminal == "none" {
-		return BodyEditResponse{}, fmt.Errorf("terminal is 'none': attach manually with: tmux attach -t %s", session)
+	terminal := ""
+	if proj != nil {
+		terminal = proj.Terminal
 	}
-	if _, err := openEditorTerminal(proj, session); err != nil {
-		return BodyEditResponse{}, err
+	if terminal == "none" {
+		return BodyEditResponse{}, fmt.Errorf("terminal is 'none': attach manually with: tmux attach -t %s", session)
+	} else if terminal != "" {
+		termCmd := strings.ReplaceAll(terminal, "{{session}}", session)
+		if err := exec.Command("sh", "-c", termCmd).Run(); err != nil {
+			return BodyEditResponse{}, fmt.Errorf("open terminal: %w", err)
+		}
+	} else {
+		// Backwards compat: i3 + alacritty
+		if proj != nil && proj.I3Workspace != "" {
+			if err := exec.Command("i3-msg", "workspace", proj.I3Workspace).Run(); err != nil {
+				return BodyEditResponse{}, fmt.Errorf("switch i3 workspace: %w", err)
+			}
+		}
+		if err := exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -e tmux attach -t %s", session)).Run(); err != nil {
+			return BodyEditResponse{}, fmt.Errorf("open alacritty: %w", err)
+		}
 	}
 
 	time.Sleep(500 * time.Millisecond)
 
-	editCmd := fmt.Sprintf("nvim %q; code=$?; printf '%%s' \"$code\" > %q; tmux wait-for -S %q; exit $code", bodyPath, statusPath, waitSignal)
+	editCmd := fmt.Sprintf("nvim %q; code=$?; printf '%%s' \"$code\" > %q; tmux wait-for -S %q; exit $code", editPath, statusPath, waitSignal)
 	if err := exec.Command("tmux", "send-keys", "-t", session, editCmd, "Enter").Run(); err != nil {
 		return BodyEditResponse{}, fmt.Errorf("start nvim: %w", err)
 	}
@@ -391,27 +354,42 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 			return
 		}
 
-		updatedBody, err := os.ReadFile(bodyPath)
+		updatedBytes, err := os.ReadFile(editPath)
 		if err != nil {
 			return
 		}
-		updated := strings.TrimRight(string(updatedBody), "\n")
+
+		if _, err := tracker.ParseIssue(filepath.Base(issueFilePath), updatedBytes); err != nil {
+			recordEditFailure(issueFilePath, fmt.Sprintf("invalid issue file: %v", err))
+			return
+		}
+
 		currentContent, err := os.ReadFile(issueFilePath)
 		if err != nil {
 			return
 		}
 		if sha256.Sum256(currentContent) != baseHash {
+			recordEditFailure(issueFilePath, "issue file changed during nvim edit; nvim changes discarded")
 			return
 		}
-		_ = tracker.UpdateIssueFrontmatter(issueFilePath, tracker.IssueUpdate{Body: &updated})
+
+		if err := tracker.RewriteIssueFile(issueFilePath, updatedBytes); err != nil {
+			recordEditFailure(issueFilePath, fmt.Sprintf("write failed: %v", err))
+		}
 	}()
 
 	sessionReady = true
 	return BodyEditResponse{
 		Status:  "launched",
 		Session: session,
-		Message: "Opened in nvim. The issue body will sync back after the editor exits.",
+		Message: "Opened in nvim. The issue file will sync back after the editor exits.",
 	}, nil
+}
+
+// recordEditFailure leaves a comment on the issue describing why a nvim edit
+// was discarded so the user discovers the failure on next page load.
+func recordEditFailure(filePath, msg string) {
+	_ = tracker.AddComment(filePath, 0, "edit-in-nvim aborted: "+msg, "edit-in-nvim")
 }
 
 func (s *Server) handleEditIssueInNvim(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {

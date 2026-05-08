@@ -31,6 +31,16 @@
 #       statuses:
 #         - name: "in design"
 #           prompt: "Document workflow-specific transition, template, and compatibility changes."
+#
+# Optional top-level fields:
+#   worktree: true|false
+#     Whether the dispatch handler creates a per-issue git worktree at
+#     <workdir>/.worktrees/<slug> on branch work/<slug> before launching the
+#     agent session. Defaults to false when absent — projects opt in by
+#     setting worktree:true. Recommended for projects that dispatch
+#     concurrent agents on different issues; safe to leave off for small or
+#     single-file projects. Cleanup is the human's responsibility — agents
+#     do not remove worktrees.
 
 statuses:
   - name: "idea"

@@ -16,9 +16,27 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
-## v0.19.0 — 2026-05-08
+## v0.20.0 — 2026-05-08
 
-- Agent dispatch and "Edit in nvim" no longer fail with a `duplicate session` error when a tmux session of the target name is still alive. Both flows now probe `tmux has-session` first; on a hit they skip `new-session` plus all setup and just open a terminal attached to the existing session. The dispatch response carries `status: "reattached"` (with a single matching step); the edit response adds `reattached: true`. The web UI renders both as a yellow warning banner/toast, distinct from the regular success and error styling. The agent is not re-prompted and the body editor does not register a duplicate save-on-exit goroutine. Kill the session manually if you want a fresh dispatch.
+- *Edit in nvim* on the issue detail page now opens the **whole markdown file** (frontmatter + body) instead of only the body. Keyboard-driven users can edit metadata — labels, priority, version, status, custom fields, anything — without leaving the editor; on save the file is parse-validated and written back atomically.
+- New `tracker.RewriteIssueFile(filePath, content)` next to `UpdateIssueFrontmatter` validates parseability via `ParseIssue`, holds `withIssueLock`, and writes via `writeFileAtomically`. The user's exact byte sequence is preserved — comment placement, key order, and blank lines all survive.
+- Failed nvim edits surface as comments on the issue with source `edit-in-nvim` (e.g. `edit-in-nvim aborted: invalid issue file: ...`) instead of failing silently. The frontend is unchanged; users discover failures on next page reload via the existing comments timeline.
+- Trust model: nvim is treated as a power-user free-form editor — every frontmatter field is editable, including workflow-managed ones. Users who want guarded edits should keep using the sidebar UI or `issue-cli set-meta` (which still enforces `ProtectedFrontmatterFields`).
+- The existing `baseHash` race check is unchanged — concurrent sidebar saves still cause the nvim write to lose. No new locking mechanism.
+- See `docs/API/overview.md` (new "Edit in nvim" section) for the save-path contract.
+- Resolves api/edit-in-nvim-should-include-frontmatter.
+
+## v0.18.0 — 2026-05-08
+
+- Per-issue git worktrees on dispatch. New optional top-level `worktree` field in `workflow.yaml` controls whether the dispatch handler creates an isolated working tree before launching the agent's tmux session.
+  - Default is `false` (opt-in): existing projects keep their current dispatch behaviour unless they explicitly set `worktree: true`.
+  - When enabled, dispatch creates branch `work/<issue-slug>` and worktree `<workdir>/.worktrees/<issue-slug>` (gitignored), opens the tmux session with `cwd` inside the worktree, and appends a `## Worktree` block to the agent prompt naming the path/branch and noting that cleanup is the human's job.
+  - Re-dispatch on the same issue reuses the existing worktree directory instead of erroring on duplicate-branch.
+  - Failure (dirty tree, branch already exists, etc.) surfaces an error step in the dispatch response and aborts — no silent fallback to the primary checkout.
+  - Dispatches without an issue slug (retros review) never create a worktree regardless of the toggle.
+- Issue-viewer's own `workflow.yaml` opts in (`worktree: true`) so concurrent agent sessions on this repo land in separate working trees. The `shipping` checklist gains a worktree-cleanup reminder.
+- `docs/Workflow/overview.md` documents the toggle, conventions, and cleanup contract; `workflow.yaml.example` documents the field in its header comment.
+- Resolves workflow/workflow-promote-git-worktree-by-default-before-work-starts.
 
 ## v0.17.0 — 2026-05-08
 

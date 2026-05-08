@@ -124,6 +124,12 @@ type WorkflowConfig struct {
 	// transition with a command_succeeds rule fails at validate time.
 	AllowShell bool `yaml:"allow_shell,omitempty" desc:"Permit command_succeeds validators to run shell commands (default false)"`
 
+	// Worktree controls whether the dispatch handler creates a git worktree
+	// for each issue before starting the agent session. Defaults to false when
+	// absent — projects opt in by setting worktree:true. Off-by-default keeps
+	// behaviour unchanged for projects that haven't reviewed the new feature.
+	Worktree *bool `yaml:"worktree,omitempty" desc:"Create a per-issue git worktree on dispatch (default false; opt in with worktree:true)"`
+
 	// Runtime-only fields, populated by callers (server, CLI) after load.
 	// LookupIssue resolves another issue by slug for linked_issue_in_status;
 	// IssuesRoot is the working directory used by command_succeeds.
@@ -132,6 +138,17 @@ type WorkflowConfig struct {
 }
 
 var defaultBoardCardFields = []string{"system", "labels"}
+
+// WorktreeEnabled reports whether the dispatch handler should create a
+// per-issue git worktree. Default is false when the field is absent so
+// projects that haven't reviewed the feature keep their existing dispatch
+// behaviour; projects opt in with worktree:true.
+func (w *WorkflowConfig) WorktreeEnabled() bool {
+	if w == nil || w.Worktree == nil {
+		return false
+	}
+	return *w.Worktree
+}
 
 func (w *WorkflowConfig) GetBoardCardFields() []string {
 	if len(w.Board.CardFields) > 0 {

@@ -439,6 +439,13 @@
         }).then(res => dataTableToast(res.ok, res.ok ? 'Tier updated' : 'Failed'));
     }
 
+    function dataCommentClick(e) {
+        const a = e.target.closest('a');
+        if (!a) return;
+        e.preventDefault();
+        window.open(a.href, '_blank', 'noopener');
+    }
+
     function dataSetComment(cellEl) {
         const id = dataRowID(cellEl);
         if (!id) return;

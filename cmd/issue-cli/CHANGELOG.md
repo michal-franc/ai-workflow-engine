@@ -16,7 +16,7 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
-## v0.19.0 — 2026-05-08
+## v0.20.0 — 2026-05-08
 
 - *Edit in nvim* on the issue detail page now opens the **whole markdown file** (frontmatter + body) instead of only the body. Keyboard-driven users can edit metadata — labels, priority, version, status, custom fields, anything — without leaving the editor; on save the file is parse-validated and written back atomically.
 - New `tracker.RewriteIssueFile(filePath, content)` next to `UpdateIssueFrontmatter` validates parseability via `ParseIssue`, holds `withIssueLock`, and writes via `writeFileAtomically`. The user's exact byte sequence is preserved — comment placement, key order, and blank lines all survive.

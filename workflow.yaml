@@ -1,3 +1,7 @@
+# Issue-viewer dispatches concurrent agents on different issues, so each
+# session needs its own working tree to avoid stomping on uncommitted state.
+worktree: true
+
 board:
   columns:
     - idea
@@ -178,6 +182,7 @@ transitions:
           - [ ] PR opened if applicable
           - [ ] Release tag created and pushed (triggers release-marker workflow)
           - [ ] GitHub release description reviewed and updated with human-polished notes
+          - [ ] Worktree merged and removed by human after merge (`git worktree remove .worktrees/<slug>`)
   - from: "shipping"
     to: "done"
     actions:

@@ -138,7 +138,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 			if briefedStatus != "" {
 				issueCopy.Status = briefedStatus
 			}
-			basePrompt = buildAgentPrompt(proj, &issueCopy, wf)
+			basePrompt = buildAgentPrompt(proj, &issueCopy, wf, "", "")
 			summary = "dispatch — base prompt (reconstructed)"
 		}
 		dispatchEv := DispatchEvent(basePrompt, timeline[0].Timestamp)

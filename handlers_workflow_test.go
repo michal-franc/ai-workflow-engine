@@ -206,7 +206,7 @@ Needs triage.
 	var gotIssueSlug string
 	var gotAgent string
 	origDispatch := dispatchAgentSession
-	dispatchAgentSession = func(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string, viewerURL string) DispatchResponse {
+	dispatchAgentSession = func(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string, viewerURL string, wf *tracker.WorkflowConfig) DispatchResponse {
 		gotPrompt = prompt
 		gotSession = session
 		gotIssueSlug = issueSlug
@@ -267,7 +267,7 @@ func TestBuildAgentPrompt_IncludesCurrentStatusGuidanceAndRetrospectiveTrigger(t
 		},
 	}
 
-	prompt := buildAgentPrompt(nil, issue, wf)
+	prompt := buildAgentPrompt(nil, issue, wf, "", "")
 
 	for _, want := range []string{
 		"## Current status guidance",
@@ -303,7 +303,7 @@ func TestBuildAgentPrompt_InjectsProjectFlagForMultiProjectDispatch(t *testing.T
 		System:  "CLI",
 		BodyRaw: "body",
 	}
-	prompt := buildAgentPrompt(proj, issue, &tracker.WorkflowConfig{})
+	prompt := buildAgentPrompt(proj, issue, &tracker.WorkflowConfig{}, "", "")
 
 	for _, want := range []string{
 		"issue-cli --project cli process workflow",

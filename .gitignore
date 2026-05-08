@@ -16,3 +16,6 @@ projects-*.yaml
 /retros/
 /bugs/
 /.klaudiush/
+
+# Per-issue dispatch worktrees
+/.worktrees/

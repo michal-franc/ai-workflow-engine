@@ -20,6 +20,18 @@ Entries are newest-first. Each entry has the form:
 
 - Agent dispatch and "Edit in nvim" no longer fail with a `duplicate session` error when a tmux session of the target name is still alive. Both flows now probe `tmux has-session` first; on a hit they skip `new-session` plus all setup and just open a terminal attached to the existing session. The dispatch response carries `status: "reattached"` (with a single matching step); the edit response adds `reattached: true`. The web UI renders both as a yellow warning banner/toast, distinct from the regular success and error styling. The agent is not re-prompted and the body editor does not register a duplicate save-on-exit goroutine. Kill the session manually if you want a fresh dispatch.
 
+## v0.18.0 — 2026-05-08
+
+- Per-issue git worktrees on dispatch. New optional top-level `worktree` field in `workflow.yaml` controls whether the dispatch handler creates an isolated working tree before launching the agent's tmux session.
+  - Default is `false` (opt-in): existing projects keep their current dispatch behaviour unless they explicitly set `worktree: true`.
+  - When enabled, dispatch creates branch `work/<issue-slug>` and worktree `<workdir>/.worktrees/<issue-slug>` (gitignored), opens the tmux session with `cwd` inside the worktree, and appends a `## Worktree` block to the agent prompt naming the path/branch and noting that cleanup is the human's job.
+  - Re-dispatch on the same issue reuses the existing worktree directory instead of erroring on duplicate-branch.
+  - Failure (dirty tree, branch already exists, etc.) surfaces an error step in the dispatch response and aborts — no silent fallback to the primary checkout.
+  - Dispatches without an issue slug (retros review) never create a worktree regardless of the toggle.
+- Issue-viewer's own `workflow.yaml` opts in (`worktree: true`) so concurrent agent sessions on this repo land in separate working trees. The `shipping` checklist gains a worktree-cleanup reminder.
+- `docs/Workflow/overview.md` documents the toggle, conventions, and cleanup contract; `workflow.yaml.example` documents the field in its header comment.
+- Resolves workflow/workflow-promote-git-worktree-by-default-before-work-starts.
+
 ## v0.17.0 — 2026-05-08
 
 - Issue detail page sidebar gains a small toolbar at the top with two toggles:

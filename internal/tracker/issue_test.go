@@ -1408,3 +1408,132 @@ func TestHasCommentWithPrefix(t *testing.T) {
 		}
 	}
 }
+
+func TestRewriteIssueFile_PreservesBytesExactly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issue.md")
+	original := []byte(`---
+title: "Original"
+status: "idea"
+# a comment that yaml round-trip would drop
+priority: "high"
+---
+
+Original body.
+`)
+	if err := os.WriteFile(path, original, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	rewritten := []byte(`---
+title: "Edited"
+status: "idea"
+# a comment that yaml round-trip would drop
+priority: "low"
+labels:
+  - bug
+custom_field: "added"
+---
+
+New body content.
+`)
+	if err := RewriteIssueFile(path, rewritten); err != nil {
+		t.Fatalf("RewriteIssueFile: %v", err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(rewritten) {
+		t.Errorf("file bytes differ from input\nwant:\n%s\ngot:\n%s", rewritten, got)
+	}
+}
+
+func TestRewriteIssueFile_RejectsInvalidYAML(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issue.md")
+	original := []byte(`---
+title: "Original"
+status: "idea"
+---
+
+Body.
+`)
+	if err := os.WriteFile(path, original, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	bad := []byte(`---
+title: "Broken
+status: [unterminated
+---
+
+Body.
+`)
+	if err := RewriteIssueFile(path, bad); err == nil {
+		t.Fatal("expected error for invalid YAML, got nil")
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(original) {
+		t.Errorf("file changed despite validation error\nwant:\n%s\ngot:\n%s", original, got)
+	}
+}
+
+func TestRewriteIssueFile_RejectsMissingFrontmatter(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issue.md")
+	original := []byte("---\ntitle: \"Original\"\n---\n\nBody.\n")
+	if err := os.WriteFile(path, original, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RewriteIssueFile(path, []byte("just a body, no frontmatter\n")); err == nil {
+		t.Fatal("expected error for content without frontmatter, got nil")
+	}
+
+	got, _ := os.ReadFile(path)
+	if string(got) != string(original) {
+		t.Error("file should be unchanged when content has no frontmatter")
+	}
+}
+
+func TestRewriteIssueFile_HoldsLockSerially(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "issue.md")
+	original := []byte("---\ntitle: \"Original\"\n---\n\nBody.\n")
+	if err := os.WriteFile(path, original, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	const writers = 8
+	var wg sync.WaitGroup
+	wg.Add(writers)
+	for i := 0; i < writers; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			content := []byte("---\ntitle: \"Writer " + string(rune('A'+i)) + "\"\n---\n\nBody.\n")
+			if err := RewriteIssueFile(path, content); err != nil {
+				t.Errorf("writer %d: %v", i, err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	issue, err := ParseIssue("issue.md", got)
+	if err != nil {
+		t.Fatalf("final file does not parse: %v\ncontent:\n%s", err, got)
+	}
+	if !strings.HasPrefix(issue.Title, "Writer ") {
+		t.Errorf("final title %q is not from any writer — possible torn write", issue.Title)
+	}
+}

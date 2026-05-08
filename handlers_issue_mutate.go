@@ -261,35 +261,35 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 	}
 	baseHash := sha256.Sum256(baseContent)
 
-	bodyFile, err := os.CreateTemp("", "issue-body-*.md")
+	editFile, err := os.CreateTemp("", "issue-edit-*.md")
 	if err != nil {
-		return BodyEditResponse{}, fmt.Errorf("create temp body file: %w", err)
+		return BodyEditResponse{}, fmt.Errorf("create temp edit file: %w", err)
 	}
-	bodyPath := bodyFile.Name()
-	bodyContent := issue.BodyRaw
-	if bodyContent != "" && !strings.HasSuffix(bodyContent, "\n") {
-		bodyContent += "\n"
+	editPath := editFile.Name()
+	editContent := baseContent
+	if len(editContent) > 0 && editContent[len(editContent)-1] != '\n' {
+		editContent = append(editContent, '\n')
 	}
-	if _, err := bodyFile.WriteString(bodyContent); err != nil {
-		bodyFile.Close()
-		os.Remove(bodyPath)
-		return BodyEditResponse{}, fmt.Errorf("write temp body file: %w", err)
+	if _, err := editFile.Write(editContent); err != nil {
+		editFile.Close()
+		os.Remove(editPath)
+		return BodyEditResponse{}, fmt.Errorf("write temp edit file: %w", err)
 	}
-	if err := bodyFile.Close(); err != nil {
-		os.Remove(bodyPath)
-		return BodyEditResponse{}, fmt.Errorf("close temp body file: %w", err)
+	if err := editFile.Close(); err != nil {
+		os.Remove(editPath)
+		return BodyEditResponse{}, fmt.Errorf("close temp edit file: %w", err)
 	}
 
-	statusFile, err := os.CreateTemp("", "issue-body-edit-status-*.txt")
+	statusFile, err := os.CreateTemp("", "issue-edit-status-*.txt")
 	if err != nil {
-		os.Remove(bodyPath)
+		os.Remove(editPath)
 		return BodyEditResponse{}, fmt.Errorf("create temp status file: %w", err)
 	}
 	statusPath := statusFile.Name()
 	statusFile.Close()
 
 	cleanup := func() {
-		os.Remove(bodyPath)
+		os.Remove(editPath)
 		os.Remove(statusPath)
 	}
 
@@ -333,7 +333,7 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 
 	time.Sleep(500 * time.Millisecond)
 
-	editCmd := fmt.Sprintf("nvim %q; code=$?; printf '%%s' \"$code\" > %q; tmux wait-for -S %q; exit $code", bodyPath, statusPath, waitSignal)
+	editCmd := fmt.Sprintf("nvim %q; code=$?; printf '%%s' \"$code\" > %q; tmux wait-for -S %q; exit $code", editPath, statusPath, waitSignal)
 	if err := exec.Command("tmux", "send-keys", "-t", session, editCmd, "Enter").Run(); err != nil {
 		return BodyEditResponse{}, fmt.Errorf("start nvim: %w", err)
 	}
@@ -354,27 +354,42 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 			return
 		}
 
-		updatedBody, err := os.ReadFile(bodyPath)
+		updatedBytes, err := os.ReadFile(editPath)
 		if err != nil {
 			return
 		}
-		updated := strings.TrimRight(string(updatedBody), "\n")
+
+		if _, err := tracker.ParseIssue(filepath.Base(issueFilePath), updatedBytes); err != nil {
+			recordEditFailure(issueFilePath, fmt.Sprintf("invalid issue file: %v", err))
+			return
+		}
+
 		currentContent, err := os.ReadFile(issueFilePath)
 		if err != nil {
 			return
 		}
 		if sha256.Sum256(currentContent) != baseHash {
+			recordEditFailure(issueFilePath, "issue file changed during nvim edit; nvim changes discarded")
 			return
 		}
-		_ = tracker.UpdateIssueFrontmatter(issueFilePath, tracker.IssueUpdate{Body: &updated})
+
+		if err := tracker.RewriteIssueFile(issueFilePath, updatedBytes); err != nil {
+			recordEditFailure(issueFilePath, fmt.Sprintf("write failed: %v", err))
+		}
 	}()
 
 	sessionReady = true
 	return BodyEditResponse{
 		Status:  "launched",
 		Session: session,
-		Message: "Opened in nvim. The issue body will sync back after the editor exits.",
+		Message: "Opened in nvim. The issue file will sync back after the editor exits.",
 	}, nil
+}
+
+// recordEditFailure leaves a comment on the issue describing why a nvim edit
+// was discarded so the user discovers the failure on next page load.
+func recordEditFailure(filePath, msg string) {
+	_ = tracker.AddComment(filePath, 0, "edit-in-nvim aborted: "+msg, "edit-in-nvim")
 }
 
 func (s *Server) handleEditIssueInNvim(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {

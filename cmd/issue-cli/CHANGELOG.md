@@ -16,6 +16,16 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.20.0 — 2026-05-08
+
+- *Edit in nvim* on the issue detail page now opens the **whole markdown file** (frontmatter + body) instead of only the body. Keyboard-driven users can edit metadata — labels, priority, version, status, custom fields, anything — without leaving the editor; on save the file is parse-validated and written back atomically.
+- New `tracker.RewriteIssueFile(filePath, content)` next to `UpdateIssueFrontmatter` validates parseability via `ParseIssue`, holds `withIssueLock`, and writes via `writeFileAtomically`. The user's exact byte sequence is preserved — comment placement, key order, and blank lines all survive.
+- Failed nvim edits surface as comments on the issue with source `edit-in-nvim` (e.g. `edit-in-nvim aborted: invalid issue file: ...`) instead of failing silently. The frontend is unchanged; users discover failures on next page reload via the existing comments timeline.
+- Trust model: nvim is treated as a power-user free-form editor — every frontmatter field is editable, including workflow-managed ones. Users who want guarded edits should keep using the sidebar UI or `issue-cli set-meta` (which still enforces `ProtectedFrontmatterFields`).
+- The existing `baseHash` race check is unchanged — concurrent sidebar saves still cause the nvim write to lose. No new locking mechanism.
+- See `docs/API/overview.md` (new "Edit in nvim" section) for the save-path contract.
+- Resolves api/edit-in-nvim-should-include-frontmatter.
+
 ## v0.18.0 — 2026-05-08
 
 - Per-issue git worktrees on dispatch. New optional top-level `worktree` field in `workflow.yaml` controls whether the dispatch handler creates an isolated working tree before launching the agent's tmux session.

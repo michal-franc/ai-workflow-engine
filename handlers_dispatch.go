@@ -13,7 +13,7 @@ import (
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
-func buildAgentPrompt(proj *tracker.Project, issue *tracker.Issue, wf *tracker.WorkflowConfig) string {
+func buildAgentPrompt(proj *tracker.Project, issue *tracker.Issue, wf *tracker.WorkflowConfig, worktreePath, worktreeBranch string) string {
 	currentPrompt := "Use issue-cli to inspect the current workflow requirements for this status before making changes."
 	if wf != nil {
 		if prompt := wf.StatusPrompt(issue.Status); strings.TrimSpace(prompt) != "" {
@@ -49,7 +49,59 @@ func buildAgentPrompt(proj *tracker.Project, issue *tracker.Issue, wf *tracker.W
 	if proj != nil && proj.Slug != "" {
 		prompt = strings.ReplaceAll(prompt, "issue-cli ", "issue-cli --project "+proj.Slug+" ")
 	}
+
+	if worktreePath != "" {
+		prompt += fmt.Sprintf(`
+
+## Worktree
+
+You are already in an isolated git worktree at %s on branch %s.
+- Make commits on %s. Do not switch back to the primary checkout.
+- The human handles cleanup (merging the branch and running git worktree remove) after the issue is shipped — you do not need to remove the worktree yourself.
+`, worktreePath, worktreeBranch, worktreeBranch)
+	}
 	return prompt
+}
+
+// resolveWorktree returns the worktree path, branch name, and whether the
+// dispatch should create one. Pure: no side effects, safe to call before
+// deciding whether to actually run git.
+func resolveWorktree(workdir, slug string, wf *tracker.WorkflowConfig) (path, branch string, enabled bool) {
+	if wf == nil || !wf.WorktreeEnabled() || strings.TrimSpace(slug) == "" || strings.TrimSpace(workdir) == "" {
+		return "", "", false
+	}
+	return filepath.Join(workdir, ".worktrees", slug), "work/" + slug, true
+}
+
+// runGitWorktreeAdd is the seam for tests to stub the actual git invocation.
+var runGitWorktreeAdd = func(workdir, branch, wtPath string) ([]byte, error) {
+	return exec.Command("git", "-C", workdir, "worktree", "add", "-b", branch, wtPath).CombinedOutput()
+}
+
+// ensureWorktree creates the per-issue worktree if needed and returns the
+// effective working directory for the dispatched session. Returns ok=false
+// only when worktree is enabled and creation fails — disabled or no-slug
+// callers get ok=true with a nil step and the original workdir.
+func ensureWorktree(workdir, slug string, wf *tracker.WorkflowConfig) (string, *DispatchStep, bool) {
+	wtPath, branch, enabled := resolveWorktree(workdir, slug, wf)
+	if !enabled {
+		return workdir, nil, true
+	}
+	if _, err := os.Stat(wtPath); err == nil {
+		return wtPath, &DispatchStep{Name: fmt.Sprintf("Reuse worktree %s on %s", wtPath, branch), Status: "ok"}, true
+	}
+	if out, err := runGitWorktreeAdd(workdir, branch, wtPath); err != nil {
+		detail := strings.TrimSpace(string(out))
+		if detail == "" {
+			detail = err.Error()
+		}
+		return workdir, &DispatchStep{
+			Name:   fmt.Sprintf("git worktree add %s on %s", wtPath, branch),
+			Status: "error",
+			Detail: detail,
+		}, false
+	}
+	return wtPath, &DispatchStep{Name: fmt.Sprintf("Created worktree %s on %s", wtPath, branch), Status: "ok"}, true
 }
 
 type DispatchStep struct {
@@ -143,8 +195,23 @@ func openTerminalStep(proj *tracker.Project, session string, steps *[]DispatchSt
 		exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -e tmux attach -t %s", session)))
 }
 
-func startAgentSession(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string, viewerURL string) DispatchResponse {
+func startAgentSession(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string, viewerURL string, wf *tracker.WorkflowConfig) DispatchResponse {
 	workDir := resolveProjectWorkDir(proj)
+
+	// Create / reuse a per-issue git worktree before opening the tmux session
+	// so the agent lands in an isolated working tree. Concurrent issues then
+	// cannot stomp on each other's uncommitted state. On failure we abort:
+	// silently falling back to the primary checkout would defeat the safety
+	// guarantee.
+	newDir, worktreeStep, worktreeOK := ensureWorktree(workDir, issueSlug, wf)
+	if !worktreeOK {
+		steps := []DispatchStep{}
+		if worktreeStep != nil {
+			steps = append(steps, *worktreeStep)
+		}
+		return DispatchResponse{Status: "error", Prompt: prompt, Session: session, Steps: steps}
+	}
+	workDir = newDir
 
 	promptFile, err := os.CreateTemp("", "agent-prompt-*.txt")
 	if err != nil {
@@ -162,6 +229,9 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 	}
 
 	steps := []DispatchStep{}
+	if worktreeStep != nil {
+		steps = append(steps, *worktreeStep)
+	}
 	sessionLogDir := filepath.Join(workDir, ".agent-logs", session)
 	rawLog := filepath.Join(sessionLogDir, "rawlog")
 	cliLog := filepath.Join(sessionLogDir, session+".clilog")
@@ -344,7 +414,7 @@ func (s *Server) handleRetrosReviewDispatch(w http.ResponseWriter, r *http.Reque
 
 	prompt := buildRetrosReviewPrompt(proj, retros, bugs)
 	session := tmuxSessionName(proj.Slug + "-retros-review")
-	resp := dispatchAgentSession(proj, session, prompt, "", agentType, viewerURLFromRequest(r))
+	resp := dispatchAgentSession(proj, session, prompt, "", agentType, viewerURLFromRequest(r), nil)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -370,9 +440,10 @@ func (s *Server) handleDispatchAgent(w http.ResponseWriter, r *http.Request, pro
 	}
 
 	wf := proj.LoadWorkflowForIssue(issue)
-	prompt := buildAgentPrompt(proj, issue, wf)
+	wtPath, wtBranch, _ := resolveWorktree(resolveProjectWorkDir(proj), issue.Slug, wf)
+	prompt := buildAgentPrompt(proj, issue, wf, wtPath, wtBranch)
 	session := tmuxSessionName(slug)
-	resp := dispatchAgentSession(proj, session, prompt, issue.Slug, agentType, viewerURLFromRequest(r))
+	resp := dispatchAgentSession(proj, session, prompt, issue.Slug, agentType, viewerURLFromRequest(r), wf)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }

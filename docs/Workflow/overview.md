@@ -150,6 +150,30 @@ Statuses support `side_effects` that run automatically after a transition:
   side_effects: [clear_assignee]
 ```
 
+## Per-Issue Worktrees
+
+The dispatch handler creates a per-issue git worktree before launching the agent's tmux session, so concurrent issues cannot stomp on each other's uncommitted state.
+
+Top-level toggle in `workflow.yaml`:
+
+```yaml
+worktree: true   # opt in
+```
+
+Defaults to `false` when absent — projects keep their existing dispatch behaviour until they explicitly opt in. Recommended for projects that dispatch concurrent agents on different issues at the same time.
+
+Behavior when enabled:
+
+- Branch: `work/<issue-slug>` (created off the project workdir's current HEAD)
+- Path: `<project.workdir>/.worktrees/<issue-slug>` (gitignored)
+- Re-dispatch on the same issue reuses the existing worktree directory rather than re-running `git worktree add`.
+- The dispatched tmux session opens with `cwd` set to the worktree path, and the agent's prompt includes a worktree-aware section pointing at the path and branch.
+- Cleanup is the human's responsibility: the `shipping` checklist contains a reminder to merge `work/<slug>` and run `git worktree remove .worktrees/<slug>`. Agents do not remove worktrees themselves — that would risk discarding uncommitted state.
+
+If `git worktree add` fails (dirty tree, branch already exists outside the worktrees dir, etc.), the dispatch surfaces an error step and aborts rather than silently falling back to the primary checkout.
+
+Dispatches without an issue slug (retros review, project-wide commands) never create a worktree regardless of the toggle.
+
 ## System Overlays
 
 System-specific overrides are defined under the `systems:` key. They merge with the base workflow — overriding status prompts and appending transition actions for that system:

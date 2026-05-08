@@ -700,9 +700,17 @@
             promptEl.textContent = data.prompt;
 
             var html = '';
+            if (data.status === 'reattached') {
+                html += '<div class="dispatch-banner reattached">'
+                    + 'Existing tmux session — attached without re-prompting the agent. '
+                    + 'Kill the session manually if you want a fresh dispatch.'
+                    + '</div>';
+            }
             data.steps.forEach(function(step) {
-                var icon = step.status === 'ok' ? '&#10003;' : '&#10007;';
-                var cls = step.status === 'ok' ? 'ok' : 'error';
+                var icon, cls;
+                if (step.status === 'ok') { icon = '&#10003;'; cls = 'ok'; }
+                else if (step.status === 'reattached') { icon = '&#8634;'; cls = 'reattached'; }
+                else { icon = '&#10007;'; cls = 'error'; }
                 html += '<div class="dispatch-step ' + cls + '">'
                     + '<span class="dispatch-step-icon">' + icon + '</span> '
                     + step.name

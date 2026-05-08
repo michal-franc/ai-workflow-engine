@@ -15,3 +15,4 @@ projects-*.yaml
 /.agent-logs/
 /retros/
 /bugs/
+/.klaudiush/

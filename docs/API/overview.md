@@ -12,7 +12,7 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 - `routes.go` — `Server` struct, `NewServer`, `Routes`, `handleProjectRoutes` dispatcher, project list page
 - `template_funcs.go` — `funcMap`, `statusColor`/`priorityColor`/`assigneeColor`, `linkIssueRefs`, status ordering helpers
 - `helpers.go` — `projectRoot`, `fileExists`, `workflowFileTarget`, `resolveProjectWorkDir`, `valueOrDash`, `trimSnippet`
-- `tmux.go` — agent session listing (`listTmuxSessions`), matching (`sessionMatchesIssue`), notification (`tmuxSendKeys`)
+- `tmux.go` — agent session listing (`listTmuxSessions`), matching (`sessionMatchesIssue`), notification (`tmuxSendKeys`), existence probe (`tmuxHasSession`)
 - `handlers_list.go` — list view, filters, `IssueView`, `attachScores`, `/hash` polling, `/issues.json`
 - `handlers_board.go` — board and graph views
 - `handlers_detail.go` — detail page, `renderBodyWithDataTable`, `renderDataTable`, transition preview, `findIssueBySlug`
@@ -41,6 +41,7 @@ When working on API changes:
 - Server-side polling uses the `/hash` endpoint for cache invalidation — check whether your change affects the hash
 - Changes to issue update endpoints must preserve the atomic write + file lock pattern in `issue.go`
 - JSON responses should include a `status` field for consistency
+- Tmux-backed flows (`startAgentSession`, `startIssueBodyEditor`) probe `tmuxHasSession` before `tmux new-session`. When a session with the target name already exists they skip setup (no re-prompt of the agent, no nvim relaunch, no save-on-exit goroutine) and just open a terminal attached to the existing session. The `/dispatch` response uses `status: "reattached"` with a single step of the same status; `edit-in-nvim` adds `reattached: true`. The UI renders both as a yellow warning banner/toast distinct from the normal success/error styling.
 
 ## Endpoints
 

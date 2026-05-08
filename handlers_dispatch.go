@@ -174,6 +174,22 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 		Steps:   steps,
 	}
 
+	if tmuxHasSession(session) {
+		// A session with this name already exists — most often the same agent is
+		// still running. Re-running new-session/send-keys would clobber whatever
+		// the agent is doing and re-paste the prompt, so skip all setup and just
+		// open a terminal attached to the existing session.
+		os.Remove(promptPath)
+		steps = append(steps, DispatchStep{Name: "Existing session — attaching", Status: "reattached"})
+		response.Status = "reattached"
+		openTerminalStep(proj, session, &steps)
+		if proj != nil && proj.Terminal == "none" {
+			response.AttachCmd = fmt.Sprintf("tmux attach -t %s", session)
+		}
+		response.Steps = steps
+		return response
+	}
+
 	if !runStep(&steps, fmt.Sprintf("Create tmux session in %s", workDir),
 		exec.Command("tmux", "new-session", "-d", "-s", session, "-c", workDir)) {
 		response.Status = "error"

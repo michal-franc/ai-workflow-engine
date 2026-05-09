@@ -158,15 +158,15 @@ func TestResolveWorktree_NilWorkflowSkipsCreation(t *testing.T) {
 
 func TestEnsureWorktree_DisabledReturnsOriginalDir(t *testing.T) {
 	dir := "/work/proj"
-	got, step, ok := ensureWorktree(dir, "fix-foo", &tracker.WorkflowConfig{Worktree: boolPtr(false)})
+	got, steps, ok := ensureWorktree(dir, "fix-foo", &tracker.WorkflowConfig{Worktree: boolPtr(false)})
 	if !ok {
 		t.Fatalf("expected ok=true when disabled")
 	}
 	if got != dir {
 		t.Fatalf("expected workdir unchanged, got %s", got)
 	}
-	if step != nil {
-		t.Fatalf("expected no dispatch step when disabled, got %+v", step)
+	if len(steps) != 0 {
+		t.Fatalf("expected no dispatch steps when disabled, got %+v", steps)
 	}
 }
 
@@ -181,7 +181,7 @@ func TestEnsureWorktree_EnabledStubsGitAndReportsSuccess(t *testing.T) {
 	t.Cleanup(func() { runGitWorktreeAdd = orig })
 
 	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true)}
-	got, step, ok := ensureWorktree(tmp, "fix-foo", wf)
+	got, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
 	if !ok {
 		t.Fatalf("expected ok=true")
 	}
@@ -192,8 +192,8 @@ func TestEnsureWorktree_EnabledStubsGitAndReportsSuccess(t *testing.T) {
 	if gotWorkdir != tmp || gotBranch != "work/fix-foo" || gotPath != want {
 		t.Fatalf("unexpected git args: workdir=%s branch=%s path=%s", gotWorkdir, gotBranch, gotPath)
 	}
-	if step == nil || step.Status != "ok" {
-		t.Fatalf("expected ok step, got %+v", step)
+	if len(steps) != 1 || steps[0].Status != "ok" {
+		t.Fatalf("expected single ok step, got %+v", steps)
 	}
 }
 
@@ -205,18 +205,18 @@ func TestEnsureWorktree_GitFailureSurfacesErrorAndAborts(t *testing.T) {
 	}
 	t.Cleanup(func() { runGitWorktreeAdd = orig })
 
-	got, step, ok := ensureWorktree(tmp, "fix-foo", &tracker.WorkflowConfig{Worktree: boolPtr(true)})
+	got, steps, ok := ensureWorktree(tmp, "fix-foo", &tracker.WorkflowConfig{Worktree: boolPtr(true)})
 	if ok {
 		t.Fatalf("expected ok=false on git failure")
 	}
 	if got != tmp {
 		t.Fatalf("expected workdir to fall back to %s, got %s", tmp, got)
 	}
-	if step == nil || step.Status != "error" {
-		t.Fatalf("expected error step, got %+v", step)
+	if len(steps) != 1 || steps[0].Status != "error" {
+		t.Fatalf("expected single error step, got %+v", steps)
 	}
-	if !strings.Contains(step.Detail, "dirty working tree") {
-		t.Fatalf("expected git stderr in step.Detail, got %q", step.Detail)
+	if !strings.Contains(steps[0].Detail, "dirty working tree") {
+		t.Fatalf("expected git stderr in step detail, got %q", steps[0].Detail)
 	}
 }
 
@@ -237,7 +237,7 @@ func TestEnsureWorktree_ReusesExistingDir(t *testing.T) {
 	}
 	t.Cleanup(func() { runGitWorktreeAdd = orig })
 
-	got, step, ok := ensureWorktree(tmp, "fix-foo", &tracker.WorkflowConfig{Worktree: boolPtr(true)})
+	got, steps, ok := ensureWorktree(tmp, "fix-foo", &tracker.WorkflowConfig{Worktree: boolPtr(true)})
 	if !ok {
 		t.Fatalf("expected ok=true on re-dispatch")
 	}
@@ -247,8 +247,8 @@ func TestEnsureWorktree_ReusesExistingDir(t *testing.T) {
 	if got != wt {
 		t.Fatalf("expected workdir %s, got %s", wt, got)
 	}
-	if step == nil || !strings.Contains(step.Name, "Reuse worktree") {
-		t.Fatalf("expected reuse step, got %+v", step)
+	if len(steps) != 1 || !strings.Contains(steps[0].Name, "Reuse worktree") {
+		t.Fatalf("expected single reuse step, got %+v", steps)
 	}
 }
 
@@ -278,3 +278,93 @@ func TestBuildAgentPrompt_OmitsWorktreeBlockWhenEmpty(t *testing.T) {
 type errStub struct{}
 
 func (errStub) Error() string { return "exit status 1" }
+
+func TestEnsureWorktree_RunsSetupAfterCreate(t *testing.T) {
+	tmp := t.TempDir()
+	origGit := runGitWorktreeAdd
+	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { runGitWorktreeAdd = origGit })
+
+	var gotPath, gotCmd string
+	origSetup := runWorktreeSetup
+	runWorktreeSetup = func(wtPath, cmd string) ([]byte, error) {
+		gotPath, gotCmd = wtPath, cmd
+		return []byte("built\n"), nil
+	}
+	t.Cleanup(func() { runWorktreeSetup = origSetup })
+
+	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true), WorktreeSetup: "make"}
+	got, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
+	if !ok {
+		t.Fatalf("expected ok=true on successful setup")
+	}
+	wantWT := filepath.Join(tmp, ".worktrees", "fix-foo")
+	if got != wantWT {
+		t.Fatalf("expected workdir %s, got %s", wantWT, got)
+	}
+	if gotPath != wantWT || gotCmd != "make" {
+		t.Fatalf("setup invoked with wtPath=%s cmd=%s, want %s + make", gotPath, gotCmd, wantWT)
+	}
+	if len(steps) != 2 {
+		t.Fatalf("expected create + setup steps, got %+v", steps)
+	}
+	if !strings.Contains(steps[1].Name, "Worktree setup: make") || steps[1].Status != "ok" {
+		t.Fatalf("expected ok setup step, got %+v", steps[1])
+	}
+}
+
+func TestEnsureWorktree_SetupFailureAborts(t *testing.T) {
+	tmp := t.TempDir()
+	origGit := runGitWorktreeAdd
+	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { runGitWorktreeAdd = origGit })
+
+	origSetup := runWorktreeSetup
+	runWorktreeSetup = func(string, string) ([]byte, error) {
+		return []byte("missing target\n"), errStub{}
+	}
+	t.Cleanup(func() { runWorktreeSetup = origSetup })
+
+	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true), WorktreeSetup: "make"}
+	got, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
+	if ok {
+		t.Fatalf("expected ok=false when setup fails")
+	}
+	if got != tmp {
+		t.Fatalf("expected workdir to fall back to %s on setup failure, got %s", tmp, got)
+	}
+	if len(steps) != 2 {
+		t.Fatalf("expected create + setup steps, got %+v", steps)
+	}
+	if steps[1].Status != "error" || !strings.Contains(steps[1].Detail, "missing target") {
+		t.Fatalf("expected error setup step with stderr, got %+v", steps[1])
+	}
+}
+
+func TestEnsureWorktree_SetupSkippedOnReuse(t *testing.T) {
+	tmp := t.TempDir()
+	wt := filepath.Join(tmp, ".worktrees", "fix-foo")
+	if err := os.MkdirAll(wt, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	called := false
+	origSetup := runWorktreeSetup
+	runWorktreeSetup = func(string, string) ([]byte, error) {
+		called = true
+		return nil, nil
+	}
+	t.Cleanup(func() { runWorktreeSetup = origSetup })
+
+	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true), WorktreeSetup: "make"}
+	_, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
+	if !ok {
+		t.Fatalf("expected ok=true on reuse")
+	}
+	if called {
+		t.Fatalf("expected setup not to run on reuse")
+	}
+	if len(steps) != 1 || !strings.Contains(steps[0].Name, "Reuse worktree") {
+		t.Fatalf("expected single reuse step, got %+v", steps)
+	}
+}

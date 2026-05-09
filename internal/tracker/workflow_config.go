@@ -130,6 +130,12 @@ type WorkflowConfig struct {
 	// behaviour unchanged for projects that haven't reviewed the new feature.
 	Worktree *bool `yaml:"worktree,omitempty" desc:"Create a per-issue git worktree on dispatch (default false; opt in with worktree:true)"`
 
+	// WorktreeSetup is an optional shell command run inside the freshly
+	// created worktree (e.g. "make" or "./scripts/bootstrap.sh"). It runs once
+	// on creation only — never on reuse — and a non-zero exit aborts dispatch
+	// so a half-built tree never starts an agent.
+	WorktreeSetup string `yaml:"worktree_setup,omitempty" desc:"Shell command run inside a newly created worktree (e.g. 'make'). Runs on creation only; failure aborts dispatch."`
+
 	// Runtime-only fields, populated by callers (server, CLI) after load.
 	// LookupIssue resolves another issue by slug for linked_issue_in_status;
 	// IssuesRoot is the working directory used by command_succeeds.
@@ -148,6 +154,15 @@ func (w *WorkflowConfig) WorktreeEnabled() bool {
 		return false
 	}
 	return *w.Worktree
+}
+
+// WorktreeSetupCmd returns the trimmed setup command, or "" when none is
+// configured. Empty string means skip — the caller never invokes a shell.
+func (w *WorkflowConfig) WorktreeSetupCmd() string {
+	if w == nil {
+		return ""
+	}
+	return strings.TrimSpace(w.WorktreeSetup)
 }
 
 func (w *WorkflowConfig) GetBoardCardFields() []string {

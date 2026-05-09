@@ -78,30 +78,58 @@ var runGitWorktreeAdd = func(workdir, branch, wtPath string) ([]byte, error) {
 	return exec.Command("git", "-C", workdir, "worktree", "add", "-b", branch, wtPath).CombinedOutput()
 }
 
+// runWorktreeSetup is the seam for tests to stub the post-create setup shell
+// command. Real implementation runs the user-supplied command via `sh -c` with
+// cwd set to the new worktree so relative paths in the command resolve there.
+var runWorktreeSetup = func(wtPath, cmd string) ([]byte, error) {
+	c := exec.Command("sh", "-c", cmd)
+	c.Dir = wtPath
+	return c.CombinedOutput()
+}
+
 // ensureWorktree creates the per-issue worktree if needed and returns the
 // effective working directory for the dispatched session. Returns ok=false
-// only when worktree is enabled and creation fails — disabled or no-slug
-// callers get ok=true with a nil step and the original workdir.
-func ensureWorktree(workdir, slug string, wf *tracker.WorkflowConfig) (string, *DispatchStep, bool) {
+// only when worktree is enabled and creation (or post-create setup) fails —
+// disabled or no-slug callers get ok=true with no steps and the original
+// workdir. Setup runs only on fresh creation, never on reuse: re-running an
+// arbitrary user command on every redispatch would be a footgun.
+func ensureWorktree(workdir, slug string, wf *tracker.WorkflowConfig) (string, []DispatchStep, bool) {
 	wtPath, branch, enabled := resolveWorktree(workdir, slug, wf)
 	if !enabled {
 		return workdir, nil, true
 	}
 	if _, err := os.Stat(wtPath); err == nil {
-		return wtPath, &DispatchStep{Name: fmt.Sprintf("Reuse worktree %s on %s", wtPath, branch), Status: "ok"}, true
+		return wtPath, []DispatchStep{{Name: fmt.Sprintf("Reuse worktree %s on %s", wtPath, branch), Status: "ok"}}, true
 	}
 	if out, err := runGitWorktreeAdd(workdir, branch, wtPath); err != nil {
 		detail := strings.TrimSpace(string(out))
 		if detail == "" {
 			detail = err.Error()
 		}
-		return workdir, &DispatchStep{
+		return workdir, []DispatchStep{{
 			Name:   fmt.Sprintf("git worktree add %s on %s", wtPath, branch),
 			Status: "error",
 			Detail: detail,
-		}, false
+		}}, false
 	}
-	return wtPath, &DispatchStep{Name: fmt.Sprintf("Created worktree %s on %s", wtPath, branch), Status: "ok"}, true
+	steps := []DispatchStep{{Name: fmt.Sprintf("Created worktree %s on %s", wtPath, branch), Status: "ok"}}
+	if setup := wf.WorktreeSetupCmd(); setup != "" {
+		out, err := runWorktreeSetup(wtPath, setup)
+		if err != nil {
+			detail := strings.TrimSpace(string(out))
+			if detail == "" {
+				detail = err.Error()
+			}
+			steps = append(steps, DispatchStep{
+				Name:   fmt.Sprintf("Worktree setup: %s", setup),
+				Status: "error",
+				Detail: detail,
+			})
+			return workdir, steps, false
+		}
+		steps = append(steps, DispatchStep{Name: fmt.Sprintf("Worktree setup: %s", setup), Status: "ok"})
+	}
+	return wtPath, steps, true
 }
 
 type DispatchStep struct {
@@ -203,13 +231,9 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 	// cannot stomp on each other's uncommitted state. On failure we abort:
 	// silently falling back to the primary checkout would defeat the safety
 	// guarantee.
-	newDir, worktreeStep, worktreeOK := ensureWorktree(workDir, issueSlug, wf)
+	newDir, worktreeSteps, worktreeOK := ensureWorktree(workDir, issueSlug, wf)
 	if !worktreeOK {
-		steps := []DispatchStep{}
-		if worktreeStep != nil {
-			steps = append(steps, *worktreeStep)
-		}
-		return DispatchResponse{Status: "error", Prompt: prompt, Session: session, Steps: steps}
+		return DispatchResponse{Status: "error", Prompt: prompt, Session: session, Steps: worktreeSteps}
 	}
 	workDir = newDir
 
@@ -228,10 +252,7 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 		return DispatchResponse{Status: "error", Steps: []DispatchStep{{Name: "Close prompt file", Status: "error", Detail: err.Error()}}}
 	}
 
-	steps := []DispatchStep{}
-	if worktreeStep != nil {
-		steps = append(steps, *worktreeStep)
-	}
+	steps := append([]DispatchStep{}, worktreeSteps...)
 	sessionLogDir := filepath.Join(workDir, ".agent-logs", session)
 	rawLog := filepath.Join(sessionLogDir, "rawlog")
 	cliLog := filepath.Join(sessionLogDir, session+".clilog")

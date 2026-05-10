@@ -16,6 +16,13 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.21.0 — 2026-05-10
+
+- Agent dispatch worktrees now use `git sparse-checkout` to keep the `issues/` tree out of the agent's working copy. Previously every worktree was a full checkout, so agents saw their own task file alongside dozens of unrelated issue markdowns and got confused about which one was theirs.
+- New optional `worktree_sparse_exclude` field in `workflow.yaml`. Default is `["issues/"]` when worktree is enabled. Set to `[]` to disable sparse-checkout and get a full checkout (previous behavior).
+- The dispatch step list now includes a `Sparse-checkout excludes: ...` (or `git checkout HEAD` when disabled) step after worktree creation; failure aborts dispatch the same way `worktree_setup` failures already do.
+- `issue-cli` running inside the worktree continues to read/write issues through the primary checkout via the injected `--project` flag, so excluding `issues/` from the worktree doesn't affect agent access to the tracker.
+
 ## v0.20.0 — 2026-05-08
 
 - *Edit in nvim* on the issue detail page now opens the **whole markdown file** (frontmatter + body) instead of only the body. Keyboard-driven users can edit metadata — labels, priority, version, status, custom fields, anything — without leaving the editor; on save the file is parse-validated and written back atomically.

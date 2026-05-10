@@ -136,6 +136,16 @@ type WorkflowConfig struct {
 	// so a half-built tree never starts an agent.
 	WorktreeSetup string `yaml:"worktree_setup,omitempty" desc:"Shell command run inside a newly created worktree (e.g. 'make'). Runs on creation only; failure aborts dispatch."`
 
+	// WorktreeSparseExclude lists path patterns to keep OUT of the worktree
+	// via git sparse-checkout. Agents dispatched into the worktree get
+	// confused when the issues/ tree is materialized there — the worktree
+	// branch carries old issue snapshots and the agent's task file appears
+	// alongside dozens of unrelated ones. issue-cli targets the primary
+	// checkout via --project, so excluding issues/ here doesn't break it.
+	// A nil pointer means "use the default" (issues/); an empty list means
+	// "no exclusions, full checkout".
+	WorktreeSparseExclude *[]string `yaml:"worktree_sparse_exclude,omitempty" desc:"Paths to exclude from the worktree via sparse-checkout (default ['issues/'] when worktree is enabled). Set to [] to disable."`
+
 	// Runtime-only fields, populated by callers (server, CLI) after load.
 	// LookupIssue resolves another issue by slug for linked_issue_in_status;
 	// IssuesRoot is the working directory used by command_succeeds.
@@ -163,6 +173,28 @@ func (w *WorkflowConfig) WorktreeSetupCmd() string {
 		return ""
 	}
 	return strings.TrimSpace(w.WorktreeSetup)
+}
+
+// WorktreeSparseExcludes returns the path patterns to exclude from the
+// worktree via sparse-checkout. Nil config field falls back to ["issues/"]
+// — the common case for this project, where agents shouldn't see the issue
+// tracker's own data inside their isolated worktree. An explicit empty list
+// disables sparse-checkout entirely. Returned slice is trimmed of blank
+// entries so callers can pass it straight to git without further cleanup.
+func (w *WorkflowConfig) WorktreeSparseExcludes() []string {
+	if w == nil {
+		return []string{"issues/"}
+	}
+	if w.WorktreeSparseExclude == nil {
+		return []string{"issues/"}
+	}
+	out := make([]string, 0, len(*w.WorktreeSparseExclude))
+	for _, p := range *w.WorktreeSparseExclude {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func (w *WorkflowConfig) GetBoardCardFields() []string {

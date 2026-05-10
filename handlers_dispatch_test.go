@@ -179,6 +179,7 @@ func TestEnsureWorktree_EnabledStubsGitAndReportsSuccess(t *testing.T) {
 		return nil, nil
 	}
 	t.Cleanup(func() { runGitWorktreeAdd = orig })
+	stubSparseCheckoutOK(t)
 
 	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true)}
 	got, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
@@ -192,8 +193,11 @@ func TestEnsureWorktree_EnabledStubsGitAndReportsSuccess(t *testing.T) {
 	if gotWorkdir != tmp || gotBranch != "work/fix-foo" || gotPath != want {
 		t.Fatalf("unexpected git args: workdir=%s branch=%s path=%s", gotWorkdir, gotBranch, gotPath)
 	}
-	if len(steps) != 1 || steps[0].Status != "ok" {
-		t.Fatalf("expected single ok step, got %+v", steps)
+	if len(steps) != 2 || steps[0].Status != "ok" || steps[1].Status != "ok" {
+		t.Fatalf("expected create + sparse-checkout ok steps, got %+v", steps)
+	}
+	if !strings.Contains(steps[1].Name, "Sparse-checkout") {
+		t.Fatalf("expected sparse-checkout step second, got %+v", steps[1])
 	}
 }
 
@@ -284,6 +288,7 @@ func TestEnsureWorktree_RunsSetupAfterCreate(t *testing.T) {
 	origGit := runGitWorktreeAdd
 	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
 	t.Cleanup(func() { runGitWorktreeAdd = origGit })
+	stubSparseCheckoutOK(t)
 
 	var gotPath, gotCmd string
 	origSetup := runWorktreeSetup
@@ -305,11 +310,11 @@ func TestEnsureWorktree_RunsSetupAfterCreate(t *testing.T) {
 	if gotPath != wantWT || gotCmd != "make" {
 		t.Fatalf("setup invoked with wtPath=%s cmd=%s, want %s + make", gotPath, gotCmd, wantWT)
 	}
-	if len(steps) != 2 {
-		t.Fatalf("expected create + setup steps, got %+v", steps)
+	if len(steps) != 3 {
+		t.Fatalf("expected create + sparse-checkout + setup steps, got %+v", steps)
 	}
-	if !strings.Contains(steps[1].Name, "Worktree setup: make") || steps[1].Status != "ok" {
-		t.Fatalf("expected ok setup step, got %+v", steps[1])
+	if !strings.Contains(steps[2].Name, "Worktree setup: make") || steps[2].Status != "ok" {
+		t.Fatalf("expected ok setup step last, got %+v", steps[2])
 	}
 }
 
@@ -318,6 +323,7 @@ func TestEnsureWorktree_SetupFailureAborts(t *testing.T) {
 	origGit := runGitWorktreeAdd
 	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
 	t.Cleanup(func() { runGitWorktreeAdd = origGit })
+	stubSparseCheckoutOK(t)
 
 	origSetup := runWorktreeSetup
 	runWorktreeSetup = func(string, string) ([]byte, error) {
@@ -333,11 +339,161 @@ func TestEnsureWorktree_SetupFailureAborts(t *testing.T) {
 	if got != tmp {
 		t.Fatalf("expected workdir to fall back to %s on setup failure, got %s", tmp, got)
 	}
-	if len(steps) != 2 {
-		t.Fatalf("expected create + setup steps, got %+v", steps)
+	if len(steps) != 3 {
+		t.Fatalf("expected create + sparse-checkout + setup steps, got %+v", steps)
 	}
-	if steps[1].Status != "error" || !strings.Contains(steps[1].Detail, "missing target") {
-		t.Fatalf("expected error setup step with stderr, got %+v", steps[1])
+	last := steps[len(steps)-1]
+	if last.Status != "error" || !strings.Contains(last.Detail, "missing target") {
+		t.Fatalf("expected error setup step with stderr last, got %+v", last)
+	}
+}
+
+// stubSparseCheckoutOK stubs both sparse-checkout and checkout-HEAD seams to
+// succeed. Tests that don't care about the sparse-checkout details use it so
+// the create path completes without invoking real git.
+func stubSparseCheckoutOK(t *testing.T) {
+	t.Helper()
+	origSparse := runGitSparseCheckout
+	runGitSparseCheckout = func(string, []string) ([]byte, error) { return nil, nil }
+	origCheckout := runGitCheckoutHead
+	runGitCheckoutHead = func(string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() {
+		runGitSparseCheckout = origSparse
+		runGitCheckoutHead = origCheckout
+	})
+}
+
+func TestEnsureWorktree_SparseCheckoutUsesDefaultExclude(t *testing.T) {
+	tmp := t.TempDir()
+	orig := runGitWorktreeAdd
+	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { runGitWorktreeAdd = orig })
+
+	var gotPath string
+	var gotExcludes []string
+	origSparse := runGitSparseCheckout
+	runGitSparseCheckout = func(wtPath string, excludes []string) ([]byte, error) {
+		gotPath, gotExcludes = wtPath, excludes
+		return nil, nil
+	}
+	t.Cleanup(func() { runGitSparseCheckout = origSparse })
+
+	checkoutCalled := false
+	origCheckout := runGitCheckoutHead
+	runGitCheckoutHead = func(string) ([]byte, error) {
+		checkoutCalled = true
+		return nil, nil
+	}
+	t.Cleanup(func() { runGitCheckoutHead = origCheckout })
+
+	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true)}
+	_, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
+	if !ok {
+		t.Fatalf("expected ok=true; steps=%+v", steps)
+	}
+	wantWT := filepath.Join(tmp, ".worktrees", "fix-foo")
+	if gotPath != wantWT {
+		t.Fatalf("sparse-checkout invoked with %s, want %s", gotPath, wantWT)
+	}
+	if len(gotExcludes) != 1 || gotExcludes[0] != "issues/" {
+		t.Fatalf("expected default exclude [issues/], got %v", gotExcludes)
+	}
+	if checkoutCalled {
+		t.Fatalf("plain checkout must not run when sparse-checkout is active")
+	}
+}
+
+func TestEnsureWorktree_SparseCheckoutHonorsCustomList(t *testing.T) {
+	tmp := t.TempDir()
+	orig := runGitWorktreeAdd
+	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { runGitWorktreeAdd = orig })
+
+	var gotExcludes []string
+	origSparse := runGitSparseCheckout
+	runGitSparseCheckout = func(_ string, excludes []string) ([]byte, error) {
+		gotExcludes = excludes
+		return nil, nil
+	}
+	t.Cleanup(func() { runGitSparseCheckout = origSparse })
+
+	origCheckout := runGitCheckoutHead
+	runGitCheckoutHead = func(string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { runGitCheckoutHead = origCheckout })
+
+	custom := []string{"issues/", "docs/", ".images/"}
+	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true), WorktreeSparseExclude: &custom}
+	_, _, ok := ensureWorktree(tmp, "fix-foo", wf)
+	if !ok {
+		t.Fatalf("expected ok=true")
+	}
+	if len(gotExcludes) != 3 || gotExcludes[0] != "issues/" || gotExcludes[1] != "docs/" || gotExcludes[2] != ".images/" {
+		t.Fatalf("expected configured excludes passed through, got %v", gotExcludes)
+	}
+}
+
+func TestEnsureWorktree_EmptyExcludeFallsBackToPlainCheckout(t *testing.T) {
+	tmp := t.TempDir()
+	orig := runGitWorktreeAdd
+	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { runGitWorktreeAdd = orig })
+
+	sparseCalled := false
+	origSparse := runGitSparseCheckout
+	runGitSparseCheckout = func(string, []string) ([]byte, error) {
+		sparseCalled = true
+		return nil, nil
+	}
+	t.Cleanup(func() { runGitSparseCheckout = origSparse })
+
+	var gotCheckoutPath string
+	origCheckout := runGitCheckoutHead
+	runGitCheckoutHead = func(wtPath string) ([]byte, error) {
+		gotCheckoutPath = wtPath
+		return nil, nil
+	}
+	t.Cleanup(func() { runGitCheckoutHead = origCheckout })
+
+	empty := []string{}
+	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true), WorktreeSparseExclude: &empty}
+	_, _, ok := ensureWorktree(tmp, "fix-foo", wf)
+	if !ok {
+		t.Fatalf("expected ok=true")
+	}
+	if sparseCalled {
+		t.Fatalf("sparse-checkout must not run when excludes are empty")
+	}
+	wantWT := filepath.Join(tmp, ".worktrees", "fix-foo")
+	if gotCheckoutPath != wantWT {
+		t.Fatalf("checkout-HEAD invoked with %s, want %s", gotCheckoutPath, wantWT)
+	}
+}
+
+func TestEnsureWorktree_SparseCheckoutFailureAborts(t *testing.T) {
+	tmp := t.TempDir()
+	orig := runGitWorktreeAdd
+	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { runGitWorktreeAdd = orig })
+
+	origSparse := runGitSparseCheckout
+	runGitSparseCheckout = func(string, []string) ([]byte, error) {
+		return []byte("bad pattern\n"), errStub{}
+	}
+	t.Cleanup(func() { runGitSparseCheckout = origSparse })
+
+	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true)}
+	got, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
+	if ok {
+		t.Fatalf("expected ok=false when sparse-checkout fails")
+	}
+	if got != tmp {
+		t.Fatalf("expected workdir to fall back to %s, got %s", tmp, got)
+	}
+	if len(steps) != 2 {
+		t.Fatalf("expected create + sparse-checkout error steps, got %+v", steps)
+	}
+	if steps[1].Status != "error" || !strings.Contains(steps[1].Detail, "bad pattern") {
+		t.Fatalf("expected error sparse-checkout step with stderr, got %+v", steps[1])
 	}
 }
 

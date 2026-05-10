@@ -59,14 +59,13 @@ statuses:
   - name: "shipping"
     description: "Committing and pushing changes"
     prompt: |
-      Commit the changes with a message referencing the issue, push the commit to the remote, and note a PR link if one is opened.
-      Cut a release: bump the version, create an annotated tag (e.g. `git tag -as vX.Y.Z -m "..."`), and push the tag so the release-marker workflow publishes a GitHub Release.
+      Commit the changes with a message referencing the issue, push the commit to the remote, and open a PR.
+      Add a `## vX.Y.Z — YYYY-MM-DD` entry to `cmd/issue-cli/CHANGELOG.md` with the user-facing change summary. The release-marker GitHub Action reads the version from this entry and creates the tag + GitHub Release on the merge commit when the PR is merged to main; do not create or push tags from a feature branch.
       Pick the version bump by the nature of the change (semver):
         - Bugfix only → patch bump (e.g. v0.1.0 → v0.1.1, the `x.y.Z` digit).
         - New feature, backwards-compatible → minor bump (e.g. v0.1.1 → v0.2.0, the `x.Y.z` digit).
         - Breaking change (CLI contract, workflow.yaml schema, or API) → major bump (e.g. v0.2.0 → v1.0.0, the `X.y.z` digit).
-      Once the release-marker workflow finishes, review the auto-generated release notes and update the GitHub release description with a human-polished summary (`gh release edit vX.Y.Z --notes "..."` or via the web UI).
-      Stop and ask for `done` approval in the issue viewer once the commit is pushed and the release description is polished.
+      Stop and ask for `done` approval in the issue viewer once the PR is opened. Merging the PR and polishing the GitHub release description is the human's responsibility.
   - name: "done"
     description: "Completed"
 
@@ -177,11 +176,9 @@ transitions:
         title: "Shipping"
         body: |
           - [ ] Changes committed with a message referencing the issue
-          - [ ] `cmd/issue-cli/CHANGELOG.md` updated (offline fallback for `issue-cli process changes`)
+          - [ ] `cmd/issue-cli/CHANGELOG.md` updated with `## vX.Y.Z — YYYY-MM-DD` entry (release-marker reads version from this)
           - [ ] Commit pushed to the remote
-          - [ ] PR opened if applicable
-          - [ ] Release tag created and pushed (triggers release-marker workflow)
-          - [ ] GitHub release description reviewed and updated with human-polished notes
+          - [ ] PR opened
           - [ ] Worktree merged and removed by human after merge (`git worktree remove .worktrees/<slug>`)
   - from: "shipping"
     to: "done"

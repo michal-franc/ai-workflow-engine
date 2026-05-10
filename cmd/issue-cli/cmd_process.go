@@ -13,7 +13,8 @@ import (
 var processCommand = &Command{
 	Name:      "process",
 	ShortHelp: "Learn how this project works (run this first)",
-	LongHelp: `Topic-based help.
+	LongHelp: `Topic-based help. Singular and plural forms are accepted (e.g. both
+'transition' and 'transitions' work, 'doc' and 'docs', etc.).
 
 Topics:
   (none)         Show high-level overview
@@ -25,7 +26,9 @@ Topics:
   systems        Available systems
   schema         workflow.yaml schema
   changes        Release history (changes / changelog / versions)
-  references     Issue references`,
+  references     Issue references
+
+For per-command help (flags, examples) run: issue-cli help <command>`,
 	Run: runProcess,
 }
 
@@ -37,7 +40,7 @@ func runProcess(ctx *Context, args []string) error {
 	topic := ""
 	var topicArgs []string
 	if len(args) > 0 {
-		topic = args[0]
+		topic = normalizeTopic(args[0])
 		topicArgs = args[1:]
 	}
 	switch topic {
@@ -61,14 +64,43 @@ func runProcess(ctx *Context, args []string) error {
 		return runProcessSystems(ctx)
 	case "schema":
 		return runProcessSchema(ctx)
-	case "changes", "changelog", "versions":
+	case "changes":
 		return runProcessChanges(ctx)
 	case "references":
 		fmt.Fprint(ctx.Stdout, processReferencesText)
 		return nil
 	default:
-		return fmt.Errorf("unknown topic: %s\n\nAvailable: workflow, format, transitions, schema, changes, testing, docs, systems, references", topic)
+		return fmt.Errorf("unknown topic: %s\n\nAvailable topics: workflow, format, transitions, schema, changes, testing, docs, systems, references\nFor a specific command run: issue-cli help <command>  (e.g. issue-cli help transition)", args[0])
 	}
+}
+
+// normalizeTopic accepts singular/plural and a few legacy aliases so the bot
+// can type the obvious thing. The 'transition' singular is the recurring
+// stumble — surfacing every form here means we never reject it again.
+func normalizeTopic(topic string) string {
+	switch strings.ToLower(strings.TrimSpace(topic)) {
+	case "workflow", "workflows", "lifecycle", "statuses":
+		return "workflow"
+	case "transition", "transitions":
+		return "transitions"
+	case "format", "formats", "frontmatter":
+		return "format"
+	case "test", "tests", "testing", "test-plan", "testplan":
+		return "testing"
+	case "doc", "docs", "documentation":
+		return "docs"
+	case "system", "systems":
+		return "systems"
+	case "schema", "schemas":
+		return "schema"
+	case "change", "changes", "changelog", "versions", "release", "releases":
+		return "changes"
+	case "reference", "references", "refs", "links":
+		return "references"
+	case "all", "overview", "":
+		return ""
+	}
+	return topic
 }
 
 func runProcessWorkflow(ctx *Context, _ []string) error {

@@ -12,10 +12,18 @@ import (
 
 var listTmuxSessions = defaultListTmuxSessions
 var tmuxSendKeys = defaultTmuxSendKeys
+var tmuxHasSession = defaultTmuxHasSession
 
 func tmuxSessionName(slug string) string {
 	r := strings.NewReplacer("/", "-", ".", "-", " ", "-")
 	return "agent-" + r.Replace(slug)
+}
+
+func defaultTmuxHasSession(session string) bool {
+	if strings.TrimSpace(session) == "" {
+		return false
+	}
+	return exec.Command("tmux", "has-session", "-t", session).Run() == nil
 }
 
 func defaultTmuxSendKeys(target string, lines []string) error {

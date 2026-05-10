@@ -16,6 +16,13 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.21.0 — 2026-05-10
+
+- Agent dispatch worktrees now use `git sparse-checkout` to keep the `issues/` tree out of the agent's working copy. Previously every worktree was a full checkout, so agents saw their own task file alongside dozens of unrelated issue markdowns and got confused about which one was theirs.
+- New optional `worktree_sparse_exclude` field in `workflow.yaml`. Default is `["issues/"]` when worktree is enabled. Set to `[]` to disable sparse-checkout and get a full checkout (previous behavior).
+- The dispatch step list now includes a `Sparse-checkout excludes: ...` (or `git checkout HEAD` when disabled) step after worktree creation; failure aborts dispatch the same way `worktree_setup` failures already do.
+- `issue-cli` running inside the worktree continues to read/write issues through the primary checkout via the injected `--project` flag, so excluding `issues/` from the worktree doesn't affect agent access to the tracker.
+
 ## v0.20.0 — 2026-05-08
 
 - *Edit in nvim* on the issue detail page now opens the **whole markdown file** (frontmatter + body) instead of only the body. Keyboard-driven users can edit metadata — labels, priority, version, status, custom fields, anything — without leaving the editor; on save the file is parse-validated and written back atomically.
@@ -25,6 +32,10 @@ Entries are newest-first. Each entry has the form:
 - The existing `baseHash` race check is unchanged — concurrent sidebar saves still cause the nvim write to lose. No new locking mechanism.
 - See `docs/API/overview.md` (new "Edit in nvim" section) for the save-path contract.
 - Resolves api/edit-in-nvim-should-include-frontmatter.
+
+## v0.19.0 — 2026-05-08
+
+- Agent dispatch and "Edit in nvim" no longer fail with a `duplicate session` error when a tmux session of the target name is still alive. Both flows now probe `tmux has-session` first; on a hit they skip `new-session` plus all setup and just open a terminal attached to the existing session. The dispatch response carries `status: "reattached"` (with a single matching step); the edit response adds `reattached: true`. The web UI renders both as a yellow warning banner/toast, distinct from the regular success and error styling. The agent is not re-prompted and the body editor does not register a duplicate save-on-exit goroutine. Kill the session manually if you want a fresh dispatch.
 
 ## v0.18.0 — 2026-05-08
 

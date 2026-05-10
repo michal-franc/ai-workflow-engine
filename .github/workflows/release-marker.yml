@@ -1,9 +1,10 @@
 name: Release Marker
 
 on:
-  push:
-    tags:
-      - "v*"
+  pull_request:
+    types: [closed]
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       tag:
@@ -16,45 +17,82 @@ permissions:
 
 jobs:
   release-marker:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
 
-      - name: Resolve tags
-        id: tags
+      - name: Resolve version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "push" ]; then
-            CURRENT="${GITHUB_REF#refs/tags/}"
-          else
-            INPUT="${{ github.event.inputs.tag }}"
-            if [ -n "$INPUT" ]; then
-              CURRENT="$INPUT"
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ -n "$INPUT_TAG" ]; then
+              CURRENT="$INPUT_TAG"
             else
               CURRENT="$(git describe --tags --abbrev=0)"
             fi
+            TARGET_SHA="$(git rev-parse HEAD)"
+          else
+            CHANGELOG="cmd/issue-cli/CHANGELOG.md"
+            CURRENT="$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' "$CHANGELOG" | awk '{print $2}')"
+            if [ -z "$CURRENT" ]; then
+              echo "No '## vX.Y.Z' entry found in $CHANGELOG — skipping release." >&2
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if git rev-parse -q --verify "refs/tags/$CURRENT" >/dev/null; then
+              echo "Tag $CURRENT already exists — skipping." >&2
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            TARGET_SHA="$MERGE_SHA"
           fi
-          PREV="$(git describe --tags --abbrev=0 "${CURRENT}^" 2>/dev/null || true)"
+
+          PREV="$(git describe --tags --abbrev=0 "${TARGET_SHA}^" 2>/dev/null || true)"
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
           echo "previous=$PREV" >> "$GITHUB_OUTPUT"
+          echo "target_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
           echo "Current:  $CURRENT"
           echo "Previous: ${PREV:-<none>}"
+          echo "Target:   $TARGET_SHA"
+
+      - name: Create and push tag
+        if: ${{ steps.version.outputs.skip != 'true' && github.event_name == 'pull_request' }}
+        env:
+          CURRENT: ${{ steps.version.outputs.current }}
+          TARGET_SHA: ${{ steps.version.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$CURRENT" "$TARGET_SHA" -m "$CURRENT"
+          git push origin "refs/tags/$CURRENT"
 
       - name: Generate categorized release notes
+        if: ${{ steps.version.outputs.skip != 'true' }}
         id: notes
         env:
-          CURRENT: ${{ steps.tags.outputs.current }}
-          PREVIOUS: ${{ steps.tags.outputs.previous }}
+          CURRENT: ${{ steps.version.outputs.current }}
+          PREVIOUS: ${{ steps.version.outputs.previous }}
+          TARGET_SHA: ${{ steps.version.outputs.target_sha }}
         run: |
           set -euo pipefail
 
           if [ -n "$PREVIOUS" ]; then
-            RANGE="${PREVIOUS}..${CURRENT}"
+            RANGE="${PREVIOUS}..${TARGET_SHA}"
           else
-            RANGE="$CURRENT"
+            RANGE="$TARGET_SHA"
           fi
 
           categorize() {
@@ -120,9 +158,10 @@ jobs:
           echo "path=$TMP/notes.md" >> "$GITHUB_OUTPUT"
 
       - name: Create or update GitHub Release
+        if: ${{ steps.version.outputs.skip != 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CURRENT: ${{ steps.tags.outputs.current }}
+          CURRENT: ${{ steps.version.outputs.current }}
           NOTES_PATH: ${{ steps.notes.outputs.path }}
         run: |
           set -euo pipefail

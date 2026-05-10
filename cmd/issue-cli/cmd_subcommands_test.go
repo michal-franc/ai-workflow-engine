@@ -575,6 +575,71 @@ func TestRunHelpWithTopicDelegatesToProcess(t *testing.T) {
 	assertContains(t, stdout.String(), "Status Lifecycle")
 }
 
+func TestRunHelpWithCommandNamePrintsCommandHelp(t *testing.T) {
+	proj, _, _ := makeSimpleProject(t, "in progress")
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runHelp(ctx, []string{"transition"}); err != nil {
+		t.Fatalf("runHelp transition: %v", err)
+	}
+	out := stdout.String()
+	assertContains(t, out, "issue-cli transition")
+	assertContains(t, out, "--to")
+	// Bot-friendly pointer to the rules topic.
+	assertContains(t, out, "Related topic: issue-cli help transitions")
+}
+
+func TestRunHelpAcceptsSingularTransitionTopic(t *testing.T) {
+	proj, _, _ := makeSimpleProject(t, "in progress")
+	ctx, stdout, _ := newTestContext(proj, false)
+	// `transition` is also a command — command help wins. The point of this
+	// test is that the call doesn't error like it used to.
+	if err := runHelp(ctx, []string{"transition"}); err != nil {
+		t.Fatalf("runHelp transition: %v", err)
+	}
+	if strings.TrimSpace(stdout.String()) == "" {
+		t.Fatal("expected output for help transition")
+	}
+}
+
+func TestRunHelpUnknownTopicMentionsCommandHelp(t *testing.T) {
+	proj, _, _ := makeSimpleProject(t, "in progress")
+	ctx, _, _ := newTestContext(proj, false)
+	err := runHelp(ctx, []string{"nope-not-a-thing"})
+	if err == nil {
+		t.Fatal("expected error for unknown topic")
+	}
+	if !strings.Contains(err.Error(), "issue-cli help <command>") {
+		t.Fatalf("error should hint at per-command help, got: %v", err)
+	}
+}
+
+func TestRunProcessTopicSingularPluralAliases(t *testing.T) {
+	proj, _, _ := makeSimpleProject(t, "in progress")
+	for _, topic := range []string{"doc", "docs", "test", "testing", "reference", "references", "format"} {
+		ctx, stdout, _ := newTestContext(proj, false)
+		if err := runProcess(ctx, []string{topic}); err != nil {
+			t.Fatalf("runProcess %s: %v", topic, err)
+		}
+		if strings.TrimSpace(stdout.String()) == "" {
+			t.Fatalf("topic %s produced no output", topic)
+		}
+	}
+}
+
+func TestPrintHelpListsTopicsAndNextActions(t *testing.T) {
+	proj, _, _ := makeSimpleProject(t, "in progress")
+	ctx, stdout, _ := newTestContext(proj, false)
+	ctx.AllProjects = []tracker.Project{*proj}
+	if err := runHelp(ctx, nil); err != nil {
+		t.Fatalf("runHelp: %v", err)
+	}
+	out := stdout.String()
+	assertContains(t, out, "Topics (issue-cli help <topic>):")
+	assertContains(t, out, "Per-command help:")
+	assertContains(t, out, "Next viable actions for a bot:")
+	assertContains(t, out, "issue-cli transition <slug> --to <status>")
+}
+
 // ------------------- stats -------------------
 
 func TestRunStatsText(t *testing.T) {

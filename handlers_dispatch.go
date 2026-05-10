@@ -74,34 +74,123 @@ func resolveWorktree(workdir, slug string, wf *tracker.WorkflowConfig) (path, br
 }
 
 // runGitWorktreeAdd is the seam for tests to stub the actual git invocation.
+// Passes --no-checkout so the caller can configure sparse-checkout before the
+// working tree is populated; when sparse-checkout is skipped, a follow-up
+// checkout step materializes the full tree.
 var runGitWorktreeAdd = func(workdir, branch, wtPath string) ([]byte, error) {
-	return exec.Command("git", "-C", workdir, "worktree", "add", "-b", branch, wtPath).CombinedOutput()
+	return exec.Command("git", "-C", workdir, "worktree", "add", "--no-checkout", "-b", branch, wtPath).CombinedOutput()
+}
+
+// runGitSparseCheckout configures sparse-checkout in the new worktree to
+// exclude the given paths. Patterns are built from the excludes ('/*' to
+// include everything, then '!<path>' per exclude) and passed to
+// `sparse-checkout set --no-cone`, which both writes the pattern file and
+// updates the working tree. Non-cone mode is used because we express
+// exclusions rather than inclusions; cone mode is include-only.
+var runGitSparseCheckout = func(wtPath string, excludes []string) ([]byte, error) {
+	args := []string{"-C", wtPath, "sparse-checkout", "set", "--no-cone", "/*"}
+	for _, p := range excludes {
+		args = append(args, "!"+p)
+	}
+	return exec.Command("git", args...).CombinedOutput()
+}
+
+// runGitCheckoutHead materializes the full working tree after a --no-checkout
+// worktree add when sparse-checkout is disabled. Seam mirrors the others.
+var runGitCheckoutHead = func(wtPath string) ([]byte, error) {
+	return exec.Command("git", "-C", wtPath, "checkout", "HEAD").CombinedOutput()
+}
+
+// runWorktreeSetup is the seam for tests to stub the post-create setup shell
+// command. Real implementation runs the user-supplied command via `sh -c` with
+// cwd set to the new worktree so relative paths in the command resolve there.
+var runWorktreeSetup = func(wtPath, cmd string) ([]byte, error) {
+	c := exec.Command("sh", "-c", cmd)
+	c.Dir = wtPath
+	return c.CombinedOutput()
 }
 
 // ensureWorktree creates the per-issue worktree if needed and returns the
 // effective working directory for the dispatched session. Returns ok=false
-// only when worktree is enabled and creation fails — disabled or no-slug
-// callers get ok=true with a nil step and the original workdir.
-func ensureWorktree(workdir, slug string, wf *tracker.WorkflowConfig) (string, *DispatchStep, bool) {
+// only when worktree is enabled and creation (or post-create setup) fails —
+// disabled or no-slug callers get ok=true with no steps and the original
+// workdir. Setup runs only on fresh creation, never on reuse: re-running an
+// arbitrary user command on every redispatch would be a footgun.
+func ensureWorktree(workdir, slug string, wf *tracker.WorkflowConfig) (string, []DispatchStep, bool) {
 	wtPath, branch, enabled := resolveWorktree(workdir, slug, wf)
 	if !enabled {
 		return workdir, nil, true
 	}
 	if _, err := os.Stat(wtPath); err == nil {
-		return wtPath, &DispatchStep{Name: fmt.Sprintf("Reuse worktree %s on %s", wtPath, branch), Status: "ok"}, true
+		return wtPath, []DispatchStep{{Name: fmt.Sprintf("Reuse worktree %s on %s", wtPath, branch), Status: "ok"}}, true
 	}
 	if out, err := runGitWorktreeAdd(workdir, branch, wtPath); err != nil {
 		detail := strings.TrimSpace(string(out))
 		if detail == "" {
 			detail = err.Error()
 		}
-		return workdir, &DispatchStep{
+		return workdir, []DispatchStep{{
 			Name:   fmt.Sprintf("git worktree add %s on %s", wtPath, branch),
 			Status: "error",
 			Detail: detail,
-		}, false
+		}}, false
 	}
-	return wtPath, &DispatchStep{Name: fmt.Sprintf("Created worktree %s on %s", wtPath, branch), Status: "ok"}, true
+	steps := []DispatchStep{{Name: fmt.Sprintf("Created worktree %s on %s", wtPath, branch), Status: "ok"}}
+
+	// Populate the working tree. With excludes, configure sparse-checkout —
+	// the `set` command both writes the pattern and updates the tree in one
+	// shot, so no separate checkout is needed. Without excludes, fall back
+	// to a plain HEAD checkout to materialize what --no-checkout skipped.
+	excludes := wf.WorktreeSparseExcludes()
+	if len(excludes) > 0 {
+		if out, err := runGitSparseCheckout(wtPath, excludes); err != nil {
+			detail := strings.TrimSpace(string(out))
+			if detail == "" {
+				detail = err.Error()
+			}
+			steps = append(steps, DispatchStep{
+				Name:   fmt.Sprintf("Sparse-checkout excludes: %s", strings.Join(excludes, ", ")),
+				Status: "error",
+				Detail: detail,
+			})
+			return workdir, steps, false
+		}
+		steps = append(steps, DispatchStep{
+			Name:   fmt.Sprintf("Sparse-checkout excludes: %s", strings.Join(excludes, ", ")),
+			Status: "ok",
+		})
+	} else {
+		if out, err := runGitCheckoutHead(wtPath); err != nil {
+			detail := strings.TrimSpace(string(out))
+			if detail == "" {
+				detail = err.Error()
+			}
+			steps = append(steps, DispatchStep{
+				Name:   "git checkout HEAD",
+				Status: "error",
+				Detail: detail,
+			})
+			return workdir, steps, false
+		}
+	}
+
+	if setup := wf.WorktreeSetupCmd(); setup != "" {
+		out, err := runWorktreeSetup(wtPath, setup)
+		if err != nil {
+			detail := strings.TrimSpace(string(out))
+			if detail == "" {
+				detail = err.Error()
+			}
+			steps = append(steps, DispatchStep{
+				Name:   fmt.Sprintf("Worktree setup: %s", setup),
+				Status: "error",
+				Detail: detail,
+			})
+			return workdir, steps, false
+		}
+		steps = append(steps, DispatchStep{Name: fmt.Sprintf("Worktree setup: %s", setup), Status: "ok"})
+	}
+	return wtPath, steps, true
 }
 
 type DispatchStep struct {
@@ -203,13 +292,9 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 	// cannot stomp on each other's uncommitted state. On failure we abort:
 	// silently falling back to the primary checkout would defeat the safety
 	// guarantee.
-	newDir, worktreeStep, worktreeOK := ensureWorktree(workDir, issueSlug, wf)
+	newDir, worktreeSteps, worktreeOK := ensureWorktree(workDir, issueSlug, wf)
 	if !worktreeOK {
-		steps := []DispatchStep{}
-		if worktreeStep != nil {
-			steps = append(steps, *worktreeStep)
-		}
-		return DispatchResponse{Status: "error", Prompt: prompt, Session: session, Steps: steps}
+		return DispatchResponse{Status: "error", Prompt: prompt, Session: session, Steps: worktreeSteps}
 	}
 	workDir = newDir
 
@@ -228,10 +313,7 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 		return DispatchResponse{Status: "error", Steps: []DispatchStep{{Name: "Close prompt file", Status: "error", Detail: err.Error()}}}
 	}
 
-	steps := []DispatchStep{}
-	if worktreeStep != nil {
-		steps = append(steps, *worktreeStep)
-	}
+	steps := append([]DispatchStep{}, worktreeSteps...)
 	sessionLogDir := filepath.Join(workDir, ".agent-logs", session)
 	rawLog := filepath.Join(sessionLogDir, "rawlog")
 	cliLog := filepath.Join(sessionLogDir, session+".clilog")
@@ -242,6 +324,22 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 		Session: session,
 		LogFile: rawLog,
 		Steps:   steps,
+	}
+
+	if tmuxHasSession(session) {
+		// A session with this name already exists — most often the same agent is
+		// still running. Re-running new-session/send-keys would clobber whatever
+		// the agent is doing and re-paste the prompt, so skip all setup and just
+		// open a terminal attached to the existing session.
+		os.Remove(promptPath)
+		steps = append(steps, DispatchStep{Name: "Existing session — attaching", Status: "reattached"})
+		response.Status = "reattached"
+		openTerminalStep(proj, session, &steps)
+		if proj != nil && proj.Terminal == "none" {
+			response.AttachCmd = fmt.Sprintf("tmux attach -t %s", session)
+		}
+		response.Steps = steps
+		return response
 	}
 
 	if !runStep(&steps, fmt.Sprintf("Create tmux session in %s", workDir),

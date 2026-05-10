@@ -37,9 +37,10 @@ type OptionalApproval struct {
 }
 
 type BodyEditResponse struct {
-	Status  string `json:"status"`
-	Session string `json:"session,omitempty"`
-	Message string `json:"message,omitempty"`
+	Status     string `json:"status"`
+	Session    string `json:"session,omitempty"`
+	Message    string `json:"message,omitempty"`
+	Reattached bool   `json:"reattached,omitempty"`
 }
 
 var launchIssueBodyEditor = startIssueBodyEditor

@@ -149,8 +149,8 @@ type WorkflowConfig struct {
 	// Runtime-only fields, populated by callers (server, CLI) after load.
 	// LookupIssue resolves another issue by slug for linked_issue_in_status;
 	// IssuesRoot is the working directory used by command_succeeds.
-	LookupIssue func(slug string) *Issue `yaml:"-"`
-	IssuesRoot  string                   `yaml:"-"`
+	LookupIssue func(slug string) *Issue `yaml:"-" json:"-"`
+	IssuesRoot  string                   `yaml:"-" json:"-"`
 }
 
 var defaultBoardCardFields = []string{"system", "labels"}

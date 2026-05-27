@@ -218,8 +218,9 @@ jobs:
           if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
           STAGE="dist/issue-viewer_${VERSION}_${GOOS}_${GOARCH}"
           mkdir -p "$STAGE"
-          go build -trimpath -ldflags "-s -w" -o "$STAGE/issue-viewer${EXT}" .
-          go build -trimpath -ldflags "-s -w" -o "$STAGE/issue-cli${EXT}" ./cmd/issue-cli
+          LDFLAGS="-s -w -X main.Version=${VERSION}"
+          go build -trimpath -ldflags "$LDFLAGS" -o "$STAGE/issue-viewer${EXT}" .
+          go build -trimpath -ldflags "$LDFLAGS" -o "$STAGE/issue-cli${EXT}" ./cmd/issue-cli
           cp README.md "$STAGE/"
 
       - name: Package archive

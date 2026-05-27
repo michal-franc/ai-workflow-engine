@@ -28,22 +28,22 @@ A workflow harness gives them a contract:
 
 ## How to use it (in 5 steps)
 
-1. **Try the demo.** A sample project with issues, docs, and a configured workflow.
+1. **Grab the binaries.** Download the archive for your OS/arch from the [latest release](https://github.com/michal-franc/ai-workflow-engine/releases/latest) — each contains `issue-viewer` (web UI) and `issue-cli` (agent CLI). Extract and put both on your `$PATH`.
+2. **Try the demo** (optional, requires the repo checked out):
 
    ```bash
    make demo
    # open http://localhost:8080
    ```
 
-2. **Define your workflow** in `workflow.yaml` — statuses, transitions, validators, approval gates. See the example below.
-3. **Write (or sync) issues** as markdown files in `./issues/` with YAML frontmatter (`title`, `status`, `system`, …).
-4. **Start the web UI** so humans can watch and approve:
+3. **Define your workflow** in `workflow.yaml` — statuses, transitions, validators, approval gates. See the example below.
+4. **Write (or sync) issues** as markdown files in `./issues/` with YAML frontmatter (`title`, `status`, `system`, …), then start the web UI so humans can watch and approve:
 
    ```bash
-   go build && ./issue-viewer -dir ./issues -docs ./docs
+   issue-viewer -dir ./issues -docs ./docs
    ```
 
-5. **Point an agent at it.** Install the CLI with `make install`, then let the agent run `issue-cli process` to learn the contract and `issue-cli next` → `start` → `transition` → `done` to walk an issue through.
+5. **Point an agent at it.** Have it run `issue-cli process` to learn the contract, then `issue-cli next` → `start` → `transition` → `done` to walk an issue through.
 
 ## What it looks like
 
@@ -189,18 +189,30 @@ projects:
 
 Pulls items from a GitHub Project into `issues/<System>/<number>.md`. The workflow runs on those imports the same as on hand-authored issues.
 
-## Quick start
+## Install
+
+Download the prebuilt archive for your platform from the [latest release](https://github.com/michal-franc/ai-workflow-engine/releases/latest):
+
+| Platform        | Archive                                       |
+|:----------------|:----------------------------------------------|
+| Linux x86_64    | `issue-viewer_<version>_linux_amd64.tar.gz`   |
+| Linux arm64     | `issue-viewer_<version>_linux_arm64.tar.gz`   |
+| macOS Intel     | `issue-viewer_<version>_darwin_amd64.tar.gz`  |
+| macOS Apple Si. | `issue-viewer_<version>_darwin_arm64.tar.gz`  |
+| Windows x86_64  | `issue-viewer_<version>_windows_amd64.zip`    |
+
+Each archive ships both binaries: `issue-viewer` (web UI) and `issue-cli` (agent CLI). Extract and put them on your `$PATH`.
 
 ```bash
-go build
-./issue-viewer -dir ./issues -docs ./docs
+issue-viewer -dir ./issues -docs ./docs
 # http://localhost:8080
 ```
 
-Install the CLI:
+### Build from source (optional)
 
 ```bash
-make install
+go build              # builds issue-viewer
+make install          # installs issue-cli via `go install`
 ```
 
 Validate before changes:

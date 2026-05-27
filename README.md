@@ -103,6 +103,19 @@ That's the whole contract. Validators, approval gates, prompt injection, scoring
 - **System overlays** — per-system status prompts and extra transition actions for project subsystems (API, CLI, UI, …).
 - **Scoring** — opt-in priority/urgency/staleness scoring that ranks issues across the list and board views.
 
+### Just-in-time prompts
+
+![JIT Prompt](jit_prompt.jpg)
+
+Agents don't get a giant system prompt up front. Instead, the harness assembles a prompt **on demand** from pieces that live next to the work:
+
+- The current status's `prompt` from `workflow.yaml` (what to focus on right now).
+- The next transition's `Requires:` / `Will:` block (the gates and side-effects ahead).
+- Any per-system overlay for the issue's `system` field (API/CLI/UI-specific guidance).
+- The issue body, comments, checklists, and sidecar data fetched fresh from disk.
+
+The agent calls `issue-cli context <slug>` and `issue-cli process` to pull exactly the slice it needs for the step it's on — no stale context, no prompt drift.
+
 ### CLI (`issue-cli`)
 
 Bot-friendly. Walks an agent through the workflow without it having to read this README.

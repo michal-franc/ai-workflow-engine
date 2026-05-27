@@ -4,6 +4,8 @@ A **workflow harness for AI coding agents**. You describe how work should flow â
 
 Issues are markdown. Workflow is YAML. Everything is on disk â€” no API keys, no SDKs, no database.
 
+![Example workflow](example.jpg)
+
 ## Why a harness?
 
 ![Harness](harness.jpg)

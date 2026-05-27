@@ -44,10 +44,12 @@ fi
 
 if [ -z "$VERSION" ]; then
   info "resolving latest release from github.com/$REPO"
-  VERSION="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
-    | grep -m1 '"tag_name"' \
-    | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')"
-  [ -n "$VERSION" ] || err "could not determine latest release"
+  # Fetch into a variable first, then parse — piping curl into grep -m1 with
+  # `set -o pipefail` would kill curl with SIGPIPE and abort the script.
+  JSON="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest")" \
+    || err "could not fetch latest release metadata"
+  VERSION="$(printf '%s\n' "$JSON" | sed -nE 's/.*"tag_name": *"([^"]+)".*/\1/p' | head -n1)"
+  [ -n "$VERSION" ] || err "could not parse tag_name from release metadata"
 fi
 
 EXT="tar.gz"

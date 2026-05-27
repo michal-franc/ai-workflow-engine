@@ -8,6 +8,8 @@ Issues are markdown. Workflow is YAML. Everything is on disk — no API keys, no
 
 ## Why a harness?
 
+![Harness](harness.jpg)
+
 AI coding agents are great at writing code and terrible at knowing when to stop, what to verify, and when to hand off to a human. Left alone they'll mark anything "done."
 
 A workflow harness gives them a contract:

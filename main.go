@@ -11,12 +11,21 @@ import (
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
+// Version is set at build time via -ldflags "-X main.Version=v0.X.Y".
+var Version = "dev"
+
 func main() {
 	configFile := flag.String("config", "", "Path to projects.yaml config file (multi-project mode)")
 	dir := flag.String("dir", "./issues", "Directory containing issue markdown files (single-project mode)")
 	docsDir := flag.String("docs", "./docs", "Directory containing documentation markdown files (single-project mode)")
 	port := flag.Int("port", 8080, "Port to listen on")
+	versionFlag := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Println("issue-viewer", Version)
+		return
+	}
 
 	var projects []tracker.Project
 

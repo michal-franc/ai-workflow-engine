@@ -41,7 +41,13 @@ A workflow harness gives them a contract:
    # open http://localhost:8080
    ```
 
-3. **Define your workflow** in `workflow.yaml` — statuses, transitions, validators, approval gates. See the example below.
+3. **Scaffold a workflow** in the current directory — picks a bundled template (`development`, `review`, `writing`) and creates `issues/` and `docs/`:
+
+   ```bash
+   issue-cli init                        # interactive picker
+   issue-cli init --template development  # non-interactive
+   ```
+
 4. **Write (or sync) issues** as markdown files in `./issues/` with YAML frontmatter (`title`, `status`, `system`, …), then start the web UI so humans can watch and approve:
 
    ```bash

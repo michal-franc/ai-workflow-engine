@@ -194,7 +194,7 @@ func run(args []string, in io.Reader, out, errw io.Writer) error {
 	// When --project was passed explicitly the user wants that project, so
 	// always surface the error — the project-agnostic bypass is only for
 	// discovery without --project.
-	bypassProjErr := rest.command == "help" || rest.command == "process" || rest.command == "projects"
+	bypassProjErr := rest.command == "help" || rest.command == "process" || rest.command == "projects" || rest.command == "version" || rest.command == "init"
 	if projErr != nil && (!bypassProjErr || *projectSlug != "") {
 		return projErr
 	}

@@ -235,17 +235,24 @@ jobs:
           cd dist
           if [ "$GOOS" = "windows" ]; then
             zip -r "${NAME}.zip" "$NAME"
-            echo "asset=dist/${NAME}.zip" >> "$GITHUB_OUTPUT"
+            ARCHIVE="${NAME}.zip"
           else
             tar -czf "${NAME}.tar.gz" "$NAME"
-            echo "asset=dist/${NAME}.tar.gz" >> "$GITHUB_OUTPUT"
+            ARCHIVE="${NAME}.tar.gz"
           fi
+          # `sha256sum` output format: "<hash>  <filename>" — exactly what
+          # `sha256sum -c` expects, so the install script can verify with a
+          # one-liner.
+          sha256sum "$ARCHIVE" > "${ARCHIVE}.sha256"
+          echo "asset=dist/${ARCHIVE}" >> "$GITHUB_OUTPUT"
+          echo "checksum=dist/${ARCHIVE}.sha256" >> "$GITHUB_OUTPUT"
 
       - name: Upload to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CURRENT: ${{ needs.release-marker.outputs.current }}
           ASSET: ${{ steps.pkg.outputs.asset }}
+          CHECKSUM: ${{ steps.pkg.outputs.checksum }}
         run: |
           set -euo pipefail
-          gh release upload "$CURRENT" "$ASSET" --clobber
+          gh release upload "$CURRENT" "$ASSET" "$CHECKSUM" --clobber

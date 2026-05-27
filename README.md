@@ -20,6 +20,12 @@ A workflow harness gives them a contract:
 - Side-effects that happen automatically (clear assignee on backlog, inject extra prompt context, append a checklist scaffold).
 - Per-system overlays so the API, CLI, and UI parts of your project can have their own design prompts and extra rules without forking the whole workflow.
 
+### Vendor harness vs. workflow harness
+
+**Vendor harness → sandbox.** Global rules covering what the agent can and can't do across every project. A lock-in — hooks, skills, and settings shape are vendor-specific.
+
+**Workflow harness → "what good looks like."** Per-project, per-work-type. Refines behavior. Portable — take it with you when you swap vendors. The same workflow runs on both Codex and Claude.
+
 ## How to use it (in 5 steps)
 
 1. **Try the demo.** A sample project with issues, docs, and a configured workflow.

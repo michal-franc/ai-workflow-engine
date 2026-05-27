@@ -1,35 +1,49 @@
 # Markdown Workflow Engine
 
-A self-hosted workflow engine for AI-driven projects. You describe how work flows — statuses, transitions, validation gates, human-approval checkpoints, side-effects — in a single `workflow.yaml`. The engine runs that contract against issues stored as plain markdown files, and a kanban-style web UI gives humans a window into what the agents are doing.
+A **workflow harness for AI coding agents**. You describe how work should flow — statuses, transitions, validation gates, human-approval checkpoints, side-effects — in a single `workflow.yaml`. Agents (Claude, Codex, Cursor) drive issues through that contract from the CLI. Humans observe, override, and approve from a kanban-style web UI.
 
-Issues are markdown. Workflow is YAML. Everything is on disk.
+Issues are markdown. Workflow is YAML. Everything is on disk — no API keys, no SDKs, no database.
 
-![List View](.images/note-1774784264.png) ![Board View](.images/note-1774784286.png) ![Docs View](.images/note-1774784303.png)
+![Example workflow](example.jpg)
 
-## Why a workflow engine?
+## Why a harness?
 
-AI coding agents (Claude, Codex, Cursor) are great at writing code and terrible at knowing when to stop, what to verify, and when to hand off to a human. Left alone they'll mark anything "done."
+![Harness](harness.jpg)
 
-A workflow gives them a contract:
+AI coding agents are great at writing code and terrible at knowing when to stop, what to verify, and when to hand off to a human. Left alone they'll mark anything "done."
+
+A workflow harness gives them a contract:
 
 - A status lifecycle they must walk one step at a time (`idea → in design → backlog → in progress → testing → …`).
 - Validation rules at each transition (body has a Design section, all Test Plan checkboxes ticked, linked PR is merged, an arbitrary shell command exits 0).
 - Human approval gates at the points that matter (`backlog → in progress`, `shipping → done`).
-- Side-effects that happen automatically (clear assignee on backlog, inject extra prompt context for a specific transition, append a checklist scaffold).
+- Side-effects that happen automatically (clear assignee on backlog, inject extra prompt context, append a checklist scaffold).
 - Per-system overlays so the API, CLI, and UI parts of your project can have their own design prompts and extra rules without forking the whole workflow.
 
-Agents drive issues through this lifecycle from the CLI. Humans observe, override, and approve from the web UI.
+### Vendor harness vs. workflow harness
 
-The data is just files: `echo`, `grep`, `sed`, and `cat` are valid clients. No API keys, no rate limits, no SDKs.
+**Vendor harness → sandbox.** Global rules covering what the agent can and can't do across every project. A lock-in — hooks, skills, and settings shape are vendor-specific.
 
-## Demo
+**Workflow harness → "what good looks like."** Per-project, per-work-type. Refines behavior. Portable — take it with you when you swap vendors. The same workflow runs on both Codex and Claude.
 
-```bash
-make demo
-# open http://localhost:8080
-```
+## How to use it (in 5 steps)
 
-A sample project with issues, docs, and a configured workflow.
+1. **Try the demo.** A sample project with issues, docs, and a configured workflow.
+
+   ```bash
+   make demo
+   # open http://localhost:8080
+   ```
+
+2. **Define your workflow** in `workflow.yaml` — statuses, transitions, validators, approval gates. See the example below.
+3. **Write (or sync) issues** as markdown files in `./issues/` with YAML frontmatter (`title`, `status`, `system`, …).
+4. **Start the web UI** so humans can watch and approve:
+
+   ```bash
+   go build && ./issue-viewer -dir ./issues -docs ./docs
+   ```
+
+5. **Point an agent at it.** Install the CLI with `make install`, then let the agent run `issue-cli process` to learn the contract and `issue-cli next` → `start` → `transition` → `done` to walk an issue through.
 
 ## What it looks like
 
@@ -94,6 +108,19 @@ That's the whole contract. Validators, approval gates, prompt injection, scoring
 - **Optional statuses** — parking states (`waiting-for-team-input`) that are skippable on the happy path but available as a CTA when needed.
 - **System overlays** — per-system status prompts and extra transition actions for project subsystems (API, CLI, UI, …).
 - **Scoring** — opt-in priority/urgency/staleness scoring that ranks issues across the list and board views.
+
+### Just-in-time prompts
+
+![JIT Prompt](jit_prompt.jpg)
+
+Agents don't get a giant system prompt up front. Instead, the harness assembles a prompt **on demand** from pieces that live next to the work:
+
+- The current status's `prompt` from `workflow.yaml` (what to focus on right now).
+- The next transition's `Requires:` / `Will:` block (the gates and side-effects ahead).
+- Any per-system overlay for the issue's `system` field (API/CLI/UI-specific guidance).
+- The issue body, comments, checklists, and sidecar data fetched fresh from disk.
+
+The agent calls `issue-cli context <slug>` and `issue-cli process` to pull exactly the slice it needs for the step it's on — no stale context, no prompt drift.
 
 ### CLI (`issue-cli`)
 

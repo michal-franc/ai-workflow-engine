@@ -19,6 +19,9 @@ jobs:
   release-marker:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
+    outputs:
+      current: ${{ steps.version.outputs.current }}
+      skip: ${{ steps.version.outputs.skip }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
@@ -170,3 +173,78 @@ jobs:
           else
             gh release create "$CURRENT" --title "$CURRENT" --notes-file "$NOTES_PATH"
           fi
+
+  build-binaries:
+    needs: release-marker
+    if: ${{ needs.release-marker.outputs.skip != 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
+        with:
+          ref: refs/tags/${{ needs.release-marker.outputs.current }}
+
+      - name: Set up Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build binaries
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+          VERSION: ${{ needs.release-marker.outputs.current }}
+        run: |
+          set -euo pipefail
+          EXT=""
+          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
+          STAGE="dist/issue-viewer_${VERSION}_${GOOS}_${GOARCH}"
+          mkdir -p "$STAGE"
+          go build -trimpath -ldflags "-s -w" -o "$STAGE/issue-viewer${EXT}" .
+          go build -trimpath -ldflags "-s -w" -o "$STAGE/issue-cli${EXT}" ./cmd/issue-cli
+          cp README.md "$STAGE/"
+
+      - name: Package archive
+        id: pkg
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ needs.release-marker.outputs.current }}
+        run: |
+          set -euo pipefail
+          NAME="issue-viewer_${VERSION}_${GOOS}_${GOARCH}"
+          cd dist
+          if [ "$GOOS" = "windows" ]; then
+            zip -r "${NAME}.zip" "$NAME"
+            echo "asset=dist/${NAME}.zip" >> "$GITHUB_OUTPUT"
+          else
+            tar -czf "${NAME}.tar.gz" "$NAME"
+            echo "asset=dist/${NAME}.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT: ${{ needs.release-marker.outputs.current }}
+          ASSET: ${{ steps.pkg.outputs.asset }}
+        run: |
+          set -euo pipefail
+          gh release upload "$CURRENT" "$ASSET" --clobber

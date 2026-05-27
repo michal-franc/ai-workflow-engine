@@ -127,10 +127,11 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		}
 	}
 
-	timeline := LoadAgentTimeline(proj.WorkDir, found.Assignee)
+	workDir := resolveProjectWorkDir(proj)
+	timeline := LoadAgentTimeline(workDir, found.Assignee)
 	timeline = EnrichTimelineWithWorkflow(timeline, wf, "")
 	if len(timeline) > 0 {
-		basePrompt := LoadDispatchPrompt(proj.WorkDir, found.Assignee)
+		basePrompt := LoadDispatchPrompt(workDir, found.Assignee)
 		summary := "dispatch — base prompt"
 		if basePrompt == "" {
 			briefedStatus := FirstTransitionFromStatus(timeline)

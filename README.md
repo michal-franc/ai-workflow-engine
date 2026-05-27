@@ -28,7 +28,12 @@ A workflow harness gives them a contract:
 
 ## How to use it (in 5 steps)
 
-1. **Grab the binaries.** Download the archive for your OS/arch from the [latest release](https://github.com/michal-franc/ai-workflow-engine/releases/latest) — each contains `issue-viewer` (web UI) and `issue-cli` (agent CLI). Extract and put both on your `$PATH`.
+1. **Install.** One-liner for Linux/macOS — drops `issue-viewer` (web UI) and `issue-cli` (agent CLI) into `~/.local/bin`. See [Install](#install) for Windows / manual download.
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/michal-franc/ai-workflow-engine/main/install.sh | bash
+   ```
+
 2. **Try the demo** (optional, requires the repo checked out):
 
    ```bash
@@ -191,7 +196,15 @@ Pulls items from a GitHub Project into `issues/<System>/<number>.md`. The workfl
 
 ## Install
 
-Download the prebuilt archive for your platform from the [latest release](https://github.com/michal-franc/ai-workflow-engine/releases/latest):
+One-liner (Linux / macOS):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/michal-franc/ai-workflow-engine/main/install.sh | bash
+```
+
+The script detects your OS/arch, grabs the latest release, and drops `issue-viewer` + `issue-cli` into `~/.local/bin` (override with `INSTALL_DIR=...`, pin a tag with `VERSION=v0.22.0`).
+
+Or download manually from the [latest release](https://github.com/michal-franc/ai-workflow-engine/releases/latest):
 
 | Platform        | Archive                                       |
 |:----------------|:----------------------------------------------|

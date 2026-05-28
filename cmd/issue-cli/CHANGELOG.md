@@ -16,7 +16,7 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
-## v0.22.0 — 2026-05-28
+## v0.25.0 — 2026-05-28
 
 - Web UI: new **+ New issue** button in the header on both the list and board views opens a modal that creates an issue without leaving the browser. Title and body are required; the body textarea is prefilled from the per-status `template:` block in `workflow.yaml`, and changing the Status dropdown refills it only if the body hasn't been edited.
 - The form prefills the system from the currently-active `?system=` filter, defaults status to the first creatable status (any status before `backlog`), and on success navigates to the new issue's detail page.

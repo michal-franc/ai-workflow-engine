@@ -125,7 +125,11 @@
                 if (del) del.remove();
             }
         }
-        if (needsReload) { location.reload(); return; }
+        if (needsReload) {
+            if (window.__createModalOpen) return;
+            location.reload();
+            return;
+        }
 
         // Move cards between columns if status changed
         document.querySelectorAll('.board-card-wrapper').forEach(function(wrapper) {
@@ -316,7 +320,9 @@
                     var view = detectView();
                     if (view === 'board') updateBoard(issues);
                     else if (view === 'list') updateList(issues);
-                    else if (view === 'detail') location.reload();
+                    else if (view === 'detail') {
+                        if (!window.__createModalOpen) location.reload();
+                    }
                 }).catch(function() {});
             }
         }).catch(function() {});

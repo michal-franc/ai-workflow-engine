@@ -100,6 +100,28 @@ a:hover { text-decoration: underline; }
     white-space: nowrap;
 }
 
+.header-create-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    margin-right: 8px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+
+.header-create-btn:hover {
+    background: var(--bg-secondary);
+    border-color: var(--text-link);
+    color: var(--text-link);
+}
+
 .theme-btn {
     width: 20px;
     height: 20px;

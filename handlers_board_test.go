@@ -28,6 +28,35 @@ func TestHandleBoard_ReturnsBoardView(t *testing.T) {
 	}
 }
 
+func TestHandleBoard_IncludesCreateModal(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/p/test-project/board")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	html := string(body)
+	for _, marker := range []string{
+		`class="header-create-btn"`,
+		`id="create-modal"`,
+		`var bodyTemplates =`,
+		`window.openCreateModal`,
+	} {
+		if !strings.Contains(html, marker) {
+			t.Errorf("board page missing %q", marker)
+		}
+	}
+}
+
 func TestHandleBoard_Filters(t *testing.T) {
 	proj, _ := setupTestProject(t)
 	ts := newTestServer(t, []tracker.Project{proj})

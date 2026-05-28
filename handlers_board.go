@@ -25,24 +25,26 @@ type BoardCardField struct {
 }
 
 type BoardData struct {
-	Columns        []*BoardColumn
-	Total          int
-	Versions       []string
-	Version        string
-	Systems        []string
-	System         string
-	Assignees      []string
-	Assignee       string
-	Priorities     []string
-	Labels         []string
-	Prefix         string
-	ProjectName    string
-	ActiveBots     int
-	CardFields     []string
-	SupportsGitHub bool
-	ScoringEnabled bool
-	Sort           string
-	HideEmpty      bool
+	Columns           []*BoardColumn
+	Total             int
+	Versions          []string
+	Version           string
+	Systems           []string
+	System            string
+	Assignees         []string
+	Assignee          string
+	Priorities        []string
+	Labels            []string
+	Prefix            string
+	ProjectName       string
+	ActiveBots        int
+	CardFields        []string
+	SupportsGitHub    bool
+	ScoringEnabled    bool
+	Sort              string
+	HideEmpty         bool
+	CreatableStatuses []string
+	BodyTemplates     map[string]string
 }
 
 type GraphStatusNode struct {
@@ -219,25 +221,29 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 		columns = filteredCols
 	}
 
+	creatable, templates := createOptions(wf)
+
 	data := BoardData{
-		Columns:        columns,
-		Total:          len(issues),
-		Versions:       versions,
-		Version:        versionFilter,
-		Systems:        systems,
-		System:         systemFilter,
-		Assignees:      assignees,
-		Assignee:       assigneeFilter,
-		Priorities:     priorities,
-		Labels:         labels,
-		Prefix:         prefix,
-		ProjectName:    proj.Name,
-		ActiveBots:     activeBots,
-		CardFields:     wf.GetBoardCardFields(),
-		SupportsGitHub: proj.SupportsGitHub,
-		ScoringEnabled: scoring.Enabled,
-		Sort:           sortKey,
-		HideEmpty:      hideEmpty,
+		Columns:           columns,
+		Total:             len(issues),
+		Versions:          versions,
+		Version:           versionFilter,
+		Systems:           systems,
+		System:            systemFilter,
+		Assignees:         assignees,
+		Assignee:          assigneeFilter,
+		Priorities:        priorities,
+		Labels:            labels,
+		Prefix:            prefix,
+		ProjectName:       proj.Name,
+		ActiveBots:        activeBots,
+		CardFields:        wf.GetBoardCardFields(),
+		SupportsGitHub:    proj.SupportsGitHub,
+		ScoringEnabled:    scoring.Enabled,
+		Sort:              sortKey,
+		HideEmpty:         hideEmpty,
+		CreatableStatuses: creatable,
+		BodyTemplates:     templates,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

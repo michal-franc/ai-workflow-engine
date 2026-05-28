@@ -55,6 +55,10 @@
             </nav>
             <div class="theme-picker">
                 <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
+                <button class="header-create-btn" title="New issue" onclick="openCreateModal('')">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M7.25 1a.75.75 0 01.75.75V7h5.25a.75.75 0 010 1.5H8v5.25a.75.75 0 01-1.5 0V8.5H1.25a.75.75 0 010-1.5H6.5V1.75A.75.75 0 017.25 1z"/></svg>
+                    New issue
+                </button>
                 <button class="theme-btn" data-theme="dark" title="Dark"></button>
                 <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
                 <button class="theme-btn" data-theme="light" title="Light"></button>
@@ -178,42 +182,7 @@
     </div>
 
     <!-- Create issue modal -->
-    <div class="modal-overlay" id="create-modal" style="display:none">
-        <div class="modal" style="max-width:560px">
-            <div class="modal-title">New issue</div>
-            <div class="modal-body">
-                <input type="text" id="create-title" class="modal-input" placeholder="Issue title" tabindex="1" autofocus>
-                <textarea id="create-body" class="modal-input" placeholder="Description (markdown)" rows="6" tabindex="2" style="resize:vertical;font-family:monospace;font-size:13px"></textarea>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                    <select id="create-system" class="modal-input" tabindex="3">
-                        <option value="">No system</option>
-                        {{range .Systems}}
-                        <option value="{{.}}">{{.}}</option>
-                        {{end}}
-                    </select>
-                    <select id="create-version" class="modal-input" tabindex="4">
-                        <option value="">No version</option>
-                        {{range .Versions}}
-                        <option value="{{.}}">v{{.}}</option>
-                        {{end}}
-                    </select>
-                    <select id="create-priority" class="modal-input" tabindex="5">
-                        <option value="">No priority</option>
-                        <option value="low">Low</option>
-                        <option value="medium">Medium</option>
-                        <option value="high">High</option>
-                        <option value="critical">Critical</option>
-                    </select>
-                    <input type="text" id="create-labels" class="modal-input" placeholder="Labels (comma-separated)" tabindex="6">
-                </div>
-                <input type="hidden" id="create-status" value="idea">
-            </div>
-            <div class="modal-actions">
-                <button class="modal-btn modal-btn-cancel" onclick="closeCreateModal()">Cancel</button>
-                <button class="modal-btn modal-btn-primary" id="create-confirm-btn" onclick="submitCreate()">Create</button>
-            </div>
-        </div>
-    </div>
+    {{template "create-modal" .}}
 
     <!-- Transition prompt modal -->
     <div class="modal-overlay" id="transition-modal" style="display:none">
@@ -607,63 +576,10 @@
         document.getElementById('delete-modal').style.display = 'none';
     }
 
-    // Create issue
-    function openCreateModal(status) {
-        document.getElementById('create-status').value = status;
-        document.getElementById('create-title').value = '';
-        document.getElementById('create-body').value = '';
-        document.getElementById('create-labels').value = '';
-        document.getElementById('create-priority').value = '';
-        // Inherit active filters
-        var activeVersion = document.querySelector('select[name="version"]').value;
-        var activeSystem = document.querySelector('select[name="system"]').value;
-        document.getElementById('create-version').value = activeVersion || '';
-        document.getElementById('create-system').value = activeSystem || '';
-        document.getElementById('create-modal').style.display = '';
-        setTimeout(() => document.getElementById('create-title').focus(), 50);
-    }
-
-    function closeCreateModal() {
-        document.getElementById('create-modal').style.display = 'none';
-    }
-
-    function submitCreate() {
-        const title = document.getElementById('create-title').value.trim();
-        if (!title) return;
-        const status = document.getElementById('create-status').value;
-        const system = document.getElementById('create-system').value;
-        const version = document.getElementById('create-version').value;
-        const priority = document.getElementById('create-priority').value;
-        const labelsRaw = document.getElementById('create-labels').value.trim();
-        const labels = labelsRaw ? labelsRaw.split(',').map(l => l.trim()).filter(Boolean) : [];
-        const body = document.getElementById('create-body').value;
-
-        fetch(prefix + '/issues/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: title, status: status, system: system, version: version, priority: priority, labels: labels, body: body })
-        }).then(res => {
-            closeCreateModal();
-            if (res.ok) {
-                showToast('Created');
-                setTimeout(() => location.reload(), 300);
-            } else {
-                showToast('Error creating', true);
-            }
-        });
-    }
-
-    // Allow Enter to submit create modal
-    document.getElementById('create-title').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') submitCreate();
-        if (e.key === 'Escape') closeCreateModal();
-    });
-
-    // Escape closes modals
+    // Escape closes modals (create modal handles its own Esc)
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             closeDeleteModal();
-            closeCreateModal();
             closeDispatchModal();
         }
     });

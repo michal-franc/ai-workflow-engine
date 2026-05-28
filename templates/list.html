@@ -55,6 +55,10 @@
             </nav>
             <div class="theme-picker">
                 <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
+                <button class="header-create-btn" title="New issue" onclick="openCreateModal('')">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M7.25 1a.75.75 0 01.75.75V7h5.25a.75.75 0 010 1.5H8v5.25a.75.75 0 01-1.5 0V8.5H1.25a.75.75 0 010-1.5H6.5V1.75A.75.75 0 017.25 1z"/></svg>
+                    New issue
+                </button>
                 <button class="theme-btn" data-theme="dark" title="Dark"></button>
                 <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
                 <button class="theme-btn" data-theme="light" title="Light"></button>
@@ -169,6 +173,7 @@
         </div>
         {{end}}
     </div>
+    {{template "create-modal" .}}
     <script src="/static/auto-refresh.js"></script>
 </body>
 </html>

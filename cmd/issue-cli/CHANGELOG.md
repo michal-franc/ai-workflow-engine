@@ -16,6 +16,16 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.22.0 — 2026-05-28
+
+- Web UI: new **+ New issue** button in the header on both the list and board views opens a modal that creates an issue without leaving the browser. Title and body are required; the body textarea is prefilled from the per-status `template:` block in `workflow.yaml`, and changing the Status dropdown refills it only if the body hasn't been edited.
+- The form prefills the system from the currently-active `?system=` filter, defaults status to the first creatable status (any status before `backlog`), and on success navigates to the new issue's detail page.
+- The 3-second auto-refresh polling no longer wipes an open create modal — `static/auto-refresh.js` skips its full-page reload while `window.__createModalOpen` is true.
+- The board's per-column `+` buttons keep working as before; they now share the same modal partial (`templates/_create_modal.html`) as the new header button.
+- No new endpoint, no schema change — the modal posts to the existing `POST /p/<project>/issues/create` handler (`handlers_issue_mutate.go`).
+- See `docs/UI/overview.md` ("Create issue modal" section) for the field/wiring contract.
+- Resolves ui/add-issue-from-ui-via-button.
+
 ## v0.21.0 — 2026-05-10
 
 - Agent dispatch worktrees now use `git sparse-checkout` to keep the `issues/` tree out of the agent's working copy. Previously every worktree was a full checkout, so agents saw their own task file alongside dozens of unrelated issue markdowns and got confused about which one was theirs.

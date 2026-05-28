@@ -1,0 +1,146 @@
+{{define "create-modal"}}
+<div class="modal-overlay" id="create-modal" style="display:none">
+    <div class="modal" style="max-width:560px">
+        <div class="modal-title">New issue</div>
+        <div class="modal-body">
+            <input type="text" id="create-title" class="modal-input" placeholder="Issue title" tabindex="1" autofocus>
+            <textarea id="create-body" class="modal-input" placeholder="Description (markdown)" rows="10" tabindex="2" style="resize:vertical;font-family:monospace;font-size:13px"></textarea>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <select id="create-system" class="modal-input" tabindex="3">
+                    <option value="">No system</option>
+                    {{range .Systems}}
+                    <option value="{{.}}">{{.}}</option>
+                    {{end}}
+                </select>
+                <select id="create-status" class="modal-input" tabindex="4">
+                    {{range .CreatableStatuses}}
+                    <option value="{{.}}">{{.}}</option>
+                    {{end}}
+                </select>
+                <select id="create-priority" class="modal-input" tabindex="5">
+                    <option value="">No priority</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                </select>
+                <input type="text" id="create-labels" class="modal-input" placeholder="Labels (comma-separated)" tabindex="6">
+            </div>
+            <div id="create-error" class="modal-error" style="display:none;margin-top:8px;padding:8px;background:#fee;color:#a00;border-radius:4px;font-size:13px"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="modal-btn modal-btn-cancel" onclick="closeCreateModal()">Cancel</button>
+            <button class="modal-btn modal-btn-primary" id="create-confirm-btn" onclick="submitCreate()">Create</button>
+        </div>
+    </div>
+</div>
+<script>
+(function() {
+    var pathMatch = location.pathname.match(/^(\/p\/[^/]+)/);
+    var createPrefix = pathMatch ? pathMatch[1] : '';
+    var bodyTemplates = {{.BodyTemplates | toJSON}};
+    var bodyDirty = false;
+
+    function defaultStatus() {
+        var sel = document.getElementById('create-status');
+        if (sel && sel.options.length) return sel.options[0].value;
+        return 'idea';
+    }
+
+    function activeFilterValue(name) {
+        var el = document.querySelector('select[name="' + name + '"]');
+        return el ? el.value : '';
+    }
+
+    window.openCreateModal = function(presetStatus) {
+        var statusEl = document.getElementById('create-status');
+        var status = presetStatus || defaultStatus();
+        // Ensure the status exists in the select (board column may pass a status
+        // outside the "creatable" set — fall back to default rather than fail).
+        var found = false;
+        for (var i = 0; i < statusEl.options.length; i++) {
+            if (statusEl.options[i].value === status) { found = true; break; }
+        }
+        if (!found) status = defaultStatus();
+        statusEl.value = status;
+
+        document.getElementById('create-title').value = '';
+        document.getElementById('create-body').value = bodyTemplates[status] || '';
+        bodyDirty = false;
+        document.getElementById('create-labels').value = '';
+        document.getElementById('create-priority').value = '';
+        document.getElementById('create-system').value = activeFilterValue('system') || '';
+        var errEl = document.getElementById('create-error');
+        errEl.style.display = 'none';
+        errEl.textContent = '';
+
+        window.__createModalOpen = true;
+        document.getElementById('create-modal').style.display = '';
+        setTimeout(function() { document.getElementById('create-title').focus(); }, 50);
+    };
+
+    window.closeCreateModal = function() {
+        document.getElementById('create-modal').style.display = 'none';
+        window.__createModalOpen = false;
+    };
+
+    window.submitCreate = function() {
+        var title = document.getElementById('create-title').value.trim();
+        var errEl = document.getElementById('create-error');
+        if (!title) {
+            errEl.textContent = 'Title is required.';
+            errEl.style.display = '';
+            return;
+        }
+        var status = document.getElementById('create-status').value;
+        var system = document.getElementById('create-system').value;
+        var priority = document.getElementById('create-priority').value;
+        var labelsRaw = document.getElementById('create-labels').value.trim();
+        var labels = labelsRaw ? labelsRaw.split(',').map(function(l) { return l.trim(); }).filter(Boolean) : [];
+        var body = document.getElementById('create-body').value;
+        if (!body.trim()) {
+            errEl.textContent = 'Body is required.';
+            errEl.style.display = '';
+            return;
+        }
+
+        var btn = document.getElementById('create-confirm-btn');
+        btn.disabled = true;
+        fetch(createPrefix + '/issues/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title, status: status, system: system, priority: priority, labels: labels, body: body })
+        }).then(function(res) {
+            if (res.ok) {
+                return res.json().then(function(data) {
+                    window.__createModalOpen = false;
+                    location.href = createPrefix + '/issue/' + data.slug;
+                });
+            }
+            return res.text().then(function(text) {
+                errEl.textContent = text || 'Create failed.';
+                errEl.style.display = '';
+                btn.disabled = false;
+            });
+        }).catch(function(err) {
+            errEl.textContent = 'Network error: ' + err;
+            errEl.style.display = '';
+            btn.disabled = false;
+        });
+    };
+
+    document.getElementById('create-body').addEventListener('input', function() {
+        bodyDirty = true;
+    });
+
+    document.getElementById('create-status').addEventListener('change', function(e) {
+        if (bodyDirty) return;
+        document.getElementById('create-body').value = bodyTemplates[e.target.value] || '';
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && window.__createModalOpen) closeCreateModal();
+    });
+})();
+</script>
+{{end}}

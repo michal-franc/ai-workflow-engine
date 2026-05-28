@@ -30,10 +30,9 @@ main() {
 
   detect_os() {
     case "$(uname -s)" in
-      Linux*)               echo "linux" ;;
-      Darwin*)              echo "darwin" ;;
-      MINGW*|MSYS*|CYGWIN*) echo "windows" ;;
-      *) err "unsupported OS: $(uname -s)" ;;
+      Linux*)  echo "linux" ;;
+      Darwin*) echo "darwin" ;;
+      *) err "unsupported OS: $(uname -s) (releases ship linux and darwin only)" ;;
     esac
   }
 
@@ -73,20 +72,9 @@ main() {
     fi
   }
 
-  scan_zip_safe() {
-    local archive="$1"
-    if unzip -Z1 "$archive" | grep -E '^(/|.*/\.\./|\.\./)' >/dev/null; then
-      err "archive '$archive' contains unsafe paths (zip-slip)"
-    fi
-  }
-
   local OS ARCH
   OS="$(detect_os)"
   ARCH="$(detect_arch)"
-
-  if [ "$OS" = "windows" ] && [ "$ARCH" = "arm64" ]; then
-    err "no prebuilt binary for windows/arm64"
-  fi
 
   guard_install_dir "$INSTALL_DIR"
 
@@ -102,10 +90,7 @@ main() {
   fi
   validate_version "$VERSION"
 
-  local EXT="tar.gz"
-  [ "$OS" = "windows" ] && EXT="zip"
-
-  local ASSET="issue-viewer_${VERSION}_${OS}_${ARCH}.${EXT}"
+  local ASSET="issue-viewer_${VERSION}_${OS}_${ARCH}.tar.gz"
   local URL="https://github.com/$REPO/releases/download/$VERSION/$ASSET"
   local SUMS_URL="${URL}.sha256"
 
@@ -127,27 +112,18 @@ main() {
 
   info "extracting"
   cd "$TMP"
-  if [ "$EXT" = "zip" ]; then
-    command -v unzip >/dev/null || err "unzip is required to extract $ASSET"
-    scan_zip_safe "$ASSET"
-    unzip -q "$ASSET"
-  else
-    scan_tar_safe "$ASSET"
-    tar -xzf "$ASSET" --no-same-owner --no-same-permissions
-  fi
+  scan_tar_safe "$ASSET"
+  tar -xzf "$ASSET" --no-same-owner --no-same-permissions
 
   local STAGE="issue-viewer_${VERSION}_${OS}_${ARCH}"
   [ -d "$STAGE" ] || err "expected directory $STAGE not found in archive"
 
   mkdir -p "$INSTALL_DIR"
-  local SUFFIX=""
-  [ "$OS" = "windows" ] && SUFFIX=".exe"
+  install -m 0755 "$STAGE/issue-viewer" "$INSTALL_DIR/issue-viewer"
+  install -m 0755 "$STAGE/issue-cli"    "$INSTALL_DIR/issue-cli"
 
-  install -m 0755 "$STAGE/issue-viewer$SUFFIX" "$INSTALL_DIR/issue-viewer$SUFFIX"
-  install -m 0755 "$STAGE/issue-cli$SUFFIX"    "$INSTALL_DIR/issue-cli$SUFFIX"
-
-  info "installed issue-viewer $VERSION → $INSTALL_DIR/issue-viewer$SUFFIX"
-  info "installed issue-cli    $VERSION → $INSTALL_DIR/issue-cli$SUFFIX"
+  info "installed issue-viewer $VERSION → $INSTALL_DIR/issue-viewer"
+  info "installed issue-cli    $VERSION → $INSTALL_DIR/issue-cli"
 
   case ":$PATH:" in
     *":$INSTALL_DIR:"*) ;;

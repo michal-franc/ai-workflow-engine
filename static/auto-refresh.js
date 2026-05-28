@@ -7,6 +7,35 @@
     var lastHash = null;
     var interval = 3000;
 
+    // Hold off auto-refresh briefly after any local mutation so an in-flight
+    // checkbox/save isn't clobbered by a reload that fires before the server's
+    // write has propagated through the hash. Any non-GET fetch (the existing
+    // toggleCheckbox / saveUpdate paths all use fetch) automatically extends
+    // the window via the wrapper below; callers can also bump it manually via
+    // window.suppressAutoRefresh(ms).
+    var suppressUntil = 0;
+    var suppressMs = 5000;
+    window.suppressAutoRefresh = function(ms) {
+        suppressUntil = Math.max(suppressUntil, Date.now() + (ms || suppressMs));
+    };
+
+    if (!window.__autoRefreshFetchWrapped) {
+        window.__autoRefreshFetchWrapped = true;
+        var origFetch = window.fetch.bind(window);
+        window.fetch = function(input, init) {
+            var method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+            if (method !== 'GET' && method !== 'HEAD') {
+                window.suppressAutoRefresh();
+                var p = origFetch(input, init);
+                // Extend after completion to cover server propagation lag.
+                p.then(function() { window.suppressAutoRefresh(); },
+                       function() { /* leave existing window in place */ });
+                return p;
+            }
+            return origFetch(input, init);
+        };
+    }
+
     // Color maps matching server-side template functions
     var statusColors = {
         'idea': '#8b5cf6', 'in design': '#3b82f6', 'backlog': '#64748b',
@@ -96,7 +125,11 @@
                 if (del) del.remove();
             }
         }
-        if (needsReload) { location.reload(); return; }
+        if (needsReload) {
+            if (window.__createModalOpen) return;
+            location.reload();
+            return;
+        }
 
         // Move cards between columns if status changed
         document.querySelectorAll('.board-card-wrapper').forEach(function(wrapper) {
@@ -272,6 +305,7 @@
     }
 
     function poll() {
+        if (Date.now() < suppressUntil) return;
         fetch(hashUrl).then(function(res) {
             return res.json();
         }).then(function(data) {
@@ -286,7 +320,9 @@
                     var view = detectView();
                     if (view === 'board') updateBoard(issues);
                     else if (view === 'list') updateList(issues);
-                    else if (view === 'detail') location.reload();
+                    else if (view === 'detail') {
+                        if (!window.__createModalOpen) location.reload();
+                    }
                 }).catch(function() {});
             }
         }).catch(function() {});

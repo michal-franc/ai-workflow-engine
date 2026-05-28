@@ -46,8 +46,6 @@ main() {
   }
 
   validate_version() {
-    # Accept v1.2.3 and v1.2.3-rc1 / v1.2.3.foo etc. Reject anything that
-    # could be interpreted as a path component or URL trick.
     case "$1" in
       v[0-9]*.[0-9]*.[0-9]*) ;;
       *) err "invalid version format: '$1' (expected vX.Y.Z)" ;;
@@ -69,7 +67,6 @@ main() {
   }
 
   scan_tar_safe() {
-    # Reject absolute paths and any entry containing a `..` component.
     local archive="$1"
     if tar -tzf "$archive" | grep -E '^(/|.*/\.\./|\.\./)' >/dev/null; then
       err "archive '$archive' contains unsafe paths (zip-slip)"
@@ -112,7 +109,9 @@ main() {
   local URL="https://github.com/$REPO/releases/download/$VERSION/$ASSET"
   local SUMS_URL="${URL}.sha256"
 
-  local TMP
+  # TMP intentionally not `local`: the EXIT trap runs after main() returns,
+  # at which point a function-scoped TMP would be unbound (failing under
+  # `set -u`). A bare top-level assignment keeps the trap working.
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
 

@@ -29,6 +29,35 @@ func TestHandleList_ReturnsIssueList(t *testing.T) {
 	}
 }
 
+func TestHandleList_IncludesCreateModal(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/p/test-project/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	html := string(body)
+	for _, marker := range []string{
+		`class="header-create-btn"`,
+		`id="create-modal"`,
+		`var bodyTemplates =`,
+		`id="create-status"`,
+	} {
+		if !strings.Contains(html, marker) {
+			t.Errorf("list page missing %q", marker)
+		}
+	}
+}
+
 func TestHandleList_IncludesRetrosTab(t *testing.T) {
 	proj, _ := setupTestProject(t)
 	ts := newTestServer(t, []tracker.Project{proj})

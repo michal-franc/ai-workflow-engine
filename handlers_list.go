@@ -28,21 +28,23 @@ func (i *IssueView) HasActiveAgent() bool {
 }
 
 type ListData struct {
-	Issues         []*IssueView
-	Statuses       []string
-	Systems        []string
-	Priorities     []string
-	Labels         []string
-	Assignees      []string
-	Filter         FilterParams
-	Total          int
-	Filtered       int
-	Prefix         string
-	ProjectName    string
-	ActiveBots     int
-	SupportsGitHub bool
-	ScoringEnabled bool
-	Sort           string
+	Issues            []*IssueView
+	Statuses          []string
+	Systems           []string
+	Priorities        []string
+	Labels            []string
+	Assignees         []string
+	Filter            FilterParams
+	Total             int
+	Filtered          int
+	Prefix            string
+	ProjectName       string
+	ActiveBots        int
+	SupportsGitHub    bool
+	ScoringEnabled    bool
+	Sort              string
+	CreatableStatuses []string
+	BodyTemplates     map[string]string
 }
 
 type FilterParams struct {
@@ -90,22 +92,26 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracke
 		sortViewsByScore(views)
 	}
 
+	creatable, templates := createOptions(wf)
+
 	data := ListData{
-		Issues:         views,
-		Statuses:       statuses,
-		Systems:        systems,
-		Priorities:     priorities,
-		Labels:         labels,
-		Assignees:      assignees,
-		Filter:         filter,
-		Total:          total,
-		Filtered:       len(filtered),
-		Prefix:         prefix,
-		ProjectName:    proj.Name,
-		ActiveBots:     activeBots,
-		SupportsGitHub: proj.SupportsGitHub,
-		ScoringEnabled: scoring.Enabled,
-		Sort:           sortKey,
+		Issues:            views,
+		Statuses:          statuses,
+		Systems:           systems,
+		Priorities:        priorities,
+		Labels:            labels,
+		Assignees:         assignees,
+		Filter:            filter,
+		Total:             total,
+		Filtered:          len(filtered),
+		Prefix:            prefix,
+		ProjectName:       proj.Name,
+		ActiveBots:        activeBots,
+		SupportsGitHub:    proj.SupportsGitHub,
+		ScoringEnabled:    scoring.Enabled,
+		Sort:              sortKey,
+		CreatableStatuses: creatable,
+		BodyTemplates:     templates,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -169,6 +175,30 @@ func (s *Server) handleIssuesJSON(w http.ResponseWriter, r *http.Request, proj *
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+// createOptions returns the statuses allowed in the "new issue" UI form
+// (every status before "backlog") and the body template that issue-cli would
+// inject for each of them, so the modal can prefill the description.
+func createOptions(wf *tracker.WorkflowConfig) ([]string, map[string]string) {
+	order := wf.GetStatusOrder()
+	backlogIdx := wf.GetStatusIndex("backlog")
+	if backlogIdx == -1 {
+		backlogIdx = 3
+	}
+	var creatable []string
+	templates := map[string]string{}
+	for _, s := range order {
+		if s == "" || s == "none" {
+			continue
+		}
+		if wf.GetStatusIndex(s) >= backlogIdx {
+			continue
+		}
+		creatable = append(creatable, s)
+		templates[s] = wf.TemplateForStatus(s)
+	}
+	return creatable, templates
 }
 
 // mergeSubdirSystems merges subdirectory names into the systems list so that

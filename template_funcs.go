@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"regexp"
@@ -179,6 +180,13 @@ var funcMap = template.FuncMap{
 	},
 	"linkIssueRefs": func(html string, prefix string, slugMap map[string]string) template.HTML {
 		return template.HTML(linkIssueRefs(html, prefix, slugMap))
+	},
+	"toJSON": func(v any) template.JS {
+		b, err := json.Marshal(v)
+		if err != nil {
+			return template.JS("null")
+		}
+		return template.JS(b)
 	},
 }
 

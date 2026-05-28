@@ -8,7 +8,8 @@ build-cli:
 
 install:
 	go install ./cmd/issue-cli/
-	@echo "Installed issue-cli via go install"
+	go install .
+	@echo "Installed issue-cli and issue-viewer via go install"
 
 demo: build
 	./issue-viewer -config demo/projects.yaml -port 8080

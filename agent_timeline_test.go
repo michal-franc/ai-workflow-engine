@@ -38,10 +38,10 @@ func TestLoadDispatchPrompt(t *testing.T) {
 }
 
 func TestLoadAgentTimeline_MissingLogReturnsNil(t *testing.T) {
-	if got := LoadAgentTimeline("", ""); got != nil {
+	if got := LoadAgentTimeline("", "", "", ""); got != nil {
 		t.Errorf("empty inputs should return nil, got %d events", len(got))
 	}
-	if got := LoadAgentTimeline(t.TempDir(), "agent-nonexistent"); got != nil {
+	if got := LoadAgentTimeline(t.TempDir(), "agent-nonexistent", "", ""); got != nil {
 		t.Errorf("missing log should return nil, got %d events", len(got))
 	}
 }
@@ -71,7 +71,7 @@ func TestLoadAgentTimeline_ParsesClilog(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	events := LoadAgentTimeline(workDir, assignee)
+	events := LoadAgentTimeline(workDir, assignee, "", "")
 	if len(events) != 8 {
 		t.Fatalf("expected 8 events (invalid + empty-args skipped), got %d", len(events))
 	}
@@ -261,7 +261,7 @@ func TestLoadAgentTimeline_StripsGlobalFlagsBeforeCommand(t *testing.T) {
 	if err := os.WriteFile(logPath, []byte(strings.Join(lines, "\n")+"\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	events := LoadAgentTimeline(workDir, assignee)
+	events := LoadAgentTimeline(workDir, assignee, "", "")
 	if len(events) != 2 {
 		t.Fatalf("want 2 events, got %d", len(events))
 	}
@@ -270,6 +270,72 @@ func TestLoadAgentTimeline_StripsGlobalFlagsBeforeCommand(t *testing.T) {
 	}
 	if events[1].Kind != "transition" || events[1].ToStatus != "testing" {
 		t.Errorf("event 1: got kind=%q to=%q, want transition→testing", events[1].Kind, events[1].ToStatus)
+	}
+}
+
+// LoadAgentTimeline must merge the global temp log into the timeline so
+// CLI calls from agent shells that don't inherit ISSUE_CLI_LOG (Claude
+// Code's Bash tool, IDE terminals, manual cwds) still appear. Filter by
+// --project + slug so we only pick up records relevant to this issue.
+func TestLoadAgentTimeline_MergesGlobalTempLog(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+
+	globalDir := filepath.Join(tmp, "issue-cli-logs")
+	if err := os.MkdirAll(globalDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	globalLog := filepath.Join(globalDir, "actions.jsonl")
+	lines := []string{
+		`{"args":["--project","demo-1","check","scaffold-hello","Do thing"],"ts":"2026-05-18T16:08:22Z"}`,
+		`{"args":["--project","demo-1","transition","scaffold-hello","--to","test"],"ts":"2026-05-18T16:08:48Z"}`,
+		`{"args":["--project","other","transition","scaffold-hello","--to","done"],"ts":"2026-05-18T16:08:50Z"}`,
+		`{"args":["--project","demo-1","show","unrelated-issue"],"ts":"2026-05-18T16:08:55Z"}`,
+	}
+	if err := os.WriteFile(globalLog, []byte(strings.Join(lines, "\n")+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	events := LoadAgentTimeline("", "", "demo-1", "scaffold-hello")
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events (filtered to demo-1 + scaffold-hello), got %d", len(events))
+	}
+	if events[0].Kind != "check" {
+		t.Errorf("event 0 kind: got %q, want check", events[0].Kind)
+	}
+	if events[1].Kind != "transition" || events[1].ToStatus != "test" {
+		t.Errorf("event 1: got kind=%q to=%q, want transition→test", events[1].Kind, events[1].ToStatus)
+	}
+}
+
+// When the same record appears in both the per-agent clilog and the global
+// temp log, the timeline must dedupe so the user doesn't see duplicates.
+func TestLoadAgentTimeline_DedupesAcrossSources(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+
+	globalDir := filepath.Join(tmp, "issue-cli-logs")
+	if err := os.MkdirAll(globalDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	shared := `{"args":["--project","demo-1","transition","scaffold-hello","--to","test"],"ts":"2026-05-18T16:08:48Z"}`
+	if err := os.WriteFile(filepath.Join(globalDir, "actions.jsonl"), []byte(shared+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	workDir := t.TempDir()
+	assignee := "agent-scaffold"
+	dir := filepath.Join(workDir, ".agent-logs", assignee)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, assignee+".clilog"), []byte(shared+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	events := LoadAgentTimeline(workDir, assignee, "demo-1", "scaffold-hello")
+	if len(events) != 1 {
+		t.Fatalf("expected 1 deduped event, got %d", len(events))
 	}
 }
 

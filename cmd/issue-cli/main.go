@@ -84,6 +84,112 @@ func logAction(args []string) {
 			f.Close()
 		}
 	}
+	if agentLog := resolveAgentClilog(args); agentLog != "" {
+		os.MkdirAll(filepath.Dir(agentLog), 0755)
+		if f, err := os.OpenFile(agentLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+			f.Write(line)
+			f.Close()
+		}
+	}
+}
+
+// resolveAgentClilog derives the per-agent clilog path from the invocation
+// args alone — independent of ISSUE_CLI_LOG. The viewer's tmux dispatch sets
+// that env var, but agents that run `issue-cli` via tooling outside the tmux
+// session (Claude Code's Bash tool, IDE terminals, etc.) don't inherit it, so
+// transitions/checks vanish from the per-agent timeline. By looking up the
+// issue's assignee through --project + slug, every invocation can write to
+// the right clilog regardless of how the shell was launched.
+//
+// Returns "" when the path can't be derived (no project, command isn't
+// issue-targeting, issue not found, issue has no assignee) — those cases are
+// the same as today and fall through silently.
+func resolveAgentClilog(args []string) string {
+	stripped := stripCLIGlobalFlags(args)
+	if len(stripped) < 2 {
+		return ""
+	}
+	slug := stripped[1]
+	if strings.HasPrefix(slug, "-") {
+		return ""
+	}
+	configPath := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_CONFIG"))
+	if configPath == "" {
+		configPath = "projects.yaml"
+	}
+	if explicit := extractCLIFlag(args, "--config"); explicit != "" {
+		configPath = explicit
+	}
+	projSlug := extractCLIFlag(args, "--project")
+	projects, err := tracker.LoadProjects(configPath)
+	if err != nil || len(projects) == 0 {
+		return ""
+	}
+	var proj *tracker.Project
+	for i := range projects {
+		if projSlug != "" {
+			if projects[i].Slug == projSlug {
+				proj = &projects[i]
+				break
+			}
+		} else if i == 0 {
+			proj = &projects[i]
+		}
+	}
+	if proj == nil || proj.IssueDir == "" {
+		return ""
+	}
+	// Issues are named by `<number>.md` or `<slug>.md` depending on project
+	// convention, so scan the directory and match on the parsed slug rather
+	// than guessing a filename. LoadIssues is cheap (one read per issue file).
+	issues, err := tracker.LoadIssues(proj.IssueDir)
+	if err != nil {
+		return ""
+	}
+	var issue *tracker.Issue
+	for _, it := range issues {
+		if it.Slug == slug {
+			issue = it
+			break
+		}
+	}
+	if issue == nil || strings.TrimSpace(issue.Assignee) == "" {
+		return ""
+	}
+	workDir := proj.WorkDir
+	if workDir == "" {
+		workDir, _ = os.Getwd()
+	}
+	return filepath.Join(workDir, ".agent-logs", issue.Assignee, issue.Assignee+".clilog")
+}
+
+// stripCLIGlobalFlags strips --json/--config/--project so the residual args
+// start with the subcommand. Mirrors agent_timeline.go's stripGlobalFlags;
+// duplicated here because that lives in the viewer's main package.
+func stripCLIGlobalFlags(args []string) []string {
+	out := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--json":
+			continue
+		case "--config", "--project":
+			if i+1 < len(args) {
+				i++
+			}
+			continue
+		}
+		out = append(out, args[i])
+	}
+	return out
+}
+
+func extractCLIFlag(args []string, flag string) string {
+	for i, a := range args {
+		if a == flag && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
 }
 
 // countRecentRetries reports how many consecutive identical invocations

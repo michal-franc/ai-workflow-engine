@@ -1166,3 +1166,74 @@ func TestChangelogEmbeddedAndHasEntries(t *testing.T) {
 	}
 }
 
+// resolveAgentClilog must derive the per-agent clilog path from --project +
+// slug even when ISSUE_CLI_LOG is unset — that's the case for agents that
+// run `issue-cli` outside the tmux session the viewer dispatched (Claude
+// Code's Bash tool, IDE terminals, etc.). The match must be on parsed slug,
+// not filename, because projects like demo-1 name files `<number>.md`.
+func TestResolveAgentClilog_DerivesFromProjectAndSlug(t *testing.T) {
+	dir := t.TempDir()
+	issuesDir := filepath.Join(dir, "issues")
+	if err := os.MkdirAll(issuesDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	issue := strings.TrimSpace(`
+---
+title: "Scaffold Hello"
+status: "dev"
+number: 1
+assignee: "agent-scaffold-hello"
+---
+
+body
+`)
+	if err := os.WriteFile(filepath.Join(issuesDir, "1.md"), []byte(issue), 0644); err != nil {
+		t.Fatalf("write issue: %v", err)
+	}
+	projectsYAML := fmt.Sprintf("projects:\n  - name: Demo\n    slug: demo\n    workdir: %q\n    issues: %q\n", dir, issuesDir)
+	configPath := filepath.Join(dir, "projects.yaml")
+	if err := os.WriteFile(configPath, []byte(projectsYAML), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	t.Setenv("ISSUE_VIEWER_CONFIG", configPath)
+
+	got := resolveAgentClilog([]string{"--project", "demo", "transition", "scaffold-hello", "--to", "test"})
+	want := filepath.Join(dir, ".agent-logs", "agent-scaffold-hello", "agent-scaffold-hello.clilog")
+	if got != want {
+		t.Fatalf("resolveAgentClilog = %q, want %q", got, want)
+	}
+}
+
+func TestResolveAgentClilog_ReturnsEmptyWithoutAssignee(t *testing.T) {
+	dir := t.TempDir()
+	issuesDir := filepath.Join(dir, "issues")
+	if err := os.MkdirAll(issuesDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(issuesDir, "hello.md"), []byte("---\ntitle: \"Hello\"\nstatus: dev\n---\nbody\n"), 0644); err != nil {
+		t.Fatalf("write issue: %v", err)
+	}
+	projectsYAML := fmt.Sprintf("projects:\n  - name: Demo\n    slug: demo\n    workdir: %q\n    issues: %q\n", dir, issuesDir)
+	configPath := filepath.Join(dir, "projects.yaml")
+	if err := os.WriteFile(configPath, []byte(projectsYAML), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ISSUE_VIEWER_CONFIG", configPath)
+
+	if got := resolveAgentClilog([]string{"--project", "demo", "transition", "hello", "--to", "test"}); got != "" {
+		t.Fatalf("expected empty (no assignee), got %q", got)
+	}
+}
+
+func TestResolveAgentClilog_ReturnsEmptyForNonIssueCommand(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "projects.yaml"), []byte("projects:\n  - name: Demo\n    slug: demo\n"), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ISSUE_VIEWER_CONFIG", filepath.Join(dir, "projects.yaml"))
+
+	if got := resolveAgentClilog([]string{"--project", "demo", "process", "workflow"}); got != "" {
+		t.Fatalf("`process workflow` has no slug; expected empty, got %q", got)
+	}
+}

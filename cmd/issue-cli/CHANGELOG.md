@@ -16,6 +16,14 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.25.1 — 2026-05-28
+
+- Web UI: workflow designer now has Show/Hide buttons for the builder and inspector panels, so the canvas can take the full width when needed. Both panels default to hidden on load.
+- CLI: agent timeline now picks up `issue-cli` invocations from shells that don't inherit `ISSUE_CLI_LOG` (Claude Code's Bash tool, IDE terminals, manual `cd` into a worktree). The per-agent clilog is resolved from `--project` + slug so every invocation writes to it, and the global `$TMPDIR/issue-cli-logs/actions.jsonl` is merged into the timeline filtered by project + issue slug.
+- `make install` now installs both `issue-viewer` and `issue-cli` (previously only `issue-cli`).
+- Docs: README now clarifies that `tmux` is the only hard requirement for agent dispatch; i3 + alacritty are the default fallback when `terminal:` is unset. Set `terminal: "none"` for headless (viewer creates the detached tmux session and returns an `AttachCmd`), or any shell command with `{{session}}` substituted for custom emulators.
+- Internal: marked `WorkflowConfig` runtime-only fields with `json:"-"` so they don't leak into JSON output.
+
 ## v0.25.0 — 2026-05-28
 
 - Web UI: new **+ New issue** button in the header on both the list and board views opens a modal that creates an issue without leaving the browser. Title and body are required; the body textarea is prefilled from the per-status `template:` block in `workflow.yaml`, and changing the Status dropdown refills it only if the body hasn't been edited.

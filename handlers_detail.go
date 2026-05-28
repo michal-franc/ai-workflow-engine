@@ -128,7 +128,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 	}
 
 	workDir := resolveProjectWorkDir(proj)
-	timeline := LoadAgentTimeline(workDir, found.Assignee)
+	timeline := LoadAgentTimeline(workDir, found.Assignee, proj.Slug, found.Slug)
 	timeline = EnrichTimelineWithWorkflow(timeline, wf, "")
 	if len(timeline) > 0 {
 		basePrompt := LoadDispatchPrompt(workDir, found.Assignee)

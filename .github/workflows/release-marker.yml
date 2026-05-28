@@ -192,8 +192,6 @@ jobs:
             goarch: amd64
           - goos: darwin
             goarch: arm64
-          - goos: windows
-            goarch: amd64
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
@@ -214,13 +212,11 @@ jobs:
           VERSION: ${{ needs.release-marker.outputs.current }}
         run: |
           set -euo pipefail
-          EXT=""
-          if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
           STAGE="dist/issue-viewer_${VERSION}_${GOOS}_${GOARCH}"
           mkdir -p "$STAGE"
           LDFLAGS="-s -w -X main.Version=${VERSION}"
-          go build -trimpath -ldflags "$LDFLAGS" -o "$STAGE/issue-viewer${EXT}" .
-          go build -trimpath -ldflags "$LDFLAGS" -o "$STAGE/issue-cli${EXT}" ./cmd/issue-cli
+          go build -trimpath -ldflags "$LDFLAGS" -o "$STAGE/issue-viewer" .
+          go build -trimpath -ldflags "$LDFLAGS" -o "$STAGE/issue-cli" ./cmd/issue-cli
           cp README.md "$STAGE/"
 
       - name: Package archive
@@ -233,13 +229,8 @@ jobs:
           set -euo pipefail
           NAME="issue-viewer_${VERSION}_${GOOS}_${GOARCH}"
           cd dist
-          if [ "$GOOS" = "windows" ]; then
-            zip -r "${NAME}.zip" "$NAME"
-            ARCHIVE="${NAME}.zip"
-          else
-            tar -czf "${NAME}.tar.gz" "$NAME"
-            ARCHIVE="${NAME}.tar.gz"
-          fi
+          tar -czf "${NAME}.tar.gz" "$NAME"
+          ARCHIVE="${NAME}.tar.gz"
           # `sha256sum` output format: "<hash>  <filename>" — exactly what
           # `sha256sum -c` expects, so the install script can verify with a
           # one-liner.

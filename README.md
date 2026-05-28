@@ -166,8 +166,16 @@ The human window into the workflow.
 ### Agent dispatch
 
 - Send an issue to Claude or Codex from the board (hover, click ▶) or detail page.
-- Agents run in `tmux` sessions inside `alacritty` windows tiled by `i3`. Sessions named after issue slugs surface as live activity badges in the UI.
+- Agents run in `tmux` sessions. Sessions named after issue slugs surface as live activity badges in the UI.
 - Granting human approval from the detail page can notify the running tmux session so the agent picks up immediately.
+
+**Requirements.** `tmux` is mandatory — the dispatch lifecycle (session create, env injection, logging via `pipe-pane`, prompt delivery via `send-keys`) is all tmux. The terminal emulator is configurable per project via the `terminal:` field in `projects.yaml`:
+
+- Unset (default) → `i3-msg exec "alacritty -e tmux attach -t <session>"` (so i3 + alacritty are only needed if you leave it unset).
+- `"none"` → headless. The viewer creates the detached tmux session and returns an `AttachCmd` (`tmux attach -t <session>`) for you to run in your own terminal. Use this on macOS, GNOME, WSL, or a remote server.
+- Any shell command, e.g. `kitty -e tmux attach -t {{session}}` — `{{session}}` is substituted with the session name.
+
+> **Tip.** Not sure which value fits your setup? Ask your coding agent: *"Look at my OS, window manager, and installed terminals, then set the `terminal:` field in `projects.yaml` to something that works here."* It can detect i3/GNOME/macOS/WSL, check what's on `$PATH`, and pick the right command (or fall back to `"none"`).
 
 See [docs/agent-dispatch.md](docs/agent-dispatch.md) and [docs/agent-workflow-flow.md](docs/agent-workflow-flow.md).
 

@@ -103,6 +103,23 @@
             min-height: 840px;
         }
 
+        .designer-layout.hide-left {
+            grid-template-columns: minmax(0, 1fr) 320px;
+        }
+
+        .designer-layout.hide-right {
+            grid-template-columns: 270px minmax(0, 1fr);
+        }
+
+        .designer-layout.hide-left.hide-right {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .designer-layout.hide-left > .designer-panel.panel-builder,
+        .designer-layout.hide-right > .designer-panel.panel-inspector {
+            display: none;
+        }
+
         .designer-panel {
             background: var(--bg-secondary);
             border: 1px solid var(--border);
@@ -1014,8 +1031,8 @@
             </div>
         </div>
 
-        <div class="designer-layout">
-            <aside class="designer-panel">
+        <div class="designer-layout hide-left hide-right" id="designer-layout">
+            <aside class="designer-panel panel-builder">
                 <div class="designer-panel-header">
                     <div>
                         <div class="designer-panel-title">Workflow Builder</div>
@@ -1052,6 +1069,8 @@
                     <button class="designer-btn" id="auto-layout-btn">Reset View</button>
                     <button class="designer-btn" id="focus-selection-btn">Focus Selected</button>
                     <button class="designer-btn" id="clear-local-btn">Clear Draft</button>
+                    <button class="designer-btn" id="toggle-builder-btn">Show Builder</button>
+                    <button class="designer-btn" id="toggle-inspector-btn">Show Inspector</button>
                 </div>
                 <div class="canvas-stage-wrap" id="canvas-wrap">
                     <div class="canvas-stage" id="canvas-stage">
@@ -1069,7 +1088,7 @@
                 </div>
             </section>
 
-            <aside class="designer-panel">
+            <aside class="designer-panel panel-inspector">
                 <div class="designer-panel-header">
                     <div>
                         <div class="designer-panel-title">Inspector</div>
@@ -2238,6 +2257,28 @@
     loadState();
     render();
     }
+    </script>
+    <script>
+    (function () {
+        const layout = document.getElementById('designer-layout');
+        const builderBtn = document.getElementById('toggle-builder-btn');
+        const inspectorBtn = document.getElementById('toggle-inspector-btn');
+        if (!layout || !builderBtn || !inspectorBtn) return;
+
+        function syncLabels() {
+            builderBtn.textContent = layout.classList.contains('hide-left') ? 'Show Builder' : 'Hide Builder';
+            inspectorBtn.textContent = layout.classList.contains('hide-right') ? 'Show Inspector' : 'Hide Inspector';
+        }
+        builderBtn.addEventListener('click', () => {
+            layout.classList.toggle('hide-left');
+            syncLabels();
+        });
+        inspectorBtn.addEventListener('click', () => {
+            layout.classList.toggle('hide-right');
+            syncLabels();
+        });
+        syncLabels();
+    })();
     </script>
     <div class="designer-toast" id="designer-toast"></div>
 </body>

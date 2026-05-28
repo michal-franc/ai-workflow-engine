@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -56,22 +57,65 @@ func LoadDispatchPrompt(workDir, assignee string) string {
 	return string(data)
 }
 
-// LoadAgentTimeline reads the per-agent clilog at
-// <workDir>/.agent-logs/<assignee>/<assignee>.clilog and returns semantic
-// events in file order (oldest first). Returns nil when the log is missing
-// or either input is empty.
-func LoadAgentTimeline(workDir, assignee string) []TimelineEvent {
-	if workDir == "" || assignee == "" {
-		return nil
+// LoadAgentTimeline returns the timeline for an issue by merging two sources:
+//
+//  1. The per-agent clilog at <workDir>/.agent-logs/<assignee>/<assignee>.clilog
+//     — written when ISSUE_CLI_LOG is set in the agent's shell. Reliable for
+//     dispatches that ran inside the viewer's tmux session.
+//  2. The global temp log at $TMPDIR/issue-cli-logs/actions.jsonl, which the
+//     CLI's logAction always writes regardless of env/cwd. Filtered down to
+//     records whose --project matches projSlug and whose args reference
+//     issueSlug. This is the only source that captures invocations from
+//     agent shells that don't inherit ISSUE_CLI_LOG (Claude Code's Bash
+//     tool, IDE terminals, manual `cd` into a worktree, etc.).
+//
+// Events are merged, deduped on (ts, args), and sorted by timestamp.
+// projSlug or issueSlug may be empty — when both are empty the global log
+// isn't scanned.
+func LoadAgentTimeline(workDir, assignee, projSlug, issueSlug string) []TimelineEvent {
+	var events []TimelineEvent
+	seen := map[string]bool{}
+
+	add := func(rec cliLogRecord) {
+		rec.Args = stripGlobalFlags(rec.Args)
+		if len(rec.Args) == 0 {
+			return
+		}
+		key := rec.TS + "|" + strings.Join(rec.Args, "\x00")
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		events = append(events, timelineEventFromRecord(rec))
 	}
-	logPath := filepath.Join(workDir, ".agent-logs", assignee, assignee+".clilog")
-	f, err := os.Open(logPath)
+
+	if workDir != "" && assignee != "" {
+		logPath := filepath.Join(workDir, ".agent-logs", assignee, assignee+".clilog")
+		readCliLog(logPath, func(rec cliLogRecord) { add(rec) })
+	}
+
+	if issueSlug != "" {
+		readCliLog(filepath.Join(os.TempDir(), "issue-cli-logs", "actions.jsonl"),
+			func(rec cliLogRecord) {
+				if !cliRecordMatchesIssue(rec, projSlug, issueSlug) {
+					return
+				}
+				add(rec)
+			})
+	}
+
+	sort.SliceStable(events, func(i, j int) bool {
+		return events[i].Timestamp.Before(events[j].Timestamp)
+	})
+	return events
+}
+
+func readCliLog(path string, visit func(cliLogRecord)) {
+	f, err := os.Open(path)
 	if err != nil {
-		return nil
+		return
 	}
 	defer f.Close()
-
-	var events []TimelineEvent
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
 	for scanner.Scan() {
@@ -79,13 +123,38 @@ func LoadAgentTimeline(workDir, assignee string) []TimelineEvent {
 		if err := json.Unmarshal(scanner.Bytes(), &rec); err != nil {
 			continue
 		}
-		rec.Args = stripGlobalFlags(rec.Args)
-		if len(rec.Args) == 0 {
-			continue
-		}
-		events = append(events, timelineEventFromRecord(rec))
+		visit(rec)
 	}
-	return events
+}
+
+// cliRecordMatchesIssue returns true when the global-log record targets the
+// given project (--project flag matches projSlug, or projSlug is empty) AND
+// references issueSlug in its positional args. The slug appears as a
+// positional arg for every issue-targeting command (start, show, check,
+// transition, append, comment, retrospective, checklist, replace, set-meta).
+func cliRecordMatchesIssue(rec cliLogRecord, projSlug, issueSlug string) bool {
+	if issueSlug == "" {
+		return false
+	}
+	if projSlug != "" {
+		flagProj := ""
+		for i, a := range rec.Args {
+			if a == "--project" && i+1 < len(rec.Args) {
+				flagProj = rec.Args[i+1]
+				break
+			}
+		}
+		if flagProj != projSlug {
+			return false
+		}
+	}
+	stripped := stripGlobalFlags(rec.Args)
+	for _, a := range stripped {
+		if a == issueSlug {
+			return true
+		}
+	}
+	return false
 }
 
 func timelineEventFromRecord(rec cliLogRecord) TimelineEvent {

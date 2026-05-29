@@ -50,6 +50,18 @@ type WorkflowAction struct {
 	Hint           string   `yaml:"hint,omitempty" desc:"Custom failure hint; templated with {{slug}}/{{number}}/{{repo}}/{{system}}"`
 }
 
+// CustomAction is a one-shot agent button rendered on the issue detail view,
+// below the built-in Claude/Codex dispatch buttons. Unlike a transition it does
+// not validate or mutate the issue: it just opens a tmux agent session briefed
+// with Prompt. Use it for lightweight coordination tasks (e.g. "defer to team")
+// that hand the issue to an agent with a fixed instruction.
+type CustomAction struct {
+	ID     string `yaml:"id" desc:"Stable identifier used in the action URL and tmux session name (e.g. \"defer-to-team\")"`
+	Label  string `yaml:"label" desc:"Button text shown on the detail view"`
+	Prompt string `yaml:"prompt" desc:"Prompt sent to the agent; templated with {{slug}}/{{title}}/{{status}}/{{system}}/{{priority}}/{{number}}"`
+	Agent  string `yaml:"agent,omitempty" desc:"Agent to launch: claude (default) or codex"`
+}
+
 type WorkflowField struct {
 	Name     string `yaml:"name" json:"name" desc:"Field identifier (also frontmatter key when target=frontmatter)"`
 	Prompt   string `yaml:"prompt" json:"prompt" desc:"Human-readable prompt shown in the UI when collecting the answer"`
@@ -118,6 +130,7 @@ type WorkflowConfig struct {
 	Statuses    []WorkflowStatus           `yaml:"statuses" desc:"Status lifecycle definitions"`
 	Transitions []WorkflowTransition       `yaml:"transitions" desc:"Transition rules between statuses"`
 	Systems     map[string]WorkflowOverlay `yaml:"systems" desc:"Per-system overrides keyed by system name"`
+	Actions     []CustomAction             `yaml:"actions,omitempty" desc:"Custom one-shot agent buttons shown on the issue detail view"`
 	Board       WorkflowBoardConfig        `yaml:"board" desc:"Board display configuration"`
 	Scoring     ScoringConfig              `yaml:"scoring,omitempty" desc:"Ticket scoring policy (opt-in)"`
 	// AllowShell opts in to the command_succeeds validator. When false, any
@@ -439,6 +452,20 @@ func (w *WorkflowConfig) GetStatus(name string) *WorkflowStatus {
 	for i := range w.Statuses {
 		if w.Statuses[i].Name == name {
 			return &w.Statuses[i]
+		}
+	}
+	return nil
+}
+
+// GetAction returns the custom action with the given id, or nil. Used by the
+// detail-view action handler to resolve a button click to its prompt.
+func (w *WorkflowConfig) GetAction(id string) *CustomAction {
+	if w == nil {
+		return nil
+	}
+	for i := range w.Actions {
+		if w.Actions[i].ID == id {
+			return &w.Actions[i]
 		}
 	}
 	return nil

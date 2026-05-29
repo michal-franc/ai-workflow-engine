@@ -25,6 +25,7 @@ type DetailData struct {
 	ActiveBots        int
 	Timeline          []TimelineEvent
 	RenderedBody      template.HTML
+	CustomActions     []tracker.CustomAction
 }
 
 // OptionalApproval describes a transition to an Optional status that requires
@@ -161,6 +162,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		ActiveBots:        activeBots,
 		Timeline:          timeline,
 		RenderedBody:      template.HTML(renderedBody),
+		CustomActions:     wf.Actions,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

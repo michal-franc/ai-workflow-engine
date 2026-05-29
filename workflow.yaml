@@ -188,6 +188,20 @@ transitions:
       - type: "require_human_approval"
         status: "done"
 
+# Custom one-shot agent buttons, rendered on the issue detail view below the
+# built-in Claude/Codex dispatch buttons. Each opens a tmux agent session
+# briefed with the prompt below — no validation, no status change. Prompts are
+# templated with {{slug}}/{{title}}/{{status}}/{{system}}/{{priority}}/{{number}}.
+actions:
+  - id: "defer-to-team"
+    label: "Defer to team"
+    agent: "claude"
+    prompt: |
+      Issue "{{title}}" ({{slug}}, status: {{status}}) is being deferred to the team.
+      Draft a short, neutral handoff note that summarizes the current state, what is
+      blocking progress, and the specific decision or input needed from the team.
+      Then add it as a comment with: issue-cli comment {{slug}} --text "deferred: <summary>"
+
 systems:
   API:
     statuses:

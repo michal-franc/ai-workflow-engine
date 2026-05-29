@@ -1626,6 +1626,23 @@ html[data-sidebar-hidden="true"] .sidebar-show-btn { display: inline-block; }
     border-color: rgba(99, 102, 241, 0.5);
 }
 
+/* Custom workflow actions — stacked full-width buttons below Claude/Codex */
+.custom-actions-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 8px;
+}
+.dispatch-btn-custom {
+    background: rgba(148, 163, 184, 0.1);
+    color: #94a3b8;
+    border-color: rgba(148, 163, 184, 0.3);
+}
+.dispatch-btn-custom:hover {
+    background: rgba(148, 163, 184, 0.2);
+    border-color: rgba(148, 163, 184, 0.5);
+}
+
 /* Approval button */
 .approve-btn {
     display: flex;

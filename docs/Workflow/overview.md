@@ -150,6 +150,29 @@ Statuses support `side_effects` that run automatically after a transition:
   side_effects: [clear_assignee]
 ```
 
+## Custom Actions
+
+Custom actions are one-shot agent buttons rendered on the issue detail view, below the built-in Claude/Codex dispatch buttons. Unlike a transition, an action does **not** validate or mutate the issue — it just opens a tmux agent session briefed with a fixed prompt. Use them for lightweight coordination tasks ("defer to team", "summarize for standup", "draft a release note").
+
+Top-level `actions:` list in `workflow.yaml`:
+
+```yaml
+actions:
+  - id: "defer-to-team"        # stable id; used in the URL and tmux session name
+    label: "Defer to team"     # button text
+    agent: "claude"            # claude (default) or codex
+    prompt: |
+      Issue "{{title}}" ({{slug}}, status: {{status}}) is being deferred to the team.
+      Draft a short handoff note and add it as a comment:
+      issue-cli comment {{slug}} --text "deferred: <summary>"
+```
+
+- Each action becomes a button on every issue's detail view.
+- Clicking it POSTs to `/p/<project>/issue/<slug>/action/<id>`, which dispatches a fresh agent.
+- The session name is `agent-<slug>-<id>`, separate from the main `agent-<slug>` dispatch session, so an action runs alongside (not on top of) a working agent.
+- Actions run in the project checkout, not a per-issue worktree — they are lightweight prompts, not code-change sessions.
+- Prompts are templated with `{{slug}}`, `{{title}}`, `{{status}}`, `{{system}}`, `{{priority}}`, and `{{number}}`. Unrecognized `{{...}}` tokens are left verbatim.
+
 ## Per-Issue Worktrees
 
 The dispatch handler creates a per-issue git worktree before launching the agent's tmux session, so concurrent issues cannot stomp on each other's uncommitted state.

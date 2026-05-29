@@ -16,6 +16,11 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.26.0 — 2026-05-29
+
+- Workflow: new top-level `actions:` list in `workflow.yaml` defines custom one-shot agent buttons. Each action renders on the issue detail view below the built-in Claude/Codex dispatch buttons, and clicking it opens a tmux agent session briefed with a configured prompt — no validation, no status change. Useful for lightweight coordination tasks like "defer to team". Each action takes `id`, `label`, `prompt`, and an optional `agent` (`claude` default, or `codex`).
+- Action prompts are templated with `{{slug}}`, `{{title}}`, `{{status}}`, `{{system}}`, `{{priority}}`, and `{{number}}`; unrecognized tokens are left verbatim. Actions run in the project checkout (not a per-issue worktree) and use a dedicated `agent-<slug>-<id>` tmux session so they run alongside, rather than clobber, a working agent.
+
 ## v0.25.1 — 2026-05-28
 
 - Web UI: workflow designer now has Show/Hide buttons for the builder and inspector panels, so the canvas can take the full width when needed. Both panels default to hidden on load.

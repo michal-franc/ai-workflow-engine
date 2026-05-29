@@ -1766,6 +1766,39 @@ func TestWorkflowConfigCloneIsolatesScoringAndBoard(t *testing.T) {
 	}
 }
 
+func TestGetAction_ResolvesByID(t *testing.T) {
+	wf := &WorkflowConfig{Actions: []CustomAction{
+		{ID: "defer-to-team", Label: "Defer to team", Prompt: "p"},
+		{ID: "escalate", Label: "Escalate", Prompt: "q"},
+	}}
+	if got := wf.GetAction("escalate"); got == nil || got.Label != "Escalate" {
+		t.Fatalf("GetAction(escalate) = %+v, want the escalate action", got)
+	}
+	if got := wf.GetAction("missing"); got != nil {
+		t.Fatalf("GetAction(missing) = %+v, want nil", got)
+	}
+	var nilWF *WorkflowConfig
+	if got := nilWF.GetAction("any"); got != nil {
+		t.Fatalf("GetAction on nil config = %+v, want nil", got)
+	}
+}
+
+// TestForSystemPreservesCustomActions guards the Clone() path: custom actions
+// are a top-level (not per-system) list, so resolving a workflow for an issue's
+// system — which clones — must carry them through. A manual struct rebuild in
+// Clone() would silently drop a newly added field.
+func TestForSystemPreservesCustomActions(t *testing.T) {
+	wf := &WorkflowConfig{
+		Statuses: []WorkflowStatus{{Name: "in progress"}},
+		Actions:  []CustomAction{{ID: "defer-to-team", Label: "Defer to team", Prompt: "p"}},
+		Systems:  map[string]WorkflowOverlay{"API": {}},
+	}
+	merged := wf.ForSystem("API")
+	if got := merged.GetAction("defer-to-team"); got == nil {
+		t.Fatalf("custom action dropped by ForSystem/Clone; actions=%+v", merged.Actions)
+	}
+}
+
 // TestApplyTransitionPreservesSetFieldsHumanApproval guards against the
 // post-loop unconditional clear that silently overwrote any `set_fields` action
 // whose `field` was `human_approval`. The clear must run before the action

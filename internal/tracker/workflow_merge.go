@@ -42,6 +42,7 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 		Statuses:    append([]WorkflowStatus(nil), w.Statuses...),
 		Transitions: make([]WorkflowTransition, len(w.Transitions)),
 		Systems:     make(map[string]WorkflowOverlay, len(w.Systems)),
+		Actions:     append([]CustomAction(nil), w.Actions...),
 		Board:       cloneBoardConfig(w.Board),
 		Scoring:     cloneScoringConfig(w.Scoring),
 		AllowShell:  w.AllowShell,

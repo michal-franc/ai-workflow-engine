@@ -81,7 +81,8 @@ func RemoteIssueURL(repo string, number int) string {
 }
 
 // ImportGitHubIssue writes a single GitHub issue to <issueDir>/<number>.md.
-// The imported status is taken from proj.ImportStatus, defaulting to "backlog".
+// The imported status is taken from proj.ImportStatus, defaulting to the
+// workflow's first status (e.g. "idea") when unset.
 // Refuses to overwrite an existing file.
 func ImportGitHubIssue(proj *tracker.Project, gh GitHubIssue) (string, error) {
 	if gh.Number <= 0 {
@@ -94,7 +95,18 @@ func ImportGitHubIssue(proj *tracker.Project, gh GitHubIssue) (string, error) {
 
 	status := proj.ImportStatus
 	if status == "" {
-		status = "backlog"
+		// Default to the workflow's first status so imported issues go
+		// through the full process from the start, rather than skipping
+		// ahead. Read it dynamically so renaming/reordering the lifecycle
+		// keeps imports landing at the beginning.
+		if wf := proj.LoadWorkflow(); wf != nil {
+			if order := wf.GetStatusOrder(); len(order) > 0 {
+				status = order[0]
+			}
+		}
+		if status == "" {
+			status = "idea" // safety net if the workflow has no statuses
+		}
 	}
 
 	var b strings.Builder

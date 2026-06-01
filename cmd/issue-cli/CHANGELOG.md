@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.25.2 — 2026-06-01
+
+- GitHub sync: imported issues now land in the workflow's first status (e.g. `idea`) instead of `backlog`, so they go through the full process from the start. An explicit `import_status` on the project still overrides where imports land.
+
 ## v0.25.1 — 2026-05-28
 
 - Web UI: workflow designer now has Show/Hide buttons for the builder and inspector panels, so the canvas can take the full width when needed. Both panels default to hidden on load.

@@ -208,6 +208,8 @@ projects:
 
 Pulls items from a GitHub Project into `issues/<System>/<number>.md`. The workflow runs on those imports the same as on hand-authored issues.
 
+Imported issues land in the workflow's **first status** (e.g. `idea`) so they go through the full process from the start. Set `import_status` on the project to override where imports land.
+
 ## Install
 
 One-liner (Linux / macOS):

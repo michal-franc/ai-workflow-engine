@@ -266,6 +266,16 @@
                         Codex
                     </button>
                 </div>
+                {{if .CustomActions}}
+                <div class="sidebar-section custom-actions-group">
+                    {{range .CustomActions}}
+                    <button class="dispatch-btn dispatch-btn-custom" onclick="dispatchCustomAction('{{.ID}}', '{{.Label}}')">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM4.5 7.5h7a.5.5 0 010 1h-7a.5.5 0 010-1z"/></svg>
+                        {{.Label}}
+                    </button>
+                    {{end}}
+                </div>
+                {{end}}
             </div>
         </div>
     </div>
@@ -849,20 +859,23 @@
         if (cta) cta.classList.remove('hidden');
     }
 
-    function dispatchToAgent(agent) {
+    // runDispatch POSTs to a dispatch-style endpoint (built-in agent or custom
+    // action) and renders the {status, session, prompt, steps} response into the
+    // shared dispatch modal.
+    function runDispatch(url, label, body) {
         var modal = document.getElementById('dispatch-modal');
         var stepsEl = document.getElementById('dispatch-steps');
         var promptEl = document.getElementById('dispatch-prompt');
         var sessionEl = document.getElementById('dispatch-session');
         modal.style.display = '';
-        stepsEl.innerHTML = '<div class="dispatch-step pending">Dispatching to ' + agent + '...</div>';
+        stepsEl.innerHTML = '<div class="dispatch-step pending">Dispatching to ' + label + '...</div>';
         promptEl.textContent = '';
         sessionEl.textContent = '';
 
-        fetch(issueURL + '/dispatch', {
+        fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ agent: agent })
+            body: JSON.stringify(body || {})
         }).then(res => res.json()).then(data => {
             sessionEl.textContent = 'tmux session: ' + data.session;
             promptEl.textContent = data.prompt;
@@ -889,6 +902,14 @@
         }).catch(function(err) {
             stepsEl.innerHTML = '<div class="dispatch-step error">Failed: ' + err.message + '</div>';
         });
+    }
+
+    function dispatchToAgent(agent) {
+        runDispatch(issueURL + '/dispatch', agent, { agent: agent });
+    }
+
+    function dispatchCustomAction(id, label) {
+        runDispatch(issueURL + '/action/' + encodeURIComponent(id), label, {});
     }
 
     function closeDispatchModal() {

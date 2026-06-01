@@ -518,6 +518,62 @@ func (s *Server) handleRetrosReviewDispatch(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(resp)
 }
 
+// renderActionPrompt substitutes {{slug}}/{{title}}/{{status}}/{{system}}/
+// {{priority}}/{{number}} into a custom action's prompt. Plain string
+// replacement (not text/template) keeps prompts forgiving: an unrecognized
+// {{...}} is left verbatim rather than failing the dispatch.
+func renderActionPrompt(prompt string, issue *tracker.Issue) string {
+	r := strings.NewReplacer(
+		"{{slug}}", issue.Slug,
+		"{{title}}", issue.Title,
+		"{{status}}", issue.Status,
+		"{{system}}", issue.System,
+		"{{priority}}", issue.Priority,
+		"{{number}}", fmt.Sprintf("%d", issue.Number),
+	)
+	return r.Replace(prompt)
+}
+
+// handleCustomAction dispatches a workflow custom action: it briefs a fresh
+// tmux agent session with the action's prompt. Unlike handleDispatchAgent it
+// uses the configured prompt verbatim (templated) instead of the status-based
+// prompt, and passes wf=nil so the lightweight one-shot runs in the project
+// checkout rather than spinning up a per-issue worktree.
+func (s *Server) handleCustomAction(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	rest := strings.TrimPrefix(r.URL.Path, prefix+"/issue/")
+	idx := strings.LastIndex(rest, "/action/")
+	if idx < 0 {
+		http.NotFound(w, r)
+		return
+	}
+	slug := rest[:idx]
+	actionID := rest[idx+len("/action/"):]
+
+	issue := s.findIssueBySlug(proj, slug)
+	if issue == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	wf := proj.LoadWorkflowForIssue(issue)
+	action := wf.GetAction(actionID)
+	if action == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	agentType := strings.TrimSpace(action.Agent)
+	if agentType == "" {
+		agentType = "claude"
+	}
+
+	prompt := renderActionPrompt(action.Prompt, issue)
+	session := tmuxSessionName(slug + "-" + actionID)
+	resp := dispatchAgentSession(proj, session, prompt, issue.Slug, agentType, viewerURLFromRequest(r), nil)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
 func (s *Server) handleDispatchAgent(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
 	slug := strings.TrimPrefix(r.URL.Path, prefix+"/issue/")
 	slug = strings.TrimSuffix(slug, "/dispatch")

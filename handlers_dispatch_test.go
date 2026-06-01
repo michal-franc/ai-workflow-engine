@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -282,6 +283,112 @@ func TestBuildAgentPrompt_OmitsWorktreeBlockWhenEmpty(t *testing.T) {
 type errStub struct{}
 
 func (errStub) Error() string { return "exit status 1" }
+
+func TestRenderActionPrompt_SubstitutesIssueFields(t *testing.T) {
+	issue := &tracker.Issue{
+		Slug:     "fix-login",
+		Title:    "Fix login",
+		Status:   "in progress",
+		System:   "Auth",
+		Priority: "high",
+		Number:   42,
+	}
+	prompt := renderActionPrompt(
+		"slug={{slug}} title={{title}} status={{status}} system={{system}} priority={{priority}} number={{number}} unknown={{nope}}",
+		issue,
+	)
+	want := "slug=fix-login title=Fix login status=in progress system=Auth priority=high number=42 unknown={{nope}}"
+	if prompt != want {
+		t.Fatalf("renderActionPrompt =\n  %q\nwant\n  %q", prompt, want)
+	}
+}
+
+// TestHandleCustomAction_DispatchesConfiguredPrompt drives the full HTTP path:
+// a project workflow defines a custom action, the POST resolves it, templates
+// the prompt, and dispatches to a per-action tmux session with the action's
+// configured agent.
+func TestHandleCustomAction_DispatchesConfiguredPrompt(t *testing.T) {
+	proj, tmpDir := setupTestProject(t)
+	wfPath := filepath.Join(tmpDir, "workflow.yaml")
+	if err := os.WriteFile(wfPath, []byte(`statuses:
+  - name: "in progress"
+    description: "Actively being implemented"
+actions:
+  - id: "defer-to-team"
+    label: "Defer to team"
+    agent: "codex"
+    prompt: |
+      Defer {{slug}} ({{title}}) to the team.
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	proj.WorkflowFile = wfPath
+
+	var gotPrompt, gotSession, gotIssueSlug, gotAgent string
+	origDispatch := dispatchAgentSession
+	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType, _ string, wf *tracker.WorkflowConfig) DispatchResponse {
+		gotPrompt, gotSession, gotIssueSlug, gotAgent = prompt, session, issueSlug, agentType
+		return DispatchResponse{Status: "dispatched", Prompt: prompt, Session: session}
+	}
+	t.Cleanup(func() { dispatchAgentSession = origDispatch })
+
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/p/test-project/issue/bug-in-login/action/defer-to-team", "application/json", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	if !strings.Contains(gotPrompt, "Defer bug-in-login (Bug in login) to the team.") {
+		t.Fatalf("prompt not templated from action: %q", gotPrompt)
+	}
+	if gotAgent != "codex" {
+		t.Fatalf("expected codex agent from action config, got %q", gotAgent)
+	}
+	if gotIssueSlug != "bug-in-login" {
+		t.Fatalf("expected issue slug bug-in-login, got %q", gotIssueSlug)
+	}
+	if !strings.Contains(gotSession, "bug-in-login-defer-to-team") {
+		t.Fatalf("expected per-action session name, got %q", gotSession)
+	}
+}
+
+func TestHandleCustomAction_UnknownActionReturns404(t *testing.T) {
+	proj, tmpDir := setupTestProject(t)
+	wfPath := filepath.Join(tmpDir, "workflow.yaml")
+	if err := os.WriteFile(wfPath, []byte("statuses:\n  - name: \"in progress\"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	proj.WorkflowFile = wfPath
+
+	called := false
+	origDispatch := dispatchAgentSession
+	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType, _ string, _ *tracker.WorkflowConfig) DispatchResponse {
+		called = true
+		return DispatchResponse{}
+	}
+	t.Cleanup(func() { dispatchAgentSession = origDispatch })
+
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/p/test-project/issue/bug-in-login/action/nope", "application/json", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown action, got %d", resp.StatusCode)
+	}
+	if called {
+		t.Fatalf("dispatch must not run for an unknown action")
+	}
+}
 
 func TestEnsureWorktree_RunsSetupAfterCreate(t *testing.T) {
 	tmp := t.TempDir()

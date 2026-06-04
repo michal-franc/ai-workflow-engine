@@ -84,9 +84,11 @@ var runGitWorktreeAdd = func(workdir, branch, wtPath string) ([]byte, error) {
 // runGitSparseCheckout configures sparse-checkout in the new worktree to
 // exclude the given paths. Patterns are built from the excludes ('/*' to
 // include everything, then '!<path>' per exclude) and passed to
-// `sparse-checkout set --no-cone`, which both writes the pattern file and
-// updates the working tree. Non-cone mode is used because we express
-// exclusions rather than inclusions; cone mode is include-only.
+// `sparse-checkout set --no-cone`, which writes the pattern file. Over a
+// --no-checkout tree this does NOT materialize files — the caller must run a
+// follow-up `git checkout HEAD` to lay down the included paths. Non-cone mode
+// is used because we express exclusions rather than inclusions; cone mode is
+// include-only.
 var runGitSparseCheckout = func(wtPath string, excludes []string) ([]byte, error) {
 	args := []string{"-C", wtPath, "sparse-checkout", "set", "--no-cone", "/*"}
 	for _, p := range excludes {
@@ -95,8 +97,10 @@ var runGitSparseCheckout = func(wtPath string, excludes []string) ([]byte, error
 	return exec.Command("git", args...).CombinedOutput()
 }
 
-// runGitCheckoutHead materializes the full working tree after a --no-checkout
-// worktree add when sparse-checkout is disabled. Seam mirrors the others.
+// runGitCheckoutHead materializes the working tree after a --no-checkout
+// worktree add. It always runs (with or without sparse-checkout configured):
+// `git worktree add --no-checkout` leaves the tree empty, and the checkout
+// honors any sparse-checkout patterns already written. Seam mirrors the others.
 var runGitCheckoutHead = func(wtPath string) ([]byte, error) {
 	return exec.Command("git", "-C", wtPath, "checkout", "HEAD").CombinedOutput()
 }
@@ -137,10 +141,14 @@ func ensureWorktree(workdir, slug string, wf *tracker.WorkflowConfig) (string, [
 	}
 	steps := []DispatchStep{{Name: fmt.Sprintf("Created worktree %s on %s", wtPath, branch), Status: "ok"}}
 
-	// Populate the working tree. With excludes, configure sparse-checkout —
-	// the `set` command both writes the pattern and updates the tree in one
-	// shot, so no separate checkout is needed. Without excludes, fall back
-	// to a plain HEAD checkout to materialize what --no-checkout skipped.
+	// Populate the working tree. `git worktree add --no-checkout` leaves the
+	// tree empty with a populated index, so the tree must be materialized
+	// explicitly. With excludes, lay down the sparse-checkout pattern file
+	// first so the subsequent checkout honors it. `sparse-checkout set` only
+	// writes the pattern file and reconciles an *already-materialized* tree —
+	// over a --no-checkout tree it writes the pattern and leaves the tree
+	// empty, which reads as every file staged-for-deletion. So a separate
+	// `git checkout HEAD` always runs afterward to write the included files.
 	excludes := wf.WorktreeSparseExcludes()
 	if len(excludes) > 0 {
 		if out, err := runGitSparseCheckout(wtPath, excludes); err != nil {
@@ -159,19 +167,18 @@ func ensureWorktree(workdir, slug string, wf *tracker.WorkflowConfig) (string, [
 			Name:   fmt.Sprintf("Sparse-checkout excludes: %s", strings.Join(excludes, ", ")),
 			Status: "ok",
 		})
-	} else {
-		if out, err := runGitCheckoutHead(wtPath); err != nil {
-			detail := strings.TrimSpace(string(out))
-			if detail == "" {
-				detail = err.Error()
-			}
-			steps = append(steps, DispatchStep{
-				Name:   "git checkout HEAD",
-				Status: "error",
-				Detail: detail,
-			})
-			return workdir, steps, false
+	}
+	if out, err := runGitCheckoutHead(wtPath); err != nil {
+		detail := strings.TrimSpace(string(out))
+		if detail == "" {
+			detail = err.Error()
 		}
+		steps = append(steps, DispatchStep{
+			Name:   "git checkout HEAD",
+			Status: "error",
+			Detail: detail,
+		})
+		return workdir, steps, false
 	}
 
 	if setup := wf.WorktreeSetupCmd(); setup != "" {

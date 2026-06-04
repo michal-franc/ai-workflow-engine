@@ -505,8 +505,82 @@ func TestEnsureWorktree_SparseCheckoutUsesDefaultExclude(t *testing.T) {
 	if len(gotExcludes) != 1 || gotExcludes[0] != "issues/" {
 		t.Fatalf("expected default exclude [issues/], got %v", gotExcludes)
 	}
-	if checkoutCalled {
-		t.Fatalf("plain checkout must not run when sparse-checkout is active")
+	// `git worktree add --no-checkout` leaves the tree empty even after
+	// sparse-checkout writes its pattern file, so checkout HEAD must always run
+	// to materialize the included files. Asserting it does NOT run encoded the
+	// original empty-tree bug.
+	if !checkoutCalled {
+		t.Fatalf("checkout HEAD must run after sparse-checkout to materialize the tree")
+	}
+}
+
+// TestEnsureWorktree_RealGitMaterializesTree drives ensureWorktree against real
+// git (no stubbed seams). It reproduces the original bug — `git worktree add
+// --no-checkout` followed only by `sparse-checkout set` left the worktree empty
+// with every tracked file staged-for-deletion — and asserts the tree is now
+// actually materialized: included files exist on disk, sparse excludes are
+// honored, and `git status --porcelain` shows no staged deletions. It fails
+// against the pre-fix code.
+func TestEnsureWorktree_RealGitMaterializesTree(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not available")
+	}
+	repo := t.TempDir()
+
+	gitEnv := append(os.Environ(),
+		"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t",
+		"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		cmd.Env = gitEnv
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+
+	// Build a real repo: a tracked top-level file plus a tracked issues/ file,
+	// so we can verify the default sparse exclude keeps issues/ out while
+	// everything else lands on disk.
+	run("init", "-b", "main")
+	if err := os.WriteFile(filepath.Join(repo, "README.md"), []byte("hi\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repo, "issues"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "issues", "1.md"), []byte("issue\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	run("add", "-A")
+	run("commit", "-m", "init")
+
+	// Default config: worktree enabled, default sparse exclude [issues/].
+	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true)}
+	gotDir, steps, ok := ensureWorktree(repo, "fix-foo", wf)
+	if !ok {
+		t.Fatalf("ensureWorktree failed: %+v", steps)
+	}
+	wantWT := filepath.Join(repo, ".worktrees", "fix-foo")
+	if gotDir != wantWT {
+		t.Fatalf("workdir = %s, want %s", gotDir, wantWT)
+	}
+
+	// Included files must exist on disk — the bug left the tree empty.
+	if _, err := os.Stat(filepath.Join(wantWT, "README.md")); err != nil {
+		t.Fatalf("README.md not materialized in worktree: %v", err)
+	}
+	// issues/ must be excluded by the sparse pattern.
+	if _, err := os.Stat(filepath.Join(wantWT, "issues")); !os.IsNotExist(err) {
+		t.Fatalf("issues/ should be excluded by sparse-checkout, stat err = %v", err)
+	}
+	// git status --porcelain must be clean — no staged deletions.
+	out, err := exec.Command("git", "-C", wantWT, "status", "--porcelain").CombinedOutput()
+	if err != nil {
+		t.Fatalf("git status: %v\n%s", err, out)
+	}
+	if strings.TrimSpace(string(out)) != "" {
+		t.Fatalf("worktree not clean — staged deletions present:\n%s", out)
 	}
 }
 

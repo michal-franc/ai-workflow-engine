@@ -23,7 +23,7 @@ type Project struct {
 	// Defaults to false — the GitHub tab is hidden and auto-close is skipped.
 	SupportsGitHub bool `yaml:"supports_github"`
 	// ImportStatus is the status assigned to issues imported from GitHub.
-	// Empty falls back to "backlog".
+	// Empty falls back to the workflow's first status (e.g. "idea").
 	ImportStatus string `yaml:"import_status"`
 }
 

@@ -16,6 +16,14 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.26.2 — 2026-06-04
+
+- Agent dispatch: fixed per-issue worktrees being created empty with every tracked file shown as staged-for-deletion. When `worktree_sparse_exclude` was set (default `["issues/"]`), the dispatch configured sparse-checkout but never materialized the tree, so agents landed in a broken working directory containing only `.git`. The worktree now always runs `git checkout HEAD` after writing the sparse patterns, so source files are present while excluded paths (e.g. `issues/`) stay out. Recover an already-broken worktree with `git -C .worktrees/<slug> checkout HEAD`.
+
+## v0.26.1 — 2026-06-01
+
+- GitHub sync: imported issues now land in the workflow's first status (e.g. `idea`) instead of `backlog`, so they go through the full process from the start. An explicit `import_status` on the project still overrides where imports land.
+
 ## v0.26.0 — 2026-05-29
 
 - Workflow: new top-level `actions:` list in `workflow.yaml` defines custom one-shot agent buttons. Each action renders on the issue detail view below the built-in Claude/Codex dispatch buttons, and clicking it opens a tmux agent session briefed with a configured prompt — no validation, no status change. Useful for lightweight coordination tasks like "defer to team". Each action takes `id`, `label`, `prompt`, and an optional `agent` (`claude` default, or `codex`).

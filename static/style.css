@@ -374,6 +374,11 @@ a:hover { text-decoration: underline; }
     margin-top: 16px;
 }
 
+/* Grid items default to min-width:auto, so a wide <pre> code block would
+   expand the 1fr track and blow out the page. Allow the column to shrink so
+   the pre's overflow-x:auto scrolls instead. */
+.detail-layout > div:first-child { min-width: 0; }
+
 .detail-back {
     display: inline-flex;
     align-items: center;

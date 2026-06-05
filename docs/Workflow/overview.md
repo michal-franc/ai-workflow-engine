@@ -68,7 +68,7 @@ Behavior:
 
 When a transition targets an `optional: true` status **and** has a `require_human_approval` action, the detail view does not render the approval checkbox inline alongside the required-path approval — that would put two pending approvals side-by-side and obscure the default next step. Instead:
 
-- The required-path approval (target is non-optional) renders as a normal checkbox, as today.
+- Every required-path approval (target is non-optional) renders as a normal checkbox. If a status has more than one non-optional approval transition, each one renders its own approve button — they are not collapsed into a single control, so every required approval is reachable from the detail view.
 - Each optional-path approval renders as a CTA button. Clicking the CTA reveals the same approval checkbox for that specific transition (with a Cancel link to collapse back). If the issue's `human_approval` already matches the optional target, the widget starts revealed and the CTA is suppressed.
 
 The CTA button label is configurable via a `cta_label` field on the transition:

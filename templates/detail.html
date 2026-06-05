@@ -129,14 +129,14 @@
                     </div>
                 </div>
 
-                {{if or .NeedsApproval .OptionalApprovals}}
+                {{if or .NeedsApprovals .OptionalApprovals}}
                 <div class="sidebar-section">
                     <h3>Human Approval</h3>
-                    {{if .NeedsApproval}}
+                    {{range .NeedsApprovals}}
                     <div class="sidebar-value">
-                        <button id="approve-{{statusFragment .NeedsApproval}}" class="approve-btn {{if eq .Issue.HumanApproval .NeedsApproval}}approved{{end}}" data-status="{{.NeedsApproval}}" onclick="toggleApproval('{{.NeedsApproval}}')">
-                            <span class="approve-check">{{if eq .Issue.HumanApproval .NeedsApproval}}&#10003;{{else}}&#9744;{{end}}</span>
-                            Human-approved for {{.NeedsApproval}}
+                        <button id="approve-{{statusFragment .}}" class="approve-btn {{if eq $.Issue.HumanApproval .}}approved{{end}}" data-status="{{.}}" onclick="toggleApproval('{{.}}')">
+                            <span class="approve-check">{{if eq $.Issue.HumanApproval .}}&#10003;{{else}}&#9744;{{end}}</span>
+                            Human-approved for {{.}}
                         </button>
                     </div>
                     {{end}}

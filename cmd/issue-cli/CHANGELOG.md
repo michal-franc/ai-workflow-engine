@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.26.4 — 2026-06-05
+
+- Web UI: fixed the issue detail view dropping approve buttons when a status had more than one non-optional `require_human_approval` transition. Only the first such transition rendered an approve button, so the others could never be approved from the UI. Every non-optional approval transition now renders its own approve button (with its `#approve-<status>` deep-link anchor), matching how optional-path approvals already render one CTA each.
+
 ## v0.26.3 — 2026-06-05
 
 - Web UI: fixed long fenced code blocks (` ``` `) in an issue body stretching the detail page several times its width. The content column of the detail layout now shrinks correctly so wide code lines scroll horizontally within their box instead of overflowing the page.

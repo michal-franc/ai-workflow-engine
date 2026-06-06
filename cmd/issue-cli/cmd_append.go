@@ -13,9 +13,14 @@ var appendCommand = &Command{
 	LongHelp: `Append content to the issue body. With --section, append into an existing
 section; if --body starts with an existing heading, it auto-routes into that section.
 
+Use --body-file <path> (or --body-file - for stdin) to supply the body as raw
+bytes, which avoids shell mangling of backticks and parentheses in inline code.
+
 Examples:
   issue-cli append <slug> --section "Design" --body "- [ ] edge case covered"
-  issue-cli append <slug> --body "## Test Plan\n\n### Automated\n- test 1"`,
+  issue-cli append <slug> --body "## Test Plan\n\n### Automated\n- test 1"
+  issue-cli append <slug> --section "Design" --body-file design.md
+  printf '%s' "- uses ` + "`Asteroid.NetRate`" + ` (workers × yield)" | issue-cli append <slug> --body-file -`,
 	Run: runAppend,
 }
 
@@ -31,19 +36,25 @@ func runAppend(ctx *Context, args []string) error {
 	fs := newFlagSet("append", ctx)
 	bodyFlag := fs.String("body", "", "content to append")
 	textFlag := fs.String("text", "", "alias for --body")
+	bodyFileFlag := fs.String("body-file", "", "read body from file (or - for stdin); avoids shell mangling")
 	sectionFlag := fs.String("section", "", "section name to append into")
 	forceFlag := fs.Bool("force", false, "force append even when target section is missing")
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
-	text := normalizeEscapedText(*bodyFlag)
-	if text == "" {
-		text = normalizeEscapedText(*textFlag)
+	inline := normalizeEscapedText(*bodyFlag)
+	if inline == "" {
+		inline = normalizeEscapedText(*textFlag)
+	}
+	inlineSet := flagWasSet(fs, "body") || flagWasSet(fs, "text")
+	text, err := resolveBodyInput(ctx, inline, inlineSet, *bodyFileFlag, flagWasSet(fs, "body-file"))
+	if err != nil {
+		return err
 	}
 	section := *sectionFlag
 	force := *forceFlag
 	if text == "" {
-		return fmt.Errorf("append requires --body\n\nExamples:\n  issue-cli append <slug> --section \"Design\" --body \"- [ ] edge case covered\"\n  issue-cli append <slug> --body \"## Test Plan\\n\\n### Automated\\n- test 1\"")
+		return fmt.Errorf("append requires --body or --body-file\n\nExamples:\n  issue-cli append <slug> --section \"Design\" --body \"- [ ] edge case covered\"\n  issue-cli append <slug> --section \"Design\" --body-file design.md\n  cat design.md | issue-cli append <slug> --section \"Design\" --body-file -")
 	}
 
 	issue, _, err := findIssueOrErr(ctx, slug)

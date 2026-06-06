@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.26.4 — 2026-06-06
+
+- CLI: `issue-cli start` no longer advances a handoff status silently. When `start` auto-advances an approved handoff status (`backlog → in progress`, `human-testing → documentation`) it now prints a prominent `⚠ AUTO-ADVANCED  <from> → <to>` banner that names the move and notes the consumed approval, instead of a single quiet `✓ Status →` line. Plain claims, the `Status unchanged` message, and the missing-approval failure (no mutation) are unchanged. `start --help` and the workflow/CLI docs now describe the behavior.
+
 ## v0.26.3 — 2026-06-05
 
 - Web UI: fixed long fenced code blocks (` ``` `) in an issue body stretching the detail page several times its width. The content column of the detail layout now shrinks correctly so wide code lines scroll horizontally within their box instead of overflowing the page.

@@ -12,9 +12,14 @@ var commentCommand = &Command{
 	ShortHelp: "Add a comment to an issue",
 	LongHelp: `Append a comment block to an issue file.
 
+Use --body-file <path> (or --body-file - for stdin) to supply the comment as raw
+bytes, which avoids shell mangling of backticks and parentheses.
+
 Examples:
   issue-cli comment <slug> "your comment here"
-  issue-cli comment <slug> --text "tests: 3 unit tests added"`,
+  issue-cli comment <slug> --text "tests: 3 unit tests added"
+  issue-cli comment <slug> --body-file note.md
+  cat note.md | issue-cli comment <slug> --body-file -`,
 	Run: runComment,
 }
 
@@ -30,18 +35,24 @@ func runComment(ctx *Context, args []string) error {
 	fs := newFlagSet("comment", ctx)
 	textFlag := fs.String("text", "", "comment text")
 	bodyFlag := fs.String("body", "", "alias for --text")
+	bodyFileFlag := fs.String("body-file", "", "read comment from file (or - for stdin); avoids shell mangling")
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
-	text := normalizeEscapedText(*textFlag)
-	if text == "" {
-		text = normalizeEscapedText(*bodyFlag)
+	inline := normalizeEscapedText(*textFlag)
+	if inline == "" {
+		inline = normalizeEscapedText(*bodyFlag)
+	}
+	if inline == "" {
+		inline = strings.Join(fs.Args(), " ")
+	}
+	inlineSet := flagWasSet(fs, "text") || flagWasSet(fs, "body") || len(fs.Args()) > 0
+	text, err := resolveBodyInput(ctx, inline, inlineSet, *bodyFileFlag, flagWasSet(fs, "body-file"))
+	if err != nil {
+		return err
 	}
 	if text == "" {
-		text = strings.Join(fs.Args(), " ")
-	}
-	if text == "" {
-		return fmt.Errorf("text is required\n\nExample:\n  issue-cli comment %s \"your comment here\"\n  issue-cli comment %s --text \"your comment here\"", slug, slug)
+		return fmt.Errorf("text is required\n\nExample:\n  issue-cli comment %s \"your comment here\"\n  issue-cli comment %s --text \"your comment here\"\n  issue-cli comment %s --body-file note.md", slug, slug, slug)
 	}
 
 	issue, _, err := findIssueOrErr(ctx, slug)

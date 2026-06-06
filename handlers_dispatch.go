@@ -57,7 +57,7 @@ func buildAgentPrompt(proj *tracker.Project, issue *tracker.Issue, wf *tracker.W
 
 You are already in an isolated git worktree at %s on branch %s.
 - Make commits on %s. Do not switch back to the primary checkout.
-- The human handles cleanup (merging the branch and running git worktree remove) after the issue is shipped — you do not need to remove the worktree yourself.
+- The human handles cleanup (running git worktree remove) after the issue is shipped — you do not need to remove the worktree yourself.
 `, worktreePath, worktreeBranch, worktreeBranch)
 	}
 	return prompt

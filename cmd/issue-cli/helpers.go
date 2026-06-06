@@ -194,6 +194,42 @@ func normalizeEscapedText(s string) string {
 	return replacer.Replace(s)
 }
 
+// resolveBodyInput returns the final body text for commands that accept a body
+// from a flag (--body/--text), a file (--body-file <path>), or stdin
+// (--body-file -).
+//
+// The motivation is shell quoting: when a body is passed inline as
+// --body "<text>", backticks and parentheses inside the value are interpreted
+// by the caller's shell before issue-cli runs, corrupting inline code spans and
+// parentheticals. Reading the body from a file or stdin delivers it as raw
+// bytes that never pass through a shell word.
+//
+// inlineText is the already-normalized value from --body/--text (the caller is
+// responsible for running normalizeEscapedText); inlineSet reports whether any
+// inline flag was explicitly provided so a conflict with --body-file can be
+// rejected. When bodyFileSet is true the body is read verbatim — no escape
+// normalization — from the file, or from ctx.Stdin when bodyFile is "-".
+func resolveBodyInput(ctx *Context, inlineText string, inlineSet bool, bodyFile string, bodyFileSet bool) (string, error) {
+	if !bodyFileSet {
+		return inlineText, nil
+	}
+	if inlineSet {
+		return "", fmt.Errorf("cannot use --body/--text together with --body-file")
+	}
+	if bodyFile == "-" {
+		raw, err := io.ReadAll(ctx.Stdin)
+		if err != nil {
+			return "", fmt.Errorf("failed to read body from stdin: %w", err)
+		}
+		return string(raw), nil
+	}
+	raw, err := os.ReadFile(bodyFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to read body file %s: %w", bodyFile, err)
+	}
+	return string(raw), nil
+}
+
 // parseFieldFlags collects repeated `--field key=value` flags into a map.
 // Used by `transition` to supply declarative fields[] answers inline.
 func parseFieldFlags(args []string) (map[string]string, error) {

@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.27.0 — 2026-06-06
+
+- CLI: `append` and `comment` now accept `--body-file <path>` to read the body from a file, or `--body-file -` to read it from stdin. The content is used verbatim — no shell quoting and no `\n`-escape normalization — so inline code spans (`` `like this` ``) and parentheses no longer get mangled by the calling shell, which was the most common friction point in agent workflows. `--body`/`--text` still work unchanged; combining them with `--body-file` is an error.
+
 ## v0.26.4 — 2026-06-05
 
 - Web UI: fixed the issue detail view dropping approve buttons when a status had more than one non-optional `require_human_approval` transition. Only the first such transition rendered an approve button, so the others could never be approved from the UI. Every non-optional approval transition now renders its own approve button (with its `#approve-<status>` deep-link anchor), matching how optional-path approvals already render one CTA each.

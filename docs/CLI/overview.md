@@ -57,6 +57,23 @@ If `--body` starts with a heading that is already present in the issue (and the 
 
 The duplicate-heading guard still fires when `--body` introduces a *peer* heading that collides (e.g., `--body "## New\n…\n## Existing"`); pass `--section` to disambiguate.
 
+#### Body from a file or stdin (`--body-file`)
+
+`--body "..."` puts the body inside a shell-quoted argument, so backticks and parentheses are interpreted by the calling shell *before* `issue-cli` runs — `` `Foo.Bar` `` becomes a command substitution and `(...)` triggers a parse error. Inline code spans and parentheticals are normal in design bodies, so this hits constantly.
+
+Pass `--body-file <path>` (or `--body-file -` to read **stdin**) to deliver the body as raw bytes that never pass through a shell word:
+
+```bash
+issue-cli append <slug> --section "Design" --body-file design.md
+cat design.md | issue-cli append <slug> --section "Design" --body-file -
+```
+
+Notes:
+
+- File/stdin content is used **verbatim** — unlike `--body`, it is not run through `\n`-escape normalization, so literal backslash sequences in code samples are preserved.
+- `--body`/`--text` and `--body-file` are mutually exclusive; supplying both is an error.
+- The same `--body-file`/`-` support applies to `issue-cli comment <slug>`.
+
 ### `list`
 
 `issue-cli list` filters by `--status`, `--system`, `--assignee`, `--version`. With `--json`, each entry is the full issue plus two scoring fields:

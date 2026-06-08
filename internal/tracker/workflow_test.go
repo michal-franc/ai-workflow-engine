@@ -613,7 +613,7 @@ func TestValidate(t *testing.T) {
 		}
 	})
 
-	t.Run("section_checkboxes_checked skips missing section", func(t *testing.T) {
+	t.Run("section_checkboxes_checked fails when gated section is missing", func(t *testing.T) {
 		sectionWf := &WorkflowConfig{
 			Statuses: []WorkflowStatus{
 				{Name: "testing", Validation: []string{"section_checkboxes_checked: Implementation"}},
@@ -624,8 +624,27 @@ func TestValidate(t *testing.T) {
 			BodyRaw: "## Other\n- [x] Done",
 		}
 		err := sectionWf.Validate(issue, "testing", nil)
-		if err != nil {
-			t.Errorf("expected no error for missing section, got: %v", err)
+		if err == nil {
+			t.Fatal("expected error when the gated section is absent (must not pass vacuously)")
+		}
+		if !strings.Contains(err.Error(), "no checkboxes") {
+			t.Errorf("error should explain the section has no checkboxes, got: %v", err)
+		}
+	})
+
+	t.Run("section_checkboxes_checked fails when gated section has no checkboxes", func(t *testing.T) {
+		sectionWf := &WorkflowConfig{
+			Statuses: []WorkflowStatus{
+				{Name: "testing", Validation: []string{"section_checkboxes_checked: Implementation"}},
+			},
+		}
+		issue := &Issue{
+			Slug:    "test",
+			BodyRaw: "## Implementation\nprose only, no checkboxes here",
+		}
+		err := sectionWf.Validate(issue, "testing", nil)
+		if err == nil {
+			t.Fatal("expected error when the gated section has no checkboxes")
 		}
 	})
 

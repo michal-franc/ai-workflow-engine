@@ -30,7 +30,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 |:---------------------------------|:-----------------------------------------|
 | `issue-cli show <slug>`          | Print full issue context                 |
 | `issue-cli list`                 | List issues with filters — supports `--sort score` and emits `Score`/`ScoreBreakdown` in `--json` when scoring is enabled |
-| `issue-cli start <slug>`         | Pick up issue from any status — claim + advance handoff states |
+| `issue-cli start <slug>`         | Pick up issue from any status — claim + auto-advance handoff states (announced with a banner) |
 | `issue-cli transition <slug>`    | Attempt the next workflow transition     |
 | `issue-cli comment <slug>`       | Add a comment to an issue                |
 | `issue-cli append <slug>`        | Append content to issue body             |
@@ -45,6 +45,12 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli data <sub> <slug>`    | Per-issue structured data store — see [Per-issue Data Store](../data-store.md) |
 | `issue-cli workflow init`        | Bootstrap a new project: writes `workflow.yaml` from a bundled template and scaffolds `issues/`, `docs/` |
 | `issue-cli projects`             | List configured projects (slug, name, issue dir). `--json` for scripting |
+
+### `start`
+
+`issue-cli start <slug>` is the single entry point for picking up an issue. It claims the issue (sets the assignee if unset), prints the checklist, status guidance, and next-transition contract, and is idempotent on re-runs.
+
+From a **handoff status** (`backlog`, `human-testing`) it also *auto-advances* to the next work status when the matching approval is present — `backlog → in progress`, `human-testing → documentation`. The target is the next non-optional status in the workflow, not a hardcoded value; only the handoff set is fixed. Because crossing into implementation from a re-claim is surprising, the advance is **never silent**: it is announced with a prominent `⚠ AUTO-ADVANCED  <from> → <to>` banner that also notes the consumed approval. If the approval is missing, `start` fails without mutating assignee or status. From any non-handoff status, `start` only claims and reports `Status unchanged`.
 
 ### `append`
 

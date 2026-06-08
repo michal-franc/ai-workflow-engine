@@ -532,6 +532,41 @@ func TestRunStartPrintsNextTransitionContract(t *testing.T) {
 	assertContains(t, output, "    - Side-effect: clears assignee")
 }
 
+// TestRunStartAutoAdvanceShowsBanner verifies that starting a handoff status
+// (backlog) that is approved for the next status announces the advance with the
+// prominent AUTO-ADVANCED banner — naming from → to and the consumed approval —
+// instead of the old quiet single line.
+func TestRunStartAutoAdvanceShowsBanner(t *testing.T) {
+	proj, _ := makeTransitionFixture(t)
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runStart(ctx, []string{"cli/sample"}); err != nil {
+		t.Fatalf("runStart: %v", err)
+	}
+	output := stdout.String()
+
+	assertContains(t, output, "⚠ AUTO-ADVANCED  backlog → in progress")
+	assertContains(t, output, `A "in progress" approval was present, so start moved this issue forward and consumed it.`)
+	// The banner replaces the quiet status line; neither it nor the standalone
+	// "Status unchanged" / "Approval consumed" lines should appear.
+	assertNotContains(t, output, "✓ Status →")
+	assertNotContains(t, output, "Status unchanged")
+	assertNotContains(t, output, "✓ Approval consumed")
+}
+
+// TestRunStartPlainClaimNoBanner verifies that starting a non-handoff work
+// status only claims, leaving the status unchanged with no AUTO-ADVANCED banner.
+func TestRunStartPlainClaimNoBanner(t *testing.T) {
+	proj, _ := makeContractFixture(t)
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runStart(ctx, []string{"cli/sample"}); err != nil {
+		t.Fatalf("runStart: %v", err)
+	}
+	output := stdout.String()
+
+	assertContains(t, output, "Status unchanged (in progress is a work status — ready to pick up)")
+	assertNotContains(t, output, "AUTO-ADVANCED")
+}
+
 func TestRunTransitionJSONCarriesNextTransitionContract(t *testing.T) {
 	proj, _ := makeTransitionFixture(t)
 	ctx, stdout, _ := newTestContext(proj, true)
@@ -696,6 +731,13 @@ func assertContains(t *testing.T, got, want string) {
 	t.Helper()
 	if !strings.Contains(got, want) {
 		t.Fatalf("output missing %q\noutput:\n%s", want, got)
+	}
+}
+
+func assertNotContains(t *testing.T, got, unwanted string) {
+	t.Helper()
+	if strings.Contains(got, unwanted) {
+		t.Fatalf("output unexpectedly contains %q\noutput:\n%s", unwanted, got)
 	}
 }
 

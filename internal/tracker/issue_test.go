@@ -1343,6 +1343,119 @@ func TestCheckCheckbox(t *testing.T) {
 	})
 }
 
+func TestListCheckboxes(t *testing.T) {
+	body := "intro\n- [ ] preamble box\n\n## Design\n- [x] one\n- [ ] two\n\n## Acceptance Criteria\n- [ ] crit a\n- [ ] crit b\n"
+	items := ListCheckboxes(body)
+	if len(items) != 5 {
+		t.Fatalf("got %d items, want 5", len(items))
+	}
+	// preamble box has empty section, index 1
+	if items[0].Section != "" || items[0].Index != 1 || items[0].Text != "preamble box" {
+		t.Errorf("item 0 = %+v", items[0])
+	}
+	// indexes reset per section
+	if items[1].Section != "Design" || items[1].Index != 1 || !items[1].Checked {
+		t.Errorf("item 1 = %+v", items[1])
+	}
+	if items[2].Section != "Design" || items[2].Index != 2 || items[2].Checked {
+		t.Errorf("item 2 = %+v", items[2])
+	}
+	if items[3].Section != "Acceptance Criteria" || items[3].Index != 1 {
+		t.Errorf("item 3 = %+v", items[3])
+	}
+}
+
+func TestListCheckboxesSkipsFences(t *testing.T) {
+	body := "## Design\n```\n- [ ] not real\n```\n- [ ] real box\n"
+	items := ListCheckboxes(body)
+	if len(items) != 1 {
+		t.Fatalf("got %d items, want 1 (fenced box ignored)", len(items))
+	}
+	if items[0].Index != 1 || items[0].Text != "real box" {
+		t.Errorf("item = %+v", items[0])
+	}
+}
+
+func TestCheckByIndex(t *testing.T) {
+	body := "## Design\n- [ ] alpha\n- [ ] beta\n\n## Acceptance Criteria\n- [ ] gamma\n"
+
+	t.Run("by section and index", func(t *testing.T) {
+		out, item, already, ok := CheckByIndex(body, "Design", 2)
+		if !ok || already {
+			t.Fatalf("ok=%v already=%v", ok, already)
+		}
+		if item.Text != "beta" {
+			t.Errorf("matched %q, want beta", item.Text)
+		}
+		if !strings.Contains(out, "- [x] beta") || strings.Contains(out, "- [x] alpha") {
+			t.Errorf("wrong box ticked:\n%s", out)
+		}
+	})
+
+	t.Run("index stable after a tick", func(t *testing.T) {
+		out, _, _, _ := CheckByIndex(body, "Design", 1)
+		// beta is still index 2 even though alpha is now checked
+		out2, item, _, ok := CheckByIndex(out, "Design", 2)
+		if !ok || item.Text != "beta" {
+			t.Fatalf("ok=%v item=%q", ok, item.Text)
+		}
+		if !strings.Contains(out2, "- [x] beta") {
+			t.Errorf("beta not ticked:\n%s", out2)
+		}
+	})
+
+	t.Run("whole-body index when section empty", func(t *testing.T) {
+		_, item, _, ok := CheckByIndex(body, "", 3)
+		if !ok || item.Text != "gamma" {
+			t.Fatalf("ok=%v item=%q, want gamma", ok, item.Text)
+		}
+	})
+
+	t.Run("already checked is a no-op", func(t *testing.T) {
+		checked, _, _, _ := CheckByIndex(body, "Design", 1)
+		out, item, already, ok := CheckByIndex(checked, "Design", 1)
+		if !ok || !already {
+			t.Fatalf("ok=%v already=%v", ok, already)
+		}
+		if item.Text != "alpha" || out != checked {
+			t.Errorf("expected unchanged body for already-checked box")
+		}
+	})
+
+	t.Run("out of range", func(t *testing.T) {
+		if _, _, _, ok := CheckByIndex(body, "Design", 9); ok {
+			t.Fatal("expected ok=false for out-of-range index")
+		}
+		if _, _, _, ok := CheckByIndex(body, "Nope", 1); ok {
+			t.Fatal("expected ok=false for unknown section")
+		}
+	})
+}
+
+func TestMatchUncheckedByText(t *testing.T) {
+	body := "## Design\n- [ ] write tests\n- [x] write docs\n\n## Impl\n- [ ] write tests again\n"
+
+	t.Run("ambiguous across sections", func(t *testing.T) {
+		got := MatchUncheckedByText(body, "", "write tests")
+		if len(got) != 2 {
+			t.Fatalf("got %d matches, want 2", len(got))
+		}
+	})
+
+	t.Run("scoped by section disambiguates", func(t *testing.T) {
+		got := MatchUncheckedByText(body, "Design", "write tests")
+		if len(got) != 1 || got[0].Section != "Design" {
+			t.Fatalf("got %+v, want single Design match", got)
+		}
+	})
+
+	t.Run("checked boxes excluded", func(t *testing.T) {
+		if got := MatchUncheckedByText(body, "", "write docs"); len(got) != 0 {
+			t.Fatalf("got %d, want 0 (already checked)", len(got))
+		}
+	})
+}
+
 func TestHasTestPlan(t *testing.T) {
 	t.Run("with both sections", func(t *testing.T) {
 		body := "Some content\n\n## Test Plan\n\n### Automated\nUnit tests\n\n### Manual\nClick around"

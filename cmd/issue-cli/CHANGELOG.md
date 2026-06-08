@@ -16,6 +16,14 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.28.0 — 2026-06-08
+
+- CLI: `issue-cli check` can now address a checkbox by stable index instead of verbatim text: `check <slug> --section "Design" --index 2` ticks the 2nd box in that section, and `check <slug> --index 5` ticks the 5th box in the whole body. Indexes are 1-based and stable — they count checked and unchecked boxes in document order, so an index never shifts as boxes get ticked. Re-checking an already-checked box is a reported no-op, not an error.
+- CLI: a text query to `check` that matches more than one *unchecked* box now errors and lists every candidate with its `[Section #index]` label (instead of silently ticking the first), so you can re-run with `--section/--index`. A single match still checks as before.
+- CLI: `checklist`, `show`, `start`, and `check`'s listings now group checkboxes by `## ` section and print each box's stable index, so the value to pass to `--index` is visible. `checklist --json` gains an `items` array with `section`, `index`, `text`, and `checked` per box.
+- Workflow: the `section_checkboxes_checked: <Section>` validation no longer passes vacuously when the gated section is missing or has no checkboxes — it now fails with a clear message. This closes a hole where an issue imported without a templated section (e.g. `Design`) could transition with none of that section's checklist content. In the normal flow each gated section is appended by the prior transition, so this only affects issues that skipped it.
+- Workflow: `process transitions` output now annotates checkbox gates — `section_checkboxes_checked` reads "(gates this transition)" and `section_has_checkboxes` reads "(existence only — contents verified later)", so it's clear which sections must be complete now versus merely present.
+
 ## v0.27.1 — 2026-06-06
 
 - CLI: `issue-cli start` no longer advances a handoff status silently. When `start` auto-advances an approved handoff status (`backlog → in progress`, `human-testing → documentation`) it now prints a prominent `⚠ AUTO-ADVANCED  <from> → <to>` banner that names the move and notes the consumed approval, instead of a single quiet `✓ Status →` line. Plain claims, the `Status unchanged` message, and the missing-approval failure (no mutation) are unchanged. `start --help` and the workflow/CLI docs now describe the behavior.

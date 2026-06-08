@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
@@ -265,14 +264,26 @@ func writeJSON(w io.Writer, v interface{}) error {
 	return enc.Encode(v)
 }
 
-// printCheckboxes writes every "- [ ]" or "- [x]" line found in body to w,
-// trimmed of leading whitespace.
+// printCheckboxes lists every checkbox grouped by its "## " section, each line
+// prefixed with the box's stable index so callers know what to pass to
+// `check --section/--index`. Boxes inside fenced code blocks are skipped.
 func printCheckboxes(w io.Writer, body string) {
-	re := regexp.MustCompile(`^(\s*-\s*\[[ xX]\].*)$`)
-	for _, line := range strings.Split(body, "\n") {
-		if re.MatchString(line) {
-			fmt.Fprintln(w, strings.TrimSpace(line))
+	const noSection = "\x00"
+	lastSection := noSection
+	for _, it := range tracker.ListCheckboxes(body) {
+		if it.Section != lastSection {
+			lastSection = it.Section
+			header := it.Section
+			if header == "" {
+				header = "(no section)"
+			}
+			fmt.Fprintf(w, "## %s\n", header)
 		}
+		mark := " "
+		if it.Checked {
+			mark = "x"
+		}
+		fmt.Fprintf(w, "  %d. [%s] %s\n", it.Index, mark, it.Text)
 	}
 }
 

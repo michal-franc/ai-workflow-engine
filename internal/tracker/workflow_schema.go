@@ -49,7 +49,7 @@ var WorkflowValidationRules = []SchemaNamedDoc{
 	{Name: "section_has_checkboxes: <Title>", Description: "Named '## <Title>' section must contain at least one checkbox"},
 	{Name: "has_assignee", Description: "Issue must have a non-empty assignee"},
 	{Name: "all_checkboxes_checked", Description: "Every checkbox in the body must be checked"},
-	{Name: "section_checkboxes_checked: <Title>", Description: "Every checkbox inside '## <Title>' must be checked (silent pass if the section is missing)"},
+	{Name: "section_checkboxes_checked: <Title>", Description: "'## <Title>' section must exist with at least one checkbox, and every checkbox in it must be checked"},
 	{Name: "has_test_plan", Description: "Body must contain '## Test Plan' with '### Automated' and '### Manual' subsections"},
 	{Name: "has_comment_prefix: <prefix>", Description: "At least one comment must start with the given prefix (e.g. 'tests:', 'docs:')"},
 	{Name: "approved_for: <status>", Description: "Issue must be human-approved for the given status"},

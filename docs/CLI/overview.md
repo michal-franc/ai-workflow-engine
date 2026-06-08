@@ -33,6 +33,8 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli start <slug>`         | Pick up issue from any status — claim + auto-advance handoff states (announced with a banner) |
 | `issue-cli transition <slug>`    | Attempt the next workflow transition     |
 | `issue-cli comment <slug>`       | Add a comment to an issue                |
+| `issue-cli check <slug>`         | Tick a checkbox by text, or by `--section` + `--index` |
+| `issue-cli checklist <slug>`     | List checkboxes grouped by section with stable indexes |
 | `issue-cli append <slug>`        | Append content to issue body             |
 | `issue-cli replace <slug>`       | Replace content of an existing section   |
 | `issue-cli set-meta <slug>`      | Set or clear a frontmatter field         |
@@ -79,6 +81,24 @@ Notes:
 - File/stdin content is used **verbatim** — unlike `--body`, it is not run through `\n`-escape normalization, so literal backslash sequences in code samples are preserved.
 - `--body`/`--text` and `--body-file` are mutually exclusive; supplying both is an error.
 - The same `--body-file`/`-` support applies to `issue-cli comment <slug>`.
+
+### `check`
+
+`issue-cli check <slug>` ticks a checkbox. Address the box three ways:
+
+```bash
+issue-cli check <slug> "Code changes complete"      # by text (substring, case-insensitive)
+issue-cli check <slug> --section "Design" --index 2  # by section + stable index
+issue-cli check <slug> --index 5                      # by position in the whole body
+```
+
+Indexes are 1-based and **stable**: they count every box (checked and unchecked) in document order within the section, so a given box's index never shifts as other boxes get ticked. With `--section`, the index is the position within that `## ` section; without it, the index is the position in the whole body. Run `issue-cli checklist <slug>` (or `show`/`start`) to see each box's `[Section #index]`.
+
+Index addressing avoids the shell-escaping pain of matching long checkbox text verbatim (backticks, quotes, unicode). Re-checking an already-checked box is a reported no-op, not an error.
+
+A text query matches a box whose label contains it. If it matches **more than one unchecked box**, `check` errors and lists every candidate with its `[Section #index]` label rather than silently ticking the first — re-run with `--section`/`--index` to pick one. A single match still checks as before.
+
+`checklist --json` emits an `items` array (`section`, `index`, `text`, `checked`) alongside the `total`/`checked` counts.
 
 ### `list`
 

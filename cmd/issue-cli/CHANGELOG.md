@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.27.1 — 2026-06-06
+
+- CLI: `issue-cli start` no longer advances a handoff status silently. When `start` auto-advances an approved handoff status (`backlog → in progress`, `human-testing → documentation`) it now prints a prominent `⚠ AUTO-ADVANCED  <from> → <to>` banner that names the move and notes the consumed approval, instead of a single quiet `✓ Status →` line. Plain claims, the `Status unchanged` message, and the missing-approval failure (no mutation) are unchanged. `start --help` and the workflow/CLI docs now describe the behavior.
+
 ## v0.27.0 — 2026-06-06
 
 - CLI: `append` and `comment` now accept `--body-file <path>` to read the body from a file, or `--body-file -` to read it from stdin. The content is used verbatim — no shell quoting and no `\n`-escape normalization — so inline code spans (`` `like this` ``) and parentheses no longer get mangled by the calling shell, which was the most common friction point in agent workflows. `--body`/`--text` still work unchanged; combining them with `--body-file` is an error.

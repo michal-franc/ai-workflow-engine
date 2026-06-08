@@ -38,7 +38,7 @@ issue-cli start <slug>
 issue-cli show <slug>
 ```
 
-`start` works from any status: it claims the issue, auto-advances through handoff states (`backlog`, `human-testing`) honoring their approval gates, and leaves the issue at a work status with its checklist and guidance ready. If an approval gate is crossed without the matching approval, `start` fails before mutating assignee or status and tells the user that no changes were made. Re-running `start` on an already-started issue is idempotent. `show` prints the full issue context.
+`start` works from any status: it claims the issue, auto-advances through handoff states (`backlog`, `human-testing`) honoring their approval gates, and leaves the issue at a work status with its checklist and guidance ready. The auto-advance is never silent — when it happens, `start` prints a prominent `⚠ AUTO-ADVANCED  <from> → <to>` banner that names the move and notes the approval it consumed, so a `start` run intended only to re-claim cannot quietly cross into implementation. If an approval gate is crossed without the matching approval, `start` fails before mutating assignee or status and tells the user that no changes were made. Re-running `start` on an already-started issue is idempotent. `show` prints the full issue context.
 
 ## 3. Status Guidance
 

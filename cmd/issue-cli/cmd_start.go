@@ -14,6 +14,13 @@ var startCommand = &Command{
 	LongHelp: `Pick up an issue at any status: claim it, advance through handoff statuses
 when human-approved, and print the checklist + next steps.
 
+Handoff statuses (backlog, human-testing) auto-advance to the next work status
+when the matching approval is present — e.g. start on an approved backlog issue
+moves it to "in progress" and consumes the approval. This advance is announced
+with a prominent AUTO-ADVANCED banner so it is never silent. Without the
+approval, start fails without changing anything. From any non-handoff status,
+start only claims the issue and leaves the status unchanged.
+
 Examples:
   issue-cli start <slug>
   issue-cli start <slug> --assignee my-bot`,
@@ -54,21 +61,29 @@ func runStart(ctx *Context, args []string) error {
 	fmt.Fprintf(ctx.Stdout, "== Starting work on: %s ==\n", issue.Title)
 	fmt.Fprintf(ctx.Stdout, "Status: %s\n", statusLabel(wf, started.FromStatus))
 
+	// A start that transitions is always a handoff auto-advance: StartIssueOnce
+	// only sets a target status when the from-status is a handoff state. This is
+	// the surprising part of `start`, so announce it with an unmissable banner
+	// rather than a single quiet "✓ Status →" line.
+	advanced := started.Transitioned && started.FromStatus != started.ToStatus
+	if advanced {
+		printAutoAdvanceBanner(ctx.Stdout, started.FromStatus, started.ToStatus, started.Result.ClearedApproval)
+	}
+
 	if started.Claimed {
 		fmt.Fprintf(ctx.Stdout, "✓ Claimed (assignee: %s)\n", assignee)
 	} else if issue.Assignee != "" {
 		fmt.Fprintf(ctx.Stdout, "Already claimed by: %s\n", issue.Assignee)
 	}
 
-	if started.Transitioned && started.FromStatus != started.ToStatus {
-		fmt.Fprintf(ctx.Stdout, "✓ Status → %s\n", started.ToStatus)
-	} else {
+	if !advanced {
 		fmt.Fprintf(ctx.Stdout, "Status unchanged (%s is a work status — ready to pick up)\n", started.ToStatus)
 	}
 	if started.Result.BodyAppended {
 		fmt.Fprintln(ctx.Stdout, "✓ Workflow content appended to issue body")
 	}
-	if started.Result.ClearedApproval {
+	// When advanced, the banner already states the approval was consumed.
+	if started.Result.ClearedApproval && !advanced {
 		fmt.Fprintln(ctx.Stdout, "✓ Approval consumed")
 	}
 
@@ -77,6 +92,23 @@ func runStart(ctx *Context, args []string) error {
 	printWorkflowNextSteps(ctx.Stdout, wf, issue)
 	printStartWorkflowReminder(ctx.Stdout, wf)
 	return nil
+}
+
+// printAutoAdvanceBanner renders the prominent notice shown when `start`
+// auto-advances a handoff status (backlog, human-testing) to the next work
+// status. The advance is the surprising part of `start`, so it gets an
+// unmissable block naming from → to and the approval it consumed, instead of a
+// single quiet "✓ Status →" line.
+func printAutoAdvanceBanner(w io.Writer, from, to string, approvalConsumed bool) {
+	fmt.Fprintln(w)
+	fmt.Fprintf(w, "⚠ AUTO-ADVANCED  %s → %s\n", from, to)
+	if approvalConsumed {
+		fmt.Fprintf(w, "  A %q approval was present, so start moved this issue forward and consumed it.\n", to)
+	} else {
+		fmt.Fprintf(w, "  start moved this issue forward from the %q handoff status.\n", from)
+	}
+	fmt.Fprintln(w, "  start advances handoff statuses; to only claim, the issue must not be pre-approved.")
+	fmt.Fprintln(w)
 }
 
 func printStartWorkflowReminder(w io.Writer, wf *tracker.WorkflowConfig) {

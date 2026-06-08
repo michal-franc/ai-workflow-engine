@@ -112,18 +112,18 @@ func validationSummary(rule string) string {
 		return "Validate issue has checkboxes"
 	case "section_has_checkboxes":
 		if arg == "" {
-			return "Validate section has checkboxes"
+			return "Validate section has checkboxes (existence only — contents verified later)"
 		}
-		return fmt.Sprintf("Validate section %s has checkboxes", arg)
+		return fmt.Sprintf("Validate section %s has checkboxes (existence only — contents verified later)", arg)
 	case "has_assignee":
 		return "Validate issue has assignee"
 	case "all_checkboxes_checked":
 		return "Validate all checkboxes are checked"
 	case "section_checkboxes_checked":
 		if arg == "" {
-			return "Validate section checkboxes are checked"
+			return "Validate section checkboxes are checked (gates this transition)"
 		}
-		return fmt.Sprintf("Validate section %s checkboxes are checked", arg)
+		return fmt.Sprintf("Validate section %s checkboxes are checked (gates this transition)", arg)
 	case "has_test_plan":
 		return "Validate test plan is present"
 	case "has_comment_prefix":
@@ -183,9 +183,11 @@ func (w *WorkflowConfig) checkRule(rule string, issue *Issue, comments []Comment
 		}
 		total, checked := CountCheckboxesInSection(issue.BodyRaw, ruleArg)
 		if total == 0 {
-			// Section missing or has no checkboxes — skip silently.
-			// The section may not exist if the issue was created without that template.
-			return nil
+			// A gated section with no checkboxes must not pass vacuously —
+			// otherwise an issue imported without that section reaches the
+			// next status with none of its checklist content. Require the
+			// section to exist with at least one checkbox.
+			return fmt.Errorf("section %q has no checkboxes — add a %s checklist before transitioning", ruleArg, ruleArg)
 		}
 		if checked < total {
 			return fmt.Errorf("%d/%d checkboxes incomplete in section %q:\n\n  issue-cli checklist %s", checked, total, ruleArg, issue.Slug)

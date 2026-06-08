@@ -805,11 +805,30 @@ func TestProcessChangesEmbedsChangelog(t *testing.T) {
 
 	assertContains(t, out, "release history")
 	assertContains(t, out, "# Changelog")
+
+	// The offline fallback caps output at the 20 most recent version sections
+	// (trimChangelogToVersions). Assert those appear, and that older ones are
+	// omitted with the documented notice when the changelog exceeds the cap.
+	var versions []string
 	for _, line := range strings.Split(changelogMD, "\n") {
 		if strings.HasPrefix(line, "## v") {
-			if !strings.Contains(out, line) {
-				t.Errorf("process changes output missing version line %q", line)
-			}
+			versions = append(versions, line)
+		}
+	}
+	const cap = 20
+	kept := versions
+	if len(kept) > cap {
+		kept = versions[:cap]
+	}
+	for _, line := range kept {
+		if !strings.Contains(out, line) {
+			t.Errorf("process changes output missing recent version line %q", line)
+		}
+	}
+	if len(versions) > cap {
+		assertContains(t, out, "older version entries omitted")
+		if strings.Contains(out, versions[cap]) {
+			t.Errorf("version line %q is beyond the %d-entry cap and should be omitted", versions[cap], cap)
 		}
 	}
 }

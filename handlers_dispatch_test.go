@@ -391,6 +391,93 @@ func TestHandleCustomAction_UnknownActionReturns404(t *testing.T) {
 	}
 }
 
+// TestHandleProjectAction_DispatchesConfiguredPrompt drives the full HTTP path
+// for a project-level action: the POST resolves it from project_actions,
+// templates the prompt with project context, and dispatches to a per-action
+// tmux session with no issue slug.
+func TestHandleProjectAction_DispatchesConfiguredPrompt(t *testing.T) {
+	proj, tmpDir := setupTestProject(t)
+	wfPath := filepath.Join(tmpDir, "workflow.yaml")
+	if err := os.WriteFile(wfPath, []byte(`statuses:
+  - name: "in progress"
+    description: "Actively being implemented"
+project_actions:
+  - id: "triage-backlog"
+    label: "Triage backlog"
+    agent: "codex"
+    prompt: |
+      Triage the backlog for {{project}}.
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	proj.WorkflowFile = wfPath
+
+	var gotPrompt, gotSession, gotIssueSlug, gotAgent string
+	origDispatch := dispatchAgentSession
+	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType, _ string, wf *tracker.WorkflowConfig) DispatchResponse {
+		gotPrompt, gotSession, gotIssueSlug, gotAgent = prompt, session, issueSlug, agentType
+		return DispatchResponse{Status: "dispatched", Prompt: prompt, Session: session}
+	}
+	t.Cleanup(func() { dispatchAgentSession = origDispatch })
+
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/p/test-project/action/triage-backlog", "application/json", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	if !strings.Contains(gotPrompt, "Triage the backlog for Test Project.") {
+		t.Fatalf("prompt not templated from project action: %q", gotPrompt)
+	}
+	if gotAgent != "codex" {
+		t.Fatalf("expected codex agent from action config, got %q", gotAgent)
+	}
+	if gotIssueSlug != "" {
+		t.Fatalf("expected empty issue slug for project action, got %q", gotIssueSlug)
+	}
+	if !strings.Contains(gotSession, "test-project-triage-backlog") {
+		t.Fatalf("expected per-action session name, got %q", gotSession)
+	}
+}
+
+func TestHandleProjectAction_UnknownActionReturns404(t *testing.T) {
+	proj, tmpDir := setupTestProject(t)
+	wfPath := filepath.Join(tmpDir, "workflow.yaml")
+	if err := os.WriteFile(wfPath, []byte("statuses:\n  - name: \"in progress\"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	proj.WorkflowFile = wfPath
+
+	called := false
+	origDispatch := dispatchAgentSession
+	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType, _ string, _ *tracker.WorkflowConfig) DispatchResponse {
+		called = true
+		return DispatchResponse{}
+	}
+	t.Cleanup(func() { dispatchAgentSession = origDispatch })
+
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	resp, err := http.Post(ts.URL+"/p/test-project/action/nope", "application/json", strings.NewReader(`{}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown project action, got %d", resp.StatusCode)
+	}
+	if called {
+		t.Fatalf("dispatch must not run for an unknown project action")
+	}
+}
+
 func TestEnsureWorktree_RunsSetupAfterCreate(t *testing.T) {
 	tmp := t.TempDir()
 	origGit := runGitWorktreeAdd

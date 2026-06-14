@@ -1802,6 +1802,42 @@ func TestGetAction_ResolvesByID(t *testing.T) {
 	}
 }
 
+// TestIssueActionList_MergesLegacyAlias verifies the backward-compatible rename:
+// issue_actions is canonical, the legacy actions field is still honored, and on
+// id clash the canonical entry wins.
+func TestIssueActionList_MergesLegacyAlias(t *testing.T) {
+	// Legacy-only config still resolves.
+	legacy := &WorkflowConfig{Actions: []CustomAction{{ID: "defer", Label: "Defer (old)", Prompt: "p"}}}
+	if got := legacy.GetAction("defer"); got == nil || got.Label != "Defer (old)" {
+		t.Fatalf("legacy actions alias not honored: %+v", got)
+	}
+
+	// Canonical-only config resolves.
+	canonical := &WorkflowConfig{IssueActions: []CustomAction{{ID: "defer", Label: "Defer (new)", Prompt: "p"}}}
+	if got := canonical.GetAction("defer"); got == nil || got.Label != "Defer (new)" {
+		t.Fatalf("issue_actions not honored: %+v", got)
+	}
+
+	// Both present: issue_actions take precedence on a clash, legacy-only ids merge in.
+	both := &WorkflowConfig{
+		IssueActions: []CustomAction{{ID: "defer", Label: "Defer (new)", Prompt: "p"}},
+		Actions: []CustomAction{
+			{ID: "defer", Label: "Defer (old)", Prompt: "p"},
+			{ID: "escalate", Label: "Escalate", Prompt: "q"},
+		},
+	}
+	list := both.IssueActionList()
+	if len(list) != 2 {
+		t.Fatalf("expected 2 merged actions, got %d: %+v", len(list), list)
+	}
+	if got := both.GetAction("defer"); got == nil || got.Label != "Defer (new)" {
+		t.Fatalf("issue_actions should win on id clash, got %+v", got)
+	}
+	if got := both.GetAction("escalate"); got == nil {
+		t.Fatalf("legacy-only action should still resolve when both lists present")
+	}
+}
+
 // TestForSystemPreservesCustomActions guards the Clone() path: custom actions
 // are a top-level (not per-system) list, so resolving a workflow for an issue's
 // system — which clones — must carry them through. A manual struct rebuild in

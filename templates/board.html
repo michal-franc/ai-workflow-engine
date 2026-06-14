@@ -66,6 +66,8 @@
         </div>
     </div>
 
+    {{template "project-actions-bar" .}}
+
     <form class="board-filter-bar" method="GET" action="{{.Prefix}}/board">
         <input type="search" class="board-search" id="board-search" placeholder="Search issues..." oninput="filterBoardCards(this.value)">
 
@@ -183,6 +185,8 @@
 
     <!-- Create issue modal -->
     {{template "create-modal" .}}
+
+    {{template "project-actions-modal" .}}
 
     <!-- Transition prompt modal -->
     <div class="modal-overlay" id="transition-modal" style="display:none">

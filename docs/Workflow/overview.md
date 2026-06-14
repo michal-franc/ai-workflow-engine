@@ -154,10 +154,10 @@ Statuses support `side_effects` that run automatically after a transition:
 
 Custom actions are one-shot agent buttons rendered on the issue detail view, below the built-in Claude/Codex dispatch buttons. Unlike a transition, an action does **not** validate or mutate the issue — it just opens a tmux agent session briefed with a fixed prompt. Use them for lightweight coordination tasks ("defer to team", "summarize for standup", "draft a release note").
 
-Top-level `actions:` list in `workflow.yaml`:
+Top-level `issue_actions:` list in `workflow.yaml`:
 
 ```yaml
-actions:
+issue_actions:
   - id: "defer-to-team"        # stable id; used in the URL and tmux session name
     label: "Defer to team"     # button text
     agent: "claude"            # claude (default) or codex
@@ -167,11 +167,34 @@ actions:
       issue-cli comment {{slug}} --text "deferred: <summary>"
 ```
 
+> **Backward compatibility:** `issue_actions` was originally named `actions`. The old `actions:` key still works as a deprecated alias — existing configs need no change. If both are present, `issue_actions` entries win on an id clash and legacy-only ids are merged in. Prefer `issue_actions` in new configs; it parallels `project_actions`.
+
 - Each action becomes a button on every issue's detail view.
 - Clicking it POSTs to `/p/<project>/issue/<slug>/action/<id>`, which dispatches a fresh agent.
 - The session name is `agent-<slug>-<id>`, separate from the main `agent-<slug>` dispatch session, so an action runs alongside (not on top of) a working agent.
 - Actions run in the project checkout, not a per-issue worktree — they are lightweight prompts, not code-change sessions.
 - Prompts are templated with `{{slug}}`, `{{title}}`, `{{status}}`, `{{system}}`, `{{priority}}`, and `{{number}}`. Unrecognized `{{...}}` tokens are left verbatim.
+
+### Project-Level Actions
+
+Project-level actions are the same one-shot agent buttons, but **not bound to a single issue**. They render on the project views — list, board, and graph — in an "Actions" bar below the header. Use them for project-wide chores ("triage the backlog", "summarize all in-progress work for standup").
+
+Top-level `project_actions:` list in `workflow.yaml`, with the same fields as `actions:`:
+
+```yaml
+project_actions:
+  - id: "triage-backlog"       # stable id; used in the URL and tmux session name
+    label: "Triage backlog"    # button text
+    agent: "claude"            # claude (default) or codex
+    prompt: |
+      Review every backlog issue in {{project}} and propose a priority order.
+```
+
+- Each action renders as a button on the list, board, and graph views.
+- Clicking it POSTs to `/p/<project>/action/<id>`, which dispatches a fresh agent with no issue slug.
+- The session name is `agent-<project-slug>-<id>`.
+- Like issue actions, they run in the project checkout (never a worktree).
+- Because there is no issue context, prompts are templated with `{{project}}` (the project name) only. Unrecognized `{{...}}` tokens are left verbatim.
 
 ## Per-Issue Worktrees
 

@@ -66,6 +66,8 @@
         </div>
     </div>
 
+    {{template "project-actions-bar" .}}
+
     <div class="container">
         <form class="filter-bar" method="GET" action="{{.Prefix}}/">
             <input type="search" name="search" placeholder="Search issues..." value="{{.Filter.Search}}">
@@ -174,6 +176,7 @@
         {{end}}
     </div>
     {{template "create-modal" .}}
+    {{template "project-actions-modal" .}}
     <script src="/static/auto-refresh.js"></script>
 </body>
 </html>

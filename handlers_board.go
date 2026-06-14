@@ -45,6 +45,7 @@ type BoardData struct {
 	HideEmpty         bool
 	CreatableStatuses []string
 	BodyTemplates     map[string]string
+	ProjectActions    []tracker.CustomAction
 }
 
 type GraphStatusNode struct {
@@ -77,6 +78,7 @@ type GraphData struct {
 	HideEmpty      bool
 	TotalIssues    int
 	SupportsGitHub bool
+	ProjectActions []tracker.CustomAction
 }
 
 func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
@@ -244,6 +246,7 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 		HideEmpty:         hideEmpty,
 		CreatableStatuses: creatable,
 		BodyTemplates:     templates,
+		ProjectActions:    wf.ProjectActions,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -367,6 +370,7 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request, proj *track
 		HideEmpty:      hideEmpty,
 		TotalIssues:    totalIssues,
 		SupportsGitHub: proj.SupportsGitHub,
+		ProjectActions: wf.ProjectActions,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

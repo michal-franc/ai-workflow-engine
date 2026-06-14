@@ -130,9 +130,20 @@ type WorkflowConfig struct {
 	Statuses    []WorkflowStatus           `yaml:"statuses" desc:"Status lifecycle definitions"`
 	Transitions []WorkflowTransition       `yaml:"transitions" desc:"Transition rules between statuses"`
 	Systems     map[string]WorkflowOverlay `yaml:"systems" desc:"Per-system overrides keyed by system name"`
-	Actions     []CustomAction             `yaml:"actions,omitempty" desc:"Custom one-shot agent buttons shown on the issue detail view"`
-	Board       WorkflowBoardConfig        `yaml:"board" desc:"Board display configuration"`
-	Scoring     ScoringConfig              `yaml:"scoring,omitempty" desc:"Ticket scoring policy (opt-in)"`
+	// IssueActions are custom one-shot agent buttons shown on the issue detail
+	// view. Resolve them via IssueActionList, never the raw field, so the legacy
+	// Actions alias is included.
+	IssueActions []CustomAction `yaml:"issue_actions,omitempty" desc:"Custom one-shot agent buttons shown on the issue detail view; prompts template with {{slug}}/{{title}}/{{status}}/{{system}}/{{priority}}/{{number}}"`
+	// Actions is the deprecated original name for IssueActions, kept so existing
+	// workflow.yaml files keep working. New configs should use issue_actions.
+	// Both are merged by IssueActionList (issue_actions take precedence on id clash).
+	Actions []CustomAction `yaml:"actions,omitempty" desc:"Deprecated alias for issue_actions; kept for backward compatibility"`
+	// ProjectActions are custom one-shot agent buttons shown on the project-level
+	// views (list, board, graph). Unlike issue actions they are not bound to a
+	// single issue, so their prompts template against project context ({{project}}) only.
+	ProjectActions []CustomAction      `yaml:"project_actions,omitempty" desc:"Custom one-shot agent buttons shown on the project views (list/board/graph); prompts template with {{project}}"`
+	Board          WorkflowBoardConfig `yaml:"board" desc:"Board display configuration"`
+	Scoring        ScoringConfig       `yaml:"scoring,omitempty" desc:"Ticket scoring policy (opt-in)"`
 	// AllowShell opts in to the command_succeeds validator. When false, any
 	// transition with a command_succeeds rule fails at validate time.
 	AllowShell bool `yaml:"allow_shell,omitempty" desc:"Permit command_succeeds validators to run shell commands (default false)"`
@@ -457,15 +468,62 @@ func (w *WorkflowConfig) GetStatus(name string) *WorkflowStatus {
 	return nil
 }
 
-// GetAction returns the custom action with the given id, or nil. Used by the
-// detail-view action handler to resolve a button click to its prompt.
+// IssueActionList returns the issue-level custom actions, merging the canonical
+// IssueActions with the deprecated Actions alias. issue_actions take precedence:
+// a legacy action is included only when its id is not already defined. Callers
+// should use this rather than reading either field directly so both spellings
+// keep working.
+func (w *WorkflowConfig) IssueActionList() []CustomAction {
+	if w == nil {
+		return nil
+	}
+	if len(w.Actions) == 0 {
+		return w.IssueActions
+	}
+	if len(w.IssueActions) == 0 {
+		return w.Actions
+	}
+	seen := make(map[string]bool, len(w.IssueActions))
+	out := make([]CustomAction, 0, len(w.IssueActions)+len(w.Actions))
+	for _, a := range w.IssueActions {
+		seen[a.ID] = true
+		out = append(out, a)
+	}
+	for _, a := range w.Actions {
+		if !seen[a.ID] {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// GetAction returns the issue custom action with the given id, or nil. Used by
+// the detail-view action handler to resolve a button click to its prompt. It
+// resolves against IssueActionList so both issue_actions and the legacy actions
+// alias are honored.
 func (w *WorkflowConfig) GetAction(id string) *CustomAction {
 	if w == nil {
 		return nil
 	}
-	for i := range w.Actions {
-		if w.Actions[i].ID == id {
-			return &w.Actions[i]
+	actions := w.IssueActionList()
+	for i := range actions {
+		if actions[i].ID == id {
+			return &actions[i]
+		}
+	}
+	return nil
+}
+
+// GetProjectAction returns the project-level custom action with the given id,
+// or nil. Used by the project-view action handler to resolve a button click to
+// its prompt.
+func (w *WorkflowConfig) GetProjectAction(id string) *CustomAction {
+	if w == nil {
+		return nil
+	}
+	for i := range w.ProjectActions {
+		if w.ProjectActions[i].ID == id {
+			return &w.ProjectActions[i]
 		}
 	}
 	return nil
@@ -558,7 +616,3 @@ func (w *WorkflowConfig) AppendTemplate(body, status string) (string, bool) {
 	body += tmpl + "\n"
 	return body, true
 }
-
-
-
-

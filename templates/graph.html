@@ -293,6 +293,8 @@
         </div>
     </div>
 
+    {{template "project-actions-bar" .}}
+
     <form class="graph-filter-bar" method="GET" action="{{.Prefix}}/graph">
         <select name="system" onchange="this.form.submit()">
             <option value="">All systems</option>
@@ -382,5 +384,7 @@
             {{end}}
         </div>
     </div>
+
+    {{template "project-actions-modal" .}}
 </body>
 </html>

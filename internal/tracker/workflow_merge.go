@@ -39,16 +39,18 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 	}
 
 	clone := &WorkflowConfig{
-		Statuses:    append([]WorkflowStatus(nil), w.Statuses...),
-		Transitions: make([]WorkflowTransition, len(w.Transitions)),
-		Systems:     make(map[string]WorkflowOverlay, len(w.Systems)),
-		Actions:     append([]CustomAction(nil), w.Actions...),
-		Board:       cloneBoardConfig(w.Board),
-		Scoring:     cloneScoringConfig(w.Scoring),
-		AllowShell:  w.AllowShell,
-		Worktree:    w.Worktree,
-		LookupIssue: w.LookupIssue,
-		IssuesRoot:  w.IssuesRoot,
+		Statuses:       append([]WorkflowStatus(nil), w.Statuses...),
+		Transitions:    make([]WorkflowTransition, len(w.Transitions)),
+		Systems:        make(map[string]WorkflowOverlay, len(w.Systems)),
+		IssueActions:   append([]CustomAction(nil), w.IssueActions...),
+		Actions:        append([]CustomAction(nil), w.Actions...),
+		ProjectActions: append([]CustomAction(nil), w.ProjectActions...),
+		Board:          cloneBoardConfig(w.Board),
+		Scoring:        cloneScoringConfig(w.Scoring),
+		AllowShell:     w.AllowShell,
+		Worktree:       w.Worktree,
+		LookupIssue:    w.LookupIssue,
+		IssuesRoot:     w.IssuesRoot,
 	}
 	for i := range w.Transitions {
 		clone.Transitions[i] = WorkflowTransition{

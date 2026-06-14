@@ -15,6 +15,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/graph.html` — workflow status graph
 - `templates/docs.html` — documentation viewer with sidebar navigation
 - `templates/_create_modal.html` — shared "New issue" modal partial included by list and board
+- `templates/_project_actions.html` — shared project-level custom action bar + dispatch modal, included by list, board, and graph
 - `static/style.css` — all CSS (dark GitHub theme)
 
 ## Views
@@ -68,3 +69,7 @@ The board's per-column `+` buttons keep working and pass their column status as 
 Server-side wiring: both `ListData` and `BoardData` carry `CreatableStatuses []string` and `BodyTemplates map[string]string`. The templates JSON is embedded into the page via the `toJSON` template helper (`template_funcs.go`) which returns `template.JS` to bypass HTML escaping.
 
 Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location.reload()` (board "needs reload" path and the detail-view path) when `window.__createModalOpen` is true, so a polled refresh cannot wipe an in-flight create.
+
+## Project action bar
+
+The list, board, and graph views show an **Actions** bar below the header (rendered by `templates/_project_actions.html`, included via `{{template "project-actions-bar" .}}`) when the workflow defines `project_actions:`. Each button POSTs to `POST /p/<project>/action/<id>` (handler `handleProjectAction` in `handlers_dispatch.go`), which dispatches a one-shot agent with no issue context — prompts template with `{{project}}` only. The shared dispatch result modal is defined in the same partial (`project-actions-modal`). This mirrors the per-issue custom action buttons on `detail.html`, which come from `issue_actions:` (legacy alias: `actions:`). `ListData`, `BoardData`, and `GraphData` each carry `ProjectActions []tracker.CustomAction`.

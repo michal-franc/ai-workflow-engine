@@ -192,7 +192,8 @@ transitions:
 # built-in Claude/Codex dispatch buttons. Each opens a tmux agent session
 # briefed with the prompt below — no validation, no status change. Prompts are
 # templated with {{slug}}/{{title}}/{{status}}/{{system}}/{{priority}}/{{number}}.
-actions:
+# (Originally named `actions:`; that key still works as a deprecated alias.)
+issue_actions:
   - id: "defer-to-team"
     label: "Defer to team"
     agent: "claude"
@@ -201,6 +202,18 @@ actions:
       Draft a short, neutral handoff note that summarizes the current state, what is
       blocking progress, and the specific decision or input needed from the team.
       Then add it as a comment with: issue-cli comment {{slug}} --text "deferred: <summary>"
+
+# Project-level one-shot agent buttons, rendered on the list/board/graph views
+# (not bound to a single issue). Prompts template with {{project}} only.
+project_actions:
+  - id: "triage-backlog"
+    label: "Triage backlog"
+    agent: "claude"
+    prompt: |
+      Review every issue in the {{project}} backlog. For each, assess whether the
+      design is clear enough to start and whether its priority still looks right.
+      Summarize a recommended order to pick up next and flag anything blocked or
+      stale, then post it with: issue-cli comment <slug> --text "triage: <note>"
 
 systems:
   API:

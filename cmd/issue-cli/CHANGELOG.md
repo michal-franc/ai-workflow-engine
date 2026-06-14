@@ -16,6 +16,11 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.29.0 — 2026-06-14
+
+- Web UI: custom actions can now run at the project level, not just per issue. A new `project_actions:` list in `workflow.yaml` renders one-shot agent buttons in an "Actions" bar on the list, board, and graph views. Unlike issue actions they are not bound to a single issue, so their prompts template with `{{project}}` only. Clicking a button POSTs to `/p/<project>/action/<id>` and dispatches a fresh agent in the project checkout.
+- Workflow config: the per-issue `actions:` key has been renamed to `issue_actions:` to parallel `project_actions:`. The old `actions:` key still works as a deprecated alias, so existing `workflow.yaml` files need no change; if both are present, `issue_actions` entries win on an id clash and legacy-only ids are merged in.
+
 ## v0.28.0 — 2026-06-08
 
 - CLI: `issue-cli check` can now address a checkbox by stable index instead of verbatim text: `check <slug> --section "Design" --index 2` ticks the 2nd box in that section, and `check <slug> --index 5` ticks the 5th box in the whole body. Indexes are 1-based and stable — they count checked and unchecked boxes in document order, so an index never shifts as boxes get ticked. Re-checking an already-checked box is a reported no-op, not an error.

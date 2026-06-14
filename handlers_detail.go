@@ -160,7 +160,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		ActiveBots:        activeBots,
 		Timeline:          timeline,
 		RenderedBody:      template.HTML(renderedBody),
-		CustomActions:     wf.Actions,
+		CustomActions:     wf.IssueActionList(),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

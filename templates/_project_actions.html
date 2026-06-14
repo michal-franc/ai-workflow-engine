@@ -1,0 +1,82 @@
+{{define "project-actions-bar"}}
+{{if .ProjectActions}}
+<div class="container">
+    <div class="project-actions-bar">
+        <span class="project-actions-label">Actions</span>
+        {{range .ProjectActions}}
+        <button class="dispatch-btn dispatch-btn-custom" onclick="dispatchProjectAction('{{$.Prefix}}', '{{.ID}}', '{{.Label}}')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM4.5 7.5h7a.5.5 0 010 1h-7a.5.5 0 010-1z"/></svg>
+            {{.Label}}
+        </button>
+        {{end}}
+    </div>
+</div>
+{{end}}
+{{end}}
+
+{{define "project-actions-modal"}}
+{{if .ProjectActions}}
+<!-- Project action dispatch modal -->
+<div class="modal-overlay" id="project-action-modal" style="display:none">
+    <div class="modal" style="max-width:640px">
+        <div class="modal-title">Dispatch Project Action</div>
+        <div class="modal-body">
+            <div id="project-action-steps" class="dispatch-steps"></div>
+            <div id="project-action-session" class="dispatch-session"></div>
+            <details class="dispatch-prompt-details">
+                <summary>Prompt sent</summary>
+                <pre class="dispatch-prompt-pre" id="project-action-prompt"></pre>
+            </details>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="document.getElementById('project-action-modal').style.display='none'">Close</button>
+        </div>
+    </div>
+</div>
+<script>
+// dispatchProjectAction POSTs to the project-level action endpoint and renders
+// the {status, session, prompt, steps} response into the project-action modal.
+function dispatchProjectAction(prefix, id, label) {
+    var modal = document.getElementById('project-action-modal');
+    var stepsEl = document.getElementById('project-action-steps');
+    var promptEl = document.getElementById('project-action-prompt');
+    var sessionEl = document.getElementById('project-action-session');
+    modal.style.display = '';
+    stepsEl.innerHTML = '<div class="dispatch-step pending">Dispatching ' + label + '...</div>';
+    promptEl.textContent = '';
+    sessionEl.textContent = '';
+
+    fetch(prefix + '/action/' + encodeURIComponent(id), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}'
+    }).then(res => res.json()).then(data => {
+        sessionEl.textContent = 'tmux session: ' + data.session;
+        promptEl.textContent = data.prompt;
+
+        var html = '';
+        if (data.status === 'reattached') {
+            html += '<div class="dispatch-banner reattached">'
+                + 'Existing tmux session — attached without re-prompting the agent. '
+                + 'Kill the session manually if you want a fresh dispatch.'
+                + '</div>';
+        }
+        data.steps.forEach(function(step) {
+            var icon, cls;
+            if (step.status === 'ok') { icon = '&#10003;'; cls = 'ok'; }
+            else if (step.status === 'reattached') { icon = '&#8634;'; cls = 'reattached'; }
+            else { icon = '&#10007;'; cls = 'error'; }
+            html += '<div class="dispatch-step ' + cls + '">'
+                + '<span class="dispatch-step-icon">' + icon + '</span> '
+                + step.name
+                + (step.detail ? ' <span class="dispatch-step-detail">(' + step.detail + ')</span>' : '')
+                + '</div>';
+        });
+        stepsEl.innerHTML = html;
+    }).catch(function(err) {
+        stepsEl.innerHTML = '<div class="dispatch-step error">Failed: ' + err.message + '</div>';
+    });
+}
+</script>
+{{end}}
+{{end}}

@@ -542,6 +542,47 @@ func renderActionPrompt(prompt string, issue *tracker.Issue) string {
 	return r.Replace(prompt)
 }
 
+// renderProjectActionPrompt substitutes {{project}} into a project-level custom
+// action's prompt. Project actions are not bound to an issue, so only project
+// context is available. Plain string replacement keeps prompts forgiving: an
+// unrecognized {{...}} is left verbatim rather than failing the dispatch.
+func renderProjectActionPrompt(prompt string, proj *tracker.Project) string {
+	r := strings.NewReplacer(
+		"{{project}}", proj.Name,
+	)
+	return r.Replace(prompt)
+}
+
+// handleProjectAction dispatches a project-level custom action from the list,
+// board, or graph views. Unlike handleCustomAction it is not bound to an issue:
+// it briefs a fresh tmux agent session in the project checkout with the action's
+// prompt (templated with project context) and an empty issue slug.
+func (s *Server) handleProjectAction(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	actionID := strings.TrimPrefix(r.URL.Path, prefix+"/action/")
+	if actionID == "" || strings.Contains(actionID, "/") {
+		http.NotFound(w, r)
+		return
+	}
+
+	wf := proj.LoadWorkflow()
+	action := wf.GetProjectAction(actionID)
+	if action == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	agentType := strings.TrimSpace(action.Agent)
+	if agentType == "" {
+		agentType = "claude"
+	}
+
+	prompt := renderProjectActionPrompt(action.Prompt, proj)
+	session := tmuxSessionName(proj.Slug + "-" + actionID)
+	resp := dispatchAgentSession(proj, session, prompt, "", agentType, viewerURLFromRequest(r), nil)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
 // handleCustomAction dispatches a workflow custom action: it briefs a fresh
 // tmux agent session with the action's prompt. Unlike handleDispatchAgent it
 // uses the configured prompt verbatim (templated) instead of the status-based

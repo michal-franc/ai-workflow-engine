@@ -1648,6 +1648,26 @@ html[data-sidebar-hidden="true"] .sidebar-show-btn { display: inline-block; }
     border-color: rgba(148, 163, 184, 0.5);
 }
 
+/* Project-level custom actions bar (list/board/graph) */
+.project-actions-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0 0;
+}
+.project-actions-bar .project-actions-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+    margin-right: 2px;
+}
+.project-actions-bar .dispatch-btn {
+    width: auto;
+}
+
 /* Approval button */
 .approve-btn {
     display: flex;

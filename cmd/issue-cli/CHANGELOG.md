@@ -16,6 +16,11 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.27.0 — 2026-06-14
+
+- Web UI: custom actions can now run at the project level, not just per issue. A new `project_actions:` list in `workflow.yaml` renders one-shot agent buttons in an "Actions" bar on the list, board, and graph views. Unlike issue actions they are not bound to a single issue, so their prompts template with `{{project}}` only. Clicking a button POSTs to `/p/<project>/action/<id>` and dispatches a fresh agent in the project checkout.
+- Workflow config: the per-issue `actions:` key has been renamed to `issue_actions:` to parallel `project_actions:`. The old `actions:` key still works as a deprecated alias, so existing `workflow.yaml` files need no change; if both are present, `issue_actions` entries win on an id clash and legacy-only ids are merged in.
+
 ## v0.26.3 — 2026-06-05
 
 - Web UI: fixed long fenced code blocks (` ``` `) in an issue body stretching the detail page several times its width. The content column of the detail layout now shrinks correctly so wide code lines scroll horizontally within their box instead of overflowing the page.

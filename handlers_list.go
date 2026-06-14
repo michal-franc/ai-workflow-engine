@@ -45,6 +45,7 @@ type ListData struct {
 	Sort              string
 	CreatableStatuses []string
 	BodyTemplates     map[string]string
+	ProjectActions    []tracker.CustomAction
 }
 
 type FilterParams struct {
@@ -112,6 +113,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracke
 		Sort:              sortKey,
 		CreatableStatuses: creatable,
 		BodyTemplates:     templates,
+		ProjectActions:    wf.ProjectActions,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

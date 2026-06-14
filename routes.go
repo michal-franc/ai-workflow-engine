@@ -155,6 +155,8 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleApproveIssue(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/delete") && r.Method == http.MethodPost:
 		s.handleDeleteIssue(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "action/") && r.Method == http.MethodPost:
+		s.handleProjectAction(w, r, proj, prefix)
 	case rest == "issues/create" && r.Method == http.MethodPost:
 		s.handleCreateIssue(w, r, proj, prefix)
 	case rest == "upload" && r.Method == http.MethodPost:

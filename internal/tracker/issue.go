@@ -936,6 +936,114 @@ func CheckCheckbox(body, query string) (string, bool) {
 	return body, false
 }
 
+// CheckboxItem describes one markdown checkbox and where it sits.
+type CheckboxItem struct {
+	// Section is the nearest "## " heading above the checkbox ("" when the
+	// checkbox appears before any such heading).
+	Section string
+	// Index is the checkbox's 1-based position within its section. It is
+	// stable: it counts both checked and unchecked boxes in document order,
+	// so the index of a given box never shifts as other boxes get ticked.
+	Index int
+	// Text is the checkbox label with the "- [ ]"/"- [x]" prefix stripped.
+	Text string
+	// Checked reports whether the box is ticked.
+	Checked bool
+	// Line is the 0-based line number of the checkbox in the body.
+	Line int
+}
+
+// ListCheckboxes enumerates every checkbox in body, skipping those inside
+// fenced code blocks (illustrative quotes, not workflow state). Index is
+// 1-based and resets at each "## " section heading, matching the section
+// boundaries used by CountCheckboxesInSection.
+func ListCheckboxes(body string) []CheckboxItem {
+	lines := strings.Split(body, "\n")
+	fenceFlags := computeFenceFlags(lines)
+	var items []CheckboxItem
+	section := ""
+	perSection := map[string]int{}
+	for i, line := range lines {
+		if fenceFlags[i] {
+			continue
+		}
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## ") {
+			section = strings.TrimSpace(strings.TrimPrefix(trimmed, "##"))
+			continue
+		}
+		var checked bool
+		switch {
+		case strings.HasPrefix(trimmed, "- [x]"), strings.HasPrefix(trimmed, "- [X]"):
+			checked = true
+		case strings.HasPrefix(trimmed, "- [ ]"):
+			checked = false
+		default:
+			continue
+		}
+		perSection[section]++
+		items = append(items, CheckboxItem{
+			Section: section,
+			Index:   perSection[section],
+			Text:    strings.TrimSpace(trimmed[5:]),
+			Checked: checked,
+			Line:    i,
+		})
+	}
+	return items
+}
+
+// CheckByIndex ticks the checkbox addressed by index. When section is
+// non-empty, index is the 1-based position within that "## " section; when
+// section is empty, index is the 1-based position in the whole body. Returns
+// the updated body, the matched item, whether it was already checked (a
+// no-op), and ok=false when no checkbox has that index.
+func CheckByIndex(body, section string, index int) (newBody string, item CheckboxItem, alreadyChecked, ok bool) {
+	items := ListCheckboxes(body)
+	var target *CheckboxItem
+	if strings.TrimSpace(section) == "" {
+		if index >= 1 && index <= len(items) {
+			target = &items[index-1]
+		}
+	} else {
+		for i := range items {
+			if strings.EqualFold(items[i].Section, section) && items[i].Index == index {
+				target = &items[i]
+				break
+			}
+		}
+	}
+	if target == nil {
+		return body, CheckboxItem{}, false, false
+	}
+	if target.Checked {
+		return body, *target, true, true
+	}
+	lines := strings.Split(body, "\n")
+	lines[target.Line] = strings.Replace(lines[target.Line], "- [ ]", "- [x]", 1)
+	return strings.Join(lines, "\n"), *target, false, true
+}
+
+// MatchUncheckedByText returns every unchecked checkbox whose label contains
+// query (case-insensitive), scoped to a "## " section when section is
+// non-empty. Boxes inside fenced code blocks are ignored.
+func MatchUncheckedByText(body, section, query string) []CheckboxItem {
+	q := strings.ToLower(strings.TrimSpace(query))
+	var out []CheckboxItem
+	for _, it := range ListCheckboxes(body) {
+		if it.Checked {
+			continue
+		}
+		if strings.TrimSpace(section) != "" && !strings.EqualFold(it.Section, section) {
+			continue
+		}
+		if strings.Contains(strings.ToLower(it.Text), q) {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
 // HasTestPlan checks if the body has ## Test Plan with ### Automated and ### Manual.
 func HasTestPlan(body string) (hasAutomated, hasManual bool) {
 	inTestPlan := false

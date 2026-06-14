@@ -34,8 +34,18 @@ func runChecklist(ctx *Context, args []string) error {
 	total, checked := tracker.CountCheckboxes(issue.BodyRaw)
 
 	if ctx.JSONOutput {
+		items := tracker.ListCheckboxes(issue.BodyRaw)
+		boxes := make([]map[string]interface{}, 0, len(items))
+		for _, it := range items {
+			boxes = append(boxes, map[string]interface{}{
+				"section": it.Section,
+				"index":   it.Index,
+				"text":    it.Text,
+				"checked": it.Checked,
+			})
+		}
 		return writeJSON(ctx.Stdout, map[string]interface{}{
-			"total": total, "checked": checked,
+			"total": total, "checked": checked, "items": boxes,
 		})
 	}
 

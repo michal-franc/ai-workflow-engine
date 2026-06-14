@@ -241,6 +241,89 @@ Body
 	}
 }
 
+func TestHandleDetail_RendersEveryNonOptionalApproval(t *testing.T) {
+	tmpDir := t.TempDir()
+	issueDir := filepath.Join(tmpDir, "issues")
+	if err := os.MkdirAll(issueDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// "in-review" has two forward transitions, both requiring approval and both
+	// pointing at non-optional target statuses. Both must render an approve CTA.
+	workflow := `statuses:
+  - name: "in-review"
+    description: "Awaiting review"
+  - name: "approved"
+    description: "Accepted"
+  - name: "rejected"
+    description: "Sent back"
+
+transitions:
+  - from: "in-review"
+    to: "approved"
+    actions:
+      - type: "require_human_approval"
+        status: "approved"
+  - from: "in-review"
+    to: "rejected"
+    actions:
+      - type: "require_human_approval"
+        status: "rejected"
+`
+	wfPath := filepath.Join(tmpDir, "workflow.yaml")
+	if err := os.WriteFile(wfPath, []byte(workflow), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	issue := `---
+title: "Review PR"
+status: "in-review"
+---
+
+Body
+`
+	if err := os.WriteFile(filepath.Join(issueDir, "review-pr.md"), []byte(issue), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	proj := tracker.Project{
+		Name:         "Test",
+		Slug:         "test",
+		IssueDir:     issueDir,
+		WorkflowFile: wfPath,
+	}
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/p/test/issue/review-pr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(body)
+
+	// Both non-optional approval transitions must render their own approve button.
+	if !strings.Contains(html, "Human-approved for approved") {
+		t.Fatalf("detail view should render approve button for first non-optional approval:\n%s", html)
+	}
+	if !strings.Contains(html, "Human-approved for rejected") {
+		t.Fatalf("detail view should render approve button for second non-optional approval:\n%s", html)
+	}
+
+	// Each carries the deep-link anchor the CLI emits as #approve-<status>.
+	if !strings.Contains(html, `id="approve-approved"`) {
+		t.Fatalf("first approval button should have id=approve-approved:\n%s", html)
+	}
+	if !strings.Contains(html, `id="approve-rejected"`) {
+		t.Fatalf("second approval button should have id=approve-rejected:\n%s", html)
+	}
+}
+
 func TestHandleDetail_OptionalApprovalUsesConfiguredCTALabel(t *testing.T) {
 	tmpDir := t.TempDir()
 	issueDir := filepath.Join(tmpDir, "issues")

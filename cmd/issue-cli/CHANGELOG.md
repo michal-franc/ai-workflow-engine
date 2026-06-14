@@ -16,10 +16,30 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
-## v0.27.0 — 2026-06-14
+## v0.29.0 — 2026-06-14
 
 - Web UI: custom actions can now run at the project level, not just per issue. A new `project_actions:` list in `workflow.yaml` renders one-shot agent buttons in an "Actions" bar on the list, board, and graph views. Unlike issue actions they are not bound to a single issue, so their prompts template with `{{project}}` only. Clicking a button POSTs to `/p/<project>/action/<id>` and dispatches a fresh agent in the project checkout.
 - Workflow config: the per-issue `actions:` key has been renamed to `issue_actions:` to parallel `project_actions:`. The old `actions:` key still works as a deprecated alias, so existing `workflow.yaml` files need no change; if both are present, `issue_actions` entries win on an id clash and legacy-only ids are merged in.
+
+## v0.28.0 — 2026-06-08
+
+- CLI: `issue-cli check` can now address a checkbox by stable index instead of verbatim text: `check <slug> --section "Design" --index 2` ticks the 2nd box in that section, and `check <slug> --index 5` ticks the 5th box in the whole body. Indexes are 1-based and stable — they count checked and unchecked boxes in document order, so an index never shifts as boxes get ticked. Re-checking an already-checked box is a reported no-op, not an error.
+- CLI: a text query to `check` that matches more than one *unchecked* box now errors and lists every candidate with its `[Section #index]` label (instead of silently ticking the first), so you can re-run with `--section/--index`. A single match still checks as before.
+- CLI: `checklist`, `show`, `start`, and `check`'s listings now group checkboxes by `## ` section and print each box's stable index, so the value to pass to `--index` is visible. `checklist --json` gains an `items` array with `section`, `index`, `text`, and `checked` per box.
+- Workflow: the `section_checkboxes_checked: <Section>` validation no longer passes vacuously when the gated section is missing or has no checkboxes — it now fails with a clear message. This closes a hole where an issue imported without a templated section (e.g. `Design`) could transition with none of that section's checklist content. In the normal flow each gated section is appended by the prior transition, so this only affects issues that skipped it.
+- Workflow: `process transitions` output now annotates checkbox gates — `section_checkboxes_checked` reads "(gates this transition)" and `section_has_checkboxes` reads "(existence only — contents verified later)", so it's clear which sections must be complete now versus merely present.
+
+## v0.27.1 — 2026-06-06
+
+- CLI: `issue-cli start` no longer advances a handoff status silently. When `start` auto-advances an approved handoff status (`backlog → in progress`, `human-testing → documentation`) it now prints a prominent `⚠ AUTO-ADVANCED  <from> → <to>` banner that names the move and notes the consumed approval, instead of a single quiet `✓ Status →` line. Plain claims, the `Status unchanged` message, and the missing-approval failure (no mutation) are unchanged. `start --help` and the workflow/CLI docs now describe the behavior.
+
+## v0.27.0 — 2026-06-06
+
+- CLI: `append` and `comment` now accept `--body-file <path>` to read the body from a file, or `--body-file -` to read it from stdin. The content is used verbatim — no shell quoting and no `\n`-escape normalization — so inline code spans (`` `like this` ``) and parentheses no longer get mangled by the calling shell, which was the most common friction point in agent workflows. `--body`/`--text` still work unchanged; combining them with `--body-file` is an error.
+
+## v0.26.4 — 2026-06-05
+
+- Web UI: fixed the issue detail view dropping approve buttons when a status had more than one non-optional `require_human_approval` transition. Only the first such transition rendered an approve button, so the others could never be approved from the UI. Every non-optional approval transition now renders its own approve button (with its `#approve-<status>` deep-link anchor), matching how optional-path approvals already render one CTA each.
 
 ## v0.26.3 — 2026-06-05
 

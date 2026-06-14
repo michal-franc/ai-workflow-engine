@@ -532,6 +532,41 @@ func TestRunStartPrintsNextTransitionContract(t *testing.T) {
 	assertContains(t, output, "    - Side-effect: clears assignee")
 }
 
+// TestRunStartAutoAdvanceShowsBanner verifies that starting a handoff status
+// (backlog) that is approved for the next status announces the advance with the
+// prominent AUTO-ADVANCED banner — naming from → to and the consumed approval —
+// instead of the old quiet single line.
+func TestRunStartAutoAdvanceShowsBanner(t *testing.T) {
+	proj, _ := makeTransitionFixture(t)
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runStart(ctx, []string{"cli/sample"}); err != nil {
+		t.Fatalf("runStart: %v", err)
+	}
+	output := stdout.String()
+
+	assertContains(t, output, "⚠ AUTO-ADVANCED  backlog → in progress")
+	assertContains(t, output, `A "in progress" approval was present, so start moved this issue forward and consumed it.`)
+	// The banner replaces the quiet status line; neither it nor the standalone
+	// "Status unchanged" / "Approval consumed" lines should appear.
+	assertNotContains(t, output, "✓ Status →")
+	assertNotContains(t, output, "Status unchanged")
+	assertNotContains(t, output, "✓ Approval consumed")
+}
+
+// TestRunStartPlainClaimNoBanner verifies that starting a non-handoff work
+// status only claims, leaving the status unchanged with no AUTO-ADVANCED banner.
+func TestRunStartPlainClaimNoBanner(t *testing.T) {
+	proj, _ := makeContractFixture(t)
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runStart(ctx, []string{"cli/sample"}); err != nil {
+		t.Fatalf("runStart: %v", err)
+	}
+	output := stdout.String()
+
+	assertContains(t, output, "Status unchanged (in progress is a work status — ready to pick up)")
+	assertNotContains(t, output, "AUTO-ADVANCED")
+}
+
 func TestRunTransitionJSONCarriesNextTransitionContract(t *testing.T) {
 	proj, _ := makeTransitionFixture(t)
 	ctx, stdout, _ := newTestContext(proj, true)
@@ -699,6 +734,13 @@ func assertContains(t *testing.T, got, want string) {
 	}
 }
 
+func assertNotContains(t *testing.T, got, unwanted string) {
+	t.Helper()
+	if strings.Contains(got, unwanted) {
+		t.Fatalf("output unexpectedly contains %q\noutput:\n%s", unwanted, got)
+	}
+}
+
 func TestProcessSchemaIncludesEveryTaggedField(t *testing.T) {
 	ctx, stdout, _ := newTestContext(nil, false)
 	if err := runProcessSchema(ctx); err != nil {
@@ -763,11 +805,30 @@ func TestProcessChangesEmbedsChangelog(t *testing.T) {
 
 	assertContains(t, out, "release history")
 	assertContains(t, out, "# Changelog")
+
+	// The offline fallback caps output at the 20 most recent version sections
+	// (trimChangelogToVersions). Assert those appear, and that older ones are
+	// omitted with the documented notice when the changelog exceeds the cap.
+	var versions []string
 	for _, line := range strings.Split(changelogMD, "\n") {
 		if strings.HasPrefix(line, "## v") {
-			if !strings.Contains(out, line) {
-				t.Errorf("process changes output missing version line %q", line)
-			}
+			versions = append(versions, line)
+		}
+	}
+	const cap = 20
+	kept := versions
+	if len(kept) > cap {
+		kept = versions[:cap]
+	}
+	for _, line := range kept {
+		if !strings.Contains(out, line) {
+			t.Errorf("process changes output missing recent version line %q", line)
+		}
+	}
+	if len(versions) > cap {
+		assertContains(t, out, "older version entries omitted")
+		if strings.Contains(out, versions[cap]) {
+			t.Errorf("version line %q is beyond the %d-entry cap and should be omitted", versions[cap], cap)
 		}
 	}
 }

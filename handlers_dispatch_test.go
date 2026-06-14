@@ -265,6 +265,7 @@ func TestBuildAgentPrompt_AppendsWorktreeBlockWhenSet(t *testing.T) {
 		"/work/proj/.worktrees/fix-foo",
 		"work/fix-foo",
 		"human handles cleanup",
+		"primary checkout (master)",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("expected prompt to contain %q\n%s", want, prompt)

@@ -30,9 +30,11 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 |:---------------------------------|:-----------------------------------------|
 | `issue-cli show <slug>`          | Print full issue context                 |
 | `issue-cli list`                 | List issues with filters — supports `--sort score` and emits `Score`/`ScoreBreakdown` in `--json` when scoring is enabled |
-| `issue-cli start <slug>`         | Pick up issue from any status — claim + advance handoff states |
+| `issue-cli start <slug>`         | Pick up issue from any status — claim + auto-advance handoff states (announced with a banner) |
 | `issue-cli transition <slug>`    | Attempt the next workflow transition     |
 | `issue-cli comment <slug>`       | Add a comment to an issue                |
+| `issue-cli check <slug>`         | Tick a checkbox by text, or by `--section` + `--index` |
+| `issue-cli checklist <slug>`     | List checkboxes grouped by section with stable indexes |
 | `issue-cli append <slug>`        | Append content to issue body             |
 | `issue-cli replace <slug>`       | Replace content of an existing section   |
 | `issue-cli set-meta <slug>`      | Set or clear a frontmatter field         |
@@ -46,6 +48,12 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli workflow init`        | Bootstrap a new project: writes `workflow.yaml` from a bundled template and scaffolds `issues/`, `docs/` |
 | `issue-cli projects`             | List configured projects (slug, name, issue dir). `--json` for scripting |
 
+### `start`
+
+`issue-cli start <slug>` is the single entry point for picking up an issue. It claims the issue (sets the assignee if unset), prints the checklist, status guidance, and next-transition contract, and is idempotent on re-runs.
+
+From a **handoff status** (`backlog`, `human-testing`) it also *auto-advances* to the next work status when the matching approval is present — `backlog → in progress`, `human-testing → documentation`. The target is the next non-optional status in the workflow, not a hardcoded value; only the handoff set is fixed. Because crossing into implementation from a re-claim is surprising, the advance is **never silent**: it is announced with a prominent `⚠ AUTO-ADVANCED  <from> → <to>` banner that also notes the consumed approval. If the approval is missing, `start` fails without mutating assignee or status. From any non-handoff status, `start` only claims and reports `Status unchanged`.
+
 ### `append`
 
 `issue-cli append <slug> --body "..."` adds content to the issue body. Two routing modes:
@@ -56,6 +64,41 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 If `--body` starts with a heading that is already present in the issue (and the rest contains only deeper subheadings), the command auto-routes into that section — equivalent to passing `--section`. This means agents drafting `## Implementation\n…` style appends do not have to retry with `--section` after a duplicate-heading failure.
 
 The duplicate-heading guard still fires when `--body` introduces a *peer* heading that collides (e.g., `--body "## New\n…\n## Existing"`); pass `--section` to disambiguate.
+
+#### Body from a file or stdin (`--body-file`)
+
+`--body "..."` puts the body inside a shell-quoted argument, so backticks and parentheses are interpreted by the calling shell *before* `issue-cli` runs — `` `Foo.Bar` `` becomes a command substitution and `(...)` triggers a parse error. Inline code spans and parentheticals are normal in design bodies, so this hits constantly.
+
+Pass `--body-file <path>` (or `--body-file -` to read **stdin**) to deliver the body as raw bytes that never pass through a shell word:
+
+```bash
+issue-cli append <slug> --section "Design" --body-file design.md
+cat design.md | issue-cli append <slug> --section "Design" --body-file -
+```
+
+Notes:
+
+- File/stdin content is used **verbatim** — unlike `--body`, it is not run through `\n`-escape normalization, so literal backslash sequences in code samples are preserved.
+- `--body`/`--text` and `--body-file` are mutually exclusive; supplying both is an error.
+- The same `--body-file`/`-` support applies to `issue-cli comment <slug>`.
+
+### `check`
+
+`issue-cli check <slug>` ticks a checkbox. Address the box three ways:
+
+```bash
+issue-cli check <slug> "Code changes complete"      # by text (substring, case-insensitive)
+issue-cli check <slug> --section "Design" --index 2  # by section + stable index
+issue-cli check <slug> --index 5                      # by position in the whole body
+```
+
+Indexes are 1-based and **stable**: they count every box (checked and unchecked) in document order within the section, so a given box's index never shifts as other boxes get ticked. With `--section`, the index is the position within that `## ` section; without it, the index is the position in the whole body. Run `issue-cli checklist <slug>` (or `show`/`start`) to see each box's `[Section #index]`.
+
+Index addressing avoids the shell-escaping pain of matching long checkbox text verbatim (backticks, quotes, unicode). Re-checking an already-checked box is a reported no-op, not an error.
+
+A text query matches a box whose label contains it. If it matches **more than one unchecked box**, `check` errors and lists every candidate with its `[Section #index]` label rather than silently ticking the first — re-run with `--section`/`--index` to pick one. A single match still checks as before.
+
+`checklist --json` emits an `items` array (`section`, `index`, `text`, `checked`) alongside the `total`/`checked` counts.
 
 ### `list`
 

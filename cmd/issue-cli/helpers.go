@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
@@ -194,6 +193,42 @@ func normalizeEscapedText(s string) string {
 	return replacer.Replace(s)
 }
 
+// resolveBodyInput returns the final body text for commands that accept a body
+// from a flag (--body/--text), a file (--body-file <path>), or stdin
+// (--body-file -).
+//
+// The motivation is shell quoting: when a body is passed inline as
+// --body "<text>", backticks and parentheses inside the value are interpreted
+// by the caller's shell before issue-cli runs, corrupting inline code spans and
+// parentheticals. Reading the body from a file or stdin delivers it as raw
+// bytes that never pass through a shell word.
+//
+// inlineText is the already-normalized value from --body/--text (the caller is
+// responsible for running normalizeEscapedText); inlineSet reports whether any
+// inline flag was explicitly provided so a conflict with --body-file can be
+// rejected. When bodyFileSet is true the body is read verbatim — no escape
+// normalization — from the file, or from ctx.Stdin when bodyFile is "-".
+func resolveBodyInput(ctx *Context, inlineText string, inlineSet bool, bodyFile string, bodyFileSet bool) (string, error) {
+	if !bodyFileSet {
+		return inlineText, nil
+	}
+	if inlineSet {
+		return "", fmt.Errorf("cannot use --body/--text together with --body-file")
+	}
+	if bodyFile == "-" {
+		raw, err := io.ReadAll(ctx.Stdin)
+		if err != nil {
+			return "", fmt.Errorf("failed to read body from stdin: %w", err)
+		}
+		return string(raw), nil
+	}
+	raw, err := os.ReadFile(bodyFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to read body file %s: %w", bodyFile, err)
+	}
+	return string(raw), nil
+}
+
 // parseFieldFlags collects repeated `--field key=value` flags into a map.
 // Used by `transition` to supply declarative fields[] answers inline.
 func parseFieldFlags(args []string) (map[string]string, error) {
@@ -229,14 +264,26 @@ func writeJSON(w io.Writer, v interface{}) error {
 	return enc.Encode(v)
 }
 
-// printCheckboxes writes every "- [ ]" or "- [x]" line found in body to w,
-// trimmed of leading whitespace.
+// printCheckboxes lists every checkbox grouped by its "## " section, each line
+// prefixed with the box's stable index so callers know what to pass to
+// `check --section/--index`. Boxes inside fenced code blocks are skipped.
 func printCheckboxes(w io.Writer, body string) {
-	re := regexp.MustCompile(`^(\s*-\s*\[[ xX]\].*)$`)
-	for _, line := range strings.Split(body, "\n") {
-		if re.MatchString(line) {
-			fmt.Fprintln(w, strings.TrimSpace(line))
+	const noSection = "\x00"
+	lastSection := noSection
+	for _, it := range tracker.ListCheckboxes(body) {
+		if it.Section != lastSection {
+			lastSection = it.Section
+			header := it.Section
+			if header == "" {
+				header = "(no section)"
+			}
+			fmt.Fprintf(w, "## %s\n", header)
 		}
+		mark := " "
+		if it.Checked {
+			mark = "x"
+		}
+		fmt.Fprintf(w, "  %d. [%s] %s\n", it.Index, mark, it.Text)
 	}
 }
 

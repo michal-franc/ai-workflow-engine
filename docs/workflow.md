@@ -164,6 +164,15 @@ Both flavors can mix freely in the same workflow. New validators should use the 
 - `section_max_length` — section `## <action.section>` has at most `action.max` non-whitespace chars (a missing section passes; pair with `has_section` if presence matters).
 - `no_todo_markers` — body contains no whole-word `TODO` or `FIXME` (case-sensitive).
 
+### Checkbox validators
+
+- `has_checkboxes` — body contains at least one `- [ ]`/`- [x]` checkbox anywhere.
+- `section_has_checkboxes: <Title>` — the `## <Title>` section exists and contains at least one checkbox. **Existence only** — the boxes need not be checked here; they are typically verified at a later transition. This is how the `Acceptance Criteria` section gates `in design → backlog`: it must be present and non-empty, but its boxes are checked during testing.
+- `all_checkboxes_checked` — every checkbox in the body is checked.
+- `section_checkboxes_checked: <Title>` — the `## <Title>` section must exist with at least one checkbox, and **every** checkbox in it must be checked. A missing or checkbox-less section **fails** (it does not pass vacuously) — this stops an issue imported without a templated section from transitioning with none of that section's checklist content. In the normal flow each gated section is appended by the prior transition's `append_section`, so it always exists when the gate runs.
+
+`process transitions` annotates these in its output: `section_checkboxes_checked` rows read "(gates this transition)" and `section_has_checkboxes` rows read "(existence only — contents verified later)".
+
 ### Shell / external
 
 `command_succeeds` runs a shell command and passes when the exit code is 0. It is **opt-in** — set `allow_shell: true` at the top of `workflow.yaml` to enable it; otherwise every `command_succeeds` action fails with a fix-it hint.

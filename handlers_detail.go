@@ -20,7 +20,7 @@ type DetailData struct {
 	ProjectName       string
 	Statuses          []string
 	SlugMap           map[string]string
-	NeedsApproval     string
+	NeedsApprovals    []string
 	OptionalApprovals []OptionalApproval
 	ActiveBots        int
 	Timeline          []TimelineEvent
@@ -98,7 +98,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		detailView.Score = tracker.ComputeScore(found, &wf.Scoring, time.Now())
 	}
 
-	var needsApproval string
+	var needsApprovals []string
 	var optionalApprovals []OptionalApproval
 	for _, t := range wf.Transitions {
 		if t.From != found.Status {
@@ -123,9 +123,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 			})
 			continue
 		}
-		if needsApproval == "" {
-			needsApproval = t.To
-		}
+		needsApprovals = append(needsApprovals, t.To)
 	}
 
 	workDir := resolveProjectWorkDir(proj)
@@ -157,7 +155,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		ProjectName:       proj.Name,
 		Statuses:          statuses,
 		SlugMap:           slugMap,
-		NeedsApproval:     needsApproval,
+		NeedsApprovals:    needsApprovals,
 		OptionalApprovals: optionalApprovals,
 		ActiveBots:        activeBots,
 		Timeline:          timeline,

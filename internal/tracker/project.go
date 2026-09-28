@@ -17,7 +17,11 @@ type Project struct {
 	WorkDir      string `yaml:"workdir"`
 	I3Workspace  string `yaml:"i3_workspace"`
 	Terminal     string `yaml:"terminal"`
-	Repo         string `yaml:"repo"`
+	// TmuxSession, when set, runs dispatched agents (and nvim edits) as
+	// windows inside this one shared tmux session instead of one session per
+	// agent. A terminal is only opened when nobody is attached to it yet.
+	TmuxSession string `yaml:"tmux_session"`
+	Repo        string `yaml:"repo"`
 	// SupportsGitHub enables GitHub integration for this project: the /github
 	// sync tab and auto-closing the remote issue when an issue is marked done.
 	// Defaults to false — the GitHub tab is hidden and auto-close is skipped.

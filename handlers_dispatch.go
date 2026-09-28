@@ -292,6 +292,24 @@ func openTerminalStep(proj *tracker.Project, session string, steps *[]DispatchSt
 		exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -e tmux attach -t %s", session)))
 }
 
+// attachAgentStep makes the agent visible to the human. By default it opens a
+// terminal on the agent's own session. In shared mode it selects the agent's
+// window and only opens a terminal when nobody is attached to the shared
+// session yet — otherwise the new window just shows up in the open tmux.
+func attachAgentStep(proj *tracker.Project, name string, steps *[]DispatchStep) bool {
+	shared := sharedTmuxSession(proj)
+	if shared == "" {
+		return openTerminalStep(proj, name, steps)
+	}
+	runStep(steps, fmt.Sprintf("Select window %s", name),
+		exec.Command("tmux", "select-window", "-t", agentTmuxTarget(proj, name)))
+	if tmuxSessionAttached(shared) {
+		*steps = append(*steps, DispatchStep{Name: fmt.Sprintf("Session %s already open — no new terminal", shared), Status: "ok"})
+		return true
+	}
+	return openTerminalStep(proj, shared, steps)
+}
+
 func startAgentSession(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string, viewerURL string, wf *tracker.WorkflowConfig) DispatchResponse {
 	workDir := resolveProjectWorkDir(proj)
 
@@ -326,15 +344,19 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 	rawLog := filepath.Join(sessionLogDir, "rawlog")
 	cliLog := filepath.Join(sessionLogDir, session+".clilog")
 
+	// target is what every tmux command below addresses: the agent's own
+	// session, or its window inside the project's shared session.
+	target := agentTmuxTarget(proj, session)
+
 	response := DispatchResponse{
 		Status:  "dispatched",
 		Prompt:  prompt,
-		Session: session,
+		Session: agentDisplayName(proj, session),
 		LogFile: rawLog,
 		Steps:   steps,
 	}
 
-	if tmuxHasSession(session) {
+	if tmuxHasSession(target) {
 		// A session with this name already exists — most often the same agent is
 		// still running. Re-running new-session/send-keys would clobber whatever
 		// the agent is doing and re-paste the prompt, so skip all setup and just
@@ -342,26 +364,30 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 		os.Remove(promptPath)
 		steps = append(steps, DispatchStep{Name: "Existing session — attaching", Status: "reattached"})
 		response.Status = "reattached"
-		openTerminalStep(proj, session, &steps)
+		attachAgentStep(proj, session, &steps)
 		if proj != nil && proj.Terminal == "none" {
-			response.AttachCmd = fmt.Sprintf("tmux attach -t %s", session)
+			response.AttachCmd = agentAttachCmd(proj, session)
 		}
 		response.Steps = steps
 		return response
 	}
 
-	if !runStep(&steps, fmt.Sprintf("Create tmux session in %s", workDir),
-		exec.Command("tmux", "new-session", "-d", "-s", session, "-c", workDir)) {
+	createName, createCmd := createAgentTmux(proj, session, workDir)
+	if !runStep(&steps, createName, createCmd) {
 		response.Status = "error"
 		response.Steps = steps
 		return response
 	}
 
-	windowName := session
-	if issueSlug != "" {
-		windowName = issueSlug
+	// In shared mode the window is already named after the session so it can be
+	// matched back to the issue; renaming it to the slug would break that.
+	if sharedTmuxSession(proj) == "" {
+		windowName := session
+		if issueSlug != "" {
+			windowName = issueSlug
+		}
+		exec.Command("tmux", "rename-window", "-t", session, windowName).Run()
 	}
-	exec.Command("tmux", "rename-window", "-t", session, windowName).Run()
 
 	os.MkdirAll(sessionLogDir, 0755)
 
@@ -371,46 +397,46 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 	_ = os.WriteFile(dispatchPromptPath, []byte(prompt), 0644)
 
 	runStep(&steps, fmt.Sprintf("Log to %s", rawLog),
-		exec.Command("tmux", "pipe-pane", "-t", session, "-o", fmt.Sprintf("cat >> %s", rawLog)))
+		exec.Command("tmux", "pipe-pane", "-t", target, "-o", fmt.Sprintf("cat >> %s", rawLog)))
 	runStep(&steps, fmt.Sprintf("CLI log to %s", cliLog),
-		exec.Command("tmux", "send-keys", "-t", session, fmt.Sprintf("export ISSUE_CLI_LOG=%q", cliLog), "Enter"))
+		exec.Command("tmux", "send-keys", "-t", target, fmt.Sprintf("export ISSUE_CLI_LOG=%q", cliLog), "Enter"))
 
 	serverRoot, _ := os.Getwd()
 	runStep(&steps, fmt.Sprintf("Server root env %s", serverRoot),
-		exec.Command("tmux", "send-keys", "-t", session, fmt.Sprintf("export ISSUE_VIEWER_SERVER_PWD=%q", serverRoot), "Enter"))
+		exec.Command("tmux", "send-keys", "-t", target, fmt.Sprintf("export ISSUE_VIEWER_SERVER_PWD=%q", serverRoot), "Enter"))
 	if issueSlug != "" {
 		runStep(&steps, fmt.Sprintf("Issue slug env %s", issueSlug),
-			exec.Command("tmux", "send-keys", "-t", session, fmt.Sprintf("export ISSUE_VIEWER_ISSUE_SLUG=%q", issueSlug), "Enter"))
+			exec.Command("tmux", "send-keys", "-t", target, fmt.Sprintf("export ISSUE_VIEWER_ISSUE_SLUG=%q", issueSlug), "Enter"))
 	}
 	if viewerURL != "" {
 		runStep(&steps, fmt.Sprintf("Viewer URL env %s", viewerURL),
-			exec.Command("tmux", "send-keys", "-t", session, fmt.Sprintf("export ISSUE_VIEWER_URL=%q", viewerURL), "Enter"))
+			exec.Command("tmux", "send-keys", "-t", target, fmt.Sprintf("export ISSUE_VIEWER_URL=%q", viewerURL), "Enter"))
 	}
 	// Propagate the config path the viewer was launched with so the CLI can
 	// resolve `--project <slug>` against it without the bot having to know
 	// the file name (e.g. projects-mfranc.yaml vs the default projects.yaml).
 	if cfg := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_CONFIG")); cfg != "" {
 		runStep(&steps, fmt.Sprintf("Viewer config env %s", cfg),
-			exec.Command("tmux", "send-keys", "-t", session, fmt.Sprintf("export ISSUE_VIEWER_CONFIG=%q", cfg), "Enter"))
+			exec.Command("tmux", "send-keys", "-t", target, fmt.Sprintf("export ISSUE_VIEWER_CONFIG=%q", cfg), "Enter"))
 	}
 
 	runStep(&steps, fmt.Sprintf("cd %s", workDir),
-		exec.Command("tmux", "send-keys", "-t", session, fmt.Sprintf("cd %q", workDir), "Enter"))
+		exec.Command("tmux", "send-keys", "-t", target, fmt.Sprintf("cd %q", workDir), "Enter"))
 
-	if !openTerminalStep(proj, session, &steps) {
+	if !attachAgentStep(proj, session, &steps) {
 		response.Status = "error"
 		response.Steps = steps
 		return response
 	}
 	if proj != nil && proj.Terminal == "none" {
-		response.AttachCmd = fmt.Sprintf("tmux attach -t %s", session)
+		response.AttachCmd = agentAttachCmd(proj, session)
 	}
 
 	time.Sleep(500 * time.Millisecond)
 
 	if agentType == "codex" {
 		runStep(&steps, "Start codex with prompt file",
-			exec.Command("tmux", "send-keys", "-t", session, agentLaunchCommand(agentType, promptPath), "Enter"))
+			exec.Command("tmux", "send-keys", "-t", target, agentLaunchCommand(agentType, promptPath), "Enter"))
 		// tmux send-keys returns before the shell in the pane expands $(cat ...).
 		// Keep the temp file around a bit longer so codex can read it reliably.
 		time.AfterFunc(2*time.Minute, func() {
@@ -418,15 +444,15 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 		})
 	} else {
 		runStep(&steps, fmt.Sprintf("Start %s (interactive)", agentType),
-			exec.Command("tmux", "send-keys", "-t", session, agentLaunchCommand(agentType, promptPath), "Enter"))
+			exec.Command("tmux", "send-keys", "-t", target, agentLaunchCommand(agentType, promptPath), "Enter"))
 		time.Sleep(3 * time.Second)
 		runStep(&steps, "Load prompt into tmux buffer",
 			exec.Command("tmux", "load-buffer", promptPath))
 		runStep(&steps, fmt.Sprintf("Paste prompt to %s", agentType),
-			exec.Command("tmux", "paste-buffer", "-t", session))
+			exec.Command("tmux", "paste-buffer", "-t", target))
 		time.Sleep(200 * time.Millisecond)
 		runStep(&steps, "Submit prompt",
-			exec.Command("tmux", "send-keys", "-t", session, "Enter"))
+			exec.Command("tmux", "send-keys", "-t", target, "Enter"))
 		_ = os.Remove(promptPath)
 	}
 

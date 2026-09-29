@@ -12,7 +12,7 @@ import (
 )
 
 func TestAgentLaunchCommand_CodexUsesPromptFile(t *testing.T) {
-	got := agentLaunchCommand("codex", "/tmp/agent-prompt-123.txt")
+	got := agentLaunchCommand(nil, "codex", "/tmp/agent-prompt-123.txt")
 	if !strings.Contains(got, `codex "$(cat `) {
 		t.Fatalf("agentLaunchCommand(codex) = %q, want codex to read from a temp prompt file", got)
 	}
@@ -21,10 +21,26 @@ func TestAgentLaunchCommand_CodexUsesPromptFile(t *testing.T) {
 	}
 }
 
-func TestAgentLaunchCommand_ClaudeRemainsInteractive(t *testing.T) {
-	got := agentLaunchCommand("claude", "/tmp/agent-prompt-123.txt")
-	if got != "claude" {
-		t.Fatalf("agentLaunchCommand(claude) = %q, want %q", got, "claude")
+func TestAgentLaunchCommand_ModelSource(t *testing.T) {
+	models := map[string]string{"claude": "claude-opus-5-5", "codex": "gpt-5"}
+	cases := []struct {
+		name  string
+		proj  *tracker.Project
+		agent string
+		want  string
+	}{
+		{"nil project", nil, "claude", "claude"},
+		{"default source is global", &tracker.Project{AgentModels: models}, "claude", "claude"},
+		{"explicit global", &tracker.Project{AgentModels: models, AgentModelSource: "global"}, "claude", "claude"},
+		{"project enforces claude", &tracker.Project{AgentModels: models, AgentModelSource: "project"}, "claude", "claude --model claude-opus-5-5"},
+		{"project enforces codex", &tracker.Project{AgentModels: models, AgentModelSource: "project"}, "codex", `codex --model gpt-5 "$(cat "/p")"`},
+		{"project without model for agent", &tracker.Project{AgentModels: map[string]string{"codex": "gpt-5"}, AgentModelSource: "project"}, "claude", "claude"},
+		{"unsafe model ignored", &tracker.Project{AgentModels: map[string]string{"claude": "x; rm -rf /"}, AgentModelSource: "project"}, "claude", "claude"},
+	}
+	for _, c := range cases {
+		if got := agentLaunchCommand(c.proj, c.agent, "/p"); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
 	}
 }
 

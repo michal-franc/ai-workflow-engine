@@ -26,7 +26,7 @@ func runClaim(ctx *Context, args []string) error {
 	fs := newFlagSet("claim", ctx)
 	assigneeFlag := fs.String("assignee", "", "assignee name (default: derived from slug)")
 	force := fs.Bool("force", false, "reassign even when already claimed by someone else")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	assignee := *assigneeFlag

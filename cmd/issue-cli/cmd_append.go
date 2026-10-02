@@ -39,7 +39,7 @@ func runAppend(ctx *Context, args []string) error {
 	bodyFileFlag := fs.String("body-file", "", "read body from file (or - for stdin); avoids shell mangling")
 	sectionFlag := fs.String("section", "", "section name to append into")
 	forceFlag := fs.Bool("force", false, "force append even when target section is missing")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	inline := normalizeEscapedText(*bodyFlag)

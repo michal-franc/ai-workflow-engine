@@ -31,7 +31,7 @@ func runReplace(ctx *Context, args []string) error {
 	textFlag := fs.String("text", "", "alias for --body")
 	sectionFlag := fs.String("section", "", "section name to replace")
 	forceFlag := fs.Bool("force", false, "force replace even when section is absent")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	text := normalizeEscapedText(*bodyFlag)

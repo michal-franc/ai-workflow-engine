@@ -38,7 +38,7 @@ func runList(ctx *Context, args []string) error {
 	assigneeFlag := fs.String("assignee", "", "filter by assignee")
 	versionFlag := fs.String("version", "", "filter by version (defaults to project version)")
 	sortFlag := fs.String("sort", "", "sort key (score)")
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlags(ctx, fs, args); err != nil {
 		return err
 	}
 

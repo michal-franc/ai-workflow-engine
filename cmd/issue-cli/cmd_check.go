@@ -50,7 +50,7 @@ func runCheck(ctx *Context, args []string) error {
 	sectionFlag := fs.String("section", "", "section to scope the match to (\"## <name>\")")
 	indexFlag := fs.Int("index", 0, "1-based stable index of the checkbox within the section (or whole body)")
 	allFlag := fs.Bool("all", false, "check every open box in --section")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	section := strings.TrimSpace(*sectionFlag)

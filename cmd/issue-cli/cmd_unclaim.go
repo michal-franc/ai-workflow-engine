@@ -23,7 +23,7 @@ func runUnclaim(ctx *Context, args []string) error {
 		return err
 	}
 	fs := newFlagSet("unclaim", ctx)
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 

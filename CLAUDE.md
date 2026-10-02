@@ -136,6 +136,7 @@ Per-system docs:
 
 - [API](docs/API/overview.md) — endpoints, handlers, server logic
 - [CLI](docs/CLI/overview.md) — issue-cli commands, output contracts
+- [CLI Usage Telemetry](docs/CLI/telemetry.md) — local names-only usage log, `issue-cli telemetry report`, opt-out, `parseFlags` rule for new commands
 - [UI](docs/UI/overview.md) — templates, views, client-side behavior
 - [Workflow](docs/Workflow/overview.md) — workflow engine, transitions, overlays
 

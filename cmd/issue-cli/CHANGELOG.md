@@ -16,6 +16,18 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.32.0 — 2026-10-02
+
+- CLI: `issue-cli` now records local usage telemetry: one names-only JSON line per invocation in `<workdir>/.agent-logs/telemetry.jsonl`, or `~/.local/state/issue-cli/telemetry.jsonl` when no project resolves.
+  - It records the command, subcommand or topic, flag names, project, issue, exit code, error class, caller type (`dispatched`, `agent`, `tty` or `script`) and duration.
+  - The only argument values kept are `--to` and `--section`. Titles, bodies and other free text are never stored. Nothing is sent off-machine.
+  - The file rotates to `.1` at 10 MB.
+  - Opt out with `ISSUE_CLI_TELEMETRY=off`, or `telemetry: false` on a project in `projects.yaml`.
+  - The agent timeline and retry hints are unchanged; they keep their separate log.
+- CLI: new `issue-cli telemetry report [--since 30d] [--global] [--top N]` (and `--json`) shows calls per command, the never-used commands, aliases, subcommands, help topics and per-command flags, the top errors, unknown commands and flags that bots tried, and what callers ran next after a failure. `issue-cli telemetry path` shows the active file and whether recording is on.
+- Web UI: the `/stats` tab has a new "CLI usage (last 30 days)" section built from the telemetry report. If the CLI is missing or telemetry is disabled, it shows an inline notice.
+- Workflow: the bundled `workflow.yaml` Test Plan `### Manual` section now asks for a throwaway, worktree-only sandbox scenario with isolated config, issues and state, plus exact human steps, expected results and cleanup. The `testing` and `human-testing` prompts point at it.
+
 ## v0.31.0 — 2026-10-02
 
 - CLI: `issue-cli transition <slug> --to <status> --dry-run` lists every unmet requirement at once (unticked gate boxes, missing comments, required `--field` answers, human approval), each with the command that fixes it, and changes nothing. Exit 0 when the transition would succeed, 1 otherwise; `--json` returns `{dry_run, ready, from, to, problems[], side_effects}`.

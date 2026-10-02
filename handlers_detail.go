@@ -146,7 +146,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		timeline = append([]TimelineEvent{dispatchEv}, timeline...)
 	}
 
-	renderedBody := renderBodyWithDataTable(found, prefix, slugMap)
+	renderedBody := renderBodyWithDataTable(found, prefix, projectRoot(proj), slugMap)
 
 	if err := s.tmpl.ExecuteTemplate(w, "detail.html", DetailData{
 		Issue:             detailView,
@@ -168,9 +168,10 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 
 // renderBodyWithDataTable substitutes the first <!-- data --> marker in the
 // rendered body HTML with the data table, or appends the table after the
-// body if no marker is present. Issue refs are linked afterwards so the
+// body if no marker is present. Relative image paths are resolved against
+// the issue file's directory, and issue refs are linked afterwards so the
 // table itself is not rewritten.
-func renderBodyWithDataTable(issue *tracker.Issue, prefix string, slugMap map[string]string) string {
+func renderBodyWithDataTable(issue *tracker.Issue, prefix, root string, slugMap map[string]string) string {
 	bodyHTML := issue.BodyHTML
 	store, err := tracker.LoadData(issue.FilePath)
 	if err != nil {
@@ -189,6 +190,7 @@ func renderBodyWithDataTable(issue *tracker.Issue, prefix string, slugMap map[st
 	} else {
 		body = bodyHTML + tableHTML
 	}
+	body = rewriteRelativeImages(body, prefix, filepath.Dir(issue.FilePath), root)
 	return linkIssueRefs(body, prefix, slugMap)
 }
 

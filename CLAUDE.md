@@ -27,6 +27,7 @@ main.go                     — entry point, CLI flags, starts HTTP server
 routes.go                   — Server struct, NewServer, Routes, dispatcher, project list
 template_funcs.go           — funcMap, status/priority colors, link rewriters
 helpers.go                  — projectRoot, fileExists, workflowFileTarget, small utilities
+images.go                   — relative image src rewrite, /files/ image route
 tmux.go                     — agent session listing/matching/notification
 handlers_list.go            — list view, filters, /hash, /issues.json
 handlers_board.go           — board + graph views

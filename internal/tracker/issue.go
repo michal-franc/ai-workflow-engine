@@ -875,38 +875,28 @@ func ValidTransition(from, to string) bool {
 }
 
 // CountCheckboxes returns total and checked checkbox counts in markdown.
+// Boxes inside fenced code blocks are not counted, matching ListCheckboxes.
 func CountCheckboxes(body string) (total, checked int) {
-	for _, line := range strings.Split(body, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "- [x]") || strings.HasPrefix(trimmed, "- [X]") {
-			total++
+	for _, it := range ListCheckboxes(body) {
+		total++
+		if it.Checked {
 			checked++
-		} else if strings.HasPrefix(trimmed, "- [ ]") {
-			total++
 		}
 	}
 	return
 }
 
 // CountCheckboxesInSection counts checkboxes only under a specific ## heading.
-// The section ends at the next ## heading or end of body.
+// The section ends at the next ## heading or end of body. Boxes inside fenced
+// code blocks are not counted, matching ListCheckboxes.
 func CountCheckboxesInSection(body, section string) (total, checked int) {
-	inSection := false
-	for _, line := range strings.Split(body, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "## ") {
-			heading := strings.TrimSpace(strings.TrimPrefix(trimmed, "##"))
-			inSection = strings.EqualFold(heading, section)
+	for _, it := range ListCheckboxes(body) {
+		if !strings.EqualFold(it.Section, section) {
 			continue
 		}
-		if !inSection {
-			continue
-		}
-		if strings.HasPrefix(trimmed, "- [x]") || strings.HasPrefix(trimmed, "- [X]") {
-			total++
+		total++
+		if it.Checked {
 			checked++
-		} else if strings.HasPrefix(trimmed, "- [ ]") {
-			total++
 		}
 	}
 	return
@@ -951,6 +941,10 @@ type CheckboxItem struct {
 	Checked bool
 	// Line is the 0-based line number of the checkbox in the body.
 	Line int
+	// ID is the short reference for the box: its section's abbreviation
+	// followed by Index ("D3", "AC2"). Empty for boxes before any "## "
+	// heading, and for a section whose abbreviation could not be made unique.
+	ID string
 }
 
 // ListCheckboxes enumerates every checkbox in body, skipping those inside
@@ -963,6 +957,11 @@ func ListCheckboxes(body string) []CheckboxItem {
 	var items []CheckboxItem
 	section := ""
 	perSection := map[string]int{}
+	// abbrevs maps a section name to its short-id prefix, assigned in the
+	// order sections first hold a checkbox; taken holds the lowercased
+	// prefixes already in use.
+	abbrevs := map[string]string{}
+	taken := map[string]bool{}
 	for i, line := range lines {
 		if fenceFlags[i] {
 			continue
@@ -982,12 +981,20 @@ func ListCheckboxes(body string) []CheckboxItem {
 			continue
 		}
 		perSection[section]++
+		if _, ok := abbrevs[section]; !ok {
+			abbrevs[section] = nextSectionAbbrev(section, taken)
+		}
+		id := ""
+		if a := abbrevs[section]; a != "" {
+			id = fmt.Sprintf("%s%d", a, perSection[section])
+		}
 		items = append(items, CheckboxItem{
 			Section: section,
 			Index:   perSection[section],
 			Text:    strings.TrimSpace(trimmed[5:]),
 			Checked: checked,
 			Line:    i,
+			ID:      id,
 		})
 	}
 	return items

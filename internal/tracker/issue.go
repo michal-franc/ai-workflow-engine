@@ -29,7 +29,7 @@ type ExtraField struct {
 var knownFrontmatterFields = map[string]bool{
 	"title": true, "status": true, "system": true, "version": true,
 	"labels": true, "priority": true, "assignee": true,
-	"human_approval": true, "approved_for": true,
+	"human_approval": true, "approved_for": true, "queued_approval": true,
 	"started_at": true, "done_at": true, "created": true,
 	"number": true, "repo": true,
 }
@@ -98,6 +98,7 @@ type Issue struct {
 	Assignee       string   `yaml:"assignee"`
 	HumanApproval  string   `yaml:"human_approval"`
 	LegacyApproval string   `yaml:"approved_for"`
+	QueuedApproval string   `yaml:"queued_approval"` // "approve and start": promoted when HumanApproval is consumed
 	StartedAt      string   `yaml:"started_at"`
 	DoneAt         string   `yaml:"done_at"`
 	Created        string   `yaml:"created"`
@@ -294,17 +295,18 @@ func LoadIssues(dir string) ([]*Issue, error) {
 }
 
 type IssueUpdate struct {
-	Title         *string           `json:"title,omitempty"`
-	Status        *string           `json:"status,omitempty"`
-	Priority      *string           `json:"priority,omitempty"`
-	Version       *string           `json:"version,omitempty"`
-	Assignee      *string           `json:"assignee,omitempty"`
-	HumanApproval *string           `json:"human_approval,omitempty"`
-	StartedAt     *string           `json:"started_at,omitempty"`
-	DoneAt        *string           `json:"done_at,omitempty"`
-	Labels        []string          `json:"labels,omitempty"`
-	Body          *string           `json:"body,omitempty"`
-	ExtraFields   map[string]string `json:"extra_fields,omitempty"`
+	Title          *string           `json:"title,omitempty"`
+	Status         *string           `json:"status,omitempty"`
+	Priority       *string           `json:"priority,omitempty"`
+	Version        *string           `json:"version,omitempty"`
+	Assignee       *string           `json:"assignee,omitempty"`
+	HumanApproval  *string           `json:"human_approval,omitempty"`
+	QueuedApproval *string           `json:"queued_approval,omitempty"`
+	StartedAt      *string           `json:"started_at,omitempty"`
+	DoneAt         *string           `json:"done_at,omitempty"`
+	Labels         []string          `json:"labels,omitempty"`
+	Body           *string           `json:"body,omitempty"`
+	ExtraFields    map[string]string `json:"extra_fields,omitempty"`
 }
 
 func AppendIssueBody(body, text string) (string, bool, error) {
@@ -544,6 +546,13 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 			fmRaw = setScalar(fmRaw, "human_approval", *update.HumanApproval)
 		}
 	}
+	if update.QueuedApproval != nil {
+		if *update.QueuedApproval == "" {
+			fmRaw = removeField(fmRaw, "queued_approval")
+		} else {
+			fmRaw = setScalar(fmRaw, "queued_approval", *update.QueuedApproval)
+		}
+	}
 	if update.StartedAt != nil {
 		if *update.StartedAt == "" {
 			fmRaw = removeField(fmRaw, "started_at")
@@ -636,16 +645,17 @@ func RewriteIssueFile(filePath string, content []byte) error {
 // ProtectedFrontmatterFields lists keys that SetFrontmatterField refuses to touch
 // because they are managed elsewhere (workflow transitions, claim/start, GitHub sync).
 var ProtectedFrontmatterFields = map[string]bool{
-	"title":          true,
-	"status":         true,
-	"human_approval": true,
-	"approved_for":   true,
-	"started_at":     true,
-	"done_at":        true,
-	"number":         true,
-	"repo":           true,
-	"created":        true,
-	"labels":         true,
+	"title":           true,
+	"status":          true,
+	"human_approval":  true,
+	"approved_for":    true,
+	"queued_approval": true,
+	"started_at":      true,
+	"done_at":         true,
+	"number":          true,
+	"repo":            true,
+	"created":         true,
+	"labels":          true,
 }
 
 var frontmatterKeyRe = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)

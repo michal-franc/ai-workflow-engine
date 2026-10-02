@@ -108,7 +108,7 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 
 func hasNonStatusUpdates(u tracker.IssueUpdate) bool {
 	return u.Title != nil || u.Priority != nil || u.Version != nil || u.Assignee != nil ||
-		u.HumanApproval != nil || u.StartedAt != nil || u.DoneAt != nil ||
+		u.HumanApproval != nil || u.QueuedApproval != nil || u.StartedAt != nil || u.DoneAt != nil ||
 		u.Labels != nil || u.Body != nil || len(u.ExtraFields) > 0
 }
 

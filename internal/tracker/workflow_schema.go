@@ -90,6 +90,10 @@ func WorkflowSchemaSections() []SchemaSection {
 		{Path: "scoring.formula", Title: "ScoringFormula", Fields: schemaFieldsOf(reflect.TypeOf(ScoringFormula{}))},
 		{Path: "scoring.formula.due_date", Title: "ScoringDueDate", Fields: schemaFieldsOf(reflect.TypeOf(ScoringDueDate{}))},
 		{Path: "scoring.formula.age", Title: "ScoringAge", Fields: schemaFieldsOf(reflect.TypeOf(ScoringAge{}))},
+		{Path: "workbench", Title: "WorkbenchConfig", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchConfig{}))},
+		{Path: "workbench.systems[<name>]", Title: "WorkbenchSystem", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchSystem{}))},
+		{Path: "workbench.metrics", Title: "WorkbenchMetrics", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchMetrics{}))},
+		{Path: "workbench.balance", Title: "WorkbenchBalance", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchBalance{}))},
 	}
 }
 

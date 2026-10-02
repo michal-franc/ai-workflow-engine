@@ -302,6 +302,9 @@ func transitionSideEffects(result tracker.TransitionResult) []string {
 	if result.ClearedApproval {
 		effects = append(effects, "approval consumed")
 	}
+	if result.PromotedApproval != "" {
+		effects = append(effects, fmt.Sprintf("queued approval for %q is now active — run issue-cli start to continue", result.PromotedApproval))
+	}
 	if result.BodyAppended {
 		effects = append(effects, "workflow content appended to issue body")
 	} else if result.BodyChanged {

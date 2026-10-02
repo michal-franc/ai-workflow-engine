@@ -20,25 +20,26 @@ const defaultViewerURL = "http://localhost:8080"
 // (single-project bootstrap mode). slug may also be empty when the validate
 // path didn't have one; we still emit the base URL plus a manual instruction.
 func approvalHint(proj *tracker.Project, slug, requiredStatus string) string {
-	base := strings.TrimRight(viewerBaseURL(), "/")
-
-	var url string
-	switch {
-	case proj != nil && slug != "":
-		url = fmt.Sprintf("%s/p/%s/issue/%s#approve-%s", base, proj.Slug, slug, fragmentStatus(requiredStatus))
-	case slug != "":
-		url = fmt.Sprintf("%s/issue/%s#approve-%s", base, slug, fragmentStatus(requiredStatus))
-	default:
-		url = base + "/"
-	}
-
 	var b strings.Builder
 	b.WriteString("A human must approve this in the issue viewer:\n  ")
-	b.WriteString(url)
+	b.WriteString(approvalURL(proj, slug, requiredStatus))
 	if os.Getenv("ISSUE_VIEWER_URL") == "" {
 		b.WriteString("\n\n(set ISSUE_VIEWER_URL if your viewer is on a different host/port)")
 	}
 	return b.String()
+}
+
+// approvalURL is the deep link to the approve button for requiredStatus.
+func approvalURL(proj *tracker.Project, slug, requiredStatus string) string {
+	base := strings.TrimRight(viewerBaseURL(), "/")
+	switch {
+	case proj != nil && slug != "":
+		return fmt.Sprintf("%s/p/%s/issue/%s#approve-%s", base, proj.Slug, slug, fragmentStatus(requiredStatus))
+	case slug != "":
+		return fmt.Sprintf("%s/issue/%s#approve-%s", base, slug, fragmentStatus(requiredStatus))
+	default:
+		return base + "/"
+	}
 }
 
 // viewerBaseURL returns the configured viewer base URL or the default. The env

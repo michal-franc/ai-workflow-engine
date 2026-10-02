@@ -25,7 +25,7 @@ The dispatch flow also exports these environment variables into the agent sessio
 - `ISSUE_CLI_LOG`
 - `ISSUE_VIEWER_SERVER_PWD`
 
-The issue detail page can also notify the active tmux-backed agent session when a human grants approval. Approval metadata on the issue remains the source of truth, and the UI reports whether the follow-up notification reached a matching session.
+The issue detail page can also notify the active tmux-backed agent session when a human grants approval. Approval metadata on the issue remains the source of truth, and the UI reports whether the follow-up notification reached a matching session. The primary hand-off is the agent itself blocking on `issue-cli transition|start --wait`. The agent asks for approval in chat, then waits until the approval lands in the issue file; the tmux notification is the fallback.
 
 ## 2. First Commands
 
@@ -58,11 +58,11 @@ In practice:
 The normal lifecycle is:
 
 1. `idea` — clarify the idea with the human, narrow scope, and ask questions.
-2. `in design` — review docs and code, structure the solution, capture assumptions and human input. When the design is complete, stop and request backlog approval before attempting the transition.
-3. `backlog` — ready state after design and approval. `issue-cli start` from here requires `in progress` to be approved in the issue viewer; if approval is missing the command fails without mutating state — stop and ask for approval instead of retrying blindly.
+2. `in design` — review docs and code, structure the solution, capture assumptions and human input. List existing features that already do something similar, and justify why this one is still needed (or shrink it). Describe how agents will discover the change, preferring hints in CLI output and errors over prompt text. When the design is complete, ask for backlog approval in chat and block on `issue-cli transition <slug> --to "backlog" --wait --timeout 9m`.
+3. `backlog` — ready state after design and approval. `issue-cli start` from here requires `in progress` to be approved in the issue viewer; if approval is missing the command fails without mutating state. Ask for approval in chat and run `issue-cli start <slug> --wait --timeout 9m` instead of retrying blindly.
 4. `in progress` — implement the approved design and keep the issue updated.
 5. `testing` — add relevant automated coverage and log test evidence.
-6. `human-testing` — prepare explicit manual verification for a human. `issue-cli start` from here advances to `documentation` once that status is approved — otherwise it errors with a clear approval-missing message.
+6. `human-testing` — prepare explicit manual verification for a human. `issue-cli start` from here advances to `documentation` once that status is approved — otherwise it errors with a clear approval-missing message. `start --wait` blocks until the human approves.
 7. `documentation` — update the relevant docs for the affected system.
 8. `done` — no active prompt. Work is complete.
 
@@ -156,6 +156,6 @@ The intended agent flow is:
 3. complete the work required by the current status
 4. attempt transitions in order
 5. apply system-specific overlay guidance when relevant
-6. stop cleanly for approvals, manual verification, or clarification
+6. at approval gates, ask in chat and block on `--wait --timeout 9m` (re-run on exit 3); stop cleanly for manual verification or clarification
 7. save a retrospective when stopping for those reasons
 8. report `issue-cli` bugs into `bugs/`

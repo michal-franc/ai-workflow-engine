@@ -11,7 +11,7 @@ Token counts use a `len(s) / 4` approximation — a well-known proxy for Claude/
 
 ## What is recorded
 
-A per-issue sidecar `<issue>.stats.json` is written next to the markdown file every time `tracker.ApplyTransitionToFile` runs a successful transition.
+A per-issue sidecar `<issue>.stats.json` is written next to the markdown file every time `tracker.ApplyTransitionToFile` runs a successful transition, and when `issue-cli start` advances a handoff status (`StartIssueOnce`).
 
 ```json
 {
@@ -22,15 +22,24 @@ A per-issue sidecar `<issue>.stats.json` is written next to the markdown file ev
       "ts": "2026-04-30T12:00:00Z",
       "static_tokens": 123,
       "dynamic_tokens": 456,
-      "actual_tokens": null
+      "actual_tokens": null,
+      "wait_started_at": "2026-04-30T11:40:00Z",
+      "approved_at": "2026-04-30T11:59:58Z"
     }
-  ]
+  ],
+  "pending_wait": { "to": "testing", "started_at": "2026-04-30T12:05:00Z" },
+  "last_approval": { "status": "testing", "at": "2026-04-30T12:20:00Z" }
 }
 ```
 
 - **`static_tokens`** — sum of approximate token counts over the workflow scaffolding the bot reads on this specific transition: every `transitionActions` body (`validate` rules, `append_section` titles+bodies, `inject_prompt` prompts, `require_human_approval` markers), plus the legacy `Template` for the target status, plus the target status's entry-guidance `Prompt`. Pure function of `workflow.yaml`.
 - **`dynamic_tokens`** — `static_tokens` plus the issue body and joined comment text **at the moment of transition**. Snapshotted because the body drifts after transition.
 - **`actual_tokens`** — reserved for a future hybrid pass that records measured agent-run token counts. Always `null` today; nullable in the schema so adding actuals later requires no migration.
+- **`wait_started_at`** (optional) — when an agent began blocking on this transition with `issue-cli transition|start --wait`. If the wait was re-run after `--timeout` expiries, this is the first start. Absent when nobody waited.
+- **`approved_at`** (optional) — when the viewer recorded the human approval this transition consumed. Absent when the transition needed no approval, or when the approval did not come through the viewer's approve endpoint (for example an older server binary). It is never guessed from detection time.
+- **`pending_wait`** / **`last_approval`** — scratch state for the next transition row. `issue-cli … --wait` writes `pending_wait` when it starts blocking. The viewer's approve handler writes `last_approval`, and clears it when the approval is toggled off. Any recorded transition clears `pending_wait`, which is copied into `wait_started_at` only when the target matches. A transition that consumes an approval copies a matching `last_approval` into `approved_at`, then clears it.
+
+Together these give exact gate latency: status entry (the previous row's `ts`) → approval (`approved_at`) → transition (`ts`), plus how long an agent actually sat blocked (`ts − wait_started_at`). The Stats tab does not show them yet.
 
 `tracker.MarkIssueDoneOnce` (the rare multi-step "mark as done" fast-path) bypasses `ApplyTransitionToFile` and so does not record per-step stats. Acceptable for now — this path is uncommon.
 

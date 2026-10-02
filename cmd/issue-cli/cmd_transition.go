@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -14,8 +15,20 @@ var transitionCommand = &Command{
 	LongHelp: `Transition an issue to a new status. Use --field key=value for declarative
 field answers required by the workflow.
 
+--dry-run lists every unmet requirement (checkboxes, comments, fields, human
+approval) with the command that fixes each, and changes nothing. Exit 0 when
+the transition would succeed, 1 otherwise.
+
+--wait blocks until the required human approval exists, then transitions.
+Unmet machine checks fail fast first (a human click will not fix them).
+--timeout <dur> gives up after that long with exit code 3: nothing changed,
+re-run the same command to keep waiting. Without --timeout it waits forever.
+Agents running in a Bash tool should pass --timeout 9m and re-run on exit 3.
+
 Examples:
   issue-cli transition <slug> --to "testing"
+  issue-cli transition <slug> --to "backlog" --dry-run
+  issue-cli transition <slug> --to "backlog" --wait --timeout 9m
   issue-cli transition <slug> --to "waiting-for-team-input" --field waiting="design review"`,
 	Run: runTransition,
 }
@@ -48,7 +61,10 @@ type transitionOutput struct {
 	OptionalNextStatuses []string                  `json:"optional_next_statuses,omitempty"`
 	NextRequires         []string                  `json:"next_requires,omitempty"`
 	NextSideEffects      []string                  `json:"next_side_effects,omitempty"`
+	NextCommand          string                    `json:"next_command,omitempty"`
+	NextCommandNote      string                    `json:"next_command_note,omitempty"`
 	Guidance             []string                  `json:"guidance,omitempty"`
+	Wait                 *waitOutput               `json:"wait,omitempty"`
 }
 
 func runTransition(ctx *Context, args []string) error {
@@ -67,8 +83,16 @@ func runTransition(ctx *Context, args []string) error {
 
 	fs := newFlagSet("transition", ctx)
 	toFlag := fs.String("to", "", "destination status")
+	dryRun := fs.Bool("dry-run", false, "list every unmet requirement without changing anything")
+	waitOpts := registerWaitFlags(fs)
 	if err := fs.Parse(rest); err != nil {
 		return err
+	}
+	if err := waitOpts.validate(); err != nil {
+		return err
+	}
+	if *dryRun && *waitOpts.wait {
+		return fmt.Errorf("--dry-run and --wait are mutually exclusive")
 	}
 	to := *toFlag
 	if to == "" {
@@ -90,9 +114,26 @@ func runTransition(ctx *Context, args []string) error {
 		return err
 	}
 	wf := ctx.Project.LoadWorkflowForIssue(issue)
+	if to != "done" {
+		ctx.ApprovalWaitCommand = waitCommand(slug, issue.Status, to)
+	}
 
-	from, result, err := wf.ApplyTransitionToFileWithFields(issue.FilePath, to, fields)
+	if *dryRun {
+		return runTransitionDryRun(ctx, wf, issue, slug, to, fields)
+	}
+
+	var from string
+	var result tracker.TransitionResult
+	if *waitOpts.wait {
+		from, result, err = transitionWithWait(ctx, wf, issue, slug, to, fields, waitOpts)
+	} else {
+		from, result, err = wf.ApplyTransitionToFileWithFields(issue.FilePath, to, fields)
+	}
 	if err != nil {
+		var codeErr *exitCodeError
+		if errors.As(err, &codeErr) {
+			return err
+		}
 		return fmt.Errorf("failed to transition: %w", err)
 	}
 
@@ -101,7 +142,81 @@ func runTransition(ctx *Context, args []string) error {
 		return err
 	}
 	output := buildTransitionOutput(wf, issue, from, to, result)
+	output.Wait = lastWait(issue.FilePath, to, ctx.now())
 	return printTransitionResult(ctx, output)
+}
+
+// runTransitionDryRun reports every unmet requirement for issue → to and
+// changes nothing. Exits 1 (silently — the report is the message) when any
+// requirement is unmet so scripts can branch on it.
+func runTransitionDryRun(ctx *Context, wf *tracker.WorkflowConfig, issue *tracker.Issue, slug, to string, fields map[string]string) error {
+	from := issue.Status
+	problems := collectTransitionProblems(ctx, wf, issue, slug, from, to, fields)
+	out := dryRunOutput{DryRun: true, Ready: len(problems) == 0, From: from, To: to, Slug: slug, Problems: problems}
+	if out.Ready {
+		_, out.SideEffects = nextTransitionContract(wf, from, to)
+	}
+	if out.Problems == nil {
+		out.Problems = []transitionProblem{}
+	}
+
+	if ctx.JSONOutput {
+		if err := writeJSON(ctx.Stdout, out); err != nil {
+			return err
+		}
+	} else if out.Ready {
+		fmt.Fprintf(ctx.Stdout, "✓ Ready: %s → %s (dry run — nothing was changed)\n", from, to)
+		renderNextTransitionContract(ctx.Stdout, nil, out.SideEffects)
+	} else {
+		fmt.Fprintf(ctx.Stdout, "== Dry run: %s → %s ==\n", from, to)
+		printProblemReport(ctx.Stdout, problems)
+		fmt.Fprintln(ctx.Stdout, "Nothing was changed.")
+	}
+	if !out.Ready {
+		return &exitCodeError{Code: 1}
+	}
+	return nil
+}
+
+// transitionWithWait fails fast on any unmet machine requirement, then blocks
+// until the human approval lands and applies the transition. Each poll calls
+// the normal locked ApplyTransitionToFileWithFields, which changes nothing
+// while the approval is missing, so a concurrent edit that breaks a machine
+// check (or moves the status) ends the wait with that error.
+func transitionWithWait(ctx *Context, wf *tracker.WorkflowConfig, issue *tracker.Issue, slug, to string, fields map[string]string, opts waitOptions) (string, tracker.TransitionResult, error) {
+	from := issue.Status
+	approval, machine := onlyApprovalMissing(collectTransitionProblems(ctx, wf, issue, slug, from, to, fields))
+	if len(machine) > 0 {
+		printProblemReport(ctx.Stdout, machine)
+		return "", tracker.TransitionResult{}, &exitCodeError{
+			Code: 1,
+			Msg:  fmt.Sprintf("Not waiting: fix the %d requirement(s) above first — a human approval will not resolve them.", len(machine)),
+		}
+	}
+
+	required := wf.RequiredHumanApproval(from, to)
+	if approval {
+		if _, err := tracker.BeginWait(issue.FilePath, to, ctx.now()); err != nil {
+			return "", tracker.TransitionResult{}, err
+		}
+		printWaitingLine(ctx, opts, slug, required)
+	}
+
+	var gotFrom string
+	var result tracker.TransitionResult
+	err := pollUntil(ctx, opts, func() (bool, error) {
+		f, r, err := wf.ApplyTransitionToFileWithFields(issue.FilePath, to, fields)
+		if errors.Is(err, tracker.ErrApprovalMissing) {
+			return false, nil
+		}
+		gotFrom, result = f, r
+		return true, err
+	})
+	if errors.Is(err, errWaitTimedOut) {
+		rerun := fmt.Sprintf("issue-cli transition %s --to %q --wait --timeout %s", slug, to, opts.timeout)
+		return "", tracker.TransitionResult{}, waitTimeoutError(opts, required, rerun)
+	}
+	return gotFrom, result, err
 }
 
 // stripFieldFlags returns args with every "--field" + value pair removed.
@@ -142,8 +257,10 @@ func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, fro
 		statusOptional = s.Optional
 	}
 	var nextRequires, nextSideEffects []string
+	var nextCommand, nextNote string
 	if next != "" {
 		nextRequires, nextSideEffects = nextTransitionContract(wf, issue.Status, next)
+		nextCommand, nextNote = nextStepCommand(wf, issue.Slug, issue.Status, next)
 	}
 	return transitionOutput{
 		From:                 from,
@@ -161,6 +278,8 @@ func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, fro
 		OptionalNextStatuses: optionals,
 		NextRequires:         nextRequires,
 		NextSideEffects:      nextSideEffects,
+		NextCommand:          nextCommand,
+		NextCommandNote:      nextNote,
 		Guidance:             guidance,
 	}
 }
@@ -216,13 +335,17 @@ func printTransitionResult(ctx *Context, output transitionOutput) error {
 	for _, effect := range output.SideEffects {
 		fmt.Fprintf(ctx.Stdout, "✓ %s\n", capitalize(effect))
 	}
+	printWaited(ctx.Stdout, output.Wait)
 	fmt.Fprintln(ctx.Stdout)
 
-	printWorkflowNextStepsFromData(ctx.Stdout, output.Checklist, output.Guidance, output.NextStatus, output.NextStatusOptional, output.OptionalNextStatuses, output.NextRequires, output.NextSideEffects, output.Slug)
+	printWorkflowNextStepsFromData(ctx.Stdout, output)
 	return nil
 }
 
-func printWorkflowNextStepsFromData(w io.Writer, checklist []transitionChecklistItem, guidance []string, nextStatus string, nextStatusOptional bool, optionalSidePaths []string, nextRequires, nextSideEffects []string, slug string) {
+func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
+	checklist, guidance := output.Checklist, output.Guidance
+	nextStatus, nextStatusOptional, optionalSidePaths := output.NextStatus, output.NextStatusOptional, output.OptionalNextStatuses
+	nextRequires, nextSideEffects, slug := output.NextRequires, output.NextSideEffects, output.Slug
 	if len(checklist) > 0 {
 		checked := 0
 		for _, item := range checklist {
@@ -272,7 +395,14 @@ func printWorkflowNextStepsFromData(w io.Writer, checklist []transitionChecklist
 		if nextStatusOptional {
 			suffix = "   (optional — every remaining status is optional)"
 		}
-		fmt.Fprintf(w, "  issue-cli transition %s --to \"%s\"%s\n", slug, nextStatus, suffix)
+		cmd := output.NextCommand
+		if cmd == "" {
+			cmd = fmt.Sprintf("issue-cli transition %s --to %q", slug, nextStatus)
+		}
+		fmt.Fprintf(w, "  %s%s\n", cmd, suffix)
+		if output.NextCommandNote != "" {
+			fmt.Fprintf(w, "  %s\n", output.NextCommandNote)
+		}
 		renderNextTransitionContract(w, nextRequires, nextSideEffects)
 		if len(optionalSidePaths) > 0 {
 			fmt.Fprintln(w)

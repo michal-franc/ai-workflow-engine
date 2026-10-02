@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -194,6 +195,11 @@ func (s *Server) handleApproveIssue(w http.ResponseWriter, r *http.Request, proj
 		http.Error(w, "update failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Timestamp the approval so the transition consuming it (and any agent
+	// blocked in `issue-cli transition --wait`) records exact gate latency.
+	if err := tracker.RecordApproval(issue.FilePath, humanApproval, time.Now()); err != nil {
+		log.Printf("approve %s: recording approval time: %v", issue.Slug, err)
+	}
 
 	resp := approvalResponse{
 		Status:        "ok",
@@ -214,6 +220,9 @@ func (s *Server) handleApproveIssue(w http.ResponseWriter, r *http.Request, proj
 				resp.NotifiedSession = target
 				resp.NotificationMessage = "approval notification sent to active agent session"
 			}
+		}
+		if resp.NotificationError != "" {
+			log.Printf("approve %s for %q: agent not nudged: %s", issue.Slug, body.Status, resp.NotificationError)
 		}
 	}
 
@@ -568,4 +577,3 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request, proj *trac
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"url": urlPath})
 }
-

@@ -23,7 +23,8 @@ Learn the workflow process first:
 
 Move this issue forward correctly using the configured workflow.
 Use issue-cli to inspect the current status requirements, complete the required work, and only transition when the workflow says the issue is ready.
-Stop and ask the user whenever clarification, approval, or manual verification is required.
+Stop and ask the user whenever clarification or manual verification is required.
+At a human-approval gate, tell the user in chat what needs approving, then block on it with --wait (see below) instead of stopping and retrying.
 
 ## Current status guidance
 
@@ -35,7 +36,8 @@ Stop and ask the user whenever clarification, approval, or manual verification i
 
 1. Run: issue-cli start %s
    If the issue is already approved for the next status, this claims the issue and shows your checklist and next steps.
-   If approval is missing, stop and ask the human to approve it in the issue viewer.
+   If approval is missing, tell the human what needs approving in the issue viewer, then re-run start with
+   --wait --timeout 9m to block until it lands (exit code 3 = still waiting, nothing changed — run it again).
 
 2. Run: issue-cli show %s
    Read the full context — body, comments, checklist status.
@@ -50,6 +52,9 @@ Stop and ask the user whenever clarification, approval, or manual verification i
 5. When the current status checkboxes are done, transition to the next status:
    issue-cli transition %s --to "<next-status>"
    The CLI will tell you what the valid next status is and what it requires.
+   Add --dry-run to list every unmet requirement (with fix commands) without changing anything.
+   If the transition needs human approval, add --wait --timeout 9m to block until it lands
+   (exit code 3 = still waiting, nothing changed — run it again).
 
 6. Repeat steps 3-5 for each status. Each transition may add new checkboxes — work through them all.
 
@@ -64,6 +69,7 @@ These are safe to run without asking the user:
   issue-cli start %s                  # claim and begin work
   issue-cli check %s <id> [<id>...]   # mark checkboxes done by id (from checklist)
   issue-cli transition %s --to "<next-status>"  # move forward
+      (add --dry-run to list unmet requirements; --wait --timeout 9m to block on a human approval)
   issue-cli append %s --body "content"          # append section to issue body
   issue-cli append %s --section "Name" --body "..."  # append into an existing section (also auto-routes if --body starts with that heading)
   issue-cli retrospective %s --body "content"   # save workflow feedback under retros/ in the project

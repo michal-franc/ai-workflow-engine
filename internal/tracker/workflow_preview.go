@@ -24,7 +24,21 @@ type TransitionPreview struct {
 	Result          TransitionResult        `json:"result"`
 }
 
+// PreviewTransition dry-runs a transition step by step and stops at the first
+// failing validation or approval gate (the viewer's transition preview).
 func (w *WorkflowConfig) PreviewTransition(issue *Issue, fromStatus, toStatus, system string, comments []Comment) TransitionPreview {
+	return w.previewTransition(issue, fromStatus, toStatus, system, comments, false)
+}
+
+// PreviewTransitionAll is PreviewTransition without the early return: every
+// validation and approval gate is evaluated, so callers (issue-cli
+// transition --dry-run / --wait) can report all unmet requirements at once.
+// ValidationError still holds the first failure.
+func (w *WorkflowConfig) PreviewTransitionAll(issue *Issue, fromStatus, toStatus, system string, comments []Comment) TransitionPreview {
+	return w.previewTransition(issue, fromStatus, toStatus, system, comments, true)
+}
+
+func (w *WorkflowConfig) previewTransition(issue *Issue, fromStatus, toStatus, system string, comments []Comment, collectAll bool) TransitionPreview {
 	preview := TransitionPreview{
 		From:    fromStatus,
 		To:      toStatus,
@@ -51,14 +65,19 @@ func (w *WorkflowConfig) PreviewTransition(issue *Issue, fromStatus, toStatus, s
 
 		switch action.Type {
 		case "validate":
-			step.Summary = validationSummary(action.Rule)
-			if err := w.checkRule(action.Rule, &working, comments); err != nil {
+			step.Summary = DescribeAction(action, toStatus)
+			if err := w.checkValidateAction(action, &working, comments); err != nil {
 				step.Outcome = "failed"
 				step.Message = err.Error()
 				preview.Allowed = false
-				preview.ValidationError = err.Error()
+				if preview.ValidationError == "" {
+					preview.ValidationError = err.Error()
+				}
 				preview.Steps = append(preview.Steps, step)
-				return preview
+				if !collectAll {
+					return preview
+				}
+				continue
 			}
 			step.Outcome = "passed"
 			step.Message = "Validation passed"
@@ -72,9 +91,14 @@ func (w *WorkflowConfig) PreviewTransition(issue *Issue, fromStatus, toStatus, s
 				step.Outcome = "failed"
 				step.Message = fmt.Sprintf("Issue is not human-approved for %q", status)
 				preview.Allowed = false
-				preview.ValidationError = fmt.Sprintf("issue is not human-approved for %q", status)
+				if preview.ValidationError == "" {
+					preview.ValidationError = fmt.Sprintf("issue is not human-approved for %q", status)
+				}
 				preview.Steps = append(preview.Steps, step)
-				return preview
+				if !collectAll {
+					return preview
+				}
+				continue
 			}
 			step.Outcome = "passed"
 			step.Message = fmt.Sprintf("Issue human-approved for %q", status)

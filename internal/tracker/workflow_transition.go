@@ -80,6 +80,39 @@ func (w *WorkflowConfig) IsValidTransition(from, to string) bool {
 	return true
 }
 
+// CheckTransitionOrder returns nil when from → to is a legal edge, or an error
+// naming the status the issue must go to next.
+func (w *WorkflowConfig) CheckTransitionOrder(fromStatus, toStatus string) error {
+	if w.IsValidTransition(fromStatus, toStatus) {
+		return nil
+	}
+	next := w.NextRequiredStatus(fromStatus)
+	if next == "" {
+		next = w.NextStatus(fromStatus)
+	}
+	if next != "" {
+		return fmt.Errorf("cannot transition from %q to %q — must go to %q next", fromStatus, toStatus, next)
+	}
+	return fmt.Errorf("cannot transition from %q to %q", fromStatus, toStatus)
+}
+
+// recordTransitionStat appends the stats-sidecar row for a transition that has
+// just been written. Must be called with the issue lock held. approval is the
+// human_approval value the transition consumed ("" when none).
+func (w *WorkflowConfig) recordTransitionStat(filePath, fromStatus, toStatus, preBody string, comments []Comment, approval string) error {
+	stat := TransitionStat{
+		From:          fromStatus,
+		To:            toStatus,
+		TS:            time.Now().UTC(),
+		StaticTokens:  StaticTransitionCost(w, fromStatus, toStatus),
+		DynamicTokens: DynamicTransitionCost(w, fromStatus, toStatus, preBody, comments),
+	}
+	if err := appendTransitionStatLocked(filePath, stat, approval); err != nil {
+		return fmt.Errorf("appending transition stat for %s: %w", filePath, err)
+	}
+	return nil
+}
+
 func (w *WorkflowConfig) transitionActions(from, to string) []WorkflowAction {
 	if t := w.ResolveTransition(from, to); t != nil {
 		return append([]WorkflowAction(nil), t.Actions...)
@@ -298,15 +331,8 @@ func (w *WorkflowConfig) ApplyTransitionToFileWithFields(filePath, toStatus stri
 		_, comments := ParseComments(rawBody)
 
 		fromStatus = issue.Status
-		if !w.IsValidTransition(fromStatus, toStatus) {
-			next := w.NextRequiredStatus(fromStatus)
-			if next == "" {
-				next = w.NextStatus(fromStatus)
-			}
-			if next != "" {
-				return fmt.Errorf("cannot transition from %q to %q — must go to %q next", fromStatus, toStatus, next)
-			}
-			return fmt.Errorf("cannot transition from %q to %q", fromStatus, toStatus)
+		if err := w.CheckTransitionOrder(fromStatus, toStatus); err != nil {
+			return err
 		}
 		if err := w.ValidateTransition(issue, fromStatus, toStatus, comments); err != nil {
 			return err
@@ -317,23 +343,14 @@ func (w *WorkflowConfig) ApplyTransitionToFileWithFields(filePath, toStatus stri
 		}
 
 		preBody := issue.BodyRaw
+		approval := issue.HumanApproval
 
 		result = w.ApplyTransitionWithFields(issue, fromStatus, toStatus, fieldValues)
 		if err := updateIssueFrontmatterLocked(filePath, result.Update); err != nil {
 			return err
 		}
 
-		stat := TransitionStat{
-			From:          fromStatus,
-			To:            toStatus,
-			TS:            time.Now().UTC(),
-			StaticTokens:  StaticTransitionCost(w, fromStatus, toStatus),
-			DynamicTokens: DynamicTransitionCost(w, fromStatus, toStatus, preBody, comments),
-		}
-		if err := AppendTransitionStat(filePath, stat); err != nil {
-			return fmt.Errorf("appending transition stat for %s: %w", filePath, err)
-		}
-		return nil
+		return w.recordTransitionStat(filePath, fromStatus, toStatus, preBody, comments, approval)
 	})
 
 	return fromStatus, result, err
@@ -348,10 +365,11 @@ type StartIssueResult struct {
 	ToStatus     string
 }
 
-// isHandoffStatus returns true when the agent's job at this status is to hand
+// IsHandoffStatus returns true when the agent's job at this status is to hand
 // off — not to work a checklist. start advances through handoff statuses and
-// lands on the next work status.
-func isHandoffStatus(status string) bool {
+// lands on the next work status, so the next step from here is `start`, not
+// `transition`.
+func IsHandoffStatus(status string) bool {
 	switch status {
 	case "backlog", "human-testing":
 		return true
@@ -385,7 +403,7 @@ func (w *WorkflowConfig) StartIssueOnce(filePath, slug, assignee string) (*Start
 		}
 
 		toStatus := ""
-		if isHandoffStatus(fromStatus) {
+		if IsHandoffStatus(fromStatus) {
 			toStatus = w.NextRequiredStatus(fromStatus)
 			if toStatus == "" {
 				toStatus = w.NextStatus(fromStatus)
@@ -405,6 +423,7 @@ func (w *WorkflowConfig) StartIssueOnce(filePath, slug, assignee string) (*Start
 		result := TransitionResult{}
 		claimed := false
 		transitioned := false
+		preBody, approval := "", ""
 
 		if toStatus != "" {
 			candidate := *issue
@@ -424,6 +443,8 @@ func (w *WorkflowConfig) StartIssueOnce(filePath, slug, assignee string) (*Start
 				claimed = true
 			}
 
+			preBody = issue.BodyRaw
+			approval = issue.HumanApproval
 			result = w.ApplyTransition(issue, fromStatus, toStatus)
 			if claimed && result.Update.Assignee == nil {
 				result.Update.Assignee = stringPtr(assignee)
@@ -447,6 +468,11 @@ func (w *WorkflowConfig) StartIssueOnce(filePath, slug, assignee string) (*Start
 
 		if transitioned || update.Assignee != nil || update.StartedAt != nil {
 			if err := updateIssueFrontmatterLocked(filePath, update); err != nil {
+				return err
+			}
+		}
+		if transitioned {
+			if err := w.recordTransitionStat(filePath, fromStatus, toStatus, preBody, comments, approval); err != nil {
 				return err
 			}
 		}

@@ -9,9 +9,9 @@ import (
 
 func TestStatsSidecarPath(t *testing.T) {
 	cases := map[string]string{
-		"issues/42.md":         "issues/42.stats.json",
-		"foo/bar/my-issue.md":  "foo/bar/my-issue.stats.json",
-		"issues/no-extension":  "issues/no-extension.stats.json",
+		"issues/42.md":        "issues/42.stats.json",
+		"foo/bar/my-issue.md": "foo/bar/my-issue.stats.json",
+		"issues/no-extension": "issues/no-extension.stats.json",
 	}
 	for in, want := range cases {
 		if got := StatsSidecarPath(in); got != want {
@@ -160,5 +160,91 @@ func TestDynamicTransitionCost_AtLeastStatic(t *testing.T) {
 	})
 	if dynamic <= static {
 		t.Fatalf("dynamic (%d) should exceed static (%d) when body+comments are non-empty", dynamic, static)
+	}
+}
+
+func TestBeginWait_KeepsStartForSameTarget(t *testing.T) {
+	issuePath := filepath.Join(t.TempDir(), "w.md")
+	first := time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)
+
+	got, err := BeginWait(issuePath, "backlog", first)
+	if err != nil || !got.Equal(first) {
+		t.Fatalf("first BeginWait = %v, %v", got, err)
+	}
+	got, _ = BeginWait(issuePath, "Backlog", first.Add(time.Hour))
+	if !got.Equal(first) {
+		t.Fatalf("re-run BeginWait = %v, want original %v", got, first)
+	}
+	got, _ = BeginWait(issuePath, "in progress", first.Add(2*time.Hour))
+	if !got.Equal(first.Add(2 * time.Hour)) {
+		t.Fatalf("new target must restart the wait, got %v", got)
+	}
+}
+
+func TestRecordApproval_SetAndClear(t *testing.T) {
+	issuePath := filepath.Join(t.TempDir(), "a.md")
+	at := time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)
+	if err := RecordApproval(issuePath, "backlog", at); err != nil {
+		t.Fatal(err)
+	}
+	store, _ := LoadStats(issuePath)
+	if store.LastApproval == nil || store.LastApproval.Status != "backlog" || !store.LastApproval.At.Equal(at) {
+		t.Fatalf("LastApproval = %+v", store.LastApproval)
+	}
+	if store.Transitions == nil {
+		t.Fatal("transitions must persist as [] not null")
+	}
+	if err := RecordApproval(issuePath, "", at); err != nil {
+		t.Fatal(err)
+	}
+	if store, _ := LoadStats(issuePath); store.LastApproval != nil {
+		t.Fatalf("toggled-off approval not cleared: %+v", store.LastApproval)
+	}
+}
+
+func TestAppendTransitionStatLocked_AttributesWaitAndApproval(t *testing.T) {
+	issuePath := filepath.Join(t.TempDir(), "s.md")
+	waitStart := time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)
+	approvedAt := waitStart.Add(10 * time.Minute)
+	if _, err := BeginWait(issuePath, "backlog", waitStart); err != nil {
+		t.Fatal(err)
+	}
+	if err := RecordApproval(issuePath, "backlog", approvedAt); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := appendTransitionStatLocked(issuePath, TransitionStat{From: "in design", To: "backlog"}, "backlog"); err != nil {
+		t.Fatal(err)
+	}
+	store, _ := LoadStats(issuePath)
+	row := store.Transitions[0]
+	if row.WaitStartedAt == nil || !row.WaitStartedAt.Equal(waitStart) || row.ApprovedAt == nil || !row.ApprovedAt.Equal(approvedAt) {
+		t.Fatalf("row = %+v", row)
+	}
+	if store.PendingWait != nil || store.LastApproval != nil {
+		t.Fatalf("scratch state not cleared: %+v", store)
+	}
+}
+
+func TestAppendTransitionStatLocked_IgnoresMismatchedScratch(t *testing.T) {
+	issuePath := filepath.Join(t.TempDir(), "m.md")
+	now := time.Now()
+	BeginWait(issuePath, "backlog", now)
+	RecordApproval(issuePath, "done", now)
+
+	// A transition elsewhere that consumed no approval: neither field applies,
+	// the stale wait is dropped, and the unrelated approval is kept.
+	if err := appendTransitionStatLocked(issuePath, TransitionStat{From: "in design", To: "obsolete"}, ""); err != nil {
+		t.Fatal(err)
+	}
+	store, _ := LoadStats(issuePath)
+	if row := store.Transitions[0]; row.WaitStartedAt != nil || row.ApprovedAt != nil {
+		t.Fatalf("row = %+v, want no wait/approval", row)
+	}
+	if store.PendingWait != nil {
+		t.Fatal("stale pending wait must be cleared by any transition")
+	}
+	if store.LastApproval == nil {
+		t.Fatal("approval not consumed by this transition must be kept")
 	}
 }

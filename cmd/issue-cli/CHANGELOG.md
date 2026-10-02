@@ -16,6 +16,15 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.31.0 — 2026-10-02
+
+- CLI: `issue-cli transition <slug> --to <status> --dry-run` lists every unmet requirement at once (unticked gate boxes, missing comments, required `--field` answers, human approval), each with the command that fixes it, and changes nothing. Exit 0 when the transition would succeed, 1 otherwise; `--json` returns `{dry_run, ready, from, to, problems[], side_effects}`.
+- CLI: `issue-cli transition … --wait` and `issue-cli start <slug> --wait` block until the required human approval exists, then proceed — instead of agents retrying until the approval lands. Unmet machine checks fail fast before any waiting. `--timeout <dur>` gives up with **exit code 3** (nothing changed; re-run to keep waiting, and the original wait start is kept); without it the wait is unlimited. Agents in a Bash tool should use `--timeout 9m` and not pipe the command (a pipe hides exit 3).
+- CLI: agents discover `--wait` from the output they already read. The `== Next ==` block prints the `--wait` command (with `start` from handoff statuses) when the next step needs approval, but never for `done`. The missing-approval error ends with the exact `--wait` command, and the repeated-failure hint points at it. `transition --json` gains `next_command`, `next_command_note` and `wait`.
+- Stats: transitions in `<issue>.stats.json` record `wait_started_at` (when an agent began waiting) and `approved_at` (when the viewer recorded the approval). `start` now records its handoff advances, which were previously missing from stats.
+- Web UI: approving an issue timestamps the approval for stats, and failed tmux nudges to the agent session are logged on the server.
+- Workflow: the bundled `workflow.yaml` design phase now asks for an overlap review (similar existing features, and whether this one is still needed) and a discoverability plan. Approval-gate prompts tell agents to ask in chat and then block on `--wait`.
+
 ## v0.30.0 — 2026-10-02
 
 - CLI: checkboxes now have short, stable ids, and `issue-cli check` ticks several in one call: `check <slug> D3 D4 AC1`. An id is the section's initials plus the box's index in that section (`D3` = 3rd box under `## Design`). When initials collide, the section earlier in the document keeps the short form and later ones extend their first word (`Documentation` → `Do`, `Deployment` → `De`). Ids are case-insensitive, and the long form `Design#3` also works. Several ids are all-or-nothing: an unknown id ticks nothing and exits non-zero. Text matching, `--index`, and `--section --index` work as before; a single word that looks like an id but names no section is still treated as text.

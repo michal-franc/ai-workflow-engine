@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
@@ -602,3 +603,37 @@ func TestHandleCreateIssue_BadJSON(t *testing.T) {
 	}
 }
 
+func TestHandleApproveIssue_RecordsApprovalTimestamp(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	withMockTmuxSessions(t, nil)
+	withMockTmuxSendKeys(t, func(string, []string) error { return nil })
+
+	post := func() {
+		t.Helper()
+		resp, err := http.Post(ts.URL+"/p/test-project/issue/add-dark-mode/approve", "application/json", bytes.NewBufferString(`{"status":"in progress"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+	}
+	issuePath := filepath.Join(proj.IssueDir, "add-dark-mode.md")
+
+	before := time.Now().Add(-time.Second)
+	post()
+	store, err := tracker.LoadStats(issuePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.LastApproval == nil || store.LastApproval.Status != "in progress" || store.LastApproval.At.Before(before) {
+		t.Fatalf("LastApproval = %+v, want in progress stamped now", store.LastApproval)
+	}
+
+	// Clicking again toggles the approval off and must clear the timestamp.
+	post()
+	if store, _ := tracker.LoadStats(issuePath); store.LastApproval != nil {
+		t.Fatalf("LastApproval = %+v after toggle-off, want nil", store.LastApproval)
+	}
+}

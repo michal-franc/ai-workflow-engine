@@ -15,13 +15,7 @@ func (w *WorkflowConfig) ValidateTransition(issue *Issue, fromStatus, toStatus s
 	for _, action := range w.transitionActions(fromStatus, toStatus) {
 		switch action.Type {
 		case "validate":
-			if isStructuredRule(action.Rule) {
-				if err := w.checkAction(action, issue, comments); err != nil {
-					return err
-				}
-				break
-			}
-			if err := w.checkRule(action.Rule, issue, comments); err != nil {
+			if err := w.checkValidateAction(action, issue, comments); err != nil {
 				return err
 			}
 		case "require_human_approval":
@@ -40,6 +34,16 @@ func (w *WorkflowConfig) ValidateTransition(issue *Issue, fromStatus, toStatus s
 		}
 	}
 	return nil
+}
+
+// checkValidateAction runs one "validate" action, dispatching structured rules
+// to the validations sub-package and legacy rules to checkRule. Shared by
+// ValidateTransition and PreviewTransition so both report the same verdict.
+func (w *WorkflowConfig) checkValidateAction(action WorkflowAction, issue *Issue, comments []Comment) error {
+	if isStructuredRule(action.Rule) {
+		return w.checkAction(action, issue, comments)
+	}
+	return w.checkRule(action.Rule, issue, comments)
 }
 
 // Validate is kept for compatibility with older call sites and tests.

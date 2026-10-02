@@ -56,7 +56,7 @@ When working on API changes:
 | PATCH  | `/issue/<slug>`                               | Update issue frontmatter/body  |
 | POST   | `/issue/<slug>/dispatch`                      | Dispatch agent for issue       |
 | POST   | `/issue/<slug>/edit-in-nvim`                  | Open the full markdown file (frontmatter + body) in nvim via tmux. See [Edit in nvim](#edit-in-nvim) below. |
-| POST   | `/issue/<slug>/approve`                       | Toggle human approval          |
+| POST   | `/issue/<slug>/approve`                       | Toggle human approval; timestamps it in the stats sidecar (`last_approval`) and nudges the agent's tmux session (failures are logged) |
 | GET    | `/issue/<slug>/comments`                      | List issue comments            |
 | POST   | `/issue/<slug>/comments`                      | Add comment                    |
 | POST   | `/issue/<slug>/data`                          | Add a row to the per-issue data store — body `{description, status, tier?}`, returns `{id}` |

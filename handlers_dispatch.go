@@ -25,9 +25,9 @@ func buildAgentPrompt(proj *tracker.Project, issue *tracker.Issue, wf *tracker.W
 	statusReminder := ""
 	switch issue.Status {
 	case "in design":
-		statusReminder = "When the design is complete, stop and ask the human to approve backlog in the issue viewer before attempting that transition."
+		statusReminder = fmt.Sprintf("When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition %s --to \"backlog\" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).", issue.Slug)
 	case "backlog":
-		statusReminder = "Do not run `issue-cli start` until the issue is human-approved for `in progress` in the issue viewer."
+		statusReminder = fmt.Sprintf("Tell the human in chat that this needs `in progress` approval in the issue viewer, then run `issue-cli start %s --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).", issue.Slug)
 	}
 
 	prompt := fmt.Sprintf(tracker.AgentDispatchPromptTemplate,

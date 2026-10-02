@@ -1,0 +1,59 @@
+{
+  "next_id": 10,
+  "entries": [
+    {
+      "id": 1,
+      "description": "explicit https URL",
+      "status": "todo",
+      "comment": "https://github.com/michal-franc/ai-native-project-viewer"
+    },
+    {
+      "id": 2,
+      "description": "explicit http URL",
+      "status": "todo",
+      "comment": "http://example.com/foo/bar"
+    },
+    {
+      "id": 3,
+      "description": "bare host.domain/path — should auto-prefix https://",
+      "status": "todo",
+      "comment": "github.com/michal-franc/ai-native-project-viewer/pull/42"
+    },
+    {
+      "id": 4,
+      "description": "deep github discussion anchor",
+      "status": "todo",
+      "comment": "https://github.com/michal-franc/ai-native-project-viewer/pull/1234#discussion_r9876543210"
+    },
+    {
+      "id": 5,
+      "description": "URL embedded in a sentence",
+      "status": "todo",
+      "comment": "see https://example.com/spec for the full spec"
+    },
+    {
+      "id": 6,
+      "description": "two URLs in one comment",
+      "status": "todo",
+      "comment": "compare https://example.com/a with example.com/b"
+    },
+    {
+      "id": 7,
+      "description": "no URL — plain text only",
+      "status": "checked",
+      "comment": "took the suggestion verbatim, no link here"
+    },
+    {
+      "id": 8,
+      "description": "URL followed by trailing period",
+      "status": "todo",
+      "comment": "see https://example.com/end."
+    },
+    {
+      "id": 9,
+      "description": "URL inside parentheses",
+      "status": "todo",
+      "comment": "details (https://example.com/parens) inline"
+    }
+  ]
+}

@@ -240,7 +240,7 @@ func TestHandleAnswerQuestion(t *testing.T) {
 	if got.DecisionID != "D-1" || got.NotifiedSession != "agent-asked" {
 		t.Fatalf("answer response = %+v", got)
 	}
-	if len(nudged) != 1 || !strings.Contains(nudged[0], "Answered Q-1 (D-1)") {
+	if len(nudged) != 1 || !strings.Contains(nudged[0], "Answered Q-1 in the inbox, recorded as D-1 under ## Decisions: Does unspent gold carry over? → **B.") {
 		t.Fatalf("nudges = %v", nudged)
 	}
 	content, _ := os.ReadFile(f.paths["asked"])

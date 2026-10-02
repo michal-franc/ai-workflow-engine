@@ -419,7 +419,11 @@ func (s *Server) handleAnswerQuestion(w http.ResponseWriter, r *http.Request, pr
 		resp.NotificationError = "no active agent session matched this issue; the answer is saved in ## Decisions"
 	} else {
 		target := sessions[0].Name
-		msg := fmt.Sprintf("Answered %s (%s): %s", res.QuestionID, res.DecisionID, strings.TrimPrefix(res.DecisionLine, "- "))
+		detail := res.DecisionLine
+		if _, after, ok := strings.Cut(detail, "): "); ok {
+			detail = after
+		}
+		msg := fmt.Sprintf("Answered %s in the inbox, recorded as %s under ## Decisions: %s", res.QuestionID, res.DecisionID, detail)
 		if err := tmuxSendKeys(target, []string{msg}); err != nil {
 			resp.NotificationError = err.Error()
 		} else {

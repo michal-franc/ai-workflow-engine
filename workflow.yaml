@@ -49,11 +49,14 @@ statuses:
     prompt: |
       Build or update the relevant automated coverage, record concrete test evidence, and surface any remaining manual checks clearly.
       Before checking test-related boxes, make sure the Test Plan section in the issue body contains the explicit automated and manual steps being verified.
+      For manual checks, prepare a throwaway sandbox scenario that lives only in the worktree (a gitignored path such as `.agent-logs/<name>-sandbox/`, never committed): isolated config, issues and state dirs, sandbox-built binaries, and one script with setup/run/clean steps. It must never touch the real projects.yaml, issues tree, or user state.
+      Describe it under `### Manual` in the Test Plan: where the script lives, the exact commands the human runs, what to look at, the expected result for each step, and how to clean up.
   - name: "human-testing"
     description: "Manual verification by humans"
     prompt: |
       Ask the human to run the manual checks and approve `documentation` in the issue viewer, then run `issue-cli start <slug> --wait --timeout 9m` to block until they do (re-run it on exit code 3).
       Make sure the manual checks are explicit, minimal, and reproducible.
+      Point the human at the worktree sandbox scenario and the `### Manual` steps in the Test Plan; do not ask them to verify against real projects or data.
   - name: "documentation"
     description: "Being documented"
     prompt: |
@@ -128,7 +131,8 @@ transitions:
           - [ ] Automated verification recorded
           
           ### Manual
-          - [ ] Manual verification listed if needed
+          - [ ] Throwaway sandbox scenario prepared (worktree-only, gitignored e.g. under `.agent-logs/<name>-sandbox/`, never committed; isolated config/issues/state; never touches real projects.yaml, issues, or user state)
+          - [ ] Human steps written: exact commands to run, what to look at, expected result for each, and how to clean up
   - from: "in progress"
     to: "testing"
     actions:

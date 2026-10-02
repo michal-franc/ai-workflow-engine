@@ -19,7 +19,7 @@ func init() {
 
 func runStats(ctx *Context, args []string) error {
 	fs := newFlagSet("stats", ctx)
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlags(ctx, fs, args); err != nil {
 		return err
 	}
 

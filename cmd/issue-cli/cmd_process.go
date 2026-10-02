@@ -29,8 +29,14 @@ Topics:
   references     Issue references
 
 For per-command help (flags, examples) run: issue-cli help <command>`,
-	Run: runProcess,
+	Run:         runProcess,
+	Subcommands: processTopics,
+	ExtraFlags:  []string{"system", "workflow"},
 }
+
+// processTopics are the canonical topic names normalizeTopic resolves to.
+// help and process both record them as their telemetry subcommand.
+var processTopics = []string{"workflow", "transitions", "format", "testing", "docs", "systems", "schema", "changes", "references"}
 
 func init() {
 	registerCommand(processCommand)

@@ -30,7 +30,8 @@ Examples:
   issue-cli transition <slug> --to "backlog" --dry-run
   issue-cli transition <slug> --to "backlog" --wait --timeout 9m
   issue-cli transition <slug> --to "waiting-for-team-input" --field waiting="design review"`,
-	Run: runTransition,
+	Run:        runTransition,
+	ExtraFlags: []string{"field"},
 }
 
 func init() {
@@ -85,7 +86,7 @@ func runTransition(ctx *Context, args []string) error {
 	toFlag := fs.String("to", "", "destination status")
 	dryRun := fs.Bool("dry-run", false, "list every unmet requirement without changing anything")
 	waitOpts := registerWaitFlags(fs)
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	if err := waitOpts.validate(); err != nil {

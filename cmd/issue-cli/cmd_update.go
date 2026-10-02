@@ -29,7 +29,7 @@ func runUpdate(ctx *Context, args []string) error {
 	fs := newFlagSet("update", ctx)
 	titleFlag := fs.String("title", "", "new issue title")
 	bodyFlag := fs.String("body", "", "new issue body")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 

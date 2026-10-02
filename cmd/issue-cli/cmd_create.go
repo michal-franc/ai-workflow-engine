@@ -30,7 +30,7 @@ func runCreate(ctx *Context, args []string) error {
 	systemFlag := fs.String("system", "", "system / category")
 	statusFlag := fs.String("status", "", "initial status")
 	priorityFlag := fs.String("priority", "", "priority")
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlags(ctx, fs, args); err != nil {
 		return err
 	}
 	title := *titleFlag

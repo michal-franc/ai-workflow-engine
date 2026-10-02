@@ -25,7 +25,7 @@ func runNext(ctx *Context, args []string) error {
 	fs := newFlagSet("next", ctx)
 	designFlag := fs.Bool("design", false, "show ideas/in-design issues needing design")
 	versionFlag := fs.String("version", "", "version filter (defaults to project version)")
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlags(ctx, fs, args); err != nil {
 		return err
 	}
 	design := *designFlag

@@ -53,6 +53,9 @@ Three blocks, in order:
 2. **Static reference — by transition** — every `(from → to)` pair declared in the project's `workflow.yaml`, with its pure static cost. Wildcard `from: "*"` edges are expanded into one row per source status. Sorted by token count descending so the heaviest transitions surface first. Independent of recorded data, so this block is always populated.
 3. **Recorded transitions — average cost** — averages of `static_tokens` and `dynamic_tokens` per `(from → to)` across every issue with recorded transitions, plus a count. Sorted by avg dynamic descending.
 4. **Per-issue totals** — sum of `dynamic_tokens` across each issue's recorded transitions, sorted descending. Issue title links to the detail view.
+5. **CLI usage (last 30 days)**: how `issue-cli` is used in this project, from the local names-only [usage telemetry](CLI/telemetry.md). It has tables for commands (calls, failures, error %, p50 ms), never-used commands, aliases, subcommands, topics and flags, errors, unknown commands and flags tried, and retry sequences.
+   - The handler runs `issue-cli [--config $ISSUE_VIEWER_CONFIG --project <slug>] --json telemetry report --since 30d` with a 5 s timeout and `ISSUE_CLI_TELEMETRY_SKIP=1`, so page loads aren't counted as usage. It shells out because only the CLI binary knows its own command registry.
+   - Every failure becomes an inline notice, never a 500: `issue-cli` not on PATH, an exec error, bad JSON, a newer report version, telemetry disabled for the project, or no calls in the window.
 
 ## Implementation
 
@@ -60,7 +63,7 @@ Three blocks, in order:
 - `internal/tracker/stats.go` — `TransitionStat`, `StatsStore`, sidecar I/O (`StatsSidecarPath`, `LoadStats`, `SaveStats`, `AppendTransitionStat`), and the cost functions `StaticTransitionCost(wf, from, to)` and `DynamicTransitionCost(wf, from, to, body, comments)`.
 - `internal/tracker/dispatch.go` — `AgentDispatchPromptTemplate` constant (single source of truth shared with `handlers_dispatch.go`) and `AgentDispatchPromptStaticCost()`.
 - `internal/tracker/workflow_transition.go` — `ApplyTransitionToFileWithFields` snapshots a `TransitionStat` after a successful transition, capturing the pre-transition body and comments for the dynamic cost.
-- `handlers_stats.go` — the `/stats` route handler. Walks the project's issues and aggregates per-(from→to) and per-issue.
+- `handlers_stats.go` — the `/stats` route handler. Walks the project's issues and aggregates per-(from→to) and per-issue. `runTelemetryReport` (package var, stubbed in tests) and `loadCLIUsage` produce the CLI usage block.
 - `templates/stats.html` — page template. Reuses the existing `data-table` styling.
 
 ## Out of scope (today)

@@ -23,7 +23,9 @@ Subcommands:
 
 Tier is the optional second axis (e.g. critical/nice, S1/S2/S3) configured per
 workflow via a "<!-- data tiers=... -->" marker.`,
-	Run: runData,
+	Run:         runData,
+	Subcommands: []string{"add", "list", "set-status", "set-tier", "set-comment", "remove"},
+	SubAliases:  map[string]string{"rm": "remove"},
 }
 
 func init() {
@@ -70,7 +72,7 @@ func runDataAdd(ctx *Context, args []string) error {
 	descFlag := fs.String("description", "", "entry description (required)")
 	statusFlag := fs.String("status", "", "entry status")
 	tierFlag := fs.String("tier", "", "entry tier (must match workflow's tiers= marker if set)")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	desc := normalizeEscapedText(*descFlag)
@@ -124,7 +126,7 @@ func runDataList(ctx *Context, args []string) error {
 		return err
 	}
 	fs := newFlagSet("data list", ctx)
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 
@@ -234,7 +236,7 @@ func runDataSetComment(ctx *Context, args []string) error {
 	fs := newFlagSet("data set-comment", ctx)
 	textFlag := fs.String("text", "", "comment text")
 	bodyFlag := fs.String("body", "", "alias for --text")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	text := normalizeEscapedText(*textFlag)

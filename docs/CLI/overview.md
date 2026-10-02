@@ -20,7 +20,8 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 
 1. Create `cmd/issue-cli/cmd_<name>.go`.
 2. Declare a `var <name>Command = &Command{Name, ShortHelp, LongHelp, Run}` and call `registerCommand(<name>Command)` in `init()`.
-3. Build the `Run` function as `func(ctx *Context, args []string) error`. Construct a `flag.FlagSet` via `newFlagSet("<name>", ctx)` and parse `args` (which is everything after the subcommand name). Return errors instead of calling `os.Exit`.
+3. Build the `Run` function as `func(ctx *Context, args []string) error`. Construct a `flag.FlagSet` via `newFlagSet("<name>", ctx)` and parse `args` (everything after the subcommand name) with `parseFlags(ctx, fs, args)`, never `fs.Parse` directly. `parseFlags` records the flag names for [usage telemetry](telemetry.md) and lets the never-used report introspect the command's flags. Call it before doing any work. Return errors instead of calling `os.Exit`.
+   - Group commands set `Subcommands` (and `SubAliases`) on the `Command`. Flags parsed by hand go in `ExtraFlags`.
 4. Reach the project via `ctx.Project`, write to `ctx.Stdout` / `ctx.Stderr`, and consult `ctx.JSONOutput` for output mode. The package-global `jsonOutput` no longer exists.
 5. The new command appears in `issue-cli help` automatically.
 
@@ -47,6 +48,8 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli data <sub> <slug>`    | Per-issue structured data store — see [Per-issue Data Store](../data-store.md) |
 | `issue-cli workflow init`        | Bootstrap a new project: writes `workflow.yaml` from a bundled template and scaffolds `issues/`, `docs/` |
 | `issue-cli projects`             | List configured projects (slug, name, issue dir). `--json` for scripting |
+| `issue-cli telemetry report`     | Local usage report: calls per command, never-used commands/flags/topics, errors, unknown tokens, retry sequences. See [CLI Usage Telemetry](telemetry.md) |
+| `issue-cli telemetry path`       | Print the active telemetry file and whether recording is enabled |
 
 ### `start`
 

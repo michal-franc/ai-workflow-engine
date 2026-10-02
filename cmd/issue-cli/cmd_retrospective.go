@@ -30,7 +30,7 @@ func runRetrospective(ctx *Context, args []string) error {
 	fs := newFlagSet("retrospective", ctx)
 	bodyFlag := fs.String("body", "", "retrospective text")
 	textFlag := fs.String("text", "", "alias for --body")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	text := normalizeEscapedText(*bodyFlag)

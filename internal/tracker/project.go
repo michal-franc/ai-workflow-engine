@@ -3,6 +3,7 @@ package tracker
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -37,6 +38,36 @@ type Project struct {
 	// AgentModels; "global" (the default) passes no --model so the agent uses
 	// its own global settings.
 	AgentModelSource string `yaml:"agent_model_source"`
+	// Telemetry opts this project out of issue-cli usage telemetry when set
+	// to false. Nil (unset) means enabled.
+	Telemetry *bool `yaml:"telemetry"`
+}
+
+// TelemetryEnabled reports whether issue-cli usage telemetry is on for this
+// project (the ISSUE_CLI_TELEMETRY env opt-out is checked separately).
+func (p *Project) TelemetryEnabled() bool {
+	return p == nil || p.Telemetry == nil || *p.Telemetry
+}
+
+// TelemetryRoot is the directory whose .agent-logs/ holds this project's
+// telemetry file: WorkDir when configured, otherwise the parent of the issues
+// directory (the project root in the usual layout). Returns "" when neither
+// can be determined.
+func (p *Project) TelemetryRoot() string {
+	if p == nil {
+		return ""
+	}
+	if p.WorkDir != "" {
+		return p.WorkDir
+	}
+	if p.IssueDir == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(p.IssueDir)
+	if err != nil {
+		return ""
+	}
+	return filepath.Dir(abs)
 }
 
 // AgentModel returns the model to enforce for agentType, or "" when the agent

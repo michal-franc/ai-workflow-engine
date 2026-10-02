@@ -30,7 +30,7 @@ func runSetMeta(ctx *Context, args []string) error {
 	keyFlag := fs.String("key", "", "frontmatter key")
 	valueFlag := fs.String("value", "", "value to set")
 	clearFlag := fs.Bool("clear", false, "clear the field")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	key := *keyFlag

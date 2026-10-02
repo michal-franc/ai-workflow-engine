@@ -1,10 +1,19 @@
 package main
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"os"
+	"os/exec"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/telemetry"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -24,11 +33,11 @@ type RecordedTransitionRow struct {
 }
 
 type IssueTotalRow struct {
-	Slug              string
-	Title             string
-	Status            string
-	TransitionCount   int
-	TotalStaticTokens int
+	Slug               string
+	Title              string
+	Status             string
+	TransitionCount    int
+	TotalStaticTokens  int
 	TotalDynamicTokens int
 }
 
@@ -40,6 +49,71 @@ type StatsData struct {
 	StaticReference     []StaticTransitionRow
 	RecordedTransitions []RecordedTransitionRow
 	IssueTotals         []IssueTotalRow
+	// CLIUsage is the issue-cli telemetry report for this project; nil when
+	// it could not be produced, in which case CLIUsageNotice says why.
+	CLIUsage       *telemetry.Report
+	CLIUsageNotice string
+}
+
+// runTelemetryReport produces `issue-cli telemetry report --json` for a
+// project. It shells out because only the CLI binary knows its own command
+// registry (needed for the never-used lists). Package-level so tests can
+// stub it.
+var runTelemetryReport = func(proj *tracker.Project) ([]byte, error) {
+	args := []string{}
+	if cfg := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_CONFIG")); cfg != "" {
+		args = append(args, "--config", cfg, "--project", proj.Slug)
+	}
+	args = append(args, "--json", "telemetry", "report", "--since", "30d")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "issue-cli", args...)
+	// The viewer's own report call must not count as bot usage.
+	cmd.Env = append(os.Environ(), telemetry.SkipEnv+"=1")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return nil, fmt.Errorf("%w: %s", err, firstLineOf(msg))
+		}
+		return nil, err
+	}
+	return out, nil
+}
+
+// loadCLIUsage runs the telemetry report and turns every failure mode into
+// an inline notice — the stats page must never fail because of it.
+func loadCLIUsage(proj *tracker.Project) (*telemetry.Report, string) {
+	out, err := runTelemetryReport(proj)
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			return nil, "issue-cli is not on the server's PATH — run make install to see CLI usage here."
+		}
+		return nil, "Could not load CLI usage: " + err.Error()
+	}
+	var r telemetry.Report
+	if err := json.Unmarshal(out, &r); err != nil {
+		return nil, "Could not parse issue-cli telemetry output: " + err.Error()
+	}
+	if r.V > telemetry.ReportVersion {
+		return nil, fmt.Sprintf("issue-cli telemetry report v%d is newer than this viewer understands (v%d) — rebuild the viewer.", r.V, telemetry.ReportVersion)
+	}
+	if !r.Enabled {
+		notice := "CLI usage telemetry is disabled for this project"
+		if r.Disabled != "" {
+			notice += " (" + r.Disabled + ")"
+		}
+		if r.Summary.Events == 0 {
+			return nil, notice + "."
+		}
+		return &r, notice + "; showing previously recorded events."
+	}
+	return &r, ""
+}
+
+func firstLineOf(s string) string {
+	return strings.SplitN(s, "\n", 2)[0]
 }
 
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
@@ -54,6 +128,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *track
 	}
 
 	recorded, totals := aggregateRecordedStats(issues)
+	usage, usageNotice := loadCLIUsage(proj)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "stats.html", StatsData{
@@ -64,6 +139,8 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *track
 		StaticReference:     staticRows,
 		RecordedTransitions: recorded,
 		IssueTotals:         totals,
+		CLIUsage:            usage,
+		CLIUsageNotice:      usageNotice,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -199,4 +276,3 @@ func aggregateRecordedStats(issues []*tracker.Issue) ([]RecordedTransitionRow, [
 
 	return rows, totals
 }
-

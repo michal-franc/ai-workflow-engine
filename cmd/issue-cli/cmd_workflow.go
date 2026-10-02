@@ -11,7 +11,8 @@ var workflowCommand = &Command{
 
 Subcommands:
   init [--template <name>] [--force]   write workflow.yaml and scaffold issues/, docs/`,
-	Run: runWorkflow,
+	Run:         runWorkflow,
+	Subcommands: []string{"init"},
 }
 
 func init() {
@@ -35,7 +36,7 @@ func runWorkflowInit(ctx *Context, args []string) error {
 	fs := newFlagSet("workflow init", ctx)
 	templateFlag := fs.String("template", "", "template name")
 	forceFlag := fs.Bool("force", false, "overwrite an existing workflow.yaml")
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlags(ctx, fs, args); err != nil {
 		return err
 	}
 	return doWorkflowInit(*templateFlag, *forceFlag, ctx.Stdin, ctx.Stdout, contextStdinIsTTY(ctx))

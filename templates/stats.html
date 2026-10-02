@@ -108,6 +108,72 @@
         {{else}}
         <p class="stats-empty">No per-issue stats yet.</p>
         {{end}}
+
+        <h2 id="cli-usage">CLI usage (last 30 days)</h2>
+        <p class="stats-sub">How bots and humans call <code>issue-cli</code> in this project, from the local names-only telemetry log (no argument values). Use it to spot commands, flags and topics nobody uses, and where callers get confused. Full report: <code>issue-cli telemetry report</code>.</p>
+        {{if .CLIUsageNotice}}<p class="stats-empty cli-usage-notice">{{.CLIUsageNotice}}</p>{{end}}
+        {{with .CLIUsage}}
+        {{if .Summary.Events}}
+        <p class="stats-sub">{{.Summary.Events}} calls, {{.Summary.Failures}} failed ({{printf "%.1f" .Summary.ErrorPct}}%) · callers: {{range $k, $v := .Summary.Callers}}{{$k}}={{$v}} {{end}}· assignees: {{.Summary.Assignees}}</p>
+
+        <h3>Commands</h3>
+        <table class="data-table">
+            <thead><tr><th>Command</th><th class="num">Calls</th><th class="num">Failed</th><th class="num">Error %</th><th class="num">p50 ms</th></tr></thead>
+            <tbody>
+            {{range .Commands}}
+                <tr><td><code>{{.Command}}</code></td><td class="num">{{.Calls}}</td><td class="num">{{.Failures}}</td><td class="num">{{printf "%.1f" .ErrorPct}}</td><td class="num">{{.P50MS}}</td></tr>
+            {{end}}
+            </tbody>
+        </table>
+
+        <h3>Never used</h3>
+        <table class="data-table">
+            <tbody>
+                <tr><th>Commands</th><td>{{range $i, $c := .NeverUsed.Commands}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
+                <tr><th>Aliases</th><td>{{range $i, $c := .NeverUsed.Aliases}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
+                <tr><th>Subcommands</th><td>{{range $i, $c := .NeverUsed.Subcommands}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
+                <tr><th>Topics</th><td>{{range $i, $c := .NeverUsed.Topics}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
+                <tr><th>Global flags</th><td>{{range $i, $c := .NeverUsed.GlobalFlags}}{{if $i}}, {{end}}<code>--{{$c}}</code>{{else}}—{{end}}</td></tr>
+                {{range $cmd, $flags := .NeverUsed.Flags}}{{if $flags}}
+                <tr><th>Flags: <code>{{$cmd}}</code></th><td>{{range $i, $f := $flags}}{{if $i}}, {{end}}<code>--{{$f}}</code>{{end}}</td></tr>
+                {{end}}{{end}}
+            </tbody>
+        </table>
+
+        <h3>Errors</h3>
+        {{if .Errors}}
+        <table class="data-table">
+            <thead><tr><th>Class</th><th>Command</th><th class="num">Count</th></tr></thead>
+            <tbody>
+            {{range .Errors}}<tr><td>{{.Class}}</td><td><code>{{.Command}}</code></td><td class="num">{{.Count}}</td></tr>{{end}}
+            </tbody>
+        </table>
+        {{else}}<p class="stats-empty">No failed calls.</p>{{end}}
+
+        <h3>Unknown commands / flags tried</h3>
+        {{if .Unknown}}
+        <table class="data-table">
+            <thead><tr><th>Class</th><th>Token</th><th class="num">Count</th></tr></thead>
+            <tbody>
+            {{range .Unknown}}<tr><td>{{.Class}}</td><td><code>{{.Token}}</code></td><td class="num">{{.Count}}</td></tr>{{end}}
+            </tbody>
+        </table>
+        {{else}}<p class="stats-empty">No unknown commands or flags.</p>{{end}}
+
+        <h3>Retry sequences</h3>
+        <p class="stats-sub">A failed call and the next call from the same shell within two minutes.</p>
+        {{if .RetrySequences}}
+        <table class="data-table">
+            <thead><tr><th>Failed</th><th>Next call</th><th class="num">Count</th></tr></thead>
+            <tbody>
+            {{range .RetrySequences}}<tr><td><code>{{.Failed}}</code></td><td><code>{{.Next}}</code></td><td class="num">{{.Count}}</td></tr>{{end}}
+            </tbody>
+        </table>
+        {{else}}<p class="stats-empty">No failed-then-retried sequences.</p>{{end}}
+        {{else}}
+        <p class="stats-empty">No CLI calls recorded in the last 30 days.</p>
+        {{end}}
+        {{end}}
     </div>
 </body>
 </html>

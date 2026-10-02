@@ -23,7 +23,7 @@ func runChecklist(ctx *Context, args []string) error {
 		return err
 	}
 	fs := newFlagSet("checklist", ctx)
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 

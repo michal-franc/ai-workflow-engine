@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -21,8 +22,14 @@ with a prominent AUTO-ADVANCED banner so it is never silent. Without the
 approval, start fails without changing anything. From any non-handoff status,
 start only claims the issue and leaves the status unchanged.
 
+--wait blocks on a handoff status until the approval exists, then advances.
+--timeout <dur> gives up after that long with exit code 3: nothing changed,
+re-run the same command to keep waiting. Without --timeout it waits forever.
+Agents running in a Bash tool should pass --timeout 9m and re-run on exit 3.
+
 Examples:
   issue-cli start <slug>
+  issue-cli start <slug> --wait --timeout 9m
   issue-cli start <slug> --assignee my-bot`,
 	Run: runStart,
 }
@@ -38,7 +45,11 @@ func runStart(ctx *Context, args []string) error {
 	}
 	fs := newFlagSet("start", ctx)
 	assigneeFlag := fs.String("assignee", "", "assignee name (default: derived from slug or AGENT_NAME)")
+	waitOpts := registerWaitFlags(fs)
 	if err := parseFlags(ctx, fs, rest); err != nil {
+		return err
+	}
+	if err := waitOpts.validate(); err != nil {
 		return err
 	}
 	assignee := *assigneeFlag
@@ -52,7 +63,14 @@ func runStart(ctx *Context, args []string) error {
 		assignee = agentNameForSlug(slug)
 	}
 
-	started, err := wf.StartIssueOnce(issue.FilePath, slug, assignee)
+	ctx.ApprovalWaitCommand = fmt.Sprintf("issue-cli start %s --wait --timeout %s", slug, suggestedWaitTimeout)
+
+	var started *tracker.StartIssueResult
+	if *waitOpts.wait {
+		started, err = startWithWait(ctx, wf, issue, slug, assignee, waitOpts)
+	} else {
+		started, err = wf.StartIssueOnce(issue.FilePath, slug, assignee)
+	}
 	if err != nil {
 		return err
 	}
@@ -68,6 +86,10 @@ func runStart(ctx *Context, args []string) error {
 	advanced := started.Transitioned && started.FromStatus != started.ToStatus
 	if advanced {
 		printAutoAdvanceBanner(ctx.Stdout, started.FromStatus, started.ToStatus, started.Result.ClearedApproval)
+	}
+
+	if advanced {
+		printWaited(ctx.Stdout, lastWait(issue.FilePath, started.ToStatus, ctx.now()))
 	}
 
 	if started.Claimed {
@@ -111,6 +133,60 @@ func printAutoAdvanceBanner(w io.Writer, from, to string, approvalConsumed bool)
 	fmt.Fprintln(w)
 }
 
+// startWithWait is start's --wait loop. On a handoff status it checks the
+// advance as if the issue were already claimed, fails fast on any unmet
+// machine requirement, then re-runs StartIssueOnce until the approval lands.
+// StartIssueOnce changes nothing while the approval is missing.
+func startWithWait(ctx *Context, wf *tracker.WorkflowConfig, issue *tracker.Issue, slug, assignee string, opts waitOptions) (*tracker.StartIssueResult, error) {
+	from := issue.Status
+	to := ""
+	if tracker.IsHandoffStatus(from) {
+		to = wf.NextRequiredStatus(from)
+		if to == "" {
+			to = wf.NextStatus(from)
+		}
+	}
+	required := ""
+	if to != "" {
+		required = wf.RequiredHumanApproval(from, to)
+	}
+	if required != "" {
+		candidate := *issue
+		if candidate.Assignee == "" {
+			candidate.Assignee = assignee
+		}
+		approval, machine := onlyApprovalMissing(collectTransitionProblems(ctx, wf, &candidate, slug, from, to, nil))
+		if len(machine) > 0 {
+			printProblemReport(ctx.Stdout, machine)
+			return nil, &exitCodeError{
+				Code: 1,
+				Msg:  fmt.Sprintf("Not waiting: fix the %d requirement(s) above first — a human approval will not resolve them.", len(machine)),
+			}
+		}
+		if approval {
+			if _, err := tracker.BeginWait(issue.FilePath, to, ctx.now()); err != nil {
+				return nil, err
+			}
+			printWaitingLine(ctx, opts, slug, required)
+		}
+	}
+
+	var started *tracker.StartIssueResult
+	err := pollUntil(ctx, opts, func() (bool, error) {
+		res, err := wf.StartIssueOnce(issue.FilePath, slug, assignee)
+		if errors.Is(err, tracker.ErrApprovalMissing) {
+			return false, nil
+		}
+		started = res
+		return true, err
+	})
+	if errors.Is(err, errWaitTimedOut) {
+		rerun := fmt.Sprintf("issue-cli start %s --wait --timeout %s", slug, opts.timeout)
+		return nil, waitTimeoutError(opts, required, rerun)
+	}
+	return started, err
+}
+
 func printStartWorkflowReminder(w io.Writer, wf *tracker.WorkflowConfig) {
 	order := wf.GetStatusOrder()
 	if len(order) == 0 {
@@ -127,6 +203,7 @@ func printWorkflowNextSteps(w io.Writer, wf *tracker.WorkflowConfig, issue *trac
 	if total > 0 {
 		fmt.Fprintf(w, "== Checklist (%d/%d) ==\n", checked, total)
 		printCheckboxes(w, issue.BodyRaw)
+		printTickHint(w, issue.Slug, issue.BodyRaw)
 		fmt.Fprintln(w)
 	}
 
@@ -160,7 +237,11 @@ func printWorkflowNextSteps(w io.Writer, wf *tracker.WorkflowConfig, issue *trac
 		if allOptional {
 			suffix = "   (optional — every remaining status is optional)"
 		}
-		fmt.Fprintf(w, "  issue-cli transition %s --to \"%s\"%s\n", issue.Slug, next, suffix)
+		cmd, note := nextStepCommand(wf, issue.Slug, issue.Status, next)
+		fmt.Fprintf(w, "  %s%s\n", cmd, suffix)
+		if note != "" {
+			fmt.Fprintf(w, "  %s\n", note)
+		}
 		requires, sideEffects := nextTransitionContract(wf, issue.Status, next)
 		renderNextTransitionContract(w, requires, sideEffects)
 		if len(optionals) > 0 {

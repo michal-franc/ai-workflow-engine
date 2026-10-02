@@ -135,6 +135,7 @@ func printHelp(w io.Writer, projects []tracker.Project, activeSlug string) error
 	fmt.Fprintln(w, "  • Looking for work?       issue-cli next [--version <v>] [--design]")
 	fmt.Fprintln(w, "  • Picked an issue?        issue-cli start <slug>          (claims + advances handoff states)")
 	fmt.Fprintln(w, "  • Mid-flight, what now?   issue-cli checklist <slug>      (shows blockers + next transition)")
+	fmt.Fprintln(w, "  • Finished some boxes?    issue-cli check <slug> D1 D2    (ids from checklist, several at once)")
 	fmt.Fprintln(w, "  • Ready to advance?       issue-cli transition <slug> --to <status>")
 	fmt.Fprintln(w, "  • Finishing up?           issue-cli done <slug>")
 	return nil

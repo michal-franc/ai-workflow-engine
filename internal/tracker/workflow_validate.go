@@ -15,13 +15,7 @@ func (w *WorkflowConfig) ValidateTransition(issue *Issue, fromStatus, toStatus s
 	for _, action := range w.transitionActions(fromStatus, toStatus) {
 		switch action.Type {
 		case "validate":
-			if isStructuredRule(action.Rule) {
-				if err := w.checkAction(action, issue, comments); err != nil {
-					return err
-				}
-				break
-			}
-			if err := w.checkRule(action.Rule, issue, comments); err != nil {
+			if err := w.checkValidateAction(action, issue, comments); err != nil {
 				return err
 			}
 		case "require_human_approval":
@@ -40,6 +34,16 @@ func (w *WorkflowConfig) ValidateTransition(issue *Issue, fromStatus, toStatus s
 		}
 	}
 	return nil
+}
+
+// checkValidateAction runs one "validate" action, dispatching structured rules
+// to the validations sub-package and legacy rules to checkRule. Shared by
+// ValidateTransition and PreviewTransition so both report the same verdict.
+func (w *WorkflowConfig) checkValidateAction(action WorkflowAction, issue *Issue, comments []Comment) error {
+	if isStructuredRule(action.Rule) {
+		return w.checkAction(action, issue, comments)
+	}
+	return w.checkRule(action.Rule, issue, comments)
 }
 
 // Validate is kept for compatibility with older call sites and tests.
@@ -173,9 +177,9 @@ func (w *WorkflowConfig) checkRule(rule string, issue *Issue, comments []Comment
 			return fmt.Errorf("no assignee — claim the issue first:\n\n  issue-cli claim %s --assignee \"your-name\"", issue.Slug)
 		}
 	case "all_checkboxes_checked":
-		total, checked := CountCheckboxes(issue.BodyRaw)
-		if total > 0 && checked < total {
-			return fmt.Errorf("%d/%d checkboxes incomplete:\n\n  issue-cli checklist %s", checked, total, issue.Slug)
+		items := ListCheckboxes(issue.BodyRaw)
+		if open := openCheckboxes(items); len(open) > 0 {
+			return openCheckboxesError(issue.Slug, "", open, len(items))
 		}
 	case "section_checkboxes_checked":
 		if ruleArg == "" {
@@ -190,7 +194,13 @@ func (w *WorkflowConfig) checkRule(rule string, issue *Issue, comments []Comment
 			return fmt.Errorf("section %q has no checkboxes — add a %s checklist before transitioning", ruleArg, ruleArg)
 		}
 		if checked < total {
-			return fmt.Errorf("%d/%d checkboxes incomplete in section %q:\n\n  issue-cli checklist %s", checked, total, ruleArg, issue.Slug)
+			var inSection []CheckboxItem
+			for _, it := range ListCheckboxes(issue.BodyRaw) {
+				if strings.EqualFold(it.Section, ruleArg) {
+					inSection = append(inSection, it)
+				}
+			}
+			return openCheckboxesError(issue.Slug, ruleArg, openCheckboxes(inSection), total)
 		}
 	case "has_test_plan":
 		hasAuto, hasManual := HasTestPlan(issue.BodyRaw)
@@ -219,4 +229,47 @@ func (w *WorkflowConfig) checkRule(rule string, issue *Issue, comments []Comment
 		return fmt.Errorf("unknown validation rule: %s", ruleName)
 	}
 	return nil
+}
+
+// openCheckboxes returns the unchecked boxes in items.
+func openCheckboxes(items []CheckboxItem) []CheckboxItem {
+	var open []CheckboxItem
+	for _, it := range items {
+		if !it.Checked {
+			open = append(open, it)
+		}
+	}
+	return open
+}
+
+// openCheckboxesError explains a checkbox gate failure: how many boxes are
+// still open out of total, each open box with its id, and the check command
+// that ticks them. section is "" for the whole-body gate.
+func openCheckboxesError(slug, section string, open []CheckboxItem, total int) error {
+	var b strings.Builder
+	noun := "boxes"
+	if len(open) == 1 {
+		noun = "box"
+	}
+	fmt.Fprintf(&b, "%d of %d %s still open", len(open), total, noun)
+	if section != "" {
+		fmt.Fprintf(&b, " in section %q", section)
+	}
+	b.WriteString(":\n")
+	var ids []string
+	for _, it := range open {
+		ref := it.ID
+		if ref == "" {
+			ref = fmt.Sprintf("#%d", it.Index)
+		} else {
+			ids = append(ids, it.ID)
+		}
+		fmt.Fprintf(&b, "  %-4s %s\n", ref, it.Text)
+	}
+	if len(ids) > 0 {
+		fmt.Fprintf(&b, "\nTick the ones that are done (ids, several at once):\n  issue-cli check %s %s", slug, strings.Join(ids, " "))
+	} else {
+		fmt.Fprintf(&b, "\nSee every box with:\n  issue-cli checklist %s", slug)
+	}
+	return fmt.Errorf("%s", b.String())
 }

@@ -234,7 +234,7 @@ func TestRunCheckMatchesByText(t *testing.T) {
 	if err := runCheck(ctx, []string{slug, "first task"}); err != nil {
 		t.Fatalf("runCheck: %v", err)
 	}
-	assertContains(t, stdout.String(), `✓ Checked: [Design #1] first task`)
+	assertContains(t, stdout.String(), `✓ Checked: D1 [Design #1] first task`)
 
 	got := loadIssueByPath(t, proj.IssueDir, issuePath)
 	if !strings.Contains(got.BodyRaw, "- [x] first task") {
@@ -268,7 +268,7 @@ func TestRunCheckByIndex(t *testing.T) {
 	if err := runCheck(ctx, []string{slug, "--section", "Design", "--index", "2"}); err != nil {
 		t.Fatalf("runCheck: %v", err)
 	}
-	assertContains(t, stdout.String(), "✓ Checked: [Design #2] second task")
+	assertContains(t, stdout.String(), "✓ Checked: D2 [Design #2] second task")
 
 	got := loadIssueByPath(t, proj.IssueDir, issuePath)
 	if !strings.Contains(got.BodyRaw, "- [x] second task") || strings.Contains(got.BodyRaw, "- [x] first task") {
@@ -287,7 +287,7 @@ func TestRunCheckByIndexAlreadyChecked(t *testing.T) {
 	if err := runCheck(ctx, []string{slug, "--section", "Design", "--index", "1"}); err != nil {
 		t.Fatalf("re-check should not error: %v", err)
 	}
-	assertContains(t, stdout.String(), "Already checked: [Design #1] first task")
+	assertContains(t, stdout.String(), "Already checked: D1 [Design #1] first task")
 }
 
 func TestRunCheckByIndexOutOfRange(t *testing.T) {
@@ -314,9 +314,9 @@ func TestRunCheckAmbiguousErrors(t *testing.T) {
 		t.Fatalf("error = %q", err.Error())
 	}
 	out := stdout.String()
-	assertContains(t, out, "[Design #1] first task")
-	assertContains(t, out, "[Design #2] second task")
-	assertContains(t, out, "--section")
+	assertContains(t, out, "D1 [Design #1] first task")
+	assertContains(t, out, "D2 [Design #2] second task")
+	assertContains(t, out, "issue-cli check cli/sample D1")
 }
 
 func TestRunCheckIndexAndQueryConflict(t *testing.T) {
@@ -325,6 +325,135 @@ func TestRunCheckIndexAndQueryConflict(t *testing.T) {
 	if err := runCheck(ctx, []string{slug, "first", "--index", "1"}); err == nil {
 		t.Fatal("expected error when both query and --index are given")
 	}
+}
+
+func TestRunCheckSeveralIDs(t *testing.T) {
+	proj, slug, issuePath := makeSimpleProject(t, "in progress")
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runCheck(ctx, []string{slug, "D1", "d2"}); err != nil {
+		t.Fatalf("runCheck: %v", err)
+	}
+	out := stdout.String()
+	assertContains(t, out, "✓ Checked: D1 [Design #1] first task")
+	assertContains(t, out, "✓ Checked: D2 [Design #2] second task")
+	assertContains(t, out, "Progress: 2/2 (Design 2/2)")
+
+	got := loadIssueByPath(t, proj.IssueDir, issuePath)
+	if !strings.Contains(got.BodyRaw, "- [x] first task") || !strings.Contains(got.BodyRaw, "- [x] second task") {
+		t.Fatalf("boxes not checked:\n%s", got.BodyRaw)
+	}
+}
+
+func TestRunCheckIDsAlreadyCheckedAndDuplicates(t *testing.T) {
+	proj, slug, _ := makeSimpleProject(t, "in progress")
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runCheck(ctx, []string{slug, "D1"}); err != nil {
+		t.Fatalf("first check: %v", err)
+	}
+	stdout.Reset()
+	if err := runCheck(ctx, []string{slug, "D1", "D2", "Design#2"}); err != nil {
+		t.Fatalf("runCheck: %v", err)
+	}
+	out := stdout.String()
+	assertContains(t, out, "✓ Checked: D2 [Design #2] second task")
+	assertContains(t, out, "Already checked: D1 [Design #1] first task")
+	if strings.Count(out, "second task") != 1 {
+		t.Fatalf("duplicate ref reported twice:\n%s", out)
+	}
+}
+
+func TestRunCheckUnknownIDTicksNothing(t *testing.T) {
+	proj, slug, issuePath := makeSimpleProject(t, "in progress")
+	ctx, stdout, _ := newTestContext(proj, false)
+	err := runCheck(ctx, []string{slug, "D1", "D9"})
+	if err == nil || !strings.Contains(err.Error(), "D9") {
+		t.Fatalf("expected unknown-id error naming D9, got %v", err)
+	}
+	assertContains(t, stdout.String(), "nothing was ticked")
+	assertContains(t, stdout.String(), "D1 [ ] first task")
+
+	got := loadIssueByPath(t, proj.IssueDir, issuePath)
+	if strings.Contains(got.BodyRaw, "- [x]") {
+		t.Fatalf("a box was ticked despite the unknown id:\n%s", got.BodyRaw)
+	}
+}
+
+func TestRunCheckIDShapedWordFallsBackToText(t *testing.T) {
+	proj, slug, _ := makeSimpleProject(t, "in progress")
+	ctx, _, _ := newTestContext(proj, false)
+	// "x1" is shaped like an id but no section abbreviates to X, so it is a
+	// text query — which matches nothing.
+	err := runCheck(ctx, []string{slug, "x1"})
+	if err == nil || !strings.Contains(err.Error(), "no unchecked item matched") {
+		t.Fatalf("expected text no-match error, got %v", err)
+	}
+}
+
+func TestRunCheckUnquotedMultiWordText(t *testing.T) {
+	proj, slug, issuePath := makeSimpleProject(t, "in progress")
+	ctx, _, _ := newTestContext(proj, false)
+	if err := runCheck(ctx, []string{slug, "second", "task"}); err != nil {
+		t.Fatalf("runCheck: %v", err)
+	}
+	got := loadIssueByPath(t, proj.IssueDir, issuePath)
+	if !strings.Contains(got.BodyRaw, "- [x] second task") {
+		t.Fatalf("second task not checked:\n%s", got.BodyRaw)
+	}
+}
+
+func TestRunCheckSectionAll(t *testing.T) {
+	proj, slug, issuePath := makeSimpleProject(t, "in progress")
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runCheck(ctx, []string{slug, "--section", "design", "--all"}); err != nil {
+		t.Fatalf("runCheck: %v", err)
+	}
+	out := stdout.String()
+	assertContains(t, out, "✓ Checked: D1 [Design #1] first task")
+	assertContains(t, out, "✓ Checked: D2 [Design #2] second task")
+	got := loadIssueByPath(t, proj.IssueDir, issuePath)
+	if strings.Contains(got.BodyRaw, "- [ ]") {
+		t.Fatalf("open box left after --all:\n%s", got.BodyRaw)
+	}
+
+	stdout.Reset()
+	if err := runCheck(ctx, []string{slug, "--section", "Design", "--all"}); err != nil {
+		t.Fatalf("--all on a complete section should not error: %v", err)
+	}
+	assertContains(t, stdout.String(), `Nothing to check: section "Design" already complete (2/2)`)
+}
+
+func TestRunCheckSectionAllErrors(t *testing.T) {
+	proj, slug, _ := makeSimpleProject(t, "in progress")
+	ctx, _, _ := newTestContext(proj, false)
+	if err := runCheck(ctx, []string{slug, "--all"}); err == nil || !strings.Contains(err.Error(), "--all requires --section") {
+		t.Fatalf("expected --section requirement, got %v", err)
+	}
+	if err := runCheck(ctx, []string{slug, "--section", "Design", "--all", "D1"}); err == nil {
+		t.Fatal("expected error combining --all with ids")
+	}
+	if err := runCheck(ctx, []string{slug, "--section", "Nope", "--all"}); err == nil || !strings.Contains(err.Error(), "no checkboxes in section") {
+		t.Fatalf("expected missing-section error, got %v", err)
+	}
+}
+
+func TestRunChecklistShowsIDsAndHint(t *testing.T) {
+	proj, slug, _ := makeSimpleProject(t, "in progress")
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runChecklist(ctx, []string{slug}); err != nil {
+		t.Fatalf("runChecklist: %v", err)
+	}
+	out := stdout.String()
+	assertContains(t, out, "## Design\n  D1 [ ] first task\n  D2 [ ] second task")
+	assertContains(t, out, "Tick done boxes by id, several at once: issue-cli check cli/sample <id> [<id>...]")
+}
+
+func TestRunChecklistJSONIncludesID(t *testing.T) {
+	proj, slug, _ := makeSimpleProject(t, "in progress")
+	ctx, stdout, _ := newTestContext(proj, true)
+	if err := runChecklist(ctx, []string{slug}); err != nil {
+		t.Fatalf("runChecklist: %v", err)
+	}
+	assertContains(t, stdout.String(), `"id": "D2"`)
 }
 
 // ------------------- update -------------------

@@ -97,6 +97,8 @@ Model names may contain only letters, digits and `._:/[]-`; anything else is ign
 
 When a human approves a status transition in the web UI, the server sends a natural-language message to the active agent's tmux session. The message is randomized from a set of conversational templates so the agent receives a human-like prompt rather than a structured signal.
 
+This nudge is now the fallback. The primary hand-off is the agent blocking on `issue-cli transition|start --wait` (see [CLI overview](CLI/overview.md#blocking-on-a-human-approval---wait)). That picks up the approval from the issue file within about 2s, even in sessions the nudge cannot reach (no matching tmux session, or an agent that is busy). The approve handler also timestamps the approval in the issue's stats sidecar (`last_approval`), and logs nudges that fail (`agent not nudged: …`) to the server log, so their failure rate can be measured.
+
 ## Approval-gate Deep Links
 
 When a CLI command (`start`, `transition`) fails because a human approval is missing, the error includes a clickable URL pointing at the issue's approve button:
@@ -106,6 +108,10 @@ Error: cannot start <slug>: human approval for "in progress" is missing; no chan
 
 A human must approve this in the issue viewer:
   http://localhost:8080/p/<project>/issue/<slug>#approve-in-progress
+
+To block until it is approved instead of retrying:
+  issue-cli start <slug> --wait --timeout 9m
+  (exit 3 = still waiting, nothing changed; re-run it)
 ```
 
 The fragment `#approve-<status>` matches the `id` on the approve button in the detail view, so clicking the link scrolls to and visually flashes the right control. For optional approvals (the ones hidden behind a "Divert to..." CTA), the page also auto-reveals the widget when the URL fragment matches.

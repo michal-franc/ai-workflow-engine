@@ -109,6 +109,10 @@ func buildEvent(inv *invocation, rawArgs []string, runErr error, panicked bool) 
 		ev.ErrClass = telemetry.ErrPanic
 	} else if runErr != nil {
 		ev.Exit = 1
+		var codeErr *exitCodeError
+		if errors.As(runErr, &codeErr) {
+			ev.Exit = codeErr.Code
+		}
 		ev.ErrClass, ev.Unknown = classifyError(inv, runErr)
 	}
 
@@ -224,6 +228,15 @@ func classifyError(inv *invocation, err error) (class, unknown string) {
 		return telemetry.ErrInvalidTransition, ""
 	}
 	if errors.Is(err, tracker.ErrTransitionValidation) {
+		return telemetry.ErrValidation, ""
+	}
+	// --wait / --dry-run outcomes carry their own exit code: 3 means the
+	// approval wait timed out; 1 means unmet requirements were reported.
+	var codeErr *exitCodeError
+	if errors.As(err, &codeErr) {
+		if codeErr.Code == exitWaitTimeout {
+			return telemetry.ErrWaitTimeout, ""
+		}
 		return telemetry.ErrValidation, ""
 	}
 	var notFound *issueNotFoundError

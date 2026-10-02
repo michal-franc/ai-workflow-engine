@@ -31,12 +31,14 @@ statuses:
       Review the relevant context before proposing changes.
       Turn the problem into explicit checklists, assumptions, and open questions.
       Write the design into the issue body under the relevant sections before checking the related boxes.
-      When the design is complete, stop and ask for backlog approval in the issue viewer before attempting the transition.
+      Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
+      Describe how agents will discover and use the change. Prefer hints in CLI output and error messages over prompt text, which does not reach other projects' workflows or non-dispatched sessions.
+      When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition <slug> --to "backlog" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
   - name: "backlog"
     description: "Ready to work on"
     prompt: |
       This is a handoff state.
-      Do not run `issue-cli start` until a human approves `in progress` in the issue viewer.
+      Tell the human in chat that this needs `in progress` approval in the issue viewer, then run `issue-cli start <slug> --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
   - name: "in progress"
     description: "Actively being implemented"
     prompt: |
@@ -52,7 +54,7 @@ statuses:
   - name: "human-testing"
     description: "Manual verification by humans"
     prompt: |
-      Stop here and wait for human verification.
+      Ask the human to run the manual checks and approve `documentation` in the issue viewer, then run `issue-cli start <slug> --wait --timeout 9m` to block until they do (re-run it on exit code 3).
       Make sure the manual checks are explicit, minimal, and reproducible.
       Point the human at the worktree sandbox scenario and the `### Manual` steps in the Test Plan; do not ask them to verify against real projects or data.
   - name: "documentation"
@@ -89,6 +91,8 @@ transitions:
         body: |
           - [ ] Approach documented
           - [ ] Dependencies identified
+          - [ ] Overlap reviewed: similar existing features listed and the need justified
+          - [ ] Discoverability: how agents find and use this is documented
           - [ ] Human approval requested for backlog
       - type: "append_section"
         title: "Acceptance Criteria"
@@ -228,7 +232,9 @@ systems:
           Turn the problem into explicit checklists, assumptions, and open questions.
           Write the design into the issue body under the relevant sections before checking the related boxes.
           For API changes that affect UI-visible state, state the source of truth, whether server-side polling plus `/hash` is the expected refresh path, and whether manual browser verification is required before human-testing.
-          When the design is complete, stop and ask for backlog approval in the issue viewer before attempting the transition.
+          Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
+          Describe how agents will discover and use the change. Prefer hints in CLI output and error messages over prompt text, which does not reach other projects' workflows or non-dispatched sessions.
+          When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition <slug> --to "backlog" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
       - name: "documentation"
         prompt: |
           Update docs/API/ with any changed endpoints, request/response formats, or behavior.
@@ -243,7 +249,9 @@ systems:
           Turn the problem into explicit checklists, assumptions, and open questions.
           Write the design into the issue body under the relevant sections before checking the related boxes.
           Document the output contract early: whether text is human-facing or agent-facing, whether script compatibility matters, and whether `--json` or other machine-readable output is in scope for this issue.
-          When the design is complete, stop and ask for backlog approval in the issue viewer before attempting the transition.
+          Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
+          Describe how agents will discover and use the change. Prefer hints in CLI output and error messages over prompt text, which does not reach other projects' workflows or non-dispatched sessions.
+          When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition <slug> --to "backlog" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
       - name: "documentation"
         prompt: |
           Update docs/CLI/ with any changed commands, flags, or output formats.
@@ -258,7 +266,9 @@ systems:
           Turn the problem into explicit checklists, assumptions, and open questions.
           Write the design into the issue body under the relevant sections before checking the related boxes.
           For UI work that launches local tools or editors, state whether to reuse existing tmux/alacritty patterns, whether handlers may block on local processes, and what feedback the user sees after launch.
-          When the design is complete, stop and ask for backlog approval in the issue viewer before attempting the transition.
+          Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
+          Describe how agents will discover and use the change. Prefer hints in CLI output and error messages over prompt text, which does not reach other projects' workflows or non-dispatched sessions.
+          When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition <slug> --to "backlog" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
       - name: "documentation"
         prompt: |
           Update docs/UI/ with any changed views, templates, or interaction patterns.
@@ -272,7 +282,9 @@ systems:
           Review the relevant workflow and transition logic before proposing changes.
           State which statuses, rules, templates, or overlays will change, and whether existing issues need migration or compatibility handling.
           Write the design into the issue body under the relevant sections before checking the related boxes.
-          When the design is complete, stop and ask for backlog approval in the issue viewer before attempting the transition.
+          Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
+          Describe how agents will discover and use the change. Prefer hints in CLI output and error messages over prompt text, which does not reach other projects' workflows or non-dispatched sessions.
+          When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition <slug> --to "backlog" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
       - name: "documentation"
         prompt: |
           Update docs/Workflow/ with any changed statuses, transitions, actions, or overlay behavior.

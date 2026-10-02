@@ -1,5 +1,7 @@
-# Binary
+# Binaries and build output
 /issue-viewer
+/issue-cli
+cover.out
 
 # User-specific config
 projects.yaml
@@ -12,10 +14,18 @@ projects-*.yaml
 /test-issues/
 
 # Local agent data
-/.agent-logs/
+.agent-logs/
 /retros/
 /bugs/
-/.klaudiush/
+.klaudiush/
 
 # Per-issue dispatch worktrees
 /.worktrees/
+
+# Ad-hoc test issues created in the demo project
+/demo/issues/test*.md
+
+# Screenshot notes and drafts not used by README or docs
+# (tracked screenshots in .images/ stay tracked; add new ones with git add -f)
+/.images/
+/site/

@@ -36,7 +36,7 @@ func runComment(ctx *Context, args []string) error {
 	textFlag := fs.String("text", "", "comment text")
 	bodyFlag := fs.String("body", "", "alias for --text")
 	bodyFileFlag := fs.String("body-file", "", "read comment from file (or - for stdin); avoids shell mangling")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	inline := normalizeEscapedText(*textFlag)

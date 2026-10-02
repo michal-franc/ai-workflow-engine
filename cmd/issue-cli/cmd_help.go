@@ -21,7 +21,8 @@ Examples:
   issue-cli help transitions      # workflow transition rules (topic)
   issue-cli help workflow         # status lifecycle (topic)
   issue-cli help start            # help for the 'start' command`,
-	Run: runHelp,
+	Run:         runHelp,
+	Subcommands: processTopics,
 }
 
 func init() {

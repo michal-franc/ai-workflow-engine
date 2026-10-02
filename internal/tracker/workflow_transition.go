@@ -25,6 +25,33 @@ type TransitionResult struct {
 // matching on the error message.
 var ErrApprovalMissing = errors.New("human approval missing")
 
+// ErrInvalidTransition marks a transition rejected because the target status
+// is not reachable from the current one. ErrTransitionValidation marks one
+// rejected by a workflow validation rule or a missing field answer. Both are
+// attached with errors.Is semantics while the message stays unchanged.
+var (
+	ErrInvalidTransition    = errors.New("invalid transition")
+	ErrTransitionValidation = errors.New("transition validation failed")
+)
+
+// markedError keeps err's message byte-identical while making
+// errors.Is(err, mark) true.
+type markedError struct {
+	err  error
+	mark error
+}
+
+func (e *markedError) Error() string        { return e.err.Error() }
+func (e *markedError) Unwrap() error        { return e.err }
+func (e *markedError) Is(target error) bool { return target == e.mark }
+
+func markErr(err, mark error) error {
+	if err == nil {
+		return nil
+	}
+	return &markedError{err: err, mark: mark}
+}
+
 // ApprovalMissingError describes a missing approval. Its message preserves the
 // historical phrasing used by string-matching tests; programmatic callers
 // should use errors.Is(err, ErrApprovalMissing).
@@ -304,16 +331,16 @@ func (w *WorkflowConfig) ApplyTransitionToFileWithFields(filePath, toStatus stri
 				next = w.NextStatus(fromStatus)
 			}
 			if next != "" {
-				return fmt.Errorf("cannot transition from %q to %q — must go to %q next", fromStatus, toStatus, next)
+				return markErr(fmt.Errorf("cannot transition from %q to %q — must go to %q next", fromStatus, toStatus, next), ErrInvalidTransition)
 			}
-			return fmt.Errorf("cannot transition from %q to %q", fromStatus, toStatus)
+			return markErr(fmt.Errorf("cannot transition from %q to %q", fromStatus, toStatus), ErrInvalidTransition)
 		}
 		if err := w.ValidateTransition(issue, fromStatus, toStatus, comments); err != nil {
-			return err
+			return markErr(err, ErrTransitionValidation)
 		}
 		fieldValues = w.MergeFieldValuesFromFrontmatter(issue, fromStatus, toStatus, fieldValues)
 		if err := w.ValidateFieldAnswers(fromStatus, toStatus, fieldValues); err != nil {
-			return err
+			return markErr(err, ErrTransitionValidation)
 		}
 
 		preBody := issue.BodyRaw
@@ -416,7 +443,7 @@ func (w *WorkflowConfig) StartIssueOnce(filePath, slug, assignee string) (*Start
 				if required := w.RequiredHumanApproval(fromStatus, toStatus); required != "" && !strings.EqualFold(issue.HumanApproval, required) {
 					return &ApprovalMissingError{Slug: slug, FromStatus: fromStatus, Required: required}
 				}
-				return err
+				return markErr(err, ErrTransitionValidation)
 			}
 
 			if issue.Assignee == "" {
@@ -514,7 +541,7 @@ func (w *WorkflowConfig) MarkIssueDoneOnce(filePath, slug string) (*Issue, error
 		}
 		if currentIdx < doneIdx-1 {
 			expected := statusOrder[doneIdx-1]
-			return fmt.Errorf("cannot mark as done from %q — issue must be in %q first", issue.Status, expected)
+			return markErr(fmt.Errorf("cannot mark as done from %q — issue must be in %q first", issue.Status, expected), ErrInvalidTransition)
 		}
 
 		combined := IssueUpdate{}
@@ -522,7 +549,7 @@ func (w *WorkflowConfig) MarkIssueDoneOnce(filePath, slug string) (*Issue, error
 			next := statusOrder[i]
 			prev := issue.Status
 			if err := w.ValidateTransition(issue, prev, next, comments); err != nil {
-				return err
+				return markErr(err, ErrTransitionValidation)
 			}
 			result := w.ApplyTransition(issue, prev, next)
 			if result.Update.Status != nil {

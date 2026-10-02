@@ -25,7 +25,7 @@ func init() {
 
 func runSearch(ctx *Context, args []string) error {
 	fs := newFlagSet("search", ctx)
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlags(ctx, fs, args); err != nil {
 		return err
 	}
 	rest := fs.Args()

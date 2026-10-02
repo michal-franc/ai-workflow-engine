@@ -39,7 +39,7 @@ func runCheck(ctx *Context, args []string) error {
 	fs := newFlagSet("check", ctx)
 	sectionFlag := fs.String("section", "", "section to scope the match to (\"## <name>\")")
 	indexFlag := fs.Int("index", 0, "1-based stable index of the checkbox within the section (or whole body)")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	section := strings.TrimSpace(*sectionFlag)

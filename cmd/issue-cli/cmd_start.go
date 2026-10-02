@@ -38,7 +38,7 @@ func runStart(ctx *Context, args []string) error {
 	}
 	fs := newFlagSet("start", ctx)
 	assigneeFlag := fs.String("assignee", "", "assignee name (default: derived from slug or AGENT_NAME)")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	assignee := *assigneeFlag

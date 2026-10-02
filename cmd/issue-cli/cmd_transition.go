@@ -18,7 +18,8 @@ field answers required by the workflow.
 Examples:
   issue-cli transition <slug> --to "testing"
   issue-cli transition <slug> --to "waiting-for-team-input" --field waiting="design review"`,
-	Run: runTransition,
+	Run:        runTransition,
+	ExtraFlags: []string{"field"},
 }
 
 func init() {
@@ -65,7 +66,7 @@ func runTransition(ctx *Context, args []string) error {
 
 	fs := newFlagSet("transition", ctx)
 	toFlag := fs.String("to", "", "destination status")
-	if err := fs.Parse(rest); err != nil {
+	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
 	to := *toFlag

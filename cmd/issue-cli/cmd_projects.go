@@ -36,7 +36,7 @@ type projectListEntry struct {
 
 func runProjects(ctx *Context, args []string) error {
 	fs := newFlagSet("projects", ctx)
-	if err := fs.Parse(args); err != nil {
+	if err := parseFlags(ctx, fs, args); err != nil {
 		return err
 	}
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -37,6 +38,16 @@ type Context struct {
 	ProjectSlug string
 
 	Now func() time.Time
+
+	// Telemetry bookkeeping (see telemetry.go). flagSets collects every
+	// FlagSet the command parsed so the event can list flag names without
+	// values; issue is the issue findIssueOrErr resolved, if any.
+	flagSets []*flag.FlagSet
+	issue    *tracker.Issue
+	// introspect makes parseFlags abort the command with the populated
+	// FlagSet instead of parsing — used to enumerate a command's flags
+	// without running it.
+	introspect bool
 }
 
 // Command is one entry in the registry. Run owns its own flag.FlagSet and
@@ -46,6 +57,18 @@ type Command struct {
 	ShortHelp string
 	LongHelp  string
 	Run       func(ctx *Context, args []string) error
+
+	// Subcommands lists the first-positional subcommands (or topics) the
+	// command dispatches on. Telemetry records the subcommand only when it is
+	// one of these, and the usage report flags the ones never called.
+	Subcommands []string
+	// SubAliases maps an accepted alternative subcommand spelling to its
+	// canonical entry in Subcommands (e.g. data "rm" → "remove").
+	SubAliases map[string]string
+	// ExtraFlags names flags the command parses by hand instead of through a
+	// FlagSet (e.g. transition's repeatable --field), so telemetry and the
+	// never-used report still see them.
+	ExtraFlags []string
 }
 
 // stdinIsTTY reports whether stdin is connected to a terminal, defined here
@@ -79,6 +102,31 @@ func newFlagSet(name string, ctx *Context) *flag.FlagSet {
 	fs.SetOutput(ctx.Stderr)
 	return fs
 }
+
+// parseFlags is the one place every command parses its FlagSet. It records
+// the FlagSet for telemetry (flag names only) and, in introspection mode,
+// aborts the command before any work by panicking with the fully defined
+// FlagSet — see introspectFlags.
+func parseFlags(ctx *Context, fs *flag.FlagSet, args []string) error {
+	if ctx.introspect {
+		panic(introspectedFlags{fs})
+	}
+	ctx.flagSets = append(ctx.flagSets, fs)
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return err
+		}
+		return &flagParseError{err: err}
+	}
+	return nil
+}
+
+// flagParseError marks a FlagSet parse failure for telemetry while keeping
+// the stdlib message byte-identical.
+type flagParseError struct{ err error }
+
+func (e *flagParseError) Error() string { return e.err.Error() }
+func (e *flagParseError) Unwrap() error { return e.err }
 
 // flagWasSet reports whether a flag was explicitly set on the command line.
 // Replaces the old "empty value means absent" pattern in flagValue.
@@ -116,17 +164,25 @@ func findIssueOrErr(ctx *Context, slug string) (*tracker.Issue, []*tracker.Issue
 
 	for _, issue := range issues {
 		if strings.ToLower(issue.Slug) == normalizedLower {
+			ctx.issue = issue
 			return issue, issues, nil
 		}
 	}
 	for _, issue := range issues {
 		slugLower := strings.ToLower(issue.Slug)
 		if strings.HasSuffix(slugLower, "/"+normalizedLower) || strings.Contains(slugLower, normalizedLower) {
+			ctx.issue = issue
 			return issue, issues, nil
 		}
 	}
 	return nil, issues, notFoundError(ctx, slug)
 }
+
+// issueNotFoundError is the "issue not found" error; typed so telemetry can
+// classify it without matching on the message.
+type issueNotFoundError struct{ msg string }
+
+func (e *issueNotFoundError) Error() string { return e.msg }
 
 // notFoundError builds the agent-facing "issue not found" message. In
 // single-project setups the format is unchanged from before (regression
@@ -136,7 +192,7 @@ func findIssueOrErr(ctx *Context, slug string) (*tracker.Issue, []*tracker.Issue
 func notFoundError(ctx *Context, slug string) error {
 	base := fmt.Sprintf("issue not found: %s\n\nRun: issue-cli list", slug)
 	if ctx == nil || len(ctx.AllProjects) <= 1 {
-		return fmt.Errorf("%s", base)
+		return &issueNotFoundError{msg: base}
 	}
 	defaultSlug := ""
 	if ctx.ProjectSlug == "" && len(ctx.AllProjects) > 0 {
@@ -146,5 +202,5 @@ func notFoundError(ctx *Context, slug string) error {
 	if ctx.Project != nil {
 		activeSlug = ctx.Project.Slug
 	}
-	return fmt.Errorf("%s\n\nSearched project: %s\n%s", base, activeSlug, formatProjectList(ctx.AllProjects, defaultSlug))
+	return &issueNotFoundError{msg: fmt.Sprintf("%s\n\nSearched project: %s\n%s", base, activeSlug, formatProjectList(ctx.AllProjects, defaultSlug))}
 }

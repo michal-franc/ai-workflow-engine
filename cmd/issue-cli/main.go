@@ -241,7 +241,19 @@ func countRecentRetries() int {
 
 func main() {
 	logAction(os.Args[1:])
-	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
+	start := time.Now()
+	inv := &invocation{}
+	defer func() {
+		// A panicking command still gets a telemetry event; the panic then
+		// propagates exactly as before.
+		if r := recover(); r != nil {
+			recordTelemetry(inv, os.Args[1:], nil, start, true)
+			panic(r)
+		}
+	}()
+	err := runTraced(os.Args[1:], os.Stdin, os.Stdout, os.Stderr, inv)
+	recordTelemetry(inv, os.Args[1:], err, start, false)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		if retries := countRecentRetries(); retries >= 2 {
 			fmt.Fprintf(os.Stderr, "\nhint: this same command has failed %d times in a row from this session.\n", retries+1)
@@ -255,6 +267,12 @@ func main() {
 // run is the testable entry point. It separates global-flag parsing from
 // per-command flag parsing so the registry can dispatch a Context-bound Run.
 func run(args []string, in io.Reader, out, errw io.Writer) error {
+	return runTraced(args, in, out, errw, &invocation{})
+}
+
+// runTraced is run plus bookkeeping: it fills inv with what it resolved
+// (command, context, failure phase) so main can record telemetry afterwards.
+func runTraced(args []string, in io.Reader, out, errw io.Writer, inv *invocation) error {
 	global := flag.NewFlagSet("issue-cli", flag.ContinueOnError)
 	global.SetOutput(errw)
 	// Precedence for the config path: explicit --config > $ISSUE_VIEWER_CONFIG
@@ -273,21 +291,31 @@ func run(args []string, in io.Reader, out, errw io.Writer) error {
 
 	rest, err := splitGlobalAndCommand(args)
 	if err != nil {
+		inv.phase = phaseSplit
 		return err
 	}
+	inv.global, inv.command, inv.args = rest.global, rest.command, rest.args
 	if err := global.Parse(rest.global); err != nil {
+		inv.phase = phaseSplit
 		return err
 	}
 	if rest.command == "" {
 		// Help must work even when --project is missing in a multi-project
 		// setup, so we deliberately swallow the resolution error and surface
 		// the project list (loaded best-effort) to the bot reading --help.
-		_, allProjects, _ := loadProjectOrErr(*configPath, *projectSlug)
+		proj, allProjects, _ := loadProjectOrErr(*configPath, *projectSlug)
+		inv.ctx = &Context{Project: proj}
 		return printHelp(out, allProjects, *projectSlug)
 	}
 
 	cmd := lookupCommand(rest.command)
 	if cmd == nil {
+		inv.phase = phaseUnknownCommand
+		// Best-effort project so the unknown-command event lands in the
+		// project's telemetry file rather than the global fallback.
+		if proj, _, perr := loadProjectOrErr(*configPath, *projectSlug); perr == nil {
+			inv.ctx = &Context{Project: proj}
+		}
 		return fmt.Errorf("unknown command: %s\n\nRun: issue-cli help", rest.command)
 	}
 
@@ -300,8 +328,10 @@ func run(args []string, in io.Reader, out, errw io.Writer) error {
 	// When --project was passed explicitly the user wants that project, so
 	// always surface the error — the project-agnostic bypass is only for
 	// discovery without --project.
-	bypassProjErr := rest.command == "help" || rest.command == "process" || rest.command == "projects" || rest.command == "version" || rest.command == "init"
+	inv.cmd = cmd
+	bypassProjErr := rest.command == "help" || rest.command == "process" || rest.command == "projects" || rest.command == "version" || rest.command == "init" || rest.command == "telemetry"
 	if projErr != nil && (!bypassProjErr || *projectSlug != "") {
+		inv.phase = phaseProject
 		return projErr
 	}
 	ctx := &Context{
@@ -315,6 +345,7 @@ func run(args []string, in io.Reader, out, errw io.Writer) error {
 		ProjectSlug: *projectSlug,
 		Now:         time.Now,
 	}
+	inv.ctx = ctx
 
 	err = cmd.Run(ctx, rest.args)
 	if errors.Is(err, flag.ErrHelp) {

@@ -776,6 +776,8 @@ func (s *Server) handleDocPage(w http.ResponseWriter, r *http.Request, proj *tra
 		return
 	}
 
+	found.BodyHTML = rewriteRelativeImages(found.BodyHTML, prefix, filepath.Join(proj.DocsDir, filepath.Dir(found.RelPath)), projectRoot(proj))
+
 	sections := tracker.GroupDocSections(pages)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "docs.html", DocsData{Page: found, Pages: pages, Sections: sections, Prefix: prefix, ProjectName: proj.Name, SupportsGitHub: proj.SupportsGitHub}); err != nil {

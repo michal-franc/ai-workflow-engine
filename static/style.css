@@ -449,6 +449,8 @@ a:hover { text-decoration: underline; }
 
 .detail-body p { margin-bottom: 12px; }
 
+.detail-body img { max-width: 100%; height: auto; }
+
 .detail-body code {
     background: var(--bg-tertiary);
     padding: 2px 6px;

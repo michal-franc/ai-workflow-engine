@@ -265,8 +265,9 @@ func writeJSON(w io.Writer, v interface{}) error {
 }
 
 // printCheckboxes lists every checkbox grouped by its "## " section, each line
-// prefixed with the box's stable index so callers know what to pass to
-// `check --section/--index`. Boxes inside fenced code blocks are skipped.
+// prefixed with the box's id ("D3") so callers know what to pass to `check`.
+// Boxes before any section heading show their index instead. Boxes inside
+// fenced code blocks are skipped.
 func printCheckboxes(w io.Writer, body string) {
 	const noSection = "\x00"
 	lastSection := noSection
@@ -283,7 +284,23 @@ func printCheckboxes(w io.Writer, body string) {
 		if it.Checked {
 			mark = "x"
 		}
-		fmt.Fprintf(w, "  %d. [%s] %s\n", it.Index, mark, it.Text)
+		if it.ID != "" {
+			fmt.Fprintf(w, "  %s [%s] %s\n", it.ID, mark, it.Text)
+		} else {
+			fmt.Fprintf(w, "  %d. [%s] %s\n", it.Index, mark, it.Text)
+		}
+	}
+}
+
+// printTickHint tells the reader how to tick boxes by id when any box with an
+// id is still open. Printed under checklist listings so agents discover the
+// id form where they first see the boxes.
+func printTickHint(w io.Writer, slug, body string) {
+	for _, it := range tracker.ListCheckboxes(body) {
+		if !it.Checked && it.ID != "" {
+			fmt.Fprintf(w, "Tick done boxes by id, several at once: issue-cli check %s <id> [<id>...]\n", slug)
+			return
+		}
 	}
 }
 

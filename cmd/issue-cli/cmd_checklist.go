@@ -9,7 +9,7 @@ import (
 var checklistCommand = &Command{
 	Name:      "checklist",
 	ShortHelp: "Show checkbox status for an issue",
-	LongHelp:  "Print every `- [ ]` and `- [x]` line in the issue body and the overall checked-vs-total count.",
+	LongHelp:  "Print every `- [ ]` and `- [x]` line in the issue body, grouped by section, with each box's id\n(D3, AC2) and the overall checked-vs-total count. Pass the ids to 'issue-cli check <slug> <id>...'.",
 	Run:       runChecklist,
 }
 
@@ -40,6 +40,7 @@ func runChecklist(ctx *Context, args []string) error {
 			boxes = append(boxes, map[string]interface{}{
 				"section": it.Section,
 				"index":   it.Index,
+				"id":      it.ID,
 				"text":    it.Text,
 				"checked": it.Checked,
 			})
@@ -51,5 +52,6 @@ func runChecklist(ctx *Context, args []string) error {
 
 	fmt.Fprintf(ctx.Stdout, "== Checklist (%d/%d) ==\n", checked, total)
 	printCheckboxes(ctx.Stdout, issue.BodyRaw)
+	printTickHint(ctx.Stdout, issue.Slug, issue.BodyRaw)
 	return nil
 }

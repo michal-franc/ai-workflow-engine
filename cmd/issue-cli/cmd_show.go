@@ -55,6 +55,7 @@ func runShow(ctx *Context, args []string) error {
 	if total > 0 {
 		fmt.Fprintf(ctx.Stdout, "== Checklist (%d/%d) ==\n", checked, total)
 		printCheckboxes(ctx.Stdout, issue.BodyRaw)
+		printTickHint(ctx.Stdout, issue.Slug, issue.BodyRaw)
 		fmt.Fprintln(ctx.Stdout)
 	}
 

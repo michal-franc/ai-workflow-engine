@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
@@ -26,6 +25,9 @@ func init() {
 }
 
 type transitionChecklistItem struct {
+	Section string `json:"section,omitempty"`
+	Index   int    `json:"index"`
+	ID      string `json:"id,omitempty"`
 	Text    string `json:"text"`
 	Checked bool   `json:"checked"`
 }
@@ -187,16 +189,15 @@ func transitionSideEffects(result tracker.TransitionResult) []string {
 }
 
 func collectChecklist(body string) []transitionChecklistItem {
-	re := regexp.MustCompile(`^\s*-\s*\[([ xX])\]\s*(.*)$`)
 	var items []transitionChecklistItem
-	for _, line := range strings.Split(body, "\n") {
-		m := re.FindStringSubmatch(line)
-		if len(m) == 3 {
-			items = append(items, transitionChecklistItem{
-				Text:    strings.TrimSpace(m[2]),
-				Checked: strings.EqualFold(m[1], "x"),
-			})
-		}
+	for _, it := range tracker.ListCheckboxes(body) {
+		items = append(items, transitionChecklistItem{
+			Section: it.Section,
+			Index:   it.Index,
+			ID:      it.ID,
+			Text:    it.Text,
+			Checked: it.Checked,
+		})
 	}
 	return items
 }
@@ -230,12 +231,31 @@ func printWorkflowNextStepsFromData(w io.Writer, checklist []transitionChecklist
 			}
 		}
 		fmt.Fprintf(w, "== Checklist (%d/%d) ==\n", checked, len(checklist))
+		const noSection = "\x00"
+		lastSection := noSection
+		hint := false
 		for _, item := range checklist {
+			if item.Section != lastSection {
+				lastSection = item.Section
+				header := item.Section
+				if header == "" {
+					header = "(no section)"
+				}
+				fmt.Fprintf(w, "## %s\n", header)
+			}
 			mark := " "
 			if item.Checked {
 				mark = "x"
 			}
-			fmt.Fprintf(w, "- [%s] %s\n", mark, item.Text)
+			if item.ID != "" {
+				fmt.Fprintf(w, "  %s [%s] %s\n", item.ID, mark, item.Text)
+				hint = hint || !item.Checked
+			} else {
+				fmt.Fprintf(w, "  %d. [%s] %s\n", item.Index, mark, item.Text)
+			}
+		}
+		if hint {
+			fmt.Fprintf(w, "Tick done boxes by id, several at once: issue-cli check %s <id> [<id>...]\n", slug)
 		}
 		fmt.Fprintln(w)
 	}

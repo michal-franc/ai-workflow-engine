@@ -100,6 +100,17 @@ The marker accepts `statuses=` (the row status dropdown) and an optional `tiers=
 
 The table reads from a sidecar JSON file (`<slug>.data.json`) — manage rows via `issue-cli data add | list | set-status | set-tier | set-comment | remove`, never by editing the JSON directly.
 
+## Images
+
+Standard markdown images render in issue bodies and doc pages:
+
+```markdown
+![Circuit map](../../docs/artifacts/road-between-tourneys/preview.png)
+![Remote](https://example.com/shot.png)
+```
+
+Relative paths resolve against the markdown file's own directory, the same as on GitHub or in an editor. They are served from `/p/<project>/files/<path>`, where `<path>` is relative to the project root (`workdir`, or the parent of the issues directory). Only image files (`png`, `jpg`, `jpeg`, `gif`, `webp`, `svg`, `avif`) inside the project root are served; anything else returns 404 and the `src` is left as written. Images pasted into the create-issue form are stored under `<issues>/attachments/`.
+
 ## File Organization
 
 Issues can live flat in the issues directory or in subdirectories by system:

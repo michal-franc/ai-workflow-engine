@@ -12,7 +12,7 @@ import (
 )
 
 func TestAgentLaunchCommand_CodexUsesPromptFile(t *testing.T) {
-	got := agentLaunchCommand("codex", "/tmp/agent-prompt-123.txt")
+	got := agentLaunchCommand(nil, "codex", "/tmp/agent-prompt-123.txt")
 	if !strings.Contains(got, `codex "$(cat `) {
 		t.Fatalf("agentLaunchCommand(codex) = %q, want codex to read from a temp prompt file", got)
 	}
@@ -21,10 +21,26 @@ func TestAgentLaunchCommand_CodexUsesPromptFile(t *testing.T) {
 	}
 }
 
-func TestAgentLaunchCommand_ClaudeRemainsInteractive(t *testing.T) {
-	got := agentLaunchCommand("claude", "/tmp/agent-prompt-123.txt")
-	if got != "claude" {
-		t.Fatalf("agentLaunchCommand(claude) = %q, want %q", got, "claude")
+func TestAgentLaunchCommand_ModelSource(t *testing.T) {
+	models := map[string]string{"claude": "claude-opus-5-5", "codex": "gpt-5"}
+	cases := []struct {
+		name  string
+		proj  *tracker.Project
+		agent string
+		want  string
+	}{
+		{"nil project", nil, "claude", "claude"},
+		{"default source is global", &tracker.Project{AgentModels: models}, "claude", "claude"},
+		{"explicit global", &tracker.Project{AgentModels: models, AgentModelSource: "global"}, "claude", "claude"},
+		{"project enforces claude", &tracker.Project{AgentModels: models, AgentModelSource: "project"}, "claude", "claude --model claude-opus-5-5"},
+		{"project enforces codex", &tracker.Project{AgentModels: models, AgentModelSource: "project"}, "codex", `codex --model gpt-5 "$(cat "/p")"`},
+		{"project without model for agent", &tracker.Project{AgentModels: map[string]string{"codex": "gpt-5"}, AgentModelSource: "project"}, "claude", "claude"},
+		{"unsafe model ignored", &tracker.Project{AgentModels: map[string]string{"claude": "x; rm -rf /"}, AgentModelSource: "project"}, "claude", "claude"},
+	}
+	for _, c := range cases {
+		if got := agentLaunchCommand(c.proj, c.agent, "/p"); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
 	}
 }
 
@@ -278,6 +294,22 @@ func TestBuildAgentPrompt_OmitsWorktreeBlockWhenEmpty(t *testing.T) {
 	prompt := buildAgentPrompt(nil, issue, &tracker.WorkflowConfig{}, "", "")
 	if strings.Contains(prompt, "## Worktree") {
 		t.Fatalf("expected no worktree block when path is empty")
+	}
+}
+
+func TestBuildAgentPrompt_TeachesCheckByID(t *testing.T) {
+	issue := &tracker.Issue{Slug: "fix-foo", Title: "T", Status: "in progress", BodyRaw: "body"}
+	prompt := buildAgentPrompt(nil, issue, &tracker.WorkflowConfig{}, "", "")
+	for _, want := range []string{
+		"issue-cli check fix-foo <id> [<id>...]\n",
+		"issue-cli check fix-foo <id> [<id>...]   # mark checkboxes done by id",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("expected prompt to contain %q\n%s", want, prompt)
+		}
+	}
+	if strings.Contains(prompt, "%!") {
+		t.Fatalf("prompt has a format verb mismatch:\n%s", prompt)
 	}
 }
 
@@ -791,5 +823,100 @@ func TestEnsureWorktree_SetupSkippedOnReuse(t *testing.T) {
 	}
 	if len(steps) != 1 || !strings.Contains(steps[0].Name, "Reuse worktree") {
 		t.Fatalf("expected single reuse step, got %+v", steps)
+	}
+}
+
+// isolateTmux points tmux at a private server for the test so it never
+// touches the developer's real sessions, and kills that server afterwards.
+func isolateTmux(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not installed")
+	}
+	t.Setenv("TMUX", "")
+	t.Setenv("TMUX_TMPDIR", t.TempDir())
+	t.Cleanup(func() { _ = exec.Command("tmux", "kill-server").Run() })
+}
+
+func TestStartAgentSession_SharedSessionAddsWindows(t *testing.T) {
+	isolateTmux(t)
+	proj := &tracker.Project{Slug: "test", Terminal: "none", TmuxSession: "work", WorkDir: t.TempDir()}
+
+	first := startAgentSession(proj, "agent-a", "prompt", "a", "true", "", nil)
+	if first.Status != "dispatched" {
+		t.Fatalf("first dispatch Status = %q; steps=%+v", first.Status, first.Steps)
+	}
+	if first.Session != "work:agent-a" {
+		t.Fatalf("Session = %q, want work:agent-a", first.Session)
+	}
+	if !strings.Contains(first.AttachCmd, "tmux attach -t work") {
+		t.Fatalf("AttachCmd = %q, want it to attach to the shared session", first.AttachCmd)
+	}
+
+	second := startAgentSession(proj, "agent-b", "prompt", "b", "true", "", nil)
+	if second.Status != "dispatched" {
+		t.Fatalf("second dispatch Status = %q; steps=%+v", second.Status, second.Steps)
+	}
+	var sawNewWindow bool
+	for _, step := range second.Steps {
+		if strings.HasPrefix(step.Name, "Create tmux window agent-b in session work") && step.Status == "ok" {
+			sawNewWindow = true
+		}
+	}
+	if !sawNewWindow {
+		t.Fatalf("second dispatch should add a window to the existing session; steps=%+v", second.Steps)
+	}
+
+	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+	if err != nil || strings.TrimSpace(string(out)) != "work" {
+		t.Fatalf("sessions = %q (err %v), want only the shared session", out, err)
+	}
+	windows := listSharedAgentWindows()
+	if len(windows) != 2 || windows[0].Name != "work:agent-a" || windows[1].Name != "work:agent-b" {
+		t.Fatalf("shared agent windows = %+v", windows)
+	}
+
+	again := startAgentSession(proj, "agent-a", "prompt", "a", "true", "", nil)
+	if again.Status != "reattached" {
+		t.Fatalf("re-dispatch Status = %q, want reattached; steps=%+v", again.Status, again.Steps)
+	}
+}
+
+func TestAttachAgentStep_SharedSessionAlreadyAttachedOpensNoTerminal(t *testing.T) {
+	isolateTmux(t)
+	// A terminal command that fails loudly if it were run.
+	proj := &tracker.Project{Slug: "test", Terminal: "exit 1", TmuxSession: "work"}
+	original := tmuxSessionAttached
+	tmuxSessionAttached = func(string) bool { return true }
+	t.Cleanup(func() { tmuxSessionAttached = original })
+
+	var steps []DispatchStep
+	if !attachAgentStep(proj, "agent-a", &steps) {
+		t.Fatalf("attachAgentStep failed; steps=%+v", steps)
+	}
+	for _, step := range steps {
+		if step.Name == "Open terminal" {
+			t.Fatalf("opened a terminal although the shared session is attached; steps=%+v", steps)
+		}
+	}
+}
+
+func TestAttachAgentStep_SharedSessionDetachedOpensTerminal(t *testing.T) {
+	isolateTmux(t)
+	proj := &tracker.Project{Slug: "test", Terminal: "true {{session}}", TmuxSession: "work"}
+	original := tmuxSessionAttached
+	tmuxSessionAttached = func(string) bool { return false }
+	t.Cleanup(func() { tmuxSessionAttached = original })
+
+	var steps []DispatchStep
+	attachAgentStep(proj, "agent-a", &steps)
+	var opened bool
+	for _, step := range steps {
+		if step.Name == "Open terminal" && step.Status == "ok" {
+			opened = true
+		}
+	}
+	if !opened {
+		t.Fatalf("expected a terminal to be opened on the detached shared session; steps=%+v", steps)
 	}
 }

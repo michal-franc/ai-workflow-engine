@@ -4,6 +4,13 @@ projects:
     slug: "my-project"
     issues: "./issues"
     docs: "./docs"
+    # Which model dispatched agents use:
+    #   global  (default) - no --model flag; the agent uses its own global settings
+    #   project           - enforce agent_models below via --model
+    agent_model_source: "project"
+    agent_models:
+      claude: "claude-opus-5-5"
+      # codex: "gpt-5"
 
   - name: "Another Project"
     slug: "another"

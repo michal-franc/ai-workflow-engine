@@ -18,6 +18,8 @@ type DocPage struct {
 	Order   int    `yaml:"order"`
 	Slug    string `yaml:"-"`
 	Section string `yaml:"-"`
+	// RelPath is the page's path relative to the docs directory.
+	RelPath string `yaml:"-"`
 
 	BodyHTML string `yaml:"-"`
 }
@@ -28,7 +30,7 @@ type DocSection struct {
 }
 
 func ParseDocPage(relPath string, data []byte) (*DocPage, error) {
-	page := &DocPage{}
+	page := &DocPage{RelPath: relPath}
 	body, err := ParseFrontmatter(string(data), page)
 	if err != nil {
 		body = string(data)

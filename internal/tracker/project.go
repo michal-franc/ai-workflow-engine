@@ -3,6 +3,7 @@ package tracker
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -17,7 +18,11 @@ type Project struct {
 	WorkDir      string `yaml:"workdir"`
 	I3Workspace  string `yaml:"i3_workspace"`
 	Terminal     string `yaml:"terminal"`
-	Repo         string `yaml:"repo"`
+	// TmuxSession, when set, runs dispatched agents (and nvim edits) as
+	// windows inside this one shared tmux session instead of one session per
+	// agent. A terminal is only opened when nobody is attached to it yet.
+	TmuxSession string `yaml:"tmux_session"`
+	Repo        string `yaml:"repo"`
 	// SupportsGitHub enables GitHub integration for this project: the /github
 	// sync tab and auto-closing the remote issue when an issue is marked done.
 	// Defaults to false — the GitHub tab is hidden and auto-close is skipped.
@@ -25,6 +30,22 @@ type Project struct {
 	// ImportStatus is the status assigned to issues imported from GitHub.
 	// Empty falls back to the workflow's first status (e.g. "idea").
 	ImportStatus string `yaml:"import_status"`
+	// AgentModels maps an agent type ("claude", "codex") to the model passed
+	// via --model when dispatching. Only used when AgentModelSource is "project".
+	AgentModels map[string]string `yaml:"agent_models"`
+	// AgentModelSource decides where the model comes from: "project" enforces
+	// AgentModels; "global" (the default) passes no --model so the agent uses
+	// its own global settings.
+	AgentModelSource string `yaml:"agent_model_source"`
+}
+
+// AgentModel returns the model to enforce for agentType, or "" when the agent
+// should fall back to its own global settings.
+func (p *Project) AgentModel(agentType string) string {
+	if p == nil || p.AgentModelSource != "project" {
+		return ""
+	}
+	return strings.TrimSpace(p.AgentModels[agentType])
 }
 
 // LoadWorkflow loads the project's workflow config.
@@ -104,6 +125,11 @@ func LoadProjects(configPath string) ([]Project, error) {
 		p := &cfg.Projects[i]
 		if p.Slug == "" {
 			p.Slug = Slugify(p.Name)
+		}
+		switch p.AgentModelSource {
+		case "", "global", "project":
+		default:
+			return nil, fmt.Errorf("project %q: agent_model_source must be \"project\" or \"global\", got %q", p.Name, p.AgentModelSource)
 		}
 	}
 

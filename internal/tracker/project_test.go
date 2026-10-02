@@ -162,3 +162,34 @@ func TestProjectLoadWorkflow_FallbackToDefault(t *testing.T) {
 		t.Errorf("first status = %q, want %q (default workflow)", order[0], "idea")
 	}
 }
+
+func TestLoadProjects_AgentModel(t *testing.T) {
+	fp := filepath.Join(t.TempDir(), "projects.yaml")
+	os.WriteFile(fp, []byte(`projects:
+  - name: "A"
+    agent_model_source: project
+    agent_models:
+      claude: claude-opus-5-5
+  - name: "B"
+    agent_models:
+      claude: claude-opus-5-5
+`), 0644)
+	projects, err := LoadProjects(fp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := projects[0].AgentModel("claude"); got != "claude-opus-5-5" {
+		t.Errorf("project source: got %q", got)
+	}
+	if got := projects[0].AgentModel("codex"); got != "" {
+		t.Errorf("unset agent: got %q", got)
+	}
+	if got := projects[1].AgentModel("claude"); got != "" {
+		t.Errorf("default source should be global, got %q", got)
+	}
+
+	os.WriteFile(fp, []byte("projects:\n  - name: \"C\"\n    agent_model_source: bogus\n"), 0644)
+	if _, err := LoadProjects(fp); err == nil {
+		t.Error("expected error for invalid agent_model_source")
+	}
+}

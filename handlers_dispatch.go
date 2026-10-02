@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -245,11 +246,21 @@ func viewerURLFromRequest(r *http.Request) string {
 	return scheme + "://" + host
 }
 
-func agentLaunchCommand(agentType string, promptPath string) string {
-	if agentType == "codex" {
-		return fmt.Sprintf("codex \"$(cat %q)\"", promptPath)
+// validModelName limits --model values to characters that are safe to type
+// into a tmux shell unquoted.
+var validModelName = regexp.MustCompile(`^[A-Za-z0-9._:/\[\]-]+$`)
+
+// agentLaunchCommand builds the shell command typed into tmux. A --model flag
+// is added only when the project enforces one (agent_model_source: project).
+func agentLaunchCommand(proj *tracker.Project, agentType string, promptPath string) string {
+	modelFlag := ""
+	if m := proj.AgentModel(agentType); m != "" && validModelName.MatchString(m) {
+		modelFlag = " --model " + m
 	}
-	return agentType
+	if agentType == "codex" {
+		return fmt.Sprintf("codex%s \"$(cat %q)\"", modelFlag, promptPath)
+	}
+	return agentType + modelFlag
 }
 
 func runStep(steps *[]DispatchStep, name string, cmd *exec.Cmd) bool {
@@ -436,7 +447,7 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 
 	if agentType == "codex" {
 		runStep(&steps, "Start codex with prompt file",
-			exec.Command("tmux", "send-keys", "-t", target, agentLaunchCommand(agentType, promptPath), "Enter"))
+			exec.Command("tmux", "send-keys", "-t", target, agentLaunchCommand(proj, agentType, promptPath), "Enter"))
 		// tmux send-keys returns before the shell in the pane expands $(cat ...).
 		// Keep the temp file around a bit longer so codex can read it reliably.
 		time.AfterFunc(2*time.Minute, func() {
@@ -444,7 +455,7 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 		})
 	} else {
 		runStep(&steps, fmt.Sprintf("Start %s (interactive)", agentType),
-			exec.Command("tmux", "send-keys", "-t", target, agentLaunchCommand(agentType, promptPath), "Enter"))
+			exec.Command("tmux", "send-keys", "-t", target, agentLaunchCommand(proj, agentType, promptPath), "Enter"))
 		time.Sleep(3 * time.Second)
 		runStep(&steps, "Load prompt into tmux buffer",
 			exec.Command("tmux", "load-buffer", promptPath))

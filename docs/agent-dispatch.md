@@ -76,6 +76,23 @@ On dispatch:
 
 "Edit in nvim" follows the same rule: it opens as an `agent-<slug>-edit` window, and only that window is closed when the edit finishes. Agent windows are listed as `work:agent-<slug>` and receive approval notifications like per-agent sessions. With `terminal: none`, `attach_cmd` is `tmux attach -t work \; select-window -t agent-<slug>`.
 
+## Agent Model
+
+Each project chooses whether dispatched agents get a pinned model or use their own global settings:
+
+```yaml
+- name: "My Project"
+  agent_model_source: project   # or "global" (default)
+  agent_models:
+    claude: claude-opus-5-5
+    codex: gpt-5
+```
+
+- `global` (default) — no `--model` flag is passed; the agent uses its own configured model.
+- `project` — the model in `agent_models` for that agent type is passed as `--model <name>`. An agent type with no entry still launches without a flag.
+
+Model names may contain only letters, digits and `._:/[]-`; anything else is ignored (it is typed into a shell). Any other `agent_model_source` value fails config loading.
+
 ## Human Approval Notifications
 
 When a human approves a status transition in the web UI, the server sends a natural-language message to the active agent's tmux session. The message is randomized from a set of conversational templates so the agent receives a human-like prompt rather than a structured signal.

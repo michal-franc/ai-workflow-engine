@@ -161,6 +161,8 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleCreateIssue(w, r, proj, prefix)
 	case rest == "upload" && r.Method == http.MethodPost:
 		s.handleUpload(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "files/") && r.Method == http.MethodGet:
+		s.handleProjectFile(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "attachments/"):
 		attachDir := filepath.Join(proj.IssueDir, "attachments")
 		http.StripPrefix(prefix+"/attachments/", http.FileServer(http.Dir(attachDir))).ServeHTTP(w, r)

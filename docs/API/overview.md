@@ -12,6 +12,7 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 - `routes.go` — `Server` struct, `NewServer`, `Routes`, `handleProjectRoutes` dispatcher, project list page
 - `template_funcs.go` — `funcMap`, `statusColor`/`priorityColor`/`assigneeColor`, `linkIssueRefs`, status ordering helpers
 - `helpers.go` — `projectRoot`, `fileExists`, `workflowFileTarget`, `resolveProjectWorkDir`, `valueOrDash`, `trimSnippet`
+- `images.go` — `rewriteRelativeImages` (relative `<img src>` → `/files/`), `handleProjectFile` (image-only, root-confined `/p/<project>/files/` route)
 - `tmux.go` — agent session listing (`listTmuxSessions`), matching (`sessionMatchesIssue`), notification (`tmuxSendKeys`), existence probe (`tmuxHasSession`)
 - `handlers_list.go` — list view, filters, `IssueView`, `attachScores`, `/hash` polling, `/issues.json`
 - `handlers_board.go` — board and graph views

@@ -40,8 +40,10 @@ Stop and ask the user whenever clarification, approval, or manual verification i
 2. Run: issue-cli show %s
    Read the full context — body, comments, checklist status.
 
-3. Work through each checkbox in the issue one at a time. After completing each one, mark it:
-   issue-cli check %s "<checkbox text>"
+3. Work through each checkbox in the issue. 'issue-cli checklist' shows each box's id (D3, AC2).
+   Mark finished boxes by id — several in one call:
+   issue-cli check %s <id> [<id>...]
+   (Matching by text, issue-cli check <slug> "<checkbox text>", still works as a fallback.)
 
 4. If you are unsure about something or need clarification, ask the user before proceeding.
 
@@ -60,7 +62,7 @@ These are safe to run without asking the user:
   issue-cli checklist %s              # checkbox status
   issue-cli next                      # see available work
   issue-cli start %s                  # claim and begin work
-  issue-cli check %s "<text>"         # mark a checkbox done
+  issue-cli check %s <id> [<id>...]   # mark checkboxes done by id (from checklist)
   issue-cli transition %s --to "<next-status>"  # move forward
   issue-cli append %s --body "content"          # append section to issue body
   issue-cli append %s --section "Name" --body "..."  # append into an existing section (also auto-routes if --body starts with that heading)

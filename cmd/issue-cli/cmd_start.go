@@ -203,6 +203,7 @@ func printWorkflowNextSteps(w io.Writer, wf *tracker.WorkflowConfig, issue *trac
 	if total > 0 {
 		fmt.Fprintf(w, "== Checklist (%d/%d) ==\n", checked, total)
 		printCheckboxes(w, issue.BodyRaw)
+		printTickHint(w, issue.Slug, issue.BodyRaw)
 		fmt.Fprintln(w)
 	}
 

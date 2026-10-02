@@ -33,8 +33,8 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli start <slug>`         | Pick up issue from any status — claim + auto-advance handoff states (announced with a banner). `--wait` blocks until the handoff approval exists |
 | `issue-cli transition <slug>`    | Attempt the next workflow transition. `--dry-run` lists every unmet requirement; `--wait` blocks until the human approval exists |
 | `issue-cli comment <slug>`       | Add a comment to an issue                |
-| `issue-cli check <slug>`         | Tick a checkbox by text, or by `--section` + `--index` |
-| `issue-cli checklist <slug>`     | List checkboxes grouped by section with stable indexes |
+| `issue-cli check <slug> <id>...` | Tick checkboxes by id (several at once), whole section (`--section X --all`), text, or `--section` + `--index` |
+| `issue-cli checklist <slug>`     | List checkboxes grouped by section, each with its id (`D3`, `AC2`) |
 | `issue-cli append <slug>`        | Append content to issue body             |
 | `issue-cli replace <slug>`       | Replace content of an existing section   |
 | `issue-cli set-meta <slug>`      | Set or clear a frontmatter field         |
@@ -86,21 +86,74 @@ Notes:
 
 ### `check`
 
-`issue-cli check <slug>` ticks a checkbox. Address the box three ways:
+`issue-cli check <slug>` ticks checkboxes. The preferred form is **ids, several at once**:
 
 ```bash
-issue-cli check <slug> "Code changes complete"      # by text (substring, case-insensitive)
-issue-cli check <slug> --section "Design" --index 2  # by section + stable index
+issue-cli check <slug> D3 D4 AC1                      # by id — several in one call
+issue-cli check <slug> "Design#3"                     # long-form id
+issue-cli check <slug> --section "Design" --all       # every open box in a section
+issue-cli check <slug> "Code changes complete"        # by text (substring, case-insensitive)
+issue-cli check <slug> --section "Design" --index 2   # by section + stable index
 issue-cli check <slug> --index 5                      # by position in the whole body
 ```
 
-Indexes are 1-based and **stable**: they count every box (checked and unchecked) in document order within the section, so a given box's index never shifts as other boxes get ticked. With `--section`, the index is the position within that `## ` section; without it, the index is the position in the whole body. Run `issue-cli checklist <slug>` (or `show`/`start`) to see each box's `[Section #index]`.
+Flags go before ids or text.
 
-Index addressing avoids the shell-escaping pain of matching long checkbox text verbatim (backticks, quotes, unicode). Re-checking an already-checked box is a reported no-op, not an error.
+#### Checkbox ids
 
-A text query matches a box whose label contains it. If it matches **more than one unchecked box**, `check` errors and lists every candidate with its `[Section #index]` label rather than silently ticking the first — re-run with `--section`/`--index` to pick one. A single match still checks as before.
+`checklist`, `show`, `start`, and the checklist printed after `transition` show an id in front of every box, grouped by section, followed by a hint when boxes are still open:
 
-`checklist --json` emits an `items` array (`section`, `index`, `text`, `checked`) alongside the `total`/`checked` counts.
+```
+== Checklist (3/8) ==
+## Design
+  D1 [x] Approach documented
+  D2 [ ] Dependencies identified
+## Acceptance Criteria
+  AC1 [ ] Parser handles empty input
+## Documentation
+  Do1 [ ] Docs updated
+Tick done boxes by id, several at once: issue-cli check <slug> <id> [<id>...]
+```
+
+- An id is the section's **initials** (first letter of each word, uppercased) plus the box's **1-based index within that section**: `D3` is the 3rd box under `## Design`, `AC2` the 2nd under `## Acceptance Criteria`, `TP1` the 1st under `## Test Plan`.
+- When two sections share initials, the section that holds a checkbox **first in the document** keeps the short form. A later one extends its first word until it is unique: with `Design` holding `D`, `Documentation` becomes `Do` and `Deployment` `De`. In the default workflow `## Idea` holds boxes and claims `I`, so a later `## Implementation` is `Im`.
+- Ids are **stable**. Indexes count checked and unchecked boxes, and workflow transitions append sections at the end, so a box's id never changes as work progresses.
+- Ids are case-insensitive (`d3` = `D3`). The long form `<Section>#<n>` (`Design#3`, `"Acceptance Criteria#2"`) always works.
+- Boxes before any `## ` heading have no id and show as `1.`; reach them with `--index`.
+- Boxes inside fenced code blocks are illustrative, not workflow state. They get no id and are not counted by `checklist`, the progress line, or transition gates.
+
+#### Behaviour
+
+- **Several ids are all-or-nothing.** If any id doesn't exist (`check <slug> D2 D9`), nothing is ticked: `check` prints `No checkbox with id D9 — nothing was ticked.`, lists the boxes, and exits non-zero. Duplicate ids are collapsed. A box that is already checked is reported as `Already checked`, not as an error. All boxes are ticked in one locked write.
+- **Id or text?** Positional args are read as ids when every arg is shaped like an id and at least one names a section of this issue. Otherwise they are joined into a text query, so a word like `phase1` (no section abbreviates to `PHASE`) is still matched as text, and so is unquoted multi-word text.
+- **`--section X --all`** ticks every open box in that section. It cannot be combined with ids, text, or `--index`. On a complete section it prints `Nothing to check: section "X" already complete (n/n)` and exits 0. A section with no boxes is an error.
+- **Text queries** match a box whose label contains the query. If it matches **more than one unchecked box**, `check` errors, lists every candidate with its id and `[Section #index]` label, and suggests `issue-cli check <slug> <id>`.
+- **Output.** Every form prints one line per box, then overall progress plus the progress of each touched section:
+
+  ```
+  ✓ Checked: D2 [Design #2] Dependencies identified
+  ✓ Checked: I1 [Implementation #1] Parser added
+    Already checked: D1 [Design #1] Approach documented
+    Progress: 3/11 (Design 2/2, Implementation 1/2)
+  file: …
+  ```
+
+`checklist --json` emits an `items` array (`id`, `section`, `index`, `text`, `checked`) alongside the `total`/`checked` counts. `transition --json` checklist items carry the same `id`, `section` and `index` fields.
+
+#### Transition gate failures
+
+When a `section_checkboxes_checked` (or `all_checkboxes_checked`) gate blocks a transition, the error says how many boxes are **still open**, lists each one with its id, and gives the command to tick them:
+
+```
+Error: failed to transition: 2 of 4 boxes still open in section "Implementation":
+  I2   Automated tests added or updated where practical
+  I4   Changelog line drafted
+
+Tick the ones that are done (ids, several at once):
+  issue-cli check <slug> I2 I4
+```
+
+Before v0.30.0 this read `2/4 checkboxes incomplete`, where 2 was the number of *checked* boxes.
 
 ### `list`
 

@@ -297,6 +297,22 @@ func TestBuildAgentPrompt_OmitsWorktreeBlockWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestBuildAgentPrompt_TeachesCheckByID(t *testing.T) {
+	issue := &tracker.Issue{Slug: "fix-foo", Title: "T", Status: "in progress", BodyRaw: "body"}
+	prompt := buildAgentPrompt(nil, issue, &tracker.WorkflowConfig{}, "", "")
+	for _, want := range []string{
+		"issue-cli check fix-foo <id> [<id>...]\n",
+		"issue-cli check fix-foo <id> [<id>...]   # mark checkboxes done by id",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("expected prompt to contain %q\n%s", want, prompt)
+		}
+	}
+	if strings.Contains(prompt, "%!") {
+		t.Fatalf("prompt has a format verb mismatch:\n%s", prompt)
+	}
+}
+
 type errStub struct{}
 
 func (errStub) Error() string { return "exit status 1" }

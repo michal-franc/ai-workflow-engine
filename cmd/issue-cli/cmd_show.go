@@ -69,6 +69,8 @@ func runShow(ctx *Context, args []string) error {
 		fmt.Fprintln(ctx.Stdout)
 	}
 
+	printOpenQuestions(ctx, issue)
+
 	hasAuto, hasManual := tracker.HasTestPlan(issue.BodyRaw)
 	if hasAuto || hasManual {
 		fmt.Fprint(ctx.Stdout, "== Test Plan ==\n")

@@ -145,7 +145,10 @@ func TestTransitionDryRunListsEveryProblem(t *testing.T) {
 	out := stdout.String()
 	assertContains(t, out, "✗ 2 unmet requirement(s)")
 	assertContains(t, out, "[validator] Validate section Design checkboxes are checked")
-	assertContains(t, out, `→ issue-cli check cli/sample "Dependencies identified"`)
+	assertContains(t, out, "issue-cli check cli/sample D2")
+	if strings.Count(out, "issue-cli check cli/sample D2") != 1 {
+		t.Fatalf("checkbox fix should appear once, not repeated after the validator message:\n%s", out)
+	}
 	assertContains(t, out, `[approval] Must be human-approved for "backlog"`)
 	assertContains(t, out, "#approve-backlog")
 	assertContains(t, out, `issue-cli transition cli/sample --to "backlog" --wait --timeout 9m`)
@@ -212,7 +215,7 @@ func TestTransitionWaitFailsFastOnMachineCheck(t *testing.T) {
 		t.Fatalf("exit code = %d, want 1", code)
 	}
 	assertContains(t, err.Error(), "Not waiting")
-	assertContains(t, stdout.String(), `issue-cli check cli/sample "Dependencies identified"`)
+	assertContains(t, stdout.String(), "issue-cli check cli/sample D2")
 	if strings.Contains(stdout.String(), "[approval]") {
 		t.Fatalf("fail-fast report should list only machine problems:\n%s", stdout.String())
 	}
@@ -325,7 +328,7 @@ func TestTransitionWaitStopsWhenMachineCheckBreaks(t *testing.T) {
 	if err == nil || errors.Is(err, tracker.ErrApprovalMissing) {
 		t.Fatalf("want a validation error, got %v", err)
 	}
-	assertContains(t, err.Error(), "checkboxes incomplete")
+	assertContains(t, err.Error(), "box still open")
 	if issue := loadIssueByPath(t, proj.IssueDir, issuePath); issue.Status != "in design" {
 		t.Fatalf("status = %q, must not transition", issue.Status)
 	}

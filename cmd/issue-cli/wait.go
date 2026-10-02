@@ -161,8 +161,10 @@ func collectTransitionProblems(ctx *Context, wf *tracker.WorkflowConfig, issue *
 	return problems
 }
 
-// checkboxFixes lists one `issue-cli check` per unchecked box a checkbox gate
-// is waiting on. Other rules already embed their fix in the message.
+// checkboxFixes is the `issue-cli check` command that ticks every open box a
+// checkbox gate is waiting on — by id when ids are available (one call,
+// several ids), else one call per box text. Other rules already embed their
+// fix in the message.
 func checkboxFixes(slug, body, rule string) []string {
 	name, arg := rule, ""
 	if idx := strings.Index(rule, ": "); idx != -1 {
@@ -171,14 +173,21 @@ func checkboxFixes(slug, body, rule string) []string {
 	if name != "section_checkboxes_checked" && name != "all_checkboxes_checked" {
 		return nil
 	}
-	var fixes []string
+	var ids, byText []string
 	for _, item := range tracker.ListCheckboxes(body) {
 		if item.Checked || (name == "section_checkboxes_checked" && !strings.EqualFold(item.Section, arg)) {
 			continue
 		}
-		fixes = append(fixes, fmt.Sprintf("issue-cli check %s %q", slug, item.Text))
+		if item.ID == "" {
+			byText = append(byText, fmt.Sprintf("issue-cli check %s %q", slug, item.Text))
+			continue
+		}
+		ids = append(ids, item.ID)
 	}
-	return fixes
+	if len(ids) > 0 {
+		byText = append([]string{fmt.Sprintf("issue-cli check %s %s", slug, strings.Join(ids, " "))}, byText...)
+	}
+	return byText
 }
 
 func onlyApprovalMissing(problems []transitionProblem) (approval bool, machine []transitionProblem) {
@@ -218,6 +227,9 @@ func printProblemReport(w io.Writer, problems []transitionProblem) {
 			}
 		}
 		for _, fix := range p.Fix {
+			if strings.Contains(p.Message, fix) {
+				continue // already spelled out in the validator's message
+			}
 			fmt.Fprintf(w, "      → %s\n", fix)
 		}
 	}

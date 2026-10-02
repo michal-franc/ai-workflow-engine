@@ -198,16 +198,17 @@ issue-cli transition <slug> --to "waiting-for-team-input"
 == Dry run: in design → backlog ==
 ✗ 2 unmet requirement(s):
   - [validator] Validate section Design checkboxes are checked (gates this transition)
-      1/2 checkboxes incomplete in section "Design":
-      issue-cli checklist cli/sample
-      → issue-cli check cli/sample "Dependencies identified"
+      1 of 2 box still open in section "Design":
+      D2   Dependencies identified
+      Tick the ones that are done (ids, several at once):
+      issue-cli check cli/sample D2
   - [approval] Must be human-approved for "backlog" in the issue viewer
       → a human approves at http://localhost:8080/p/demo/issue/cli/sample#approve-backlog
       → meanwhile block on it: issue-cli transition cli/sample --to "backlog" --wait --timeout 9m
 Nothing was changed.
 ```
 
-Kinds are `order` (not a legal next step), `field` (a required `--field` answer is missing), `validator`, and `approval`. When nothing is unmet, the output is `✓ Ready: <from> → <to>` plus the `Will:` side-effects. It exits 0 when ready and 1 otherwise. `--json` returns `{dry_run, ready, from, to, slug, problems[{kind, requirement, message, fix[]}], side_effects}`.
+Kinds are `order` (not a legal next step), `field` (a required `--field` answer is missing), `validator`, and `approval`. In text output a `→` fix line is left out when the validator's message already contains that command. JSON always carries it in `fix[]`. When nothing is unmet, the output is `✓ Ready: <from> → <to>` plus the `Will:` side-effects. It exits 0 when ready and 1 otherwise. `--json` returns `{dry_run, ready, from, to, slug, problems[{kind, requirement, message, fix[]}], side_effects}`.
 
 It is built on `WorkflowConfig.PreviewTransitionAll`. That is the engine behind the viewer's transition preview, without the stop at the first failure, so the CLI and the viewer agree on what is missing.
 

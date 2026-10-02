@@ -242,14 +242,33 @@ func countRecentRetries() int {
 func main() {
 	logAction(os.Args[1:])
 	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
+		var codeErr *exitCodeError
+		if errors.As(err, &codeErr) {
+			if codeErr.Msg != "" {
+				fmt.Fprintln(os.Stderr, codeErr.Msg)
+			}
+			os.Exit(codeErr.Code)
+		}
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		if retries := countRecentRetries(); retries >= 2 {
-			fmt.Fprintf(os.Stderr, "\nhint: this same command has failed %d times in a row from this session.\n", retries+1)
-			fmt.Fprintln(os.Stderr, "hint: try a different approach — run 'issue-cli process' to review the workflow,")
-			fmt.Fprintln(os.Stderr, "      or 'issue-cli checklist <slug>' to see what's blocking.")
+			printRetryHint(os.Stderr, retries+1, err)
 		}
 		os.Exit(1)
 	}
+}
+
+// printRetryHint nudges an agent stuck re-running the same failing command.
+// A missing approval is the common case and retrying cannot fix it, so point
+// at the --wait command decorateApprovalError already printed.
+func printRetryHint(w io.Writer, attempts int, err error) {
+	fmt.Fprintf(w, "\nhint: this same command has failed %d times in a row from this session.\n", attempts)
+	if errors.Is(err, tracker.ErrApprovalMissing) {
+		fmt.Fprintln(w, "hint: retrying cannot help until a human approves — run the --wait command above")
+		fmt.Fprintln(w, "      to block until the approval lands instead of polling by hand.")
+		return
+	}
+	fmt.Fprintln(w, "hint: try a different approach — run 'issue-cli process' to review the workflow,")
+	fmt.Fprintln(w, "      or 'issue-cli checklist <slug>' to see what's blocking.")
 }
 
 // run is the testable entry point. It separates global-flag parsing from
@@ -314,6 +333,7 @@ func run(args []string, in io.Reader, out, errw io.Writer) error {
 		ConfigPath:  *configPath,
 		ProjectSlug: *projectSlug,
 		Now:         time.Now,
+		Sleep:       time.Sleep,
 	}
 
 	err = cmd.Run(ctx, rest.args)
@@ -337,6 +357,9 @@ func decorateApprovalError(err error, ctx *Context) error {
 		return err
 	}
 	hint := approvalHint(ctx.Project, approvalErr.Slug, approvalErr.Required)
+	if ctx.ApprovalWaitCommand != "" {
+		hint += fmt.Sprintf("\n\nTo block until it is approved instead of retrying:\n  %s\n  (exit 3 = still waiting, nothing changed; re-run it)", ctx.ApprovalWaitCommand)
+	}
 	return fmt.Errorf("%w\n\n%s", err, hint)
 }
 

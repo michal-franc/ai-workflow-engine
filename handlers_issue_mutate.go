@@ -251,13 +251,23 @@ func approvalLabel(status string) string {
 // session, using project terminal config (or i3+alacritty as backwards-compat
 // fallback). Returns ("", nil) on success, a friendly attach hint when the
 // project is configured headless ("none"), or a wrapped error.
+//
+// In shared mode (tmux_session set) the editor's window is selected and a
+// terminal is only opened when nobody is attached to the shared session.
 func openEditorTerminal(proj *tracker.Project, session string) (string, error) {
 	terminal := ""
 	if proj != nil {
 		terminal = proj.Terminal
 	}
 	if terminal == "none" {
-		return fmt.Sprintf("tmux attach -t %s", session), nil
+		return agentAttachCmd(proj, session), nil
+	}
+	if shared := sharedTmuxSession(proj); shared != "" {
+		exec.Command("tmux", "select-window", "-t", agentTmuxTarget(proj, session)).Run()
+		if tmuxSessionAttached(shared) {
+			return "", nil
+		}
+		session = shared
 	}
 	if terminal != "" {
 		termCmd := strings.ReplaceAll(terminal, "{{session}}", session)
@@ -285,8 +295,9 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 	workDir := resolveProjectWorkDir(proj)
 	session := tmuxSessionName(issue.Slug) + "-edit"
 	waitSignal := session + "-done"
+	target := agentTmuxTarget(proj, session)
 
-	if tmuxHasSession(session) {
+	if tmuxHasSession(target) {
 		// A previous edit session is still alive (commonly leaked: the wait-for
 		// goroutine died before nvim exited). Don't try to reuse its temp
 		// body/status files — we don't know them and the previous request owns
@@ -298,11 +309,11 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 		}
 		msg := "Existing edit session — attached without registering save-on-exit. Finish or kill the existing session before editing again."
 		if attachCmd != "" {
-			msg = fmt.Sprintf("Existing edit session at %q. Attach manually: %s", session, attachCmd)
+			msg = fmt.Sprintf("Existing edit session at %q. Attach manually: %s", agentDisplayName(proj, session), attachCmd)
 		}
 		return BodyEditResponse{
 			Status:     "reattached",
-			Session:    session,
+			Session:    agentDisplayName(proj, session),
 			Message:    msg,
 			Reattached: true,
 		}, nil
@@ -346,7 +357,8 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 		os.Remove(statusPath)
 	}
 
-	if err := exec.Command("tmux", "new-session", "-d", "-s", session, "-c", workDir).Run(); err != nil {
+	_, createCmd := createAgentTmux(proj, session, workDir)
+	if err := createCmd.Run(); err != nil {
 		cleanup()
 		return BodyEditResponse{}, fmt.Errorf("create tmux session: %w", err)
 	}
@@ -354,15 +366,17 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 	sessionReady := false
 	defer func() {
 		if !sessionReady {
-			exec.Command("tmux", "kill-session", "-t", session).Run()
+			killAgentTmux(proj, session)
 			cleanup()
 		}
 	}()
 
-	exec.Command("tmux", "rename-window", "-t", session, issue.Slug).Run()
+	if sharedTmuxSession(proj) == "" {
+		exec.Command("tmux", "rename-window", "-t", session, issue.Slug).Run()
+	}
 
 	if proj != nil && proj.Terminal == "none" {
-		return BodyEditResponse{}, fmt.Errorf("terminal is 'none': attach manually with: tmux attach -t %s", session)
+		return BodyEditResponse{}, fmt.Errorf("terminal is 'none': attach manually with: %s", agentAttachCmd(proj, session))
 	}
 	if _, err := openEditorTerminal(proj, session); err != nil {
 		return BodyEditResponse{}, err
@@ -371,7 +385,7 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 	time.Sleep(500 * time.Millisecond)
 
 	editCmd := fmt.Sprintf("nvim %q; code=$?; printf '%%s' \"$code\" > %q; tmux wait-for -S %q; exit $code", editPath, statusPath, waitSignal)
-	if err := exec.Command("tmux", "send-keys", "-t", session, editCmd, "Enter").Run(); err != nil {
+	if err := exec.Command("tmux", "send-keys", "-t", target, editCmd, "Enter").Run(); err != nil {
 		return BodyEditResponse{}, fmt.Errorf("start nvim: %w", err)
 	}
 
@@ -381,7 +395,7 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 		if err := exec.Command("tmux", "wait-for", waitSignal).Run(); err != nil {
 			return
 		}
-		defer exec.Command("tmux", "kill-session", "-t", session).Run()
+		defer killAgentTmux(proj, session)
 
 		statusBytes, err := os.ReadFile(statusPath)
 		if err != nil {
@@ -418,7 +432,7 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 	sessionReady = true
 	return BodyEditResponse{
 		Status:  "launched",
-		Session: session,
+		Session: agentDisplayName(proj, session),
 		Message: "Opened in nvim. The issue file will sync back after the editor exits.",
 	}, nil
 }

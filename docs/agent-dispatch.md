@@ -57,6 +57,25 @@ The handler substitutes `{{session}}` with the tmux session name and runs the co
 
 If `terminal` is unset, defaults to i3 + alacritty. Set to `none` to only create the tmux session (the response includes the `attach_cmd`).
 
+## Shared tmux Session
+
+By default every dispatch gets its own tmux session (`agent-<slug>`) and its own terminal window. Set `tmux_session` on a project to run all its agents as **windows inside one shared session** instead:
+
+```yaml
+- name: "My Project"
+  tmux_session: "work"
+  terminal: "alacritty -e tmux attach -t {{session}}"
+```
+
+On dispatch:
+
+- If the `work` session doesn't exist, it is created with the agent as its first window (`agent-<slug>`).
+- If it exists, a new `agent-<slug>` window is added to it and selected.
+- A terminal (via `terminal`, where `{{session}}` becomes the shared session name) is opened **only when no client is attached** to the shared session. If you already have it open, the new window just appears there.
+- Re-dispatching an issue whose window is still alive reattaches (selects the window) instead of re-prompting.
+
+"Edit in nvim" follows the same rule: it opens as an `agent-<slug>-edit` window, and only that window is closed when the edit finishes. Agent windows are listed as `work:agent-<slug>` and receive approval notifications like per-agent sessions. With `terminal: none`, `attach_cmd` is `tmux attach -t work \; select-window -t agent-<slug>`.
+
 ## Agent Model
 
 Each project chooses whether dispatched agents get a pinned model or use their own global settings:

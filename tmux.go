@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 var listTmuxSessions = defaultListTmuxSessions
 var tmuxSendKeys = defaultTmuxSendKeys
 var tmuxHasSession = defaultTmuxHasSession
+var tmuxSessionAttached = defaultTmuxSessionAttached
 
 func tmuxSessionName(slug string) string {
 	r := strings.NewReplacer("/", "-", ".", "-", " ", "-")
@@ -24,6 +27,79 @@ func defaultTmuxHasSession(session string) bool {
 		return false
 	}
 	return exec.Command("tmux", "has-session", "-t", session).Run() == nil
+}
+
+// sharedTmuxSession returns the project's shared tmux session, or "" when the
+// project uses the default one-session-per-agent mode.
+func sharedTmuxSession(proj *tracker.Project) string {
+	if proj == nil {
+		return ""
+	}
+	return strings.TrimSpace(proj.TmuxSession)
+}
+
+// agentTmuxTarget returns the tmux target for the agent (or editor) called
+// name: the session itself by default, or the window name inside the
+// project's shared session. The "=" prefixes force exact matches so that
+// agent-foo never resolves to an existing agent-foo-bar window.
+func agentTmuxTarget(proj *tracker.Project, name string) string {
+	if shared := sharedTmuxSession(proj); shared != "" {
+		return "=" + shared + ":=" + name
+	}
+	return name
+}
+
+// agentDisplayName is the human-facing name of the agent's tmux location,
+// e.g. "agent-foo" or "work:agent-foo" in shared mode.
+func agentDisplayName(proj *tracker.Project, name string) string {
+	if shared := sharedTmuxSession(proj); shared != "" {
+		return shared + ":" + name
+	}
+	return name
+}
+
+// agentAttachCmd is the command a human runs to reach the agent when the
+// project is headless (terminal: none).
+func agentAttachCmd(proj *tracker.Project, name string) string {
+	if shared := sharedTmuxSession(proj); shared != "" {
+		return fmt.Sprintf("tmux attach -t %s \\; select-window -t %s", shared, name)
+	}
+	return fmt.Sprintf("tmux attach -t %s", name)
+}
+
+// createAgentTmux creates the tmux home for the agent called name: its own
+// session by default, or a new window in the project's shared session
+// (creating that session first if it does not exist yet).
+func createAgentTmux(proj *tracker.Project, name string, workDir string) (string, *exec.Cmd) {
+	shared := sharedTmuxSession(proj)
+	if shared == "" {
+		return fmt.Sprintf("Create tmux session in %s", workDir),
+			exec.Command("tmux", "new-session", "-d", "-s", name, "-c", workDir)
+	}
+	if tmuxHasSession("=" + shared) {
+		return fmt.Sprintf("Create tmux window %s in session %s (%s)", name, shared, workDir),
+			exec.Command("tmux", "new-window", "-d", "-t", "="+shared+":", "-n", name, "-c", workDir)
+	}
+	return fmt.Sprintf("Create tmux session %s with window %s in %s", shared, name, workDir),
+		exec.Command("tmux", "new-session", "-d", "-s", shared, "-n", name, "-c", workDir)
+}
+
+// killAgentTmux tears down what createAgentTmux made. In shared mode only the
+// agent's window goes; the shared session stays.
+func killAgentTmux(proj *tracker.Project, name string) error {
+	if sharedTmuxSession(proj) != "" {
+		return exec.Command("tmux", "kill-window", "-t", agentTmuxTarget(proj, name)).Run()
+	}
+	return exec.Command("tmux", "kill-session", "-t", name).Run()
+}
+
+func defaultTmuxSessionAttached(session string) bool {
+	out, err := exec.Command("tmux", "display-message", "-p", "-t", "="+session+":", "#{session_attached}").Output()
+	if err != nil {
+		return false
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(string(out)))
+	return n > 0
 }
 
 func defaultTmuxSendKeys(target string, lines []string) error {
@@ -80,6 +156,30 @@ func defaultListTmuxSessions() []AgentSession {
 			session.StartTime = strings.TrimSpace(matches[2])
 		}
 		sessions = append(sessions, session)
+	}
+	return append(sessions, listSharedAgentWindows()...)
+}
+
+// listSharedAgentWindows reports agent windows living inside shared tmux
+// sessions (projects with tmux_session set) as "session:window" entries, so
+// issue matching and approval notifications find them like regular sessions.
+// Windows of per-agent sessions are skipped — those are already listed.
+func listSharedAgentWindows() []AgentSession {
+	out, err := exec.Command("tmux", "list-windows", "-a", "-F", "#{session_name}\t#{window_name}").Output()
+	if err != nil {
+		return nil
+	}
+	return parseSharedAgentWindows(string(out))
+}
+
+func parseSharedAgentWindows(out string) []AgentSession {
+	var sessions []AgentSession
+	for _, line := range strings.Split(out, "\n") {
+		sessionName, windowName, ok := strings.Cut(strings.TrimSpace(line), "\t")
+		if !ok || strings.HasPrefix(sessionName, "agent-") || !strings.HasPrefix(windowName, "agent-") {
+			continue
+		}
+		sessions = append(sessions, AgentSession{Name: sessionName + ":" + windowName})
 	}
 	return sessions
 }

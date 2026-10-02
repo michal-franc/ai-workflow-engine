@@ -809,3 +809,98 @@ func TestEnsureWorktree_SetupSkippedOnReuse(t *testing.T) {
 		t.Fatalf("expected single reuse step, got %+v", steps)
 	}
 }
+
+// isolateTmux points tmux at a private server for the test so it never
+// touches the developer's real sessions, and kills that server afterwards.
+func isolateTmux(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("tmux"); err != nil {
+		t.Skip("tmux not installed")
+	}
+	t.Setenv("TMUX", "")
+	t.Setenv("TMUX_TMPDIR", t.TempDir())
+	t.Cleanup(func() { _ = exec.Command("tmux", "kill-server").Run() })
+}
+
+func TestStartAgentSession_SharedSessionAddsWindows(t *testing.T) {
+	isolateTmux(t)
+	proj := &tracker.Project{Slug: "test", Terminal: "none", TmuxSession: "work", WorkDir: t.TempDir()}
+
+	first := startAgentSession(proj, "agent-a", "prompt", "a", "true", "", nil)
+	if first.Status != "dispatched" {
+		t.Fatalf("first dispatch Status = %q; steps=%+v", first.Status, first.Steps)
+	}
+	if first.Session != "work:agent-a" {
+		t.Fatalf("Session = %q, want work:agent-a", first.Session)
+	}
+	if !strings.Contains(first.AttachCmd, "tmux attach -t work") {
+		t.Fatalf("AttachCmd = %q, want it to attach to the shared session", first.AttachCmd)
+	}
+
+	second := startAgentSession(proj, "agent-b", "prompt", "b", "true", "", nil)
+	if second.Status != "dispatched" {
+		t.Fatalf("second dispatch Status = %q; steps=%+v", second.Status, second.Steps)
+	}
+	var sawNewWindow bool
+	for _, step := range second.Steps {
+		if strings.HasPrefix(step.Name, "Create tmux window agent-b in session work") && step.Status == "ok" {
+			sawNewWindow = true
+		}
+	}
+	if !sawNewWindow {
+		t.Fatalf("second dispatch should add a window to the existing session; steps=%+v", second.Steps)
+	}
+
+	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output()
+	if err != nil || strings.TrimSpace(string(out)) != "work" {
+		t.Fatalf("sessions = %q (err %v), want only the shared session", out, err)
+	}
+	windows := listSharedAgentWindows()
+	if len(windows) != 2 || windows[0].Name != "work:agent-a" || windows[1].Name != "work:agent-b" {
+		t.Fatalf("shared agent windows = %+v", windows)
+	}
+
+	again := startAgentSession(proj, "agent-a", "prompt", "a", "true", "", nil)
+	if again.Status != "reattached" {
+		t.Fatalf("re-dispatch Status = %q, want reattached; steps=%+v", again.Status, again.Steps)
+	}
+}
+
+func TestAttachAgentStep_SharedSessionAlreadyAttachedOpensNoTerminal(t *testing.T) {
+	isolateTmux(t)
+	// A terminal command that fails loudly if it were run.
+	proj := &tracker.Project{Slug: "test", Terminal: "exit 1", TmuxSession: "work"}
+	original := tmuxSessionAttached
+	tmuxSessionAttached = func(string) bool { return true }
+	t.Cleanup(func() { tmuxSessionAttached = original })
+
+	var steps []DispatchStep
+	if !attachAgentStep(proj, "agent-a", &steps) {
+		t.Fatalf("attachAgentStep failed; steps=%+v", steps)
+	}
+	for _, step := range steps {
+		if step.Name == "Open terminal" {
+			t.Fatalf("opened a terminal although the shared session is attached; steps=%+v", steps)
+		}
+	}
+}
+
+func TestAttachAgentStep_SharedSessionDetachedOpensTerminal(t *testing.T) {
+	isolateTmux(t)
+	proj := &tracker.Project{Slug: "test", Terminal: "true {{session}}", TmuxSession: "work"}
+	original := tmuxSessionAttached
+	tmuxSessionAttached = func(string) bool { return false }
+	t.Cleanup(func() { tmuxSessionAttached = original })
+
+	var steps []DispatchStep
+	attachAgentStep(proj, "agent-a", &steps)
+	var opened bool
+	for _, step := range steps {
+		if step.Name == "Open terminal" && step.Status == "ok" {
+			opened = true
+		}
+	}
+	if !opened {
+		t.Fatalf("expected a terminal to be opened on the detached shared session; steps=%+v", steps)
+	}
+}

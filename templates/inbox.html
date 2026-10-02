@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{if .Total}}({{.Total}}) {{end}}{{.ProjectName}} — Waiting on you</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M2 3h12v8H10l-2 2-2-2H2z' fill='%23d29922'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+    <script src="/static/inbox-badge.js" defer></script>
+</head>
+<body>
+    <div class="header">
+        <div class="container header-inner">
+            <div style="display:flex;align-items:center;">
+                <a href="/" class="project-back-link">Projects</a>
+                <span class="header-sep">/</span>
+                <h1>{{.ProjectName}}</h1>
+            </div>
+            <nav class="view-tabs">
+                <a href="{{.Prefix}}/" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v1.5H2V2zm0 4h12v1.5H2V6zm0 4h12v1.5H2V10zm0 4h12v1.5H2V14z"/></svg>
+                    List
+                </a>
+                <a href="{{.Prefix}}/board" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v8H6V2zm5 0h4v10h-4V2z"/></svg>
+                    Board
+                </a>
+                <a href="{{.Prefix}}/graph" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.5" cy="8" r="1.75"/><circle cx="8" cy="2.5" r="1.75"/><circle cx="13.5" cy="8" r="1.75"/><circle cx="8" cy="13.5" r="1.75"/><path d="M4.2 8h7.6M8 4.2v7.6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
+                    Graph
+                </a>
+                <a href="{{.Prefix}}/docs" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h5v2H3v10h4v2H1V1zm9 0h5v14H8v-2h4V3H10V1zM5 5h2v1H5V5zm0 2h2v1H5V7zm0 2h2v1H5V9z"/></svg>
+                    Docs
+                </a>
+                <a href="{{.Prefix}}/retros" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.75A1.75 1.75 0 014.75 1h6.5A1.75 1.75 0 0113 2.75v10.5A1.75 1.75 0 0111.25 15h-6.5A1.75 1.75 0 013 13.25V2.75zm2 .75v1.25h6V3.5H5zm0 3v1.25h6V6.5H5zm0 3v1.25h4V9.5H5z"/></svg>
+                    Retros
+                </a>
+                <a href="{{.Prefix}}/workflow-designer" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3.25A1.25 1.25 0 013.75 2h2.5A1.25 1.25 0 017.5 3.25v2.5A1.25 1.25 0 016.25 7h-2.5A1.25 1.25 0 012.5 5.75v-2.5zm6 0A1.25 1.25 0 019.75 2h2.5a1.25 1.25 0 011.25 1.25v2.5A1.25 1.25 0 0112.25 7h-2.5A1.25 1.25 0 018.5 5.75v-2.5zm-6 6A1.25 1.25 0 013.75 8h2.5A1.25 1.25 0 017.5 9.25v2.5A1.25 1.25 0 016.25 13h-2.5a1.25 1.25 0 01-1.25-1.25v-2.5zm9.25.75a.75.75 0 010 1.5H10v1.75a.75.75 0 01-1.5 0V11.5H6.75a.75.75 0 010-1.5H8.5V8.25a.75.75 0 011.5 0V10h1.75z"/></svg>
+                    Workflow
+                </a>
+                <a href="{{.Prefix}}/stats" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 14h14v1H1v-1zm2-4h2v3H3v-3zm3-4h2v7H6V6zm3 2h2v5H9V8zm3-6h2v11h-2V2z"/></svg>
+                    Stats
+                </a>
+                {{if .SupportsGitHub}}
+                <a href="{{.Prefix}}/github" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+                {{end}}
+                <a href="{{.Prefix}}/inbox" class="view-tab active">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.8 2h10.4l1.8 6.5V13a1 1 0 01-1 1H2a1 1 0 01-1-1V8.5L2.8 2zm.9 1.5L2.4 8H5.5l1 1.5h3l1-1.5h3.1l-1.3-4.5H3.7z"/></svg>
+                    Inbox <span class="inbox-badge" data-inbox-count>{{if .Total}}{{.Total}}{{end}}</span>
+                </a>
+            </nav>
+            <div class="theme-picker">
+                <div class="agent-activity-summary">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
+                <button class="theme-btn" data-theme="dark" title="Dark"></button>
+                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
+                <button class="theme-btn" data-theme="light" title="Light"></button>
+            </div>
+        </div>
+    </div>
+
+    <main class="container inbox">
+        <div class="inbox-head">
+            <div>
+                <h2 class="inbox-title">Waiting on you</h2>
+                <p class="inbox-sub">Oldest first. Agents block on <code>transition --wait</code> or <code>ask --wait</code> until you act here. Answers are saved in the issue, so they reach the agent even if it was restarted.</p>
+            </div>
+            <div class="inbox-stats">
+                <div class="inbox-stat"><span class="inbox-stat-num">{{.Total}}</span><span class="inbox-stat-label">waiting</span></div>
+                <div class="inbox-stat"><span class="inbox-stat-num">{{.Blocked}}</span><span class="inbox-stat-label">agents blocked</span></div>
+                <div class="inbox-stat{{if .Items}}{{with index .Items 0}}{{if .IsOld}} old{{end}}{{end}}{{end}}"><span class="inbox-stat-num">{{if .Oldest}}{{.Oldest}}{{else}}—{{end}}</span><span class="inbox-stat-label">oldest</span></div>
+            </div>
+        </div>
+
+        <div class="inbox-chips">
+            <a href="{{.KindURL ""}}" class="inbox-chip chip-all{{if eq .Kind ""}} active{{end}}">All {{.Total}}</a>
+            <a href="{{.KindURL "approval"}}" class="inbox-chip chip-approval{{if eq .Kind "approval"}} active{{end}}">Approvals {{.Approvals}}</a>
+            <a href="{{.KindURL "question"}}" class="inbox-chip chip-question{{if eq .Kind "question"}} active{{end}}">Questions {{.Questions}}</a>
+        </div>
+
+        {{if not .Items}}
+        <div class="inbox-empty">
+            <div class="inbox-empty-icon">✓</div>
+            <h3>Nothing is waiting on you</h3>
+            <p>Approvals show up here once an issue's checklist is complete and only your approval is missing. Agents add questions with <code>issue-cli ask</code>.</p>
+        </div>
+        {{else}}
+        <div class="inbox-grid">
+            <div class="inbox-list">
+                {{range .Items}}
+                <a class="inbox-card{{if and $.Selected (eq .Key $.Selected.Key)}} selected{{end}}" href="{{$.SelectURL .}}">
+                    <div class="inbox-card-top">
+                        <span class="inbox-chip chip-{{.Kind}}">{{if eq .Kind "approval"}}Approval{{else}}Question{{end}}</span>
+                        {{if .AgentBlocked}}<span class="inbox-agent-dot blocked" title="An agent is blocked waiting on this">agent waiting</span>{{end}}
+                        <span class="inbox-wait{{if .IsOld}} old{{end}}">{{.WaitLabel}}</span>
+                    </div>
+                    <div class="inbox-card-title">{{.Title}}</div>
+                    <div class="inbox-card-slug">{{.Issue.Slug}}{{if eq .Kind "question"}} · {{.Target}}{{end}}</div>
+                </a>
+                {{end}}
+            </div>
+
+            {{with .Selected}}
+            <section class="inbox-pane" data-slug="{{.Issue.Slug}}" data-kind="{{.Kind}}" data-target="{{.Target}}">
+                <div class="inbox-pane-meta">
+                    <span class="inbox-chip chip-{{.Kind}}">{{if eq .Kind "approval"}}Approval{{else}}Question{{end}}</span>
+                    {{if .Issue.System}}<span class="inbox-chip chip-system">{{.Issue.System}}</span>{{end}}
+                    <span class="inbox-pane-wait">waiting {{.WaitLabel}}</span>
+                    <span class="inbox-agent-state">
+                        {{if .AgentBlocked}}<span class="inbox-agent-dot blocked"></span>agent waiting{{if .Session}} · {{.Session}}{{end}}
+                        {{else if .AgentRunning}}<span class="inbox-agent-dot running"></span>agent running · {{.Session}}
+                        {{else}}<span class="inbox-agent-dot off"></span>agent not running
+                        <button type="button" class="inbox-link-btn" onclick="dispatchAgent()">Dispatch</button>{{end}}
+                    </span>
+                </div>
+
+                {{if eq .Kind "approval"}}
+                <h3 class="inbox-pane-title">{{.Issue.Title}}</h3>
+                <a class="inbox-pane-slug" href="{{$.Prefix}}/issue/{{.Issue.Slug}}">{{.Issue.Slug}}</a>
+                <div class="inbox-transition">
+                    <span class="badge" style="background:{{statusColor .From}};color:{{statusTextColor .From}}">{{.From}}</span>
+                    <span class="inbox-arrow">→</span>
+                    <span class="badge" style="background:{{statusColor .Target}};color:{{statusTextColor .Target}}">{{.Target}}</span>
+                </div>
+                <p class="inbox-pane-text">Every checkbox this step needs is ticked. Only your approval is missing. Read the issue before you approve.</p>
+                <div class="inbox-actions">
+                    {{if .ThenStatus}}
+                    <button type="button" class="inbox-primary" onclick="approve('{{.Target}}', '{{.ThenStatus}}', this)">Approve and start work</button>
+                    <button type="button" class="inbox-secondary" onclick="approve('{{.Target}}', '', this)">Approve {{.Target}} only</button>
+                    {{else}}
+                    <button type="button" class="inbox-primary" onclick="approve('{{.Target}}', '', this)">Approve {{.Target}}</button>
+                    {{end}}
+                    <a href="{{$.Prefix}}/issue/{{.Issue.Slug}}">Open issue</a>
+                </div>
+                <p class="inbox-footnote">{{if .ThenStatus}}"Approve and start work" also approves <strong>{{.ThenStatus}}</strong>, so the agent goes from {{.Target}} straight to work with <code>issue-cli start</code>. {{end}}Approving sets <code>human_approval</code> in the issue, the same as the approve button on the issue page.</p>
+                {{else}}
+                {{with .Question}}
+                <h3 class="inbox-pane-title">{{.Text}}</h3>
+                <a class="inbox-pane-slug" href="{{$.Prefix}}/issue/{{$.Selected.Issue.Slug}}">{{$.Selected.Issue.Slug}} · {{.ID}}</a>
+                {{if .Context}}<div class="inbox-context">{{.Context}}</div>{{end}}
+                <div class="inbox-section-label">Options</div>
+                <div class="inbox-options" role="radiogroup">
+                    {{range .Options}}
+                    <label class="inbox-option">
+                        <input type="radio" name="inbox-option" value="{{.ID}}" onchange="pickOption()">
+                        <span class="inbox-option-id">{{.ID}}</span>
+                        <span class="inbox-option-body">
+                            <span class="inbox-option-label">{{.Label}}{{if .Recommended}} <span class="inbox-recommend">Agent recommends</span>{{end}}</span>
+                            {{if .Tradeoff}}<span class="inbox-option-tradeoff">{{.Tradeoff}}</span>{{end}}
+                        </span>
+                    </label>
+                    {{end}}
+                </div>
+                <div class="inbox-section-label">Your note (quoted in the decision, optional)</div>
+                <textarea id="inbox-note" class="inbox-note" rows="2" placeholder='e.g. "B, but revisit after the economy pass"'></textarea>
+                {{if .Links}}
+                <div class="inbox-links"><span class="inbox-links-label">Read first:</span>
+                    {{range .Links}}{{if isURL .}}<a href="{{.}}" target="_blank" rel="noopener">{{.}}</a>{{else}}<code class="inbox-link-path">{{.}}</code>{{end}}{{end}}
+                </div>
+                {{end}}
+                <div class="inbox-actions">
+                    <button type="button" id="inbox-answer" class="inbox-primary" disabled onclick="answer('{{.ID}}', this)">Pick an option</button>
+                    <a href="{{$.Prefix}}/issue/{{$.Selected.Issue.Slug}}">Open issue</a>
+                </div>
+                <p class="inbox-footnote">Your answer is saved in the issue under <code>## Decisions</code>, with the date and your note. It does not move the issue to another status.</p>
+                {{end}}
+                {{end}}
+            </section>
+            {{end}}
+        </div>
+        {{end}}
+
+        {{if or (not .Workbench.IsZero) .WorkbenchProblems}}
+        <details class="inbox-workbench">
+            <summary>Workbench config{{if .WorkbenchProblems}} · <span class="inbox-problem-count">{{len .WorkbenchProblems}} problem{{if gt (len .WorkbenchProblems) 1}}s{{end}}</span>{{end}}</summary>
+            <ul>
+                {{range .WorkbenchProblems}}<li class="inbox-problem">{{.}}</li>{{end}}
+                {{if .WorkbenchSystems}}<li>Systems: {{range $i, $s := .WorkbenchSystems}}{{if $i}}, {{end}}{{$s}}{{end}}</li>{{end}}
+                {{if .Workbench.Metrics.Targets}}<li>Metric targets: <code>{{.Workbench.Metrics.Targets}}</code></li>{{end}}
+                {{if .Workbench.Metrics.ProbeResults}}<li>Probe results: <code>{{.Workbench.Metrics.ProbeResults}}</code></li>{{end}}
+                {{range .Workbench.Tuning}}<li>Tuning: <code>{{.}}</code></li>{{end}}
+                {{if .Workbench.Balance.CommentPrefix}}<li>Balance notes: comments starting <code>{{.Workbench.Balance.CommentPrefix}}</code></li>{{end}}
+            </ul>
+            <p class="inbox-footnote">From the <code>workbench:</code> block in workflow.yaml. The system, balance and metric views that use it are coming in follow-up issues.</p>
+        </details>
+        {{end}}
+    </main>
+
+    <div id="save-toast" class="save-toast"></div>
+
+    <script>
+    var prefix = {{.Prefix}};
+    var pane = document.querySelector('.inbox-pane');
+    var issueURL = pane ? prefix + '/issue/' + pane.dataset.slug : '';
+
+    function showToast(msg, isError) {
+        var toast = document.getElementById('save-toast');
+        toast.textContent = msg;
+        toast.className = 'save-toast show' + (isError ? ' error' : '');
+        setTimeout(function() { toast.className = 'save-toast'; }, 3500);
+    }
+
+    // After an action the item leaves the inbox; open the next one.
+    function nextItem() {
+        setTimeout(function() { location.href = prefix + '/inbox' + location.search.replace(/([?&])item=[^&]*&?/, '$1').replace(/[?&]$/, ''); }, 900);
+    }
+
+    function lockButtons(btn) {
+        document.querySelectorAll('.inbox-actions button').forEach(function(b) { b.disabled = true; });
+        if (btn) btn.textContent = 'Saving…';
+    }
+
+    function notified(data) {
+        return data.notified_session ? ' Agent notified in ' + data.notified_session + '.' : ' No agent session found; the agent will see it on its next run.';
+    }
+
+    function approve(status, then, btn) {
+        lockButtons(btn);
+        fetch(issueURL + '/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: status, then: then })
+        }).then(function(res) {
+            return res.json().then(function(data) { if (!res.ok) throw new Error(data.error || res.statusText); return data; });
+        }).then(function(data) {
+            var what = data.queued_approval ? status + ' and ' + data.queued_approval : status;
+            showToast('Approved ' + what + '.' + notified(data));
+            nextItem();
+        }).catch(function(err) {
+            showToast('Approve failed: ' + err.message, true);
+            setTimeout(function() { location.reload(); }, 1500);
+        });
+    }
+
+    function pickOption() {
+        var btn = document.getElementById('inbox-answer');
+        var picked = document.querySelector('input[name="inbox-option"]:checked');
+        btn.disabled = !picked;
+        btn.textContent = picked ? 'Answer ' + picked.value : 'Pick an option';
+    }
+
+    function answer(questionID, btn) {
+        var picked = document.querySelector('input[name="inbox-option"]:checked');
+        if (!picked) return;
+        lockButtons(btn);
+        fetch(issueURL + '/questions/' + encodeURIComponent(questionID) + '/answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ option: picked.value, note: document.getElementById('inbox-note').value })
+        }).then(function(res) {
+            return res.json().then(function(data) { if (!res.ok) throw new Error(data.error || res.statusText); return data; });
+        }).then(function(data) {
+            showToast('Saved as ' + data.decision_id + '.' + notified(data));
+            nextItem();
+        }).catch(function(err) {
+            showToast('Answer failed: ' + err.message, true);
+            setTimeout(function() { location.reload(); }, 1500);
+        });
+    }
+
+    function dispatchAgent() {
+        if (!confirm('Start an agent on ' + pane.dataset.slug + '?')) return;
+        fetch(issueURL + '/dispatch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent: 'claude' })
+        }).then(function(res) { return res.json(); }).then(function(data) {
+            showToast(data.status === 'reattached' ? 'Attached to the existing session ' + data.session : 'Agent started in ' + data.session);
+        }).catch(function(err) { showToast('Dispatch failed: ' + err.message, true); });
+    }
+
+    // Reload when items come or go, unless you are in the middle of answering.
+    (function() {
+        var sig = null;
+        function busy() {
+            var note = document.getElementById('inbox-note');
+            return (note && note.value.trim() !== '') || document.querySelector('input[name="inbox-option"]:checked');
+        }
+        function poll() {
+            fetch(prefix + '/inbox.json').then(function(r) { return r.json(); }).then(function(data) {
+                if (sig !== null && data.sig !== sig && !busy()) location.reload();
+                sig = data.sig;
+            }).catch(function() {});
+        }
+        poll();
+        setInterval(poll, 5000);
+    })();
+    </script>
+</body>
+</html>

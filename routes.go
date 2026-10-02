@@ -30,6 +30,7 @@ type AgentSession struct {
 type approvalResponse struct {
 	Status              string `json:"status"`
 	HumanApproval       string `json:"human_approval"`
+	QueuedApproval      string `json:"queued_approval,omitempty"`
 	NotifiedSession     string `json:"notified_session,omitempty"`
 	NotificationMessage string `json:"notification_message,omitempty"`
 	NotificationError   string `json:"notification_error,omitempty"`
@@ -117,6 +118,10 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleWorkflowDesignerPreview(w, r, proj)
 	case rest == "workflow-designer" && r.Method == http.MethodPost:
 		s.handleSaveWorkflowDesigner(w, r, proj)
+	case rest == "inbox" && r.Method == http.MethodGet:
+		s.handleInbox(w, r, proj, prefix)
+	case rest == "inbox.json" && r.Method == http.MethodGet:
+		s.handleInboxJSON(w, r, proj)
 	case rest == "hash":
 		s.handleHash(w, r, proj)
 	case rest == "issues.json":
@@ -153,6 +158,8 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleTransitionPreview(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/type") && r.Method == http.MethodPost:
 		s.handleSetIssueType(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.Contains(rest, "/questions/") && strings.HasSuffix(rest, "/answer") && r.Method == http.MethodPost:
+		s.handleAnswerQuestion(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/approve") && r.Method == http.MethodPost:
 		s.handleApproveIssue(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/delete") && r.Method == http.MethodPost:

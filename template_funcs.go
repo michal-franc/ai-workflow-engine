@@ -86,6 +86,9 @@ var funcMap = template.FuncMap{
 	// statusFragment normalises a status name into the form used by the
 	// `id="approve-<status>"` anchors on the detail page so deep links emitted
 	// by the CLI (`#approve-in-progress`) line up with the DOM.
+	"isURL": func(s string) bool {
+		return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
+	},
 	"statusFragment": func(s string) string {
 		return strings.ReplaceAll(strings.TrimSpace(s), " ", "-")
 	},

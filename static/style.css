@@ -1643,6 +1643,29 @@ html[data-sidebar-hidden="true"] .sidebar-show-btn { display: inline-block; }
     border-color: rgba(99, 102, 241, 0.5);
 }
 
+/* Re-send prompt into a live agent session */
+.reprompt-group {
+    margin-top: 8px;
+}
+.dispatch-btn-reprompt {
+    background: rgba(234, 179, 8, 0.1);
+    color: #eab308;
+    border-color: rgba(234, 179, 8, 0.3);
+}
+.dispatch-btn-reprompt:hover {
+    background: rgba(234, 179, 8, 0.2);
+    border-color: rgba(234, 179, 8, 0.5);
+}
+.dispatch-banner-btn {
+    background: none;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    color: inherit;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 1px 6px;
+}
+
 /* Custom workflow actions — stacked full-width buttons below Claude/Codex */
 .custom-actions-group {
     display: flex;

@@ -145,6 +145,10 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleDataRemove(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/dispatch") && r.Method == http.MethodPost:
 		s.handleDispatchAgent(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/dispatch/reprompt") && r.Method == http.MethodPost:
+		s.handleDispatchReprompt(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/dispatch-prompt") && r.Method == http.MethodGet:
+		s.handleDispatchPrompt(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.Contains(rest, "/action/") && r.Method == http.MethodPost:
 		s.handleCustomAction(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/edit-in-nvim") && r.Method == http.MethodPost:

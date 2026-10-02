@@ -5,9 +5,23 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
+
+func init() {
+	// Dispatch tests launch stand-in agents (true, echo, cat) that never show
+	// a Claude pane; don't let each one wait out the production timeout.
+	promptDeliveryTimeout = 300 * time.Millisecond
+}
+
+func withPromptDeliveryTimeout(t *testing.T, d time.Duration) {
+	t.Helper()
+	original := promptDeliveryTimeout
+	promptDeliveryTimeout = d
+	t.Cleanup(func() { promptDeliveryTimeout = original })
+}
 
 func setupTestProject(t *testing.T) (tracker.Project, string) {
 	t.Helper()

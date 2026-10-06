@@ -58,6 +58,10 @@ values as they are.
 
 ### 5. `issue-cli doctor` (M)
 
+The `workflow.yaml` checks and improvement suggestions have their own issue:
+`workflow/issue-cli-doctor-check-workflow-yaml-and-suggest-improvements`. This one covers the environment checks
+and the shared command.
+
 One command that checks tmux, git, claude/codex on `PATH`, `workflow.yaml` (with line numbers and "did you mean"
 for unknown statuses and rules, and `WorkflowConfig.Lint()` output), `projects.yaml` paths, and a free port. It
 prints the fix next to each failure. It absorbs the roadmap's "a command that validates `workflow.yaml`". Add

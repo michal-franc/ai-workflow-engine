@@ -11,6 +11,7 @@ children:
   - ui/easier-first-run-reach-the-first-approval-in-minutes
   - cli/one-name-one-binary
   - cli/agent-led-onboarding-claude-sets-the-project-up-and-explains-it
+  - workflow/issue-cli-doctor-check-workflow-yaml-and-suggest-improvements
 ---
 
 Umbrella for the adoption work. The core idea of the engine works: markdown issues, one `workflow.yaml`, agents
@@ -40,6 +41,7 @@ access).
 | `ui/easier-first-run-reach-the-first-approval-in-minutes` | #8–#14 | `quickstart`, empty-board states, hero GIF, tour issue, hosted demo, `lite` template, import |
 | `cli/one-name-one-binary` | #20 | One binary with subcommands; `issue-viewer` and `issue-cli` kept as aliases |
 | `cli/agent-led-onboarding-claude-sets-the-project-up-and-explains-it` | new | The "hey Claude, set this up" path: agent-facing docs, a non-interactive setup contract, a Claude Code plugin, and an eval that proves it |
+| `workflow/issue-cli-doctor-check-workflow-yaml-and-suggest-improvements` | #5 (workflow part) | `doctor` checks `workflow.yaml` (errors, warnings) and suggests improvements from telemetry, stats and retros |
 
 Not split out yet: the daily-use ideas (#15 approval inbox and notifications, #16 approve from a phone, #17
 `issue-cli approve` with an audit trail, #18 "what the agent will see" in the designer, #19 watch an agent in the
@@ -48,7 +50,8 @@ the children above are designed.
 
 ## Order
 
-1. Setup first, starting with the `make demo` bug: it breaks the README's "just looking?" path today.
+1. Setup first, starting with the `make demo` bug: it breaks the README's "just looking?" path today. Doctor's
+   tier 1 (workflow errors) ships alongside, since setup and onboarding both lean on `doctor --json`.
 2. Agent-led onboarding next. It depends on `doctor` and the non-interactive `init` from the setup child, and it is
    the fastest route to new users, since most of them already run Claude Code.
 3. First run after that. The tour issue and the `lite` template are what the agent-led path will set up.

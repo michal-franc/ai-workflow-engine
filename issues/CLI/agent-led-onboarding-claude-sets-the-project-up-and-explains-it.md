@@ -151,6 +151,8 @@ A scripted check, run on each release (and as `claude plugin eval` suites if tha
 ## Depends on
 
 - Setup child: #2 (`init` writes `projects.yaml`), #4 (terminal detection), #5 (`doctor`), #7 (hint block).
+- `workflow/issue-cli-doctor-check-workflow-yaml-and-suggest-improvements`, tier 1: the workflow checks behind
+  `doctor --json`, so the agent can verify the `workflow.yaml` it tailored with `--detect`.
 - First-run child: #11 (tour issue), #13 (`lite` template). Without them the agent sets up the 9-status template
   and the user's first gate is far away.
 

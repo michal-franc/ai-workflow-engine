@@ -104,6 +104,12 @@ type Issue struct {
 	Number         int      `yaml:"number"`
 	Repo           string   `yaml:"repo"`
 
+	// Type is the `type:` frontmatter value (type of work: feature, tweak, …).
+	// Read from the raw map rather than decoded so a non-scalar `type:` in a
+	// project without types can't fail the parse; it also stays in
+	// ExtraFields, where projects without types have always shown it.
+	Type string `yaml:"-"`
+
 	// Computed fields
 	Slug        string       `yaml:"-"`
 	FilePath    string       `yaml:"-"`
@@ -153,6 +159,9 @@ func ParseIssue(filename string, data []byte) (*Issue, error) {
 			var rawMap map[string]interface{}
 			if yaml.Unmarshal([]byte(parts[0]), &rawMap) == nil {
 				issue.ExtraFields = extractExtraFields(rawMap)
+				if t, ok := rawMap["type"].(string); ok {
+					issue.Type = strings.TrimSpace(t)
+				}
 			}
 		}
 	}

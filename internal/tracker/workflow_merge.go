@@ -49,35 +49,63 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 		Scoring:        cloneScoringConfig(w.Scoring),
 		AllowShell:     w.AllowShell,
 		Worktree:       w.Worktree,
+		WorktreeSetup:  w.WorktreeSetup,
 		LookupIssue:    w.LookupIssue,
 		IssuesRoot:     w.IssuesRoot,
+		DefaultType:    w.DefaultType,
+		ActiveType:     w.ActiveType,
+		OffPathStatus:  w.OffPathStatus,
+	}
+	if w.WorktreeSparseExclude != nil {
+		excl := append([]string(nil), (*w.WorktreeSparseExclude)...)
+		clone.WorktreeSparseExclude = &excl
+	}
+	if w.typePath != nil {
+		clone.typePath = make(map[string]bool, len(w.typePath))
+		for k, v := range w.typePath {
+			clone.typePath[k] = v
+		}
 	}
 	for i := range w.Transitions {
-		clone.Transitions[i] = WorkflowTransition{
-			From:     w.Transitions[i].From,
-			To:       w.Transitions[i].To,
-			Actions:  append([]WorkflowAction(nil), w.Transitions[i].Actions...),
-			Fields:   append([]WorkflowField(nil), w.Transitions[i].Fields...),
-			CTALabel: w.Transitions[i].CTALabel,
-		}
+		clone.Transitions[i] = cloneTransition(w.Transitions[i])
 	}
 	for name, overlay := range w.Systems {
-		clonedOverlay := WorkflowOverlay{
+		clone.Systems[name] = WorkflowOverlay{
 			Statuses:    append([]WorkflowStatus(nil), overlay.Statuses...),
-			Transitions: make([]WorkflowTransition, len(overlay.Transitions)),
+			Transitions: cloneTransitions(overlay.Transitions),
 		}
-		for i := range overlay.Transitions {
-			clonedOverlay.Transitions[i] = WorkflowTransition{
-				From:     overlay.Transitions[i].From,
-				To:       overlay.Transitions[i].To,
-				Actions:  append([]WorkflowAction(nil), overlay.Transitions[i].Actions...),
-				Fields:   append([]WorkflowField(nil), overlay.Transitions[i].Fields...),
-				CTALabel: overlay.Transitions[i].CTALabel,
+	}
+	if w.Types != nil {
+		clone.Types = make(map[string]WorkflowType, len(w.Types))
+		for name, t := range w.Types {
+			clone.Types[name] = WorkflowType{
+				Description: t.Description,
+				Path:        append([]string(nil), t.Path...),
+				Statuses:    append([]WorkflowStatus(nil), t.Statuses...),
+				Transitions: cloneTransitions(t.Transitions),
 			}
 		}
-		clone.Systems[name] = clonedOverlay
 	}
 	return clone
+}
+
+func cloneTransition(t WorkflowTransition) WorkflowTransition {
+	return WorkflowTransition{
+		From:     t.From,
+		To:       t.To,
+		Actions:  append([]WorkflowAction(nil), t.Actions...),
+		Fields:   append([]WorkflowField(nil), t.Fields...),
+		CTALabel: t.CTALabel,
+		Replace:  t.Replace,
+	}
+}
+
+func cloneTransitions(ts []WorkflowTransition) []WorkflowTransition {
+	out := make([]WorkflowTransition, len(ts))
+	for i := range ts {
+		out[i] = cloneTransition(ts[i])
+	}
+	return out
 }
 
 func (w *WorkflowConfig) ForSystem(system string) *WorkflowConfig {
@@ -94,9 +122,15 @@ func (w *WorkflowConfig) ForSystem(system string) *WorkflowConfig {
 	}
 
 	merged := w.Clone()
+	statuses, transitions := overlay.Statuses, overlay.Transitions
+	if merged.typePath != nil {
+		// A type path is in force: the overlay may not re-add statuses or
+		// edges the type dropped.
+		statuses, transitions = restrictToPath(statuses, transitions, merged.typePath)
+	}
 	merged.Merge(&WorkflowConfig{
-		Statuses:    overlay.Statuses,
-		Transitions: overlay.Transitions,
+		Statuses:    statuses,
+		Transitions: transitions,
 	})
 	return merged
 }
@@ -134,15 +168,15 @@ func (w *WorkflowConfig) Merge(custom *WorkflowConfig) {
 	for _, ct := range custom.Transitions {
 		base := w.GetTransition(ct.From, ct.To)
 		if base == nil {
-			w.Transitions = append(w.Transitions, WorkflowTransition{
-				From:     ct.From,
-				To:       ct.To,
-				Actions:  append([]WorkflowAction(nil), ct.Actions...),
-				CTALabel: ct.CTALabel,
-			})
+			w.Transitions = append(w.Transitions, cloneTransition(ct))
 			continue
 		}
-		base.Actions = appendUniqueActions(base.Actions, ct.Actions)
+		if ct.Replace {
+			base.Actions = append([]WorkflowAction(nil), ct.Actions...)
+			base.Fields = append([]WorkflowField(nil), ct.Fields...)
+		} else {
+			base.Actions = appendUniqueActions(base.Actions, ct.Actions)
+		}
 		if ct.CTALabel != "" {
 			base.CTALabel = ct.CTALabel
 		}

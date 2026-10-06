@@ -1,0 +1,199 @@
+# Trimmed copy of Raid League's (wipe-manager) workflow.yaml: the same statuses
+# and edge skeleton, short prompts. workflow_types_test.go appends the types:
+# block from docs/Workflow/types.md's worked example to it.
+
+statuses:
+  - name: "idea"
+    description: "Raw idea"
+  - name: "parked"
+    optional: true
+    description: "Kept, not pursued yet"
+  - name: "discussion"
+    description: "Measure, options, human picks"
+  - name: "design"
+    description: "Design doc before code"
+  - name: "backlog"
+    description: "Approved design"
+    side_effects: [clear_assignee]
+  - name: "in progress"
+    description: "Being implemented"
+    prompt: "Implement against the accepted design."
+  - name: "balance"
+    description: "Probes against the target"
+  - name: "playtest"
+    description: "Human watches it in-game"
+  - name: "documentation"
+    description: "Docs updated"
+  - name: "shipping"
+    description: "Committing and merging"
+  - name: "done"
+    description: "Shipped"
+  - name: "obsolete"
+    optional: true
+    description: "No longer relevant"
+
+transitions:
+  - from: "idea"
+    to: "obsolete"
+    actions:
+      - type: validate
+        rule: "has_comment_prefix: obsolete:"
+  - from: "discussion"
+    to: "obsolete"
+    actions:
+      - type: validate
+        rule: "has_comment_prefix: obsolete:"
+  - from: "in progress"
+    to: "obsolete"
+    actions:
+      - type: validate
+        rule: "has_comment_prefix: obsolete:"
+  - from: "playtest"
+    to: "obsolete"
+    actions:
+      - type: validate
+        rule: "has_comment_prefix: obsolete:"
+
+  - from: "idea"
+    to: "discussion"
+    actions:
+      - type: validate
+        rule: body_not_empty
+      - type: append_section
+        title: Discussion
+        body: |
+          - [ ] Options laid out
+      - type: append_section
+        title: Decisions
+        body: |
+          - [ ] Human's choices recorded
+
+  - from: "discussion"
+    to: "parked"
+    actions:
+      - type: require_human_approval
+        status: parked
+
+  - from: "discussion"
+    to: "design"
+    actions:
+      - type: validate
+        rule: "section_checkboxes_checked: Discussion"
+      - type: require_human_approval
+        status: design
+      - type: append_section
+        title: Design
+        body: |
+          - [ ] Design doc written
+      - type: append_section
+        title: Acceptance Criteria
+        body: |
+          - [ ] TODO: replace with real criteria
+
+  - from: "design"
+    to: "backlog"
+    actions:
+      - type: validate
+        rule: "section_checkboxes_checked: Design"
+      - type: require_human_approval
+        status: backlog
+
+  - from: "design"
+    to: "in progress"
+    actions:
+      - type: validate
+        rule: "section_checkboxes_checked: Design"
+      - type: require_human_approval
+        status: in progress
+      - type: validate
+        rule: has_assignee
+      - &implementation_section
+        type: append_section
+        title: Implementation
+        body: |
+          - [ ] Rules implemented
+          - [ ] `make test` green
+
+  - from: "backlog"
+    to: "in progress"
+    actions:
+      - type: require_human_approval
+        status: in progress
+      - type: validate
+        rule: has_assignee
+      - *implementation_section
+
+  - from: "in progress"
+    to: "balance"
+    actions:
+      - type: validate
+        rule: "section_checkboxes_checked: Implementation"
+      - type: validate
+        rule: "has_comment_prefix: tests:"
+      - type: append_section
+        title: Balance
+        body: |
+          - [ ] Before and after numbers recorded
+
+  - from: "balance"
+    to: "playtest"
+    actions:
+      - type: validate
+        rule: "section_checkboxes_checked: Balance"
+      - type: append_section
+        title: Playtest
+        body: |
+          - [ ] Human ticked every manual check
+
+  - from: "playtest"
+    to: "documentation"
+    actions:
+      - type: validate
+        rule: "section_checkboxes_checked: Playtest"
+      - type: require_human_approval
+        status: documentation
+      - type: append_section
+        title: Documentation
+        body: |
+          - [ ] Design doc final
+
+  - from: "documentation"
+    to: "shipping"
+    actions:
+      - type: validate
+        rule: "section_checkboxes_checked: Documentation"
+      - &shipping_section
+        type: append_section
+        title: Shipping
+        body: |
+          - [ ] Branch merged back into the base branch
+          - [ ] `make test` green on the base branch
+
+  - from: "shipping"
+    to: "done"
+    actions:
+      - type: validate
+        rule: "section_checkboxes_checked: Shipping"
+
+systems:
+  UI:
+    statuses:
+      - name: "discussion"
+        prompt: "UI discussion guidance."
+    transitions:
+      - from: "idea"
+        to: "discussion"
+        actions:
+          - type: inject_prompt
+            prompt: "UI baseline: take a screenshot."
+      - from: "balance"
+        to: "playtest"
+        actions:
+          - type: inject_prompt
+            prompt: "Screenshot at 1920x1080."
+      - from: "in progress"
+        to: "obsolete"
+        actions:
+          - type: inject_prompt
+            prompt: "UI: say which screen is superseded."
+

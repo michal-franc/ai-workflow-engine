@@ -7,6 +7,15 @@ order: 6
 
 The board and detail views can dispatch issues to AI agents (Claude or Codex) via tmux sessions. Dispatch creates a session, opens a terminal, and pastes a generated prompt.
 
+## Requirements
+
+- **tmux** is mandatory. The whole dispatch lifecycle is tmux: creating the session, injecting the environment, logging via `pipe-pane`, and delivering the prompt via `send-keys`.
+- **The agent CLI**: `claude` or `codex` on the `PATH` of the server.
+- **git**, when the workflow sets `worktree: true`.
+- **A terminal command**, or `terminal: "none"` to attach yourself (see [Terminal Configuration](#terminal-configuration)). The default, i3 + alacritty, is only needed if you leave `terminal` unset.
+
+> **Tip.** Not sure which `terminal` value fits your setup? Ask your coding agent: *"Look at my OS, window manager and installed terminals, then set the `terminal:` field in `projects.yaml` to something that works here."* It can detect i3, GNOME, macOS or WSL, check what's on `$PATH`, and pick the right command, or fall back to `"none"`.
+
 ## How to Dispatch
 
 - **Board view** — hover a card, click the play button, pick Claude or Codex
@@ -75,6 +84,23 @@ On dispatch:
 - Re-dispatching an issue whose window is still alive reattaches (selects the window) instead of re-prompting.
 
 "Edit in nvim" follows the same rule: it opens as an `agent-<slug>-edit` window, and only that window is closed when the edit finishes. Agent windows are listed as `work:agent-<slug>` and receive approval notifications like per-agent sessions. With `terminal: none`, `attach_cmd` is `tmux attach -t work \; select-window -t agent-<slug>`.
+
+## Per-issue Worktrees
+
+Set `worktree: true` at the top of `workflow.yaml` to give every dispatched issue its own git worktree:
+
+```yaml
+worktree: true
+worktree_setup: "make"            # optional: runs once inside a new worktree
+worktree_sparse_exclude: ["issues/"]   # the default; [] keeps everything
+```
+
+- The worktree is `<workdir>/.worktrees/<slug>` on a new branch `work/<slug>`, created from the current `HEAD` of the project's workdir. An existing worktree is reused, so re-dispatching after a restart picks up where the agent left off.
+- `issues/` is left out with sparse-checkout, so issues are only ever edited on the main checkout. The dispatch prompt tells the agent it is in a worktree and that its `issue-cli` commands already point at the main checkout.
+- `worktree_setup` runs on creation only. If it fails, the dispatch stops and reports the error.
+- Removing the worktree after the issue ships is left to you (`git worktree remove`).
+
+To branch a worktree from somewhere other than `HEAD` (for example a staging branch for a large feature), create it yourself before dispatching; the viewer will reuse it. See [The lead session](patterns/lead-session.md#umbrella-features).
 
 ## Agent Model
 

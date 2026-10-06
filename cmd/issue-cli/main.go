@@ -21,7 +21,7 @@ var changelogMD string
 
 // releasesRepo is the GitHub repo `process changes` pulls release history
 // from. CHANGELOG.md is the offline fallback when the API is unreachable.
-const releasesRepo = "michal-franc/ai-native-project-viewer"
+const releasesRepo = "michal-franc/ai-workflow-engine"
 
 type githubRelease struct {
 	TagName     string `json:"tag_name"`

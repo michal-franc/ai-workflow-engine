@@ -3,8 +3,9 @@ title: "Types of Work"
 order: 2
 ---
 
-> **Status: design** (issue `workflow/types-of-work-epic-new-feature-bugfix-tweak-each-with-its-own-workflow`).
-> Nothing on this page is implemented yet. It describes the agreed design.
+> **Status: slice 1 implemented** (issue `workflow/types-of-work-epic-new-feature-bugfix-tweak-each-with-its-own-workflow`).
+> Slice 2 (see "Slices") is not built yet. The code is in `internal/tracker/workflow_types.go`,
+> `cmd/issue-cli/cmd_set_type.go`, `cmd/issue-cli/types.go` and `types_view.go`.
 
 ## Why
 
@@ -50,8 +51,10 @@ types:
         actions: [...]
 ```
 
-- `path` entries must be names from the base `statuses:` list (a load error otherwise). The base order wins: `path` picks
-  statuses, it doesn't reorder them (the lint warns when `path` is listed out of base order).
+- `path` entries must be names from the base `statuses:` list. An unknown entry is dropped and reported by the lint (not a
+  load error: a failed load silently falls back to the default workflow). The base order wins: `path` picks statuses,
+  it doesn't reorder them (the lint warns when `path` is listed out of base order).
+- A type's `statuses` overrides and `transitions` that leave its `path` are ignored, and the lint reports them.
 - A status only one type uses (say `repro`) still goes in the base `statuses:` list. The other types leave it out of
   their `path`. The base list is the **vocabulary and the board's column order**.
 - `replace: true` is also accepted on `systems.<X>.transitions`, but only types need it.
@@ -96,15 +99,15 @@ The lint flags a status prompt that both a type and a system set.
 
 ### Lint
 
-`WorkflowConfig.Lint() []string` runs on load. Its output shows in `issue-cli process workflow` under
-`== Warnings ==` and on the viewer's workflow designer page. Checks:
+`WorkflowConfig.Lint() []string`. Its output shows in `issue-cli process workflow` under
+`== Warnings (workflow.yaml) ==` (the viewer's workflow designer page doesn't show it yet). Checks:
 
 - `default_type` is missing or names no type; a `path` entry isn't a base status; a `path` is out of base order.
-- **Section gaps**: an edge on a type's path validates `section_checkboxes_checked: X` (or `has_section`), but no edge
-  on that path appends `X`. Example: `type tweak: shipping → done checks section "Shipping", but nothing on tweak's
+- **Section gaps**: an edge on a type's path validates `section_checkboxes_checked: X`, `section_has_checkboxes: X`,
+  `has_section` or `section_min_length` on a section the base workflow appends somewhere, but no edge on the type's
+  path appends it. Sections the base never appends (written by people, like `Repro`) are not flagged. Example: `type tweak: shipping → done checks section "Shipping", but nothing on tweak's
   path appends it — add an append_section to the edge into "shipping"`.
 - A type and a system both override the prompt of the same status.
-- A type's path has a status that no edge on the path reaches (and that isn't the first status).
 
 ## CLI
 
@@ -118,7 +121,7 @@ Every change is a hint in CLI output, so agents in any project find types withou
 | `process workflow [--type t]` | No `--type`: the base lifecycle, then `== Types ==` with one line per type: name, description and path (`idea → in progress → playtest → shipping → done`). With `--type`: that type's lifecycle. Lint warnings at the end. |
 | `process transitions [--type t] [<slug>]` | Scoped with `ForType`, then the system. The header names both: `== Transition Rules — type "tweak", system "UI" (issue ui/x) ==`. |
 | `show`, `start`, `transition` | The header shows `Type: tweak`. The `Workflow lifecycle` line is the type's path. `== Next ==` comes from the scoped config. A bad-order error names the path: `cannot transition from "idea" to "discussion" — type "tweak" goes idea → in progress → … (must go to "in progress" next)`. |
-| `list`, `next`, `search` | A `--type` filter. Typed issues show a `tweak` column in the rows (only when the project has types). |
+| `list` | A `--type` filter (untyped issues count as `default_type`). Rows show the type column only when the project has types. `next` and `search` don't filter by type yet. |
 | `--json` outputs | A `type` field (omitempty) on issue objects, plus `type_path` on `show` and `transition`. |
 
 ## Viewer

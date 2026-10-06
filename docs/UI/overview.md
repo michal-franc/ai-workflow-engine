@@ -29,6 +29,8 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 | `/issue/<slug>`   | `detail.html` | Detail with edit, approve, dispatch, comments    |
 | `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
 
+In projects whose `workflow.yaml` defines `types:` ([Types of Work](../Workflow/types.md)), the list and board show a type badge and an "All types" filter (`?type=`), `type` joins the default board card fields, `/graph?type=<t>` draws that type's path, and the detail sidebar has a **Type** select (`POST /p/<project>/issue/<slug>/type`; a `409` with `statuses` asks the human which status on the new path to move to). Without `types:` none of these controls render.
+
 ## Design Considerations
 
 When working on UI changes:
@@ -81,6 +83,7 @@ Form fields:
 - **Status** (default = first status before `backlog`, e.g. `idea`). The select is populated from the workflow's "creatable" set — every status with index < `backlog` — computed by `createOptions(wf)` in `handlers_list.go`.
 - **Priority** (optional: low/medium/high/critical)
 - **Labels** (optional, comma-separated)
+- **Type** (only in projects with `types:`; defaults to `default_type`). A status the type's path skips — for example the board's `+` on a column a tweak never visits — starts the issue at the type's first status.
 
 The board's per-column `+` buttons keep working and pass their column status as a preset to `openCreateModal(status)`; the header button calls `openCreateModal('')` for the default.
 

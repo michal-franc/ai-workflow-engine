@@ -82,6 +82,7 @@ Markdown body here. Supports `[x]` checkboxes.
 - `created` — date string for sorting (newest first)
 - `number` — GitHub issue number (used in board card display as `#number`)
 - `repo` — GitHub repo in `owner/repo` format
+- `type` — type of work when `workflow.yaml` defines `types:` (picks the issue's path; see docs/Workflow/types.md)
 
 ### Custom fields
 

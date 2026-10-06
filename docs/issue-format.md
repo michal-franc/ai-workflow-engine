@@ -18,6 +18,7 @@ Every issue is a markdown file with YAML frontmatter.
 | `created`  | No       | Date string for sorting (newest first)             |
 | `number`   | No       | GitHub issue number (links to GitHub with `repo`)  |
 | `repo`     | No       | GitHub repo in `owner/repo` format                 |
+| `type`     | No       | Type of work (`feature`, `tweak`, …) when `workflow.yaml` defines `types:`; picks the issue's path. Unset = `default_type`. Change with `issue-cli set-type` (see [Types of Work](Workflow/types.md)). In projects without types it is a plain custom field. |
 
 ## Status Values
 

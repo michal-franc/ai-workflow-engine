@@ -18,16 +18,25 @@ Every issue is a markdown file with YAML frontmatter.
 | `created`  | No       | Date string for sorting (newest first)             |
 | `number`   | No       | GitHub issue number (links to GitHub with `repo`)  |
 | `repo`     | No       | GitHub repo in `owner/repo` format                 |
+| `assignee` | No       | Free text; dispatched agents use `agent-<slug>`    |
+
+`score_boost` and `due` take part in scoring when it's enabled (see [Scoring Fields](#scoring-fields)).
 
 ## Status Values
 
-- `idea` — raw idea, needs exploration
-- `in design` — being designed and specced out
-- `backlog` — ready to work on
-- `in progress` — actively being implemented
-- `testing` — under verification
-- `documentation` — being documented
-- `done` — completed
+`status` must be one of the statuses defined in the project's `workflow.yaml`; there is no fixed list. The bundled `development` template uses:
+
+- `idea`: raw idea, needs exploration
+- `in design`: being designed and specced out
+- `backlog`: ready to work on
+- `in progress`: actively being implemented
+- `testing`: automated tests written and run
+- `human-testing`: waiting for a human to verify by hand
+- `documentation`: being documented
+- `shipping`: being merged and released
+- `done`: completed
+
+`issue-cli process workflow` prints the statuses of the current project.
 
 ## Example
 

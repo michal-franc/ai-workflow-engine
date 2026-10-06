@@ -1,7 +1,7 @@
 # Changelog
 
 Release history for the `issue-viewer` web app and the `issue-cli` CLI.
-GitHub releases on `michal-franc/ai-native-project-viewer` are the source
+GitHub releases on `michal-franc/ai-workflow-engine` are the source
 of truth for release notes; `issue-cli process changes` fetches them live
 and falls back to this embedded file when the API is unreachable. Keep
 entries here mirrored with the GitHub release descriptions.

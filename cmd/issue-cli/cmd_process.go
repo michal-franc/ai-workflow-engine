@@ -18,8 +18,8 @@ var processCommand = &Command{
 
 Topics:
   (none)         Show high-level overview
-  workflow       Status lifecycle
-  transitions    Transition rules (--system <name> or <issue-slug>)
+  workflow       Status lifecycle (--type <name> for one type of work)
+  transitions    Transition rules (--system <name>, --type <name> or <issue-slug>)
   format         Issue file format
   testing        Test plan convention
   docs           Documentation convention
@@ -31,7 +31,7 @@ Topics:
 For per-command help (flags, examples) run: issue-cli help <command>`,
 	Run:         runProcess,
 	Subcommands: processTopics,
-	ExtraFlags:  []string{"system", "workflow"},
+	ExtraFlags:  []string{"system", "workflow", "type"},
 }
 
 // processTopics are the canonical topic names normalizeTopic resolves to.
@@ -109,14 +109,27 @@ func normalizeTopic(topic string) string {
 	return topic
 }
 
-func runProcessWorkflow(ctx *Context, _ []string) error {
+func runProcessWorkflow(ctx *Context, args []string) error {
 	if ctx.Project == nil {
 		return fmt.Errorf("process workflow needs a project — pass --project <slug> or run from a project root")
 	}
-	wf := ctx.Project.LoadWorkflow()
+	base := ctx.Project.LoadWorkflow()
+	wf := base
+	typeFlag := strings.TrimSpace(flagValue(args, "--type"))
+	if typeFlag != "" {
+		if err := checkTypeFlag(base, typeFlag); err != nil {
+			return err
+		}
+		wf = base.ForType(typeFlag)
+		fmt.Fprintf(ctx.Stdout, "== Status Lifecycle — type %q ==\n", typeFlag)
+		if d := base.Types[typeFlag].Description; d != "" {
+			fmt.Fprintf(ctx.Stdout, "  %s\n", d)
+		}
+	} else {
+		fmt.Fprintln(ctx.Stdout, "== Status Lifecycle ==")
+	}
 	statusOrder := wf.GetStatusOrder()
 	statusDescs := wf.GetStatusDescriptions()
-	fmt.Fprintln(ctx.Stdout, "== Status Lifecycle ==")
 	for i, s := range statusOrder {
 		desc := statusDescs[s]
 		if i > 0 {
@@ -134,7 +147,54 @@ func runProcessWorkflow(ctx *Context, _ []string) error {
 			fmt.Fprintf(ctx.Stdout, "%s\n", name)
 		}
 	}
+	if typeFlag == "" {
+		printTypesBlock(ctx.Stdout, base)
+	}
+	printLintBlock(ctx.Stdout, base)
 	return nil
+}
+
+// checkTypeFlag rejects --type in a project without types, or an unknown name.
+func checkTypeFlag(wf *tracker.WorkflowConfig, typ string) error {
+	if !wf.HasTypes() {
+		return fmt.Errorf("--type %q: this project defines no types (add a types: block to workflow.yaml; see docs/Workflow/types.md)", typ)
+	}
+	if _, ok := wf.Types[typ]; !ok {
+		return fmt.Errorf("unknown type %q (types: %s)", typ, strings.Join(wf.TypeNames(), ", "))
+	}
+	return nil
+}
+
+// printTypesBlock lists each type of work with its path so agents learn the
+// types from process output alone. Prints nothing without types.
+func printTypesBlock(w io.Writer, wf *tracker.WorkflowConfig) {
+	if !wf.HasTypes() {
+		return
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "== Types ==")
+	for _, name := range wf.TypeNames() {
+		label := name
+		if name == wf.DefaultType {
+			label += " (default)"
+		}
+		fmt.Fprintf(w, "  %-18s  %s\n", label, wf.Types[name].Description)
+		fmt.Fprintf(w, "  %-18s  %s\n", "", wf.ForType(name).PathLine())
+	}
+	fmt.Fprintln(w, "An issue's type: frontmatter picks its path. Details: issue-cli process workflow --type <name>; create with --type; change with set-type (first status only).")
+}
+
+// printLintBlock prints workflow.yaml type-configuration warnings.
+func printLintBlock(w io.Writer, wf *tracker.WorkflowConfig) {
+	warnings := wf.Lint()
+	if len(warnings) == 0 {
+		return
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, "== Warnings (workflow.yaml) ==")
+	for _, msg := range warnings {
+		fmt.Fprintf(w, "  ⚠ %s\n", msg)
+	}
 }
 
 func runProcessSystems(ctx *Context) error {
@@ -182,10 +242,13 @@ func runProcessTransitions(ctx *Context, args []string) error {
 	if systemFlag == "" {
 		systemFlag = workflowFlag
 	}
+	typeFlag := strings.TrimSpace(flagValue(args, "--type"))
 
-	for _, a := range args {
-		if a == "--system" || a == "--workflow" {
-			break
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--system" || a == "--workflow" || a == "--type" {
+			i++ // skip the flag's value
+			continue
 		}
 		if strings.HasPrefix(a, "--") {
 			continue
@@ -194,14 +257,21 @@ func runProcessTransitions(ctx *Context, args []string) error {
 		hasIssueRef = true
 		break
 	}
+	if typeFlag != "" {
+		if err := checkTypeFlag(wf, typeFlag); err != nil {
+			return err
+		}
+	}
 
 	var issueSlug string
+	var issue *tracker.Issue
 	switch {
 	case hasIssueRef:
-		issue, _, err := findIssueOrErr(ctx, issueRef)
+		found, _, err := findIssueOrErr(ctx, issueRef)
 		if err != nil {
 			return err
 		}
+		issue = found
 		system = issue.System
 		issueSlug = issue.Slug
 		systemSource = fmt.Sprintf("issue %s", issue.Slug)
@@ -211,12 +281,25 @@ func runProcessTransitions(ctx *Context, args []string) error {
 	}
 
 	scoped := wf
-	if strings.TrimSpace(system) != "" {
+	switch {
+	case issue != nil:
+		scoped = wf.ForIssue(issue)
+	case typeFlag != "":
+		scoped = wf.ForType(typeFlag).ForSystem(system)
+	case strings.TrimSpace(system) != "":
 		scoped = wf.ForSystem(system)
 	}
 
 	header := "== Transition Rules =="
 	switch {
+	case scoped.ActiveType != "" && system != "" && hasIssueRef:
+		header = fmt.Sprintf("== Transition Rules — type %q, system %q (%s) ==", scoped.ActiveType, system, systemSource)
+	case scoped.ActiveType != "" && hasIssueRef:
+		header = fmt.Sprintf("== Transition Rules — type %q (issue %s; no system overlay) ==", scoped.ActiveType, issueSlug)
+	case scoped.ActiveType != "" && system != "":
+		header = fmt.Sprintf("== Transition Rules — type %q, system %q ==", scoped.ActiveType, system)
+	case scoped.ActiveType != "" && typeFlag != "":
+		header = fmt.Sprintf("== Transition Rules — type %q ==", scoped.ActiveType)
 	case hasIssueRef && system != "":
 		header = fmt.Sprintf("== Transition Rules — system %q (%s) ==", system, systemSource)
 	case hasIssueRef:
@@ -225,6 +308,9 @@ func runProcessTransitions(ctx *Context, args []string) error {
 		header = fmt.Sprintf("== Transition Rules — system %q ==", system)
 	}
 	fmt.Fprintln(ctx.Stdout, header)
+	if wf.HasTypes() && scoped.ActiveType == "" {
+		fmt.Fprintf(ctx.Stdout, "(base rules with no type applied; types: %s — pass --type <name> or an issue slug)\n", strings.Join(wf.TypeNames(), ", "))
+	}
 	fmt.Fprintln(ctx.Stdout)
 
 	statusOrder := scoped.GetStatusOrder()

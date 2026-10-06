@@ -268,13 +268,32 @@ systems:
           For UI work that launches local tools or editors, state whether to reuse existing tmux/alacritty patterns, whether handlers may block on local processes, and what feedback the user sees after launch.
           Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
           Describe how agents will discover and use the change. Prefer hints in CLI output and error messages over prompt text, which does not reach other projects' workflows or non-dispatched sessions.
+          Mockups come before the written design for any change the user sees (docs/UI/overview.md, "Mockups in design"):
+            1. Build them as a Claude artifact: a Design canvas with one artboard per screen, or an HTML page for a single view or a side-by-side comparison. Use real data from the project, not lorem ipsum. If the direction is unclear, ask the human what to compare before building.
+            2. Link it in frontmatter: `issue-cli set-meta <slug> --key mockups --value <artifact url>`.
+            3. The artifact is private, so save its sources under issues/attachments/<issue-name>/ (the .dc.html artboards or the .html page).
+            4. Make screenshots with `tools/mockup-shots/shots.py issues/attachments/<issue-name>/` (Playwright; works for Design artboards and HTML pages). It captures each screen at full height and widens for boards that scroll sideways; add `--shot "<css>=<name>"` for a close-up of one region. Look at every image before using it.
+            5. Under `## Mockups`, add one subsection per screen: the image (path relative to the issue file, e.g. `../attachments/<issue-name>/<screen>.png`) and a description of its layout, each region, the states and markers it shows, and what happens on interaction. Someone who cannot open the artifact must be able to build the screen from the image and the text.
+          No visible change (e.g. a handler that launches a local tool): write why under `## Mockups` instead and tick its box.
           When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition <slug> --to "backlog" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
       - name: "documentation"
         prompt: |
           Update docs/UI/ with any changed views, templates, or interaction patterns.
           Reference docs/UI/overview.md for the current UI documentation structure.
     transitions:
-      []
+      - from: "idea"
+        to: "in design"
+        actions:
+          - type: "append_section"
+            title: "Mockups"
+            body: |
+              - [ ] Mockups published as a Claude artifact and linked in the `mockups` frontmatter field (or why none)
+              - [ ] Sources saved under issues/attachments/<issue-name>/, one screenshot and description per screen below
+      - from: "in design"
+        to: "backlog"
+        actions:
+          - type: "validate"
+            rule: "section_checkboxes_checked: Mockups"
   Workflow:
     statuses:
       - name: "in design"

@@ -668,7 +668,7 @@ func (s *Server) handleWorkflowDesignerPreview(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	wf := proj.LoadWorkflow().ForSystem(issue.System)
+	wf := proj.LoadWorkflowForIssue(issue)
 	preview := wf.PreviewTransition(issue, issue.Status, strings.TrimSpace(req.To), issue.System, comments)
 	if !wf.IsValidTransition(issue.Status, strings.TrimSpace(req.To)) {
 		preview.Allowed = false

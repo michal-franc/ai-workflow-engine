@@ -104,6 +104,12 @@ type Issue struct {
 	Number         int      `yaml:"number"`
 	Repo           string   `yaml:"repo"`
 
+	// Type is the `type:` frontmatter value (type of work: feature, tweak, …).
+	// Read from the raw map rather than decoded so a non-scalar `type:` in a
+	// project without types can't fail the parse; it also stays in
+	// ExtraFields, where projects without types have always shown it.
+	Type string `yaml:"-"`
+
 	// Computed fields
 	Slug        string       `yaml:"-"`
 	FilePath    string       `yaml:"-"`
@@ -153,6 +159,9 @@ func ParseIssue(filename string, data []byte) (*Issue, error) {
 			var rawMap map[string]interface{}
 			if yaml.Unmarshal([]byte(parts[0]), &rawMap) == nil {
 				issue.ExtraFields = extractExtraFields(rawMap)
+				if t, ok := rawMap["type"].(string); ok {
+					issue.Type = strings.TrimSpace(t)
+				}
 			}
 		}
 	}
@@ -596,6 +605,17 @@ func UpdateIssueFrontmatter(filePath string, update IssueUpdate) error {
 	})
 }
 
+// SetIssueType writes the issue's type: and, when status is non-empty, moves
+// it to that status in the same locked write. Callers decide the status with
+// WorkflowConfig.RetypeStatus first.
+func SetIssueType(filePath, typ, status string) error {
+	update := IssueUpdate{ExtraFields: map[string]string{"type": typ}}
+	if status != "" {
+		update.Status = &status
+	}
+	return UpdateIssueFrontmatter(filePath, update)
+}
+
 // RewriteIssueFile replaces the issue file with the given bytes after
 // validating that they parse as a valid issue. The lock is held for the
 // duration of validation + write, and the write is atomic — on any failure
@@ -726,6 +746,8 @@ type CreateIssueOpts struct {
 	Priority string
 	Labels   []string
 	Body     string
+	// Type is written as type: when set (projects with types: in workflow.yaml).
+	Type string
 }
 
 func CreateIssueFile(issueDir, title, status, system, version string) (filePath, slug string, err error) {
@@ -763,6 +785,9 @@ func CreateIssueFileOpts(issueDir string, opts CreateIssueOpts) (filePath, slug 
 	}
 	if opts.Priority != "" {
 		content.WriteString(fmt.Sprintf("priority: \"%s\"\n", opts.Priority))
+	}
+	if opts.Type != "" {
+		content.WriteString(fmt.Sprintf("type: \"%s\"\n", opts.Type))
 	}
 	if len(opts.Labels) > 0 {
 		content.WriteString("labels:\n")

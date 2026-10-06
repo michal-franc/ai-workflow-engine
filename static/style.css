@@ -889,6 +889,16 @@ html[data-sidebar-hidden="true"] .sidebar-show-btn { display: inline-block; }
     flex-shrink: 0;
 }
 
+.board-card-type,
+.type-badge {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0 6px;
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--text-secondary);
+}
+
 .board-card-dot {
     width: 10px;
     height: 10px;

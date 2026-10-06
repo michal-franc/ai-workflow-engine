@@ -82,6 +82,7 @@ Markdown body here. Supports `[x]` checkboxes.
 - `created` — date string for sorting (newest first)
 - `number` — GitHub issue number (used in board card display as `#number`)
 - `repo` — GitHub repo in `owner/repo` format
+- `type` — type of work when `workflow.yaml` defines `types:` (picks the issue's path; see docs/Workflow/types.md)
 
 ### Custom fields
 
@@ -141,6 +142,7 @@ Per-system docs:
 - [CLI Usage Telemetry](docs/CLI/telemetry.md) — local names-only usage log, `issue-cli telemetry report`, opt-out, `parseFlags` rule for new commands
 - [UI](docs/UI/overview.md) — templates, views, client-side behavior
 - [Workflow](docs/Workflow/overview.md) — workflow engine, transitions, overlays
+- [Types of Work](docs/Workflow/types.md) — per-type paths (feature/tweak/bugfix/epic) as overlays with `path:`, `set-type`, lint
 
 ## Adding New Statuses
 

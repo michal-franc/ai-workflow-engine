@@ -117,6 +117,9 @@ func (w *WorkflowConfig) CheckTransitionOrder(fromStatus, toStatus string) error
 	if next == "" {
 		next = w.NextStatus(fromStatus)
 	}
+	if next != "" && w.ActiveType != "" {
+		return markErr(fmt.Errorf("cannot transition from %q to %q — type %q goes %s (must go to %q next)", fromStatus, toStatus, w.ActiveType, w.PathLine(), next), ErrInvalidTransition)
+	}
 	if next != "" {
 		return markErr(fmt.Errorf("cannot transition from %q to %q — must go to %q next", fromStatus, toStatus, next), ErrInvalidTransition)
 	}

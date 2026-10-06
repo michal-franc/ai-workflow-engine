@@ -19,6 +19,7 @@ Every issue is a markdown file with YAML frontmatter.
 | `number`   | No       | GitHub issue number (links to GitHub with `repo`)  |
 | `repo`     | No       | GitHub repo in `owner/repo` format                 |
 | `assignee` | No       | Free text; dispatched agents use `agent-<slug>`    |
+| `type`     | No       | Type of work (`feature`, `tweak`, …) when `workflow.yaml` defines `types:`; picks the issue's path. Unset = `default_type`. Change with `issue-cli set-type` (see [Types of Work](Workflow/types.md)). In projects without types it is a plain custom field. |
 
 `score_boost` and `due` take part in scoring when it's enabled (see [Scoring Fields](#scoring-fields)).
 

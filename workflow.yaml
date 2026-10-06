@@ -222,6 +222,38 @@ project_actions:
       design is clear enough to start and whether its priority still looks right.
       Summarize a recommended order to pick up next and flag anything blocked or
       stale, then post it with: issue-cli comment <slug> --text "triage: <note>"
+  - id: "ux-review"
+    label: "UX review"
+    agent: "claude"
+    prompt: |
+      Run an ease-of-use review of {{project}} as a newcomer would meet it. Change no code.
+      Look through three lenses:
+        - Setup: installing, configuring, and what has to be written by hand.
+        - First run: how long until the user sees the tool's value (for this tool, the first human approval).
+        - Daily use: what the human repeats most, and what costs them attention.
+      Also check how easily an agent can set the project up and explain it, if a user asks one.
+
+      1. Read README.md, docs/getting-started.md, the Makefile, install.sh and the bundled templates
+         under cmd/issue-cli/templates/. Note every step the docs ask for.
+      2. Walk that path for real in a throwaway sandbox under .agent-logs/ux-sandbox/ (gitignored):
+         a fresh `git clone` of this repo, `make build build-cli`, `make demo` on a free port, and
+         `issue-cli init` / `create` in an empty folder. Use `--help` on the commands you touch, and curl
+         the board pages. Never touch the real projects.yaml, the issues/ tree or user state.
+      3. Record each place where a step fails, needs a file written by hand, prints an unclear message,
+         or assumes something the docs don't say. Cite the evidence: the command and its output, or
+         file:line. Don't count anything you didn't see.
+      4. Before filing anything, check what is already tracked: `issue-cli search "<keyword>"` and
+         `issue-cli list`. The adoption umbrella (`issue-cli search adoption`) and its children may
+         already cover a finding.
+      5. Write the report to .agent-logs/ux-review-<YYYY-MM-DD>.md. List findings ranked by impact on
+         newcomers, each with its lens, evidence, a proposed fix, effort (S/M/L) and the existing issue
+         it belongs to, if any. Then show the human the top five in chat.
+      6. Ask the human which new findings to file. For each one they pick, run
+         `issue-cli create --title "..." --system <CLI|UI|API|Workflow> --priority <p>` and write the
+         body from the report. When a finding belongs under the adoption umbrella, add
+         `issue-cli set-meta <slug> --key umbrella --value <umbrella slug>`. For findings that fit an
+         existing issue, add an `issue-cli comment <slug> --text "ux: <finding and evidence>"` instead.
+      7. Delete .agent-logs/ux-sandbox/ and stop any board you started.
 
 systems:
   API:

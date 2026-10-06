@@ -253,6 +253,9 @@ func (w *WorkflowConfig) GetBoardCardFields() []string {
 	if len(w.Board.CardFields) > 0 {
 		return w.Board.CardFields
 	}
+	if w.HasTypes() {
+		return append(append([]string(nil), defaultBoardCardFields...), "type")
+	}
 	return defaultBoardCardFields
 }
 

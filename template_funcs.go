@@ -131,6 +131,10 @@ var funcMap = template.FuncMap{
 				if issue.Version != "" {
 					result = append(result, BoardCardField{Name: f, Value: issue.Version})
 				}
+			case "type":
+				if issue.WorkType != "" {
+					result = append(result, BoardCardField{Name: f, Value: issue.WorkType})
+				}
 			case "number":
 				if issue.Number > 0 {
 					result = append(result, BoardCardField{Name: f, Value: fmt.Sprintf("#%d", issue.Number)})

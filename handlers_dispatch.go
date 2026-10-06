@@ -30,6 +30,13 @@ func buildAgentPrompt(proj *tracker.Project, issue *tracker.Issue, wf *tracker.W
 		statusReminder = fmt.Sprintf("Tell the human in chat that this needs `in progress` approval in the issue viewer, then run `issue-cli start %s --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).", issue.Slug)
 	}
 
+	// Typed issues get a Type line under Status in the metadata block, so the
+	// agent knows its path before reading any workflow output.
+	statusField := issue.Status
+	if wf != nil && wf.ActiveType != "" {
+		statusField += fmt.Sprintf("\n  Type: %s (%s)", wf.ActiveType, wf.PathLine())
+	}
+
 	prompt := fmt.Sprintf(tracker.AgentDispatchPromptTemplate,
 		issue.Slug,
 		currentPrompt,
@@ -39,7 +46,7 @@ func buildAgentPrompt(proj *tracker.Project, issue *tracker.Issue, wf *tracker.W
 		issue.Slug,
 		issue.Slug,
 		issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.System, issue.System, issue.Slug,
-		issue.Title, issue.Status, issue.Priority,
+		issue.Title, statusField, issue.Priority,
 		issue.BodyRaw)
 
 	// Inject --project so dispatched bots in a multi-project projects.yaml

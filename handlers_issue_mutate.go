@@ -483,6 +483,7 @@ type CreateIssueRequest struct {
 	Priority string   `json:"priority"`
 	Labels   []string `json:"labels"`
 	Body     string   `json:"body"`
+	Type     string   `json:"type"`
 }
 
 func (s *Server) handleCreateIssue(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
@@ -497,9 +498,27 @@ func (s *Server) handleCreateIssue(w http.ResponseWriter, r *http.Request, proj 
 		return
 	}
 
+	status := req.Status
+	workType := ""
+	if wf := proj.LoadWorkflow(); wf.HasTypes() {
+		if req.Type != "" {
+			if _, ok := wf.Types[req.Type]; !ok {
+				http.Error(w, fmt.Sprintf("unknown type %q (types: %s)", req.Type, strings.Join(wf.TypeNames(), ", ")), http.StatusBadRequest)
+				return
+			}
+		}
+		workType, _ = wf.ResolveType(req.Type)
+		// A status the type's path skips (e.g. the board's "+" on a column
+		// a tweak never visits) starts the issue at the type's first status.
+		if status == "" || wf.ForType(workType).GetStatusIndex(status) == -1 {
+			status = wf.FirstStatus(workType)
+		}
+	}
+
 	_, slug, err := tracker.CreateIssueFileOpts(proj.IssueDir, tracker.CreateIssueOpts{
 		Title:    req.Title,
-		Status:   req.Status,
+		Type:     workType,
+		Status:   status,
 		System:   req.System,
 		Version:  req.Version,
 		Priority: req.Priority,

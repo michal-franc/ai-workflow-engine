@@ -33,19 +33,29 @@ func runShow(ctx *Context, args []string) error {
 		return err
 	}
 
+	wf := ctx.Project.LoadWorkflowForIssue(issue)
 	if ctx.JSONOutput {
 		comments, _ := tracker.LoadComments(issue.FilePath)
-		return writeJSON(ctx.Stdout, map[string]interface{}{
+		out := map[string]interface{}{
 			"issue":    issue,
 			"comments": comments,
-		})
+		}
+		if wf.ActiveType != "" {
+			out["type"] = wf.ActiveType
+			out["type_path"] = typePath(wf)
+		}
+		return writeJSON(ctx.Stdout, out)
 	}
 
-	wf := ctx.Project.LoadWorkflowForIssue(issue)
 	fmt.Fprintf(ctx.Stdout, "== %s ==\n", issue.Title)
-	fmt.Fprintf(ctx.Stdout, "Status: %s | System: %s | Priority: %s | Assignee: %s\n",
-		statusLabel(wf, issue.Status), issue.System, issue.Priority, issue.Assignee)
-	fmt.Fprintf(ctx.Stdout, "File: %s\n\n", issue.FilePath)
+	fmt.Fprintf(ctx.Stdout, "Status: %s%s | System: %s | Priority: %s | Assignee: %s\n",
+		statusLabel(wf, issue.Status), typeLabel(wf), issue.System, issue.Priority, issue.Assignee)
+	fmt.Fprintf(ctx.Stdout, "File: %s\n", issue.FilePath)
+	if wf.ActiveType != "" {
+		fmt.Fprintf(ctx.Stdout, "Path: %s\n", typePath(wf))
+	}
+	printTypeWarnings(ctx.Stdout, wf, issue)
+	fmt.Fprintln(ctx.Stdout)
 
 	fmt.Fprintln(ctx.Stdout, "== Body ==")
 	fmt.Fprintln(ctx.Stdout, issue.BodyRaw)

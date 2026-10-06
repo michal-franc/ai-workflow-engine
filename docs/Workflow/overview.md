@@ -16,7 +16,8 @@ The Workflow system covers the workflow engine, transition logic, validation rul
 - `internal/tracker/workflow_validators.go` — dispatcher for structured rules: translates `WorkflowAction` + `Issue` into the narrow types accepted by the validations sub-package
 - `internal/tracker/validations/` — leaf package with one file per structured validator (`field_in.go`, `has_section.go`, `command_succeeds.go`, …); each file registers its `CheckFn` in the `Registry` map. Add a new validator by dropping a file in here and ensuring `init()` calls `register(name, fn)`
 - `internal/tracker/workflow_preview.go` — `PreviewTransition` and the `TransitionPreview*` types
-- `internal/tracker/workflow_merge.go` — `Clone`, `ForSystem`, `Merge` (per-system overlay handling)
+- `internal/tracker/workflow_merge.go` — `Clone`, `ForSystem`, `Merge` (per-system overlay handling; `replace: true` edges)
+- `internal/tracker/workflow_types.go` — `ForType`, `ForIssue` (base → type → system), `ResolveType`, `RetypeStatus`, `Lint` for types of work
 - `internal/tracker/workflow_schema.go` — reflection-based YAML schema docs
 - `internal/tracker/heading.go` — shared section/heading helpers used by both workflow and issue code
 
@@ -28,6 +29,7 @@ A workflow defines:
 - **Transitions** — allowed moves between statuses with ordered actions
 - **Board config** — which columns and card fields appear on the kanban board
 - **System overlays** — per-system prompt and transition overrides
+- **Types of work** — per-type paths through the statuses, picked by the issue's `type:` ([Types of Work](types.md))
 
 ## Transition Validity
 
@@ -235,6 +237,9 @@ systems:
           Extra API-specific design guidance here.
     transitions: []
 ```
+
+Overlays can only add guidance and actions; they cannot drop a status or a gate. For a different path per kind of
+work (tweak, bugfix, epic), use `types:` — see [Types of Work](types.md). Resolution is base → type → system.
 
 ## Validation Rules
 

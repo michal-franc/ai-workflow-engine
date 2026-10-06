@@ -12,7 +12,7 @@ var listCommand = &Command{
 	Name:      "list",
 	ShortHelp: "List issues with filters",
 	LongHelp: `List issues. Filters: --status (open|closed|<name>), --system, --assignee,
---version, --sort score.`,
+--version, --type (projects with types of work), --sort score.`,
 	Run: runList,
 }
 
@@ -38,6 +38,7 @@ func runList(ctx *Context, args []string) error {
 	assigneeFlag := fs.String("assignee", "", "filter by assignee")
 	versionFlag := fs.String("version", "", "filter by version (defaults to project version)")
 	sortFlag := fs.String("sort", "", "sort key (score)")
+	typeFlag := fs.String("type", "", "filter by type of work (untyped issues count as default_type)")
 	if err := parseFlags(ctx, fs, args); err != nil {
 		return err
 	}
@@ -59,6 +60,13 @@ func runList(ctx *Context, args []string) error {
 		version = proj.Version
 	}
 	sortBy := *sortFlag
+	wf := proj.LoadWorkflow()
+	typeFilter := strings.TrimSpace(*typeFlag)
+	if typeFilter != "" {
+		if err := checkTypeFlag(wf, typeFilter); err != nil {
+			return err
+		}
+	}
 
 	var filtered []*tracker.Issue
 	for _, issue := range issues {
@@ -87,10 +95,14 @@ func runList(ctx *Context, args []string) error {
 		if assignee != "" && issue.Assignee != assignee {
 			continue
 		}
+		if typeFilter != "" {
+			if t, _ := wf.ResolveType(issue.Type); t != typeFilter {
+				continue
+			}
+		}
 		filtered = append(filtered, issue)
 	}
 
-	wf := proj.LoadWorkflow()
 	scoringOn := wf != nil && wf.Scoring.Enabled
 
 	if scoringOn {
@@ -133,6 +145,11 @@ func runList(ctx *Context, args []string) error {
 		a := ""
 		if issue.Assignee != "" {
 			a = " claimed by " + issue.Assignee
+		}
+		if wf.HasTypes() {
+			t, _ := wf.ResolveType(issue.Type)
+			fmt.Fprintf(ctx.Stdout, "  [%-13s] %-45s %-10s %-8s%s\n", issue.Status, issue.Slug, issue.System, t, a)
+			continue
 		}
 		fmt.Fprintf(ctx.Stdout, "  [%-13s] %-45s %-10s%s\n", issue.Status, issue.Slug, issue.System, a)
 	}

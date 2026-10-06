@@ -58,3 +58,12 @@ func viewerBaseURL() string {
 func fragmentStatus(status string) string {
 	return strings.ReplaceAll(strings.TrimSpace(status), " ", "-")
 }
+
+// issueURL is the viewer link to an issue's detail page.
+func issueURL(proj *tracker.Project, slug string) string {
+	base := strings.TrimRight(viewerBaseURL(), "/")
+	if proj != nil {
+		return fmt.Sprintf("%s/p/%s/issue/%s", base, proj.Slug, slug)
+	}
+	return fmt.Sprintf("%s/issue/%s", base, slug)
+}

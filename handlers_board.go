@@ -46,6 +46,8 @@ type BoardData struct {
 	CreatableStatuses []string
 	BodyTemplates     map[string]string
 	ProjectActions    []tracker.CustomAction
+	WorkTypes         []WorkTypeOption
+	WorkType          string
 }
 
 type GraphStatusNode struct {
@@ -79,6 +81,8 @@ type GraphData struct {
 	TotalIssues    int
 	SupportsGitHub bool
 	ProjectActions []tracker.CustomAction
+	WorkTypes      []WorkTypeOption
+	WorkType       string
 }
 
 func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
@@ -140,6 +144,7 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 	systemFilter := r.URL.Query().Get("system")
 	assigneeFilter := r.URL.Query().Get("assignee")
 	hideEmpty := r.URL.Query().Get("hide_empty") == "1"
+	typeFilter := r.URL.Query().Get("type")
 
 	var filtered []*tracker.Issue
 	for _, issue := range issues {
@@ -160,9 +165,9 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 		}
 		filtered = append(filtered, issue)
 	}
-	issues = filtered
 
 	wf := proj.LoadWorkflow()
+	issues = filterByType(filtered, wf, typeFilter)
 	statusOrder := wf.GetBoardColumns()
 	statusDescs := wf.GetStatusDescriptions()
 	sessionMap, activeBots := sessionsByIssueSlug(issues)
@@ -181,6 +186,9 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 			st = "none"
 		}
 		view := issueView(issue, sessionMap)
+		if wf.HasTypes() {
+			view.WorkType = resolvedType(wf, issue)
+		}
 		if scoring.Enabled {
 			view.Score = tracker.ComputeScore(issue, scoring, time.Now())
 		}
@@ -247,6 +255,8 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 		CreatableStatuses: creatable,
 		BodyTemplates:     templates,
 		ProjectActions:    wf.ProjectActions,
+		WorkTypes:         workTypeOptions(wf),
+		WorkType:          typeFilter,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -262,7 +272,14 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request, proj *track
 		return
 	}
 
-	wf := proj.LoadWorkflow()
+	base := proj.LoadWorkflow()
+	// ?type= draws that type's path, its approval markers and its issues.
+	typeFilter := r.URL.Query().Get("type")
+	wf := base
+	if typeFilter != "" && base.HasTypes() {
+		wf = base.ForType(typeFilter)
+		issues = filterByType(issues, base, typeFilter)
+	}
 
 	approvalRequired := map[string]bool{}
 	for _, t := range wf.Transitions {
@@ -371,6 +388,8 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request, proj *track
 		TotalIssues:    totalIssues,
 		SupportsGitHub: proj.SupportsGitHub,
 		ProjectActions: wf.ProjectActions,
+		WorkTypes:      workTypeOptions(base),
+		WorkType:       typeFilter,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

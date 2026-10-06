@@ -57,6 +57,8 @@ type transitionOutput struct {
 	Checklist            []transitionChecklistItem `json:"checklist"`
 	BodyChanged          bool                      `json:"body_changed"`
 	CommentsChanged      bool                      `json:"comments_changed"`
+	Type                 string                    `json:"type,omitempty"`
+	TypePath             string                    `json:"type_path,omitempty"`
 	NextStatus           string                    `json:"next_status,omitempty"`
 	NextStatusOptional   bool                      `json:"next_status_optional,omitempty"`
 	OptionalNextStatuses []string                  `json:"optional_next_statuses,omitempty"`
@@ -115,6 +117,7 @@ func runTransition(ctx *Context, args []string) error {
 		return err
 	}
 	wf := ctx.Project.LoadWorkflowForIssue(issue)
+	printTypeWarnings(ctx.Stderr, wf, issue)
 	if to != "done" {
 		ctx.ApprovalWaitCommand = waitCommand(slug, issue.Status, to)
 	}
@@ -274,6 +277,8 @@ func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, fro
 		Checklist:            collectChecklist(issue.BodyRaw),
 		BodyChanged:          result.BodyChanged,
 		CommentsChanged:      false,
+		Type:                 wf.ActiveType,
+		TypePath:             typePath(wf),
 		NextStatus:           next,
 		NextStatusOptional:   nextOptional,
 		OptionalNextStatuses: optionals,
@@ -331,6 +336,9 @@ func printTransitionResult(ctx *Context, output transitionOutput) error {
 	statusDisp := output.Status
 	if output.StatusOptional {
 		statusDisp += " (optional)"
+	}
+	if output.Type != "" {
+		statusDisp += " | Type: " + output.Type
 	}
 	fmt.Fprintf(ctx.Stdout, "Status: %s\n", statusDisp)
 	for _, effect := range output.SideEffects {

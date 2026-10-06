@@ -85,6 +85,15 @@
             {{end}}
         </select>
 
+        {{if .WorkTypes}}
+        <select name="type" onchange="this.form.submit()">
+            <option value="">All types</option>
+            {{range .WorkTypes}}
+            <option value="{{.Name}}" title="{{.Path}}" {{if eq .Name $.WorkType}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+        </select>
+        {{end}}
+
         <select name="assignee" onchange="this.form.submit()">
             <option value="">All assignees</option>
             <option value="_claimed" {{if eq .Assignee "_claimed"}}selected{{end}}>Claimed</option>
@@ -94,7 +103,7 @@
             {{end}}
         </select>
 
-        {{if or .Version .System .Assignee .HideEmpty}}
+        {{if or .Version .System .Assignee .HideEmpty .WorkType}}
         <a href="{{.Prefix}}/board" class="clear-btn">Clear filters</a>
         {{end}}
 
@@ -143,6 +152,8 @@
                                     <div class="board-card-labels">
                                         {{range .Values}}<span class="board-label">{{.}}</span>{{end}}
                                     </div>
+                                    {{else if eq .Name "type"}}
+                                    <span class="board-card-system board-card-type" title="Type of work">{{.Value}}</span>
                                     {{else}}
                                     <span class="board-card-system">{{.Value}}</span>
                                     {{end}}

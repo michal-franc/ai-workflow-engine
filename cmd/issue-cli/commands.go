@@ -63,7 +63,7 @@ func commandNames() []string {
 // without scraping the config file. Single-project setups omit the section to
 // keep output identical to before.
 func printHelp(w io.Writer, projects []tracker.Project, activeSlug string) error {
-	fmt.Fprintln(w, "== issue-cli — AI-Native Project Viewer CLI ==")
+	fmt.Fprintln(w, "== issue-cli — AI Workflow Engine CLI ==")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Commands:")
 	width := 0

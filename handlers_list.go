@@ -16,6 +16,9 @@ type IssueView struct {
 	*tracker.Issue
 	ActiveSessions []AgentSession
 	Score          *tracker.ScoreBreakdown
+	// WorkType is the resolved type of work (default_type for untyped
+	// issues); "" when the project defines no types.
+	WorkType string
 }
 
 // HasScore reports whether this view carries a computed score.
@@ -46,6 +49,7 @@ type ListData struct {
 	CreatableStatuses []string
 	BodyTemplates     map[string]string
 	ProjectActions    []tracker.CustomAction
+	WorkTypes         []WorkTypeOption
 }
 
 type FilterParams struct {
@@ -55,6 +59,7 @@ type FilterParams struct {
 	Label    string
 	Assignee string
 	Search   string
+	Type     string
 }
 
 func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
@@ -75,13 +80,15 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracke
 		Label:    r.URL.Query().Get("label"),
 		Assignee: r.URL.Query().Get("assignee"),
 		Search:   r.URL.Query().Get("search"),
+		Type:     r.URL.Query().Get("type"),
 	}
 
-	filtered := filterIssues(issues, filter)
+	wf := proj.LoadWorkflow()
+	filtered := filterByType(filterIssues(issues, filter), wf, filter.Type)
 	sessionMap, activeBots := sessionsByIssueSlug(issues)
 
-	wf := proj.LoadWorkflow()
 	views := issueViews(filtered, sessionMap)
+	attachWorkTypes(views, wf)
 	scoring := &wf.Scoring
 	attachScores(views, scoring)
 
@@ -114,6 +121,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracke
 		CreatableStatuses: creatable,
 		BodyTemplates:     templates,
 		ProjectActions:    wf.ProjectActions,
+		WorkTypes:         workTypeOptions(wf),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -146,6 +154,7 @@ type issueJSON struct {
 	Assignee       string         `json:"assignee"`
 	Version        string         `json:"version"`
 	Labels         []string       `json:"labels"`
+	Type           string         `json:"type,omitempty"`
 	ActiveSessions []AgentSession `json:"active_sessions"`
 	HasActiveAgent bool           `json:"has_active_agent"`
 }
@@ -153,6 +162,7 @@ type issueJSON struct {
 func (s *Server) handleIssuesJSON(w http.ResponseWriter, r *http.Request, proj *tracker.Project) {
 	issues, _ := tracker.LoadIssues(proj.IssueDir)
 	sessionMap, _ := sessionsByIssueSlug(issues)
+	wf := proj.LoadWorkflow()
 	result := make([]issueJSON, len(issues))
 	for i, issue := range issues {
 		activeSessions := append([]AgentSession(nil), sessionMap[issue.Slug]...)
@@ -165,6 +175,7 @@ func (s *Server) handleIssuesJSON(w http.ResponseWriter, r *http.Request, proj *
 			Assignee:       issue.Assignee,
 			Version:        issue.Version,
 			Labels:         issue.Labels,
+			Type:           resolvedType(wf, issue),
 			ActiveSessions: activeSessions,
 			HasActiveAgent: len(activeSessions) > 0,
 		}

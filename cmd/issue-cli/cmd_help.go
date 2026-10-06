@@ -105,7 +105,7 @@ func aliasesFor(canonical string) []string {
 // authoritative.
 func relatedTopicFor(name string) string {
 	switch name {
-	case "transition", "start", "done":
+	case "transition", "start", "done", "set-type":
 		return "transitions"
 	case "create", "update", "append", "replace", "set-meta":
 		return "format"

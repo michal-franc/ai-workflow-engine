@@ -80,11 +80,25 @@ type WorkflowTransition struct {
 	// Only meaningful when the target status is Optional and the transition has a
 	// require_human_approval action.
 	CTALabel string `yaml:"cta_label,omitempty" desc:"Override label for the optional-target approval CTA button"`
+	// Replace makes an overlay edge (types.<t>.transitions or
+	// systems.<s>.transitions) overwrite the base edge's actions and fields
+	// instead of appending to them. Lets a type drop a base gate.
+	Replace bool `yaml:"replace,omitempty" desc:"In a type or system overlay: replace the base edge's actions and fields instead of appending"`
 }
 
 type WorkflowOverlay struct {
 	Statuses    []WorkflowStatus     `yaml:"statuses" desc:"Status overrides merged over the base workflow for this system"`
 	Transitions []WorkflowTransition `yaml:"transitions" desc:"Transition overrides merged over the base workflow for this system"`
+}
+
+// WorkflowType is one type of work (feature, tweak, bugfix, epic, …). It is an
+// overlay like WorkflowOverlay, plus Path: the ordered subset of base statuses
+// an issue of this type walks. See docs/Workflow/types.md.
+type WorkflowType struct {
+	Description string               `yaml:"description,omitempty" desc:"One-line description shown in process output, the create form and the type badge"`
+	Path        []string             `yaml:"path,omitempty" desc:"Base statuses this type walks (base order kept); omitted = every base status"`
+	Statuses    []WorkflowStatus     `yaml:"statuses" desc:"Status overrides merged over the base workflow for this type"`
+	Transitions []WorkflowTransition `yaml:"transitions" desc:"Transition overrides merged over the base workflow for this type (replace: true overwrites the base edge)"`
 }
 
 type WorkflowBoardConfig struct {
@@ -130,6 +144,10 @@ type WorkflowConfig struct {
 	Statuses    []WorkflowStatus           `yaml:"statuses" desc:"Status lifecycle definitions"`
 	Transitions []WorkflowTransition       `yaml:"transitions" desc:"Transition rules between statuses"`
 	Systems     map[string]WorkflowOverlay `yaml:"systems" desc:"Per-system overrides keyed by system name"`
+	// Types are per-type-of-work overlays; an issue's `type:` frontmatter picks
+	// one. Resolution is base → type → system (ForIssue).
+	Types       map[string]WorkflowType `yaml:"types,omitempty" desc:"Per-type workflows keyed by type name (feature, tweak, …); an issue's type: picks its path"`
+	DefaultType string                  `yaml:"default_type,omitempty" desc:"Type for issues with no (or an unknown) type: value; required when types: is set"`
 	// IssueActions are custom one-shot agent buttons shown on the issue detail
 	// view. Resolve them via IssueActionList, never the raw field, so the legacy
 	// Actions alias is included.
@@ -175,6 +193,16 @@ type WorkflowConfig struct {
 	// IssuesRoot is the working directory used by command_succeeds.
 	LookupIssue func(slug string) *Issue `yaml:"-" json:"-"`
 	IssuesRoot  string                   `yaml:"-" json:"-"`
+
+	// Set by ForType/ForIssue on a scoped config. ActiveType is the resolved
+	// type ("" when the project has no types); typePath is the set of statuses
+	// kept by the type's path (nil when the type has no path), so a later
+	// system overlay can't re-add statuses or edges off the path.
+	ActiveType string          `yaml:"-" json:"-"`
+	typePath   map[string]bool `yaml:"-" json:"-"`
+	// OffPathStatus is the issue's current status when it is not on its type's
+	// path and ForIssue kept it as a global exit.
+	OffPathStatus string `yaml:"-" json:"-"`
 }
 
 var defaultBoardCardFields = []string{"system", "labels"}
@@ -224,6 +252,9 @@ func (w *WorkflowConfig) WorktreeSparseExcludes() []string {
 func (w *WorkflowConfig) GetBoardCardFields() []string {
 	if len(w.Board.CardFields) > 0 {
 		return w.Board.CardFields
+	}
+	if w.HasTypes() {
+		return append(append([]string(nil), defaultBoardCardFields...), "type")
 	}
 	return defaultBoardCardFields
 }

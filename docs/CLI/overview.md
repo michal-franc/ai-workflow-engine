@@ -38,9 +38,10 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli checklist <slug>`     | List checkboxes grouped by section, each with its id (`D3`, `AC2`) |
 | `issue-cli append <slug>`        | Append content to issue body             |
 | `issue-cli replace <slug>`       | Replace content of an existing section   |
-| `issue-cli set-meta <slug>`      | Set or clear a frontmatter field         |
-| `issue-cli process workflow`     | Print the active workflow                |
-| `issue-cli process transitions`  | Print transition rules (default workflow, or scoped via `--system <name>` or `<issue-slug>`) |
+| `issue-cli set-meta <slug>`      | Set or clear a frontmatter field (refuses `type` in projects with types — use `set-type`) |
+| `issue-cli set-type <slug> <t>`  | Change an issue's type of work; agents only while it is at its type's first status. See [Types of Work](../Workflow/types.md) |
+| `issue-cli process workflow`     | Print the active workflow, the `== Types ==` block and `workflow.yaml` lint warnings; `--type <t>` prints one type's lifecycle |
+| `issue-cli process transitions`  | Print transition rules (default workflow, or scoped via `--system <name>`, `--type <t>` or `<issue-slug>`) |
 | `issue-cli process schema`       | Print the `workflow.yaml` schema (fields, action types, validation rules) |
 | `issue-cli process changes`      | Print the release history (last 20 versions) |
 | `issue-cli report-bug "..."`     | File a bug report about issue-cli itself |
@@ -160,7 +161,7 @@ Before v0.30.0 this read `2/4 checkboxes incomplete`, where 2 was the number of 
 
 ### `list`
 
-`issue-cli list` filters by `--status`, `--system`, `--assignee`, `--version`. With `--json`, each entry is the full issue plus two scoring fields:
+`issue-cli list` filters by `--status`, `--system`, `--assignee`, `--version` and, in projects with types of work, `--type` (untyped issues count as `default_type`; rows then show a type column). With `--json`, each entry is the full issue plus two scoring fields:
 
 | Field            | Type                                | When populated                                                                                  |
 |:-----------------|:------------------------------------|:------------------------------------------------------------------------------------------------|
@@ -254,6 +255,22 @@ prints the rules merged with that system's overlay. Passing an issue slug
 resolves the issue's `system` field and prints the scoped rules; issues with
 no system explicitly say `(no system overlay; project default)` so agents do
 not mistake the default output for an issue-specific one.
+
+In projects with types of work, an issue slug also applies the issue's type
+(base → type → system), and `--type <name>` scopes without an issue (combine
+with `--system`). The header names the type: `== Transition Rules — type
+"tweak", system "UI" (issue ui/x) ==`. Unscoped output in a typed project says
+it shows the base rules and lists the types.
+
+### Types of work
+
+When `workflow.yaml` defines `types:` ([Types of Work](../Workflow/types.md)):
+
+- `create --type <t>` writes `type:` and starts at the type's first status; without `--type` the issue gets `default_type`. The output names the other types and how to switch.
+- `set-type <slug> <t>` works while the issue is at its type's first status; later it refuses and links the viewer, where the human changes Type. If the current status is not on the new path, the issue moves to the new type's first status.
+- `show`, `start` and `transition` print `Type: <t>` (and `Path:` in `show`), and warn when `type:` names no defined type or the status is off the type's path. Bad-order errors name the type's path.
+- `show --json` adds `type` and `type_path`; `transition --json` adds `type` and `type_path`.
+- Projects without `types:` print exactly what they did before; `--type` there is an error pointing at the doc.
 
 The renderer is backed by `tracker.DescribeAction` and
 `tracker.ValidationSummary` so descriptions stay in sync with the same strings

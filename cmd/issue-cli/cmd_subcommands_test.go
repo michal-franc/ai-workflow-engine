@@ -1320,7 +1320,7 @@ func TestRunProcessOverviewNoTopic(t *testing.T) {
 	if err := runProcess(ctx, nil); err != nil {
 		t.Fatalf("runProcess: %v", err)
 	}
-	assertContains(t, stdout.String(), "AI-Native Project Viewer")
+	assertContains(t, stdout.String(), "AI Workflow Engine")
 }
 
 func TestRunProcessFormatTopic(t *testing.T) {

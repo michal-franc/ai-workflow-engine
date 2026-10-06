@@ -134,7 +134,7 @@ func (p *Project) LoadWorkflowForIssue(issue *Issue) *WorkflowConfig {
 	if issue == nil {
 		return p.LoadWorkflow()
 	}
-	return p.LoadWorkflowForSystem(issue.System)
+	return p.LoadWorkflow().ForIssue(issue)
 }
 
 type ProjectsConfig struct {

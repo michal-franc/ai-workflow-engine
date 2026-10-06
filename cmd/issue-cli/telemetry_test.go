@@ -386,7 +386,7 @@ func TestIntrospectFlagsEveryCommandWithoutSideEffects(t *testing.T) {
 	}
 	for key, want := range map[string]string{
 		"transition":       "dry-run,field,interval,timeout,to,wait",
-		"process":          "system,workflow",
+		"process":          "system,type,workflow",
 		"data add":         "description,status,tier",
 		"telemetry report": "global,since,top",
 		"comment":          "body,body-file,text",

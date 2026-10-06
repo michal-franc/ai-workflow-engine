@@ -77,7 +77,8 @@ func runStart(ctx *Context, args []string) error {
 	issue = started.Issue
 
 	fmt.Fprintf(ctx.Stdout, "== Starting work on: %s ==\n", issue.Title)
-	fmt.Fprintf(ctx.Stdout, "Status: %s\n", statusLabel(wf, started.FromStatus))
+	fmt.Fprintf(ctx.Stdout, "Status: %s%s\n", statusLabel(wf, started.FromStatus), typeLabel(wf))
+	printTypeWarnings(ctx.Stdout, wf, issue)
 
 	// A start that transitions is always a handoff auto-advance: StartIssueOnce
 	// only sets a target status when the from-status is a handoff state. This is
@@ -193,7 +194,11 @@ func printStartWorkflowReminder(w io.Writer, wf *tracker.WorkflowConfig) {
 		return
 	}
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, "== Workflow lifecycle ==")
+	if wf.ActiveType != "" {
+		fmt.Fprintf(w, "== Workflow lifecycle (type %s) ==\n", wf.ActiveType)
+	} else {
+		fmt.Fprintln(w, "== Workflow lifecycle ==")
+	}
 	fmt.Fprintf(w, "  %s\n", strings.Join(order, " → "))
 	fmt.Fprintln(w, "Run 'issue-cli process workflow' or 'issue-cli process transitions' for details.")
 }

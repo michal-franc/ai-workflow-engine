@@ -117,6 +117,26 @@
                     </div>
                 </div>
 
+                {{if .WorkTypes}}
+                <div class="sidebar-section">
+                    <h3>Type</h3>
+                    <div class="sidebar-value">
+                        <select class="edit-select" id="type-select" data-current="{{.Issue.WorkType}}" onchange="changeType(this.value)" title="Type of work: picks the issue's path">
+                            {{range .WorkTypes}}
+                            <option value="{{.Name}}" title="{{.Description}} — {{.Path}}" {{if eq .Name $.Issue.WorkType}}selected{{end}}>{{.Name}}</option>
+                            {{end}}
+                        </select>
+                        <div id="type-status-pick" style="display:none;margin-top:6px">
+                            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:4px" id="type-status-msg"></div>
+                            <select class="edit-select" id="type-status-select"></select>
+                            <button class="sidebar-toolbar-btn" onclick="changeType(document.getElementById('type-select').value, document.getElementById('type-status-select').value)">Move</button>
+                            <button class="sidebar-toolbar-btn" onclick="cancelTypeChange()">Cancel</button>
+                        </div>
+                        {{if .TypeWarning}}<div style="font-size:12px;color:var(--text-secondary);margin-top:4px">⚠ {{.TypeWarning}}</div>{{end}}
+                    </div>
+                </div>
+                {{end}}
+
                 <div class="sidebar-section" id="active-agent-section" {{if not .Issue.HasActiveAgent}}style="display:none"{{end}}>
                     <h3>Active Agent</h3>
                     <div class="active-session-list" id="active-session-list">
@@ -240,6 +260,7 @@
                 {{end}}
 
                 {{range .Issue.ExtraFields}}
+                {{if not (and $.WorkTypes (eq .Key "type"))}}
                 <div class="sidebar-section">
                     <h3>{{.Label}}</h3>
                     <div class="sidebar-value">
@@ -254,6 +275,7 @@
                         {{end}}
                     </div>
                 </div>
+                {{end}}
                 {{end}}
 
                 <div class="sidebar-section dispatch-btn-group">
@@ -809,6 +831,44 @@
 
         textarea.value = result;
         saveUpdate({ body: result });
+    }
+
+    // Human type change. A 409 means the current status is not on the new
+    // type's path: show the path's statuses and re-post with the pick.
+    function changeType(type, status) {
+        const payload = { type: type };
+        if (status) payload.status = status;
+        fetch(issueURL + '/type', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(res => res.json().then(data => ({ code: res.status, data: data })))
+          .then(result => {
+            if (result.code === 200) {
+                location.reload();
+                return;
+            }
+            if (result.code === 409 && result.data.statuses) {
+                const sel = document.getElementById('type-status-select');
+                sel.innerHTML = '';
+                result.data.statuses.forEach(st => {
+                    const opt = document.createElement('option');
+                    opt.value = st;
+                    opt.textContent = st;
+                    sel.appendChild(opt);
+                });
+                document.getElementById('type-status-msg').textContent = 'Not on ' + type + "'s path. Move to:";
+                document.getElementById('type-status-pick').style.display = '';
+                return;
+            }
+            showToast(result.data.error || 'Type change failed', true);
+        });
+    }
+
+    function cancelTypeChange() {
+        const sel = document.getElementById('type-select');
+        sel.value = sel.dataset.current;
+        document.getElementById('type-status-pick').style.display = 'none';
     }
 
     function toggleApproval(status) {

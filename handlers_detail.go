@@ -26,6 +26,9 @@ type DetailData struct {
 	Timeline          []TimelineEvent
 	RenderedBody      template.HTML
 	CustomActions     []tracker.CustomAction
+	WorkTypes         []WorkTypeOption
+	// TypeWarning flags an undefined type: value or an off-path status.
+	TypeWarning string
 }
 
 // OptionalApproval describes a transition to an Optional status that requires
@@ -94,6 +97,9 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 	wf := proj.LoadWorkflowForIssue(found)
 	statuses := orderedStatusesForIssue(wf, found.Status)
 	detailView := issueView(found, sessionMap)
+	if detailView != nil {
+		detailView.WorkType = wf.ActiveType
+	}
 	if wf.Scoring.Enabled && detailView != nil {
 		detailView.Score = tracker.ComputeScore(found, &wf.Scoring, time.Now())
 	}
@@ -161,6 +167,8 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		Timeline:          timeline,
 		RenderedBody:      template.HTML(renderedBody),
 		CustomActions:     wf.IssueActionList(),
+		WorkTypes:         workTypeOptions(wf),
+		TypeWarning:       strings.TrimSpace(wf.UnknownTypeWarning(found.Slug, found.Type) + " " + wf.OffPathWarning()),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

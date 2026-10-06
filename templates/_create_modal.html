@@ -25,6 +25,13 @@
                     <option value="critical">Critical</option>
                 </select>
                 <input type="text" id="create-labels" class="modal-input" placeholder="Labels (comma-separated)" tabindex="6">
+                {{if .WorkTypes}}
+                <select id="create-type" class="modal-input" tabindex="7" title="Type of work: picks the issue's path">
+                    {{range .WorkTypes}}
+                    <option value="{{.Name}}" title="{{.Description}} — {{.Path}}" {{if .Default}}selected{{end}}>{{.Name}}{{if .Default}} (default){{end}}</option>
+                    {{end}}
+                </select>
+                {{end}}
             </div>
             <div id="create-error" class="modal-error" style="display:none;margin-top:8px;padding:8px;background:#fee;color:#a00;border-radius:4px;font-size:13px"></div>
         </div>
@@ -98,6 +105,8 @@
         var labelsRaw = document.getElementById('create-labels').value.trim();
         var labels = labelsRaw ? labelsRaw.split(',').map(function(l) { return l.trim(); }).filter(Boolean) : [];
         var body = document.getElementById('create-body').value;
+        var typeEl = document.getElementById('create-type');
+        var workType = typeEl ? typeEl.value : '';
         if (!body.trim()) {
             errEl.textContent = 'Body is required.';
             errEl.style.display = '';
@@ -109,7 +118,7 @@
         fetch(createPrefix + '/issues/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: title, status: status, system: system, priority: priority, labels: labels, body: body })
+            body: JSON.stringify({ title: title, status: status, system: system, priority: priority, labels: labels, body: body, type: workType })
         }).then(function(res) {
             if (res.ok) {
                 return res.json().then(function(data) {

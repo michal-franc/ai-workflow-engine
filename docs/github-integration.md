@@ -33,3 +33,16 @@ Example:
 ```
 
 This pulls all items, organizes them by system field into subdirectories, and writes markdown files with YAML frontmatter. The output directory is cleaned before writing.
+
+## Project Settings
+
+GitHub features are off until a project turns them on in `projects.yaml`:
+
+```yaml
+- name: "My Project"
+  repo: "owner/repo"
+  supports_github: true      # shows the GitHub tab and auto-closes issues marked done
+  import_status: "in design" # optional
+```
+
+Issues imported from the GitHub tab land in the workflow's **first status** (e.g. `idea`), so they go through the full process from the start. Set `import_status` to land them somewhere else.

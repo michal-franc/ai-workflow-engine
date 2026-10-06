@@ -102,6 +102,15 @@
                 {{end}}
             </select>
 
+            {{if .WorkTypes}}
+            <select name="type" onchange="this.form.submit()">
+                <option value="">All types</option>
+                {{range .WorkTypes}}
+                <option value="{{.Name}}" title="{{.Path}}" {{if eq .Name $.Filter.Type}}selected{{end}}>{{.Name}}</option>
+                {{end}}
+            </select>
+            {{end}}
+
             <select name="label" onchange="this.form.submit()">
                 <option value="">All labels</option>
                 {{range .Labels}}
@@ -109,7 +118,7 @@
                 {{end}}
             </select>
 
-            {{if or .Filter.Status .Filter.System .Filter.Priority .Filter.Label .Filter.Assignee .Filter.Search}}
+            {{if or .Filter.Status .Filter.System .Filter.Priority .Filter.Label .Filter.Assignee .Filter.Search .Filter.Type}}
             <a href="{{.Prefix}}/" class="clear-btn">Clear filters</a>
             {{end}}
         </form>
@@ -149,6 +158,7 @@
                     </div>
                     <div class="issue-meta">
                         {{if .System}}<span>{{.System}}</span>{{end}}
+                        {{if .WorkType}}<span class="type-badge" title="Type of work">{{.WorkType}}</span>{{end}}
                         {{if .Version}}<span>v{{.Version}}</span>{{end}}
                         {{if .Created}}<span>{{.Created}}</span>{{end}}
                     </div>
@@ -167,7 +177,7 @@
         {{else}}
         <div class="empty-state">
             <h2>No issues found</h2>
-            {{if or .Filter.Status .Filter.System .Filter.Priority .Filter.Label .Filter.Assignee .Filter.Search}}
+            {{if or .Filter.Status .Filter.System .Filter.Priority .Filter.Label .Filter.Assignee .Filter.Search .Filter.Type}}
             <p>Try adjusting your filters or <a href="{{.Prefix}}/">clear all filters</a></p>
             {{else}}
             <p>Add markdown files to the issues directory to get started.</p>

@@ -50,6 +50,9 @@ func runSetMeta(ctx *Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	if key == "type" && ctx.Project.LoadWorkflow().HasTypes() {
+		return fmt.Errorf("set-meta can't change type: in a project with types (it picks the issue's path)\n\nUse:\n  issue-cli set-type %s <type>", issue.Slug)
+	}
 	if err := tracker.SetFrontmatterField(issue.FilePath, key, value, clear); err != nil {
 		return fmt.Errorf("failed to set frontmatter: %w", err)
 	}

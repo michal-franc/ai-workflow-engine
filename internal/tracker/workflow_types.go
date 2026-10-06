@@ -314,3 +314,38 @@ func checkedSection(a WorkflowAction) string {
 	}
 	return ""
 }
+
+// FirstStatus returns the first status of the issue type's path (where new
+// issues of that type start), or "" for an empty workflow.
+func (w *WorkflowConfig) FirstStatus(typ string) string {
+	scoped := w.ForType(typ)
+	if scoped == nil || len(scoped.Statuses) == 0 {
+		return ""
+	}
+	return scoped.Statuses[0].Name
+}
+
+// RetypeStatus validates a type change and returns the status the issue
+// lands on. pick is the status the caller chose ("" = keep the current
+// status, which must then be on the new type's path).
+func (w *WorkflowConfig) RetypeStatus(issue *Issue, newType, pick string) (string, error) {
+	if !w.HasTypes() {
+		return "", fmt.Errorf("this project defines no types: add a types: block to workflow.yaml (see docs/Workflow/types.md)")
+	}
+	newType = strings.TrimSpace(newType)
+	if _, ok := w.Types[newType]; !ok {
+		return "", fmt.Errorf("unknown type %q (types: %s)", newType, strings.Join(w.TypeNames(), ", "))
+	}
+	scoped := w.ForType(newType)
+	target := strings.TrimSpace(pick)
+	if target == "" {
+		target = issue.Status
+	}
+	if scoped.GetStatusIndex(target) == -1 {
+		if pick != "" {
+			return "", fmt.Errorf("status %q is not on type %q's path (%s)", pick, newType, strings.Join(scoped.GetStatusOrder(), ", "))
+		}
+		return "", fmt.Errorf("status %q is not on type %q's path; pick one of: %s", issue.Status, newType, strings.Join(scoped.GetStatusOrder(), ", "))
+	}
+	return target, nil
+}

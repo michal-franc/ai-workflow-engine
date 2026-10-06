@@ -1,6 +1,6 @@
-# Issue Viewer
+# AI Workflow Engine (issue-viewer + issue-cli)
 
-A Go web app that renders markdown issue files as a GitHub-style project tracker with list, kanban board, and documentation views.
+A Go web app that renders markdown issue files as a GitHub-style project tracker with list, kanban board, and documentation views, plus `issue-cli`, the CLI agents use to walk issues through `workflow.yaml`. The product name is **AI Workflow Engine** (repo `michal-franc/ai-workflow-engine`); the binaries and the Go module keep the `issue-viewer` name.
 
 ## Running
 
@@ -74,7 +74,7 @@ Markdown body here. Supports `[x]` checkboxes.
 
 ### Optional fields
 
-- `status` — one of: `idea`, `in design`, `backlog`, `in progress`, `testing`, `human-testing`, `documentation`, `shipping`, `done`, `none`
+- `status` — one of the statuses in the project's `workflow.yaml` (the bundled `development` template: `idea`, `in design`, `backlog`, `in progress`, `testing`, `human-testing`, `documentation`, `shipping`, `done`)
 - `system` — categorization tag (also used as subdirectory name by sync script)
 - `version` — version string, filterable on the board view
 - `labels` — list of label strings
@@ -123,7 +123,8 @@ Page content in markdown.
 
 Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI:
 
-- [Getting Started](docs/getting-started.md) — installation and first issue
+- [Why a Workflow Harness](docs/why.md) — the argument behind the tool
+- [Getting Started](docs/getting-started.md) — install, server flags, first issue, docs page format
 - [Issue File Format](docs/issue-format.md) — frontmatter fields, custom fields, file organization
 - [Workflow](docs/workflow.md) — lifecycle, prompts, side-effects, system overlays
 - [Agent Workflow Flow](docs/agent-workflow-flow.md) — full dispatch-to-done agent flow
@@ -132,6 +133,7 @@ Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI
 - [GitHub Integration](docs/github-integration.md) — sync, issue reference, auto-close
 - [Per-issue Data Store](docs/data-store.md) — sidecar JSON, `<!-- data -->` marker, `issue-cli data` commands
 - [Workflow Stats](docs/workflow-stats.md) — `/stats` tab, per-issue stats sidecar, token-cost estimation
+- [The Lead Session](docs/patterns/lead-session.md) — pattern: one lead agent supervising dispatched workers, umbrella features
 
 Per-system docs:
 
@@ -140,7 +142,7 @@ Per-system docs:
 - [CLI Usage Telemetry](docs/CLI/telemetry.md) — local names-only usage log, `issue-cli telemetry report`, opt-out, `parseFlags` rule for new commands
 - [UI](docs/UI/overview.md) — templates, views, client-side behavior
 - [Workflow](docs/Workflow/overview.md) — workflow engine, transitions, overlays
-- [Types of Work](docs/Workflow/types.md) — design: per-type paths (feature/tweak/bugfix/epic) as overlays with `path:`
+- [Types of Work](docs/Workflow/types.md) — per-type paths (feature/tweak/bugfix/epic) as overlays with `path:`, `set-type`, lint
 
 ## Adding New Statuses
 

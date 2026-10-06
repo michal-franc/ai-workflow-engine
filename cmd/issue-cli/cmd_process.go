@@ -625,7 +625,7 @@ func flagValue(args []string, flag string) string {
 	return ""
 }
 
-const processOverviewText = `== AI-Native Project Viewer ==
+const processOverviewText = `== AI Workflow Engine ==
 
 You are working with a markdown-based issue tracker.
 Issues are .md files in issues/<System>/ directories.

@@ -217,4 +217,4 @@ The author tracks this tool's own work with the tool (its `issues/` folder is ke
 
 ## Licence
 
-[check: licence to be chosen]
+[FSL-1.1-MIT](LICENSE.md): free to use, modify and contribute; no competing product or service; each release becomes MIT two years after it ships. See [LICENSE.md](LICENSE.md).

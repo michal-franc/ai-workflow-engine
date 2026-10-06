@@ -16,6 +16,19 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.33.0 — 2026-10-06
+
+- Workflow: types of work. `workflow.yaml` can define `types:` (for example feature, tweak, bugfix, epic) and a `default_type`, and an issue's `type:` frontmatter picks its path. A type is an overlay like `systems:`, plus:
+  - `path:`, the ordered subset of base statuses the type walks;
+  - `replace: true` on a transition, which overwrites the base edge's actions (for example to drop a gate).
+  - Resolution is base → type → system. Validity, the `== Next ==` hint, approvals, prompts and appended sections all follow the type's path.
+  - Base edges whose two ends are on the path are inherited. A status the type skips can't be re-added by a system overlay.
+  - Projects without `types:` behave exactly as before, and `type:` stays a plain custom field there. Design and a worked example: `docs/Workflow/types.md`.
+- CLI: `create --type <t>` starts the issue at the type's first status and names the other types. New `set-type <slug> <type>` changes the type while the issue is at its first status; later, it points at the viewer, because past triage the type is the human's call. `set-meta --key type` is refused in typed projects.
+- CLI: `show`, `start` and `transition` print `Type:` and the type's path, and warn on an undefined type or a status off the path. A bad-order error names the type's path. `process workflow` lists the types with their paths and the `workflow.yaml` lint warnings: section gaps, bad `path` entries, and a type and a system overriding the same prompt. `process workflow --type`, `process transitions --type|<slug>` and `list --type` scope to one type. `--json` outputs carry `type` and `type_path`.
+- Web UI: when a project defines types, the board and list get a type badge and filter, `graph?type=` draws one type's path, and the create modal has a type select. The issue sidebar has a Type select for the human, which asks for a status on the new path when needed. `issues.json` and the dispatch briefing include the type.
+- Workflow: overlay-added transitions now keep their `fields:`; they were silently dropped before.
+
 ## v0.32.0 — 2026-10-02
 
 - CLI: `issue-cli` now records local usage telemetry: one names-only JSON line per invocation in `<workdir>/.agent-logs/telemetry.jsonl`, or `~/.local/state/issue-cli/telemetry.jsonl` when no project resolves.

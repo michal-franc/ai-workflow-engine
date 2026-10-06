@@ -236,6 +236,9 @@ systems:
     transitions: []
 ```
 
+Overlays can only add guidance and actions; they cannot drop a status or a gate. Per-type paths (tweak, bugfix,
+epic) are designed in [Types of Work](types.md) (not implemented yet).
+
 ## Validation Rules
 
 Validators come in two flavors:

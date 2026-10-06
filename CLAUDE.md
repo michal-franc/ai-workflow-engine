@@ -139,6 +139,7 @@ Per-system docs:
 - [CLI Usage Telemetry](docs/CLI/telemetry.md) — local names-only usage log, `issue-cli telemetry report`, opt-out, `parseFlags` rule for new commands
 - [UI](docs/UI/overview.md) — templates, views, client-side behavior
 - [Workflow](docs/Workflow/overview.md) — workflow engine, transitions, overlays
+- [Types of Work](docs/Workflow/types.md) — design: per-type paths (feature/tweak/bugfix/epic) as overlays with `path:`
 
 ## Adding New Statuses
 

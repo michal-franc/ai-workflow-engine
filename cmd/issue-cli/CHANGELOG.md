@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.33.1 — 2026-10-06
+
+- `make demo` works on a fresh clone. Its config, `demo/projects.yaml`, was hidden by the `projects.yaml` rule in `.gitignore` and never committed, so the board exited with `Failed to load config`. The file is now in the repo, points at the demo's own `workflow.yaml`, and uses `terminal: "none"` so ▶ prints the `tmux attach` command instead of opening i3 + alacritty. A test keeps the demo loadable.
+
 ## v0.33.0 — 2026-10-06
 
 - Workflow: types of work. `workflow.yaml` can define `types:` (for example feature, tweak, bugfix, epic) and a `default_type`, and an issue's `type:` frontmatter picks its path. A type is an overlay like `systems:`, plus:

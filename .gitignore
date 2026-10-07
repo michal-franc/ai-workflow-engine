@@ -6,6 +6,8 @@ cover.out
 # User-specific config
 projects.yaml
 projects-*.yaml
+# The demo's config is part of the repo (`make demo`)
+!demo/projects.yaml
 
 # User data (use projects.yaml to point to your issue/doc directories)
 /issues/

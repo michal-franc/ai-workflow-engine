@@ -1,0 +1,10 @@
+# Sample project for `make demo`. Paths are relative to the repo root,
+# which is where `make demo` starts the board.
+projects:
+  - name: "Demo"
+    slug: "demo"
+    issues: "demo/issues"
+    docs: "demo/docs"
+    workflow: "demo/workflow.yaml"
+    workdir: "demo"
+    terminal: "none"   # print the tmux attach command instead of opening a window

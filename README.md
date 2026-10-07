@@ -32,32 +32,18 @@ You need Linux or macOS. To dispatch agents you also need `tmux`, `git`, and the
 # 1. Install issue-viewer (the board) and issue-cli (the agent CLI) into ~/.local/bin
 curl -fsSL https://raw.githubusercontent.com/michal-franc/ai-workflow-engine/main/install.sh | bash
 
-# 2. In your repo: write workflow.yaml and create issues/ and docs/
+# 2. In your repo: write workflow.yaml and projects.yaml, create issues/ and docs/
 cd my-project
 issue-cli init --template development     # or: review, writing
 
 # 3. Capture a first issue
 issue-cli create --title "Add a dark mode toggle" --system UI
-```
 
-Tell the board where things live with a `projects.yaml` in the same folder:
-
-```yaml
-projects:
-  - name: "My Project"
-    slug: "my-project"
-    issues: "./issues"
-    docs: "./docs"
-    workdir: "."
-    terminal: "none"   # print the tmux attach command instead of opening a window
-```
-
-```bash
 # 4. Open the board on http://localhost:8080
 issue-viewer -config projects.yaml
 ```
 
-Hover the card, press ▶ and pick **Claude**. The agent starts in a tmux session (`tmux attach -t agent-<slug>`), reads the workflow with `issue-cli process`, works the issue, and stops at the first gate for you. [check]
+Hover the card, press ▶ and pick **Claude**. The agent starts in a tmux session, and the board opens a terminal on it: i3 + alacritty, Terminal.app or iTerm2, gnome-terminal, kitty and others are detected. With no display (SSH, a container), the dispatch dialog shows the `tmux attach -t agent-<slug>` command to run instead. The agent reads the workflow with `issue-cli process`, works the issue, and stops at the first gate for you. [check]
 
 Just looking? Clone the repo and run `make demo` (Go 1.23+) to open a sample project. Other install options (a pinned version, manual download, building from source) are in [docs/getting-started.md](docs/getting-started.md).
 
@@ -149,7 +135,7 @@ The same rhythm on a real issue, replayed from its logs: Raid League's "Sapper t
 |---|---|
 | `name`, `slug` | Display name and URL slug (`/p/<slug>/`) |
 | `issues`, `docs`, `workflow`, `workdir` | Where the files live; `workdir` is where agents start |
-| `terminal` | Command that opens a window on the agent's session, with `{{session}}` substituted; `none` for headless. Unset means i3 + alacritty |
+| `terminal` | Command that opens a window on the agent's session, with `{{session}}` substituted; `none` for headless. Unset: detected when the board starts ([docs/agent-dispatch.md](docs/agent-dispatch.md#terminal-configuration)) |
 | `tmux_session` | Run every agent of the project as a window in one shared session |
 | `agent_model_source`, `agent_models` | `project` pins a model per agent (`claude`, `codex`); `global` (default) leaves it to the agent |
 | `repo`, `supports_github`, `import_status` | GitHub sync and auto-close ([docs/github-integration.md](docs/github-integration.md)) |

@@ -281,7 +281,8 @@ func runStep(steps *[]DispatchStep, name string, cmd *exec.Cmd) bool {
 }
 
 // openTerminalStep opens a terminal attached to the given tmux session.
-// Uses proj.Terminal if set; falls back to i3+alacritty for backwards compat.
+// Uses proj.Terminal if set; empty means i3+alacritty (main fills an unset
+// terminal from detectTerminal, which keeps it empty only when both exist).
 // terminal="none" is headless: appends an info step and returns true.
 func openTerminalStep(proj *tracker.Project, session string, steps *[]DispatchStep) bool {
 	terminal := ""

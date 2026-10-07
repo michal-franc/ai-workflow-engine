@@ -7,6 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='{{urlEncodeColor (statusColor .Issue.Status)}}'/></svg>">
     <link rel="stylesheet" href="/static/style.css">
     <script src="/static/theme.js"></script>
+    <script src="/static/dispatch.js"></script>
     <script>
     (function() {
         if (localStorage.getItem('sidebar-locked') !== 'false') {
@@ -959,6 +960,7 @@
                     + '</div>';
             });
             stepsEl.innerHTML = html;
+            if (data.attach_cmd) showAttachCommand(stepsEl, data.attach_cmd);
         }).catch(function(err) {
             stepsEl.innerHTML = '<div class="dispatch-step error">Failed: ' + err.message + '</div>';
         });

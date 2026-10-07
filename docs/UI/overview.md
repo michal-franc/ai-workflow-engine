@@ -17,6 +17,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/_create_modal.html` — shared "New issue" modal partial included by list and board
 - `templates/_project_actions.html` — shared project-level custom action bar + dispatch modal, included by list, board, and graph
 - `static/style.css` — all CSS (dark GitHub theme)
+- `static/dispatch.js` — `showAttachCommand`, used by the dispatch dialogs (board, list, graph, detail) to show the `tmux attach` command with a Copy button when the response carries `attach_cmd` (headless projects)
 
 ## Views
 

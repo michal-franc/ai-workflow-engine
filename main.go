@@ -58,6 +58,10 @@ func main() {
 		}}
 	}
 
+	for _, line := range resolveTerminals(projects, hostTerminalEnv()) {
+		fmt.Println(line)
+	}
+
 	srv, err := NewServer(projects)
 	if err != nil {
 		log.Fatalf("Failed to initialize server: %v", err)

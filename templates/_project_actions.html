@@ -73,6 +73,7 @@ function dispatchProjectAction(prefix, id, label) {
                 + '</div>';
         });
         stepsEl.innerHTML = html;
+        if (data.attach_cmd) showAttachCommand(stepsEl, data.attach_cmd);
     }).catch(function(err) {
         stepsEl.innerHTML = '<div class="dispatch-step error">Failed: ' + err.message + '</div>';
     });

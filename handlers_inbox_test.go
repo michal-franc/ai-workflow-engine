@@ -153,7 +153,7 @@ func TestHandleInbox_RendersApprovalAndQuestion(t *testing.T) {
 	ts := newTestServer(t, []tracker.Project{f.proj})
 	defer ts.Close()
 
-	page := getBody(t, ts.URL+"/p/inbox/inbox?item=ready%7Cbacklog")
+	page := inboxGet(t, ts.URL+"/p/inbox/inbox?item=ready%7Cbacklog")
 	for _, want := range []string{
 		"Waiting on you",
 		"Approve and start work",
@@ -169,14 +169,14 @@ func TestHandleInbox_RendersApprovalAndQuestion(t *testing.T) {
 		}
 	}
 
-	page = getBody(t, ts.URL+"/p/inbox/inbox?issue=asked")
+	page = inboxGet(t, ts.URL+"/p/inbox/inbox?issue=asked")
 	for _, want := range []string{"Does unspent gold carry over?", "Agent recommends", "Carry over, capped at 300", `<code class="inbox-link-path">docs/economy.md</code>`, `href="https://example.com/diff"`, "agent waiting"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("question pane missing %q", want)
 		}
 	}
 
-	page = getBody(t, ts.URL+"/p/inbox/inbox?kind=question")
+	page = inboxGet(t, ts.URL+"/p/inbox/inbox?kind=question")
 	if strings.Contains(page, "Approve and start work") {
 		t.Error("question filter still shows approvals")
 	}
@@ -188,7 +188,7 @@ func TestHandleInbox_EmptyState(t *testing.T) {
 	withWorkingDir(t, t.TempDir()) // no local workflow.yaml: default workflow
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
-	page := getBody(t, ts.URL+"/p/test-project/inbox")
+	page := inboxGet(t, ts.URL+"/p/test-project/inbox")
 	if !strings.Contains(page, "Nothing is waiting on you") {
 		t.Fatal("empty inbox state not rendered")
 	}
@@ -204,7 +204,7 @@ func TestHandleInboxJSON(t *testing.T) {
 	defer ts.Close()
 
 	var sum inboxSummary
-	if err := json.Unmarshal([]byte(getBody(t, ts.URL+"/p/inbox/inbox.json")), &sum); err != nil {
+	if err := json.Unmarshal([]byte(inboxGet(t, ts.URL+"/p/inbox/inbox.json")), &sum); err != nil {
 		t.Fatal(err)
 	}
 	if sum.Count != 3 || sum.Approvals != 2 || sum.Questions != 1 || sum.Blocked != 2 || sum.Oldest != "5 h 0 m" || sum.Sig == "" {
@@ -224,12 +224,12 @@ func TestHandleAnswerQuestion(t *testing.T) {
 	defer ts.Close()
 	url := ts.URL + "/p/inbox/issue/asked/questions/Q-1/answer"
 
-	resp := postJSON(t, url, `{"option":"Z"}`)
+	resp := inboxPost(t, url, `{"option":"Z"}`)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("unknown option status = %d, want 400", resp.StatusCode)
 	}
 
-	resp = postJSON(t, url, `{"option":"B","note":"revisit after the economy pass"}`)
+	resp = inboxPost(t, url, `{"option":"B","note":"revisit after the economy pass"}`)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("answer status = %d", resp.StatusCode)
 	}
@@ -248,13 +248,13 @@ func TestHandleAnswerQuestion(t *testing.T) {
 		t.Fatalf("decision not written:\n%s", content)
 	}
 
-	resp = postJSON(t, url, `{"option":"A"}`)
+	resp = inboxPost(t, url, `{"option":"A"}`)
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("second answer status = %d, want 409", resp.StatusCode)
 	}
 
 	var sum inboxSummary
-	json.Unmarshal([]byte(getBody(t, ts.URL+"/p/inbox/inbox.json")), &sum)
+	json.Unmarshal([]byte(inboxGet(t, ts.URL+"/p/inbox/inbox.json")), &sum)
 	if sum.Questions != 0 {
 		t.Fatalf("answered question still in inbox: %+v", sum)
 	}
@@ -272,11 +272,11 @@ func TestHandleApprove_ThenQueuesSecondApproval(t *testing.T) {
 	defer ts.Close()
 	url := ts.URL + "/p/inbox/issue/ready/approve"
 
-	if resp := postJSON(t, url, `{"status":"backlog","then":"done"}`); resp.StatusCode != http.StatusBadRequest {
+	if resp := inboxPost(t, url, `{"status":"backlog","then":"done"}`); resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("invalid then status = %d, want 400", resp.StatusCode)
 	}
 
-	resp := postJSON(t, url, `{"status":"backlog","then":"in progress"}`)
+	resp := inboxPost(t, url, `{"status":"backlog","then":"in progress"}`)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("approve status = %d", resp.StatusCode)
 	}
@@ -306,8 +306,8 @@ func TestHandleApprove_UnapproveClearsQueued(t *testing.T) {
 	ts := newTestServer(t, []tracker.Project{f.proj})
 	defer ts.Close()
 	url := ts.URL + "/p/inbox/issue/ready/approve"
-	postJSON(t, url, `{"status":"backlog","then":"in progress"}`)
-	postJSON(t, url, `{"status":"backlog"}`) // toggle off
+	inboxPost(t, url, `{"status":"backlog","then":"in progress"}`)
+	inboxPost(t, url, `{"status":"backlog"}`) // toggle off
 	data, _ := os.ReadFile(f.paths["ready"])
 	if strings.Contains(string(data), "queued_approval") || strings.Contains(string(data), "human_approval") {
 		t.Fatalf("un-approve left approvals behind:\n%s", data)
@@ -320,14 +320,14 @@ func TestNavLinksToInbox(t *testing.T) {
 	ts := newTestServer(t, []tracker.Project{f.proj})
 	defer ts.Close()
 	for _, path := range []string{"/", "/board", "/graph", "/docs", "/stats"} {
-		page := getBody(t, ts.URL+"/p/inbox"+path)
+		page := inboxGet(t, ts.URL+"/p/inbox"+path)
 		if !strings.Contains(page, `href="/p/inbox/inbox"`) || !strings.Contains(page, "/static/inbox-badge.js") {
 			t.Errorf("%s: missing Inbox nav link or badge script", path)
 		}
 	}
 }
 
-func getBody(t *testing.T, url string) string {
+func inboxGet(t *testing.T, url string) string {
 	t.Helper()
 	resp, err := http.Get(url)
 	if err != nil {
@@ -341,7 +341,7 @@ func getBody(t *testing.T, url string) string {
 	return string(body)
 }
 
-func postJSON(t *testing.T, url, body string) *http.Response {
+func inboxPost(t *testing.T, url, body string) *http.Response {
 	t.Helper()
 	resp, err := http.Post(url, "application/json", bytes.NewBufferString(body))
 	if err != nil {

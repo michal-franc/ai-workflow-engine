@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
 //go:embed templates/workflow/*.yaml
@@ -94,7 +96,66 @@ func doWorkflowInit(template string, force bool, in io.Reader, out io.Writer, is
 	} else {
 		fmt.Fprintf(out, "✓ Wrote %s (template: %s)\n", target, chosen)
 	}
+
+	slug, wrote, err := writeInitProjectsConfig()
+	if err != nil {
+		return err
+	}
+	if wrote {
+		fmt.Fprintf(out, "✓ Wrote %s (project: %s)\n", projectsConfigFile, slug)
+	} else {
+		fmt.Fprintf(out, "· Kept the existing %s\n", projectsConfigFile)
+	}
+
+	fmt.Fprintf(out, "\nNext:\n")
+	fmt.Fprintf(out, "  issue-cli create --title \"My first issue\"\n")
+	fmt.Fprintf(out, "  issue-viewer -config %s      # the board, on http://localhost:8080\n", projectsConfigFile)
 	return nil
+}
+
+const projectsConfigFile = "projects.yaml"
+
+// projectsConfigTemplate is the one-project board config `init` writes, so a
+// new user doesn't have to write projects.yaml by hand. Paths are relative to
+// the directory the board is started from (this one).
+const projectsConfigTemplate = `# Written by issue-cli init. Start the board here with:
+#   issue-viewer -config projects.yaml
+# Every key is listed in projects.yaml.example in the ai-workflow-engine repo.
+projects:
+  - name: %q
+    slug: %q
+    issues: "./issues"
+    docs: "./docs"
+    workflow: "./workflow.yaml"
+    workdir: "."
+    # terminal: the window the board opens on a dispatched agent's tmux session.
+    # Unset, the board picks one when it starts (i3 + alacritty, Terminal.app or
+    # iTerm2, gnome-terminal, kitty, ...), or runs agents headless and shows the
+    # tmux attach command when there is no display. To choose, uncomment one:
+    # terminal: "kitty tmux attach -t {{session}}"
+    # terminal: "none"
+`
+
+// writeInitProjectsConfig writes projects.yaml for the current directory unless
+// one already exists. The project is named after the directory, with the same
+// slug the CLI uses when it runs from a folder with ./issues.
+func writeInitProjectsConfig() (slug string, wrote bool, err error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", false, fmt.Errorf("finding the current directory: %w", err)
+	}
+	name := filepath.Base(cwd)
+	slug = tracker.Slugify(name)
+	if _, statErr := os.Stat(projectsConfigFile); statErr == nil {
+		return slug, false, nil
+	} else if !os.IsNotExist(statErr) {
+		return "", false, fmt.Errorf("checking %s: %w", projectsConfigFile, statErr)
+	}
+	data := fmt.Sprintf(projectsConfigTemplate, name, slug)
+	if err := os.WriteFile(projectsConfigFile, []byte(data), 0644); err != nil {
+		return "", false, fmt.Errorf("writing %s: %w", projectsConfigFile, err)
+	}
+	return slug, true, nil
 }
 
 func resolveTemplate(flagValue string, templates []string, in io.Reader, out io.Writer, isTTY bool) (string, error) {

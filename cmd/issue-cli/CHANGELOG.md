@@ -16,6 +16,12 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.34.0 — 2026-10-07
+
+- `issue-cli init` also writes a one-project `projects.yaml` (named after the folder, relative paths, `terminal` left unset), so the quickstart no longer asks you to write it by hand. An existing `projects.yaml` is always kept, even with `--force`. `init` now ends with the next two commands to run.
+- The board picks a terminal when a project leaves `terminal` unset, instead of always running i3 + alacritty. It keeps i3 + alacritty when both are installed, uses iTerm2 or Terminal.app on macOS, and otherwise uses the first of x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, kitty, wezterm, alacritty, foot or xterm. With no display (SSH, containers) it runs agents headless. It prints its choice for each project at start. Explicit `terminal:` values are unchanged.
+- In headless mode the dispatch dialog shows the `tmux attach` command with a Copy button. Before, it was only in the API response.
+
 ## v0.33.1 — 2026-10-06
 
 - `make demo` works on a fresh clone. Its config, `demo/projects.yaml`, was hidden by the `projects.yaml` rule in `.gitignore` and never committed, so the board exited with `Failed to load config`. The file is now in the repo, points at the demo's own `workflow.yaml`, and uses `terminal: "none"` so ▶ prints the `tmux attach` command instead of opening i3 + alacritty. A test keeps the demo loadable.

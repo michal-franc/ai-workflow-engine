@@ -33,6 +33,10 @@ fetches `/`.
 
 ### 2. `issue-cli init` writes `projects.yaml` too (S)
 
+**Done** in v0.34.0: `init` writes a one-project `projects.yaml` (never overwrites one) and prints the next
+commands. `terminal` is left unset so #4's detection picks it at board start rather than at init time, which
+keeps the file valid if it moves to another machine.
+
 `init` writes `workflow.yaml` and creates `issues/` and `docs/`
 (`cmd/issue-cli/workflow_init.go:93`). The README then asks for a `projects.yaml` written by hand. Write it from
 `init`: name and slug from the folder, paths filled in, terminal from #4. Don't overwrite an existing one. Then
@@ -53,6 +57,10 @@ Today `-dir` mode is easy but can't dispatch, and `-config` mode needs the file.
 Open the browser on start (`-no-open` to skip). Share the project-root lookup with issue-cli.
 
 ### 4. A terminal default that works everywhere (S)
+
+**Done** in v0.34.0: `detectTerminal` in `terminal.go`, run once at board start for projects without
+`terminal`. i3 + alacritty is kept when both are installed. Headless dispatch dialogs show the attach command with
+a Copy button (`static/dispatch.js`).
 
 Unset `terminal` means `i3-msg exec alacritty -e tmux attach …` (`handlers_dispatch.go:302`,
 `handlers_issue_mutate.go:289`). On macOS, GNOME, KDE or a remote box, the first ▶ fails. Make unset mean

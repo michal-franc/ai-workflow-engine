@@ -257,3 +257,78 @@ func TestDoWorkflowInitProducesProjectThatLoadProjectAccepts(t *testing.T) {
 		t.Fatalf("written workflow.yaml does not load: %v", err)
 	}
 }
+
+func TestDoWorkflowInitWritesProjectsConfig(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "My Game")
+	if err := os.Mkdir(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	chdir(t, dir)
+
+	var out bytes.Buffer
+	if err := doWorkflowInit("development", false, strings.NewReader(""), &out, false); err != nil {
+		t.Fatalf("doWorkflowInit: %v", err)
+	}
+
+	projects, err := tracker.LoadProjects("projects.yaml")
+	if err != nil {
+		t.Fatalf("projects.yaml doesn't load: %v", err)
+	}
+	if len(projects) != 1 {
+		t.Fatalf("got %d projects, want 1", len(projects))
+	}
+	p := projects[0]
+	if p.Name != "My Game" || p.Slug != "my-game" {
+		t.Errorf("name/slug = %q/%q, want My Game/my-game", p.Name, p.Slug)
+	}
+	if p.IssueDir != "./issues" || p.DocsDir != "./docs" || p.WorkflowFile != "./workflow.yaml" || p.WorkDir != "." {
+		t.Errorf("paths = %+v", p)
+	}
+	if p.Terminal != "" {
+		t.Errorf("terminal = %q, want unset so the board detects one", p.Terminal)
+	}
+	if _, err := tracker.LoadWorkflow(p.WorkflowFile); err != nil {
+		t.Errorf("workflow %s: %v", p.WorkflowFile, err)
+	}
+
+	// The CLI, run from the same folder, must see the same project.
+	cliProj, _, err := loadProjectOrErr("projects.yaml", "")
+	if err != nil {
+		t.Fatalf("loadProjectOrErr: %v", err)
+	}
+	if cliProj.Slug != p.Slug {
+		t.Errorf("CLI slug %q differs from projects.yaml slug %q", cliProj.Slug, p.Slug)
+	}
+
+	msg := out.String()
+	for _, want := range []string{"Wrote projects.yaml (project: my-game)", "issue-cli create", "issue-viewer -config projects.yaml"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("output missing %q:\n%s", want, msg)
+		}
+	}
+}
+
+func TestDoWorkflowInitKeepsExistingProjectsConfig(t *testing.T) {
+	dir := t.TempDir()
+	chdir(t, dir)
+	existing := "projects:\n  - name: \"Mine\"\n    issues: \"./issues\"\n    terminal: \"none\"\n"
+	if err := os.WriteFile("projects.yaml", []byte(existing), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	if err := doWorkflowInit("development", true, strings.NewReader(""), &out, false); err != nil {
+		t.Fatalf("doWorkflowInit: %v", err)
+	}
+
+	got, err := os.ReadFile("projects.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != existing {
+		t.Errorf("projects.yaml was changed (even --force must keep it):\n%s", got)
+	}
+	if !strings.Contains(out.String(), "Kept the existing projects.yaml") {
+		t.Errorf("output doesn't say projects.yaml was kept:\n%s", out.String())
+	}
+}

@@ -22,7 +22,7 @@ tick. A new user has to:
 2. Install tmux, git and the claude or codex CLI themselves.
 3. Run `issue-cli init --template development`.
 4. Create an issue.
-5. Write `projects.yaml` by hand, and know to set `terminal: "none"`.
+5. Write `projects.yaml` by hand, and know to set `terminal: "none"`. *(Fixed in v0.34.0: `init` writes it, and the board detects a terminal.)*
 6. Run `issue-viewer -config projects.yaml`.
 7. Walk the 9-status template before reaching a first gate.
 

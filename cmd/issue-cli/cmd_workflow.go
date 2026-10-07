@@ -10,7 +10,7 @@ var workflowCommand = &Command{
 	LongHelp: `Bootstrap a new project.
 
 Subcommands:
-  init [--template <name>] [--force]   write workflow.yaml and scaffold issues/, docs/`,
+  init [--template <name>] [--force]   write workflow.yaml and projects.yaml, scaffold issues/, docs/`,
 	Run:         runWorkflow,
 	Subcommands: []string{"init"},
 }

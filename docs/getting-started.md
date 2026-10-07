@@ -46,13 +46,22 @@ make demo
 
 ## Bootstrap a project
 
-In your project's directory, write a `workflow.yaml` and the standard `issues/` and `docs/` layout in one go:
+In your project's directory, write a `workflow.yaml`, a one-project `projects.yaml` for the board, and the standard `issues/` and `docs/` layout in one go:
 
 ```bash
 issue-cli init --template development
 ```
 
-`init` is an alias for `issue-cli workflow init`. Pick `development` for software delivery, `review` for triage queues, or `writing` for long-form content. Pass `--force` to overwrite an existing `workflow.yaml`. Run it without `--template` in a terminal for an interactive picker. See [CLI Overview → workflow init](CLI/overview.md#workflow-init) for the full reference.
+```
+✓ Wrote workflow.yaml (template: development) and scaffolded issues/, docs/
+✓ Wrote projects.yaml (project: my-project)
+
+Next:
+  issue-cli create --title "My first issue"
+  issue-viewer -config projects.yaml      # the board, on http://localhost:8080
+```
+
+`init` is an alias for `issue-cli workflow init`. Pick `development` for software delivery, `review` for triage queues, or `writing` for long-form content. Pass `--force` to overwrite an existing `workflow.yaml`; an existing `projects.yaml` is always kept. Run it without `--template` in a terminal for an interactive picker. See [CLI Overview → workflow init](CLI/overview.md#workflow-init) for the full reference.
 
 ## Create your first issue
 
@@ -106,7 +115,7 @@ For a quick look at a single folder without a config file:
 issue-viewer -dir ./issues -docs ./docs
 ```
 
-This mode can't set dispatch options such as `terminal`, so use a `projects.yaml` before dispatching agents.
+This mode can't set dispatch options such as `terminal` (the board detects one, see [Agent Dispatch](agent-dispatch.md#terminal-configuration)) or `agent_models`, so prefer a `projects.yaml` once you dispatch agents.
 
 ### Server flags
 

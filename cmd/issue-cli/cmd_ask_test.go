@@ -78,7 +78,7 @@ func TestAskWaitReturnsDecisionWhenAnswered(t *testing.T) {
 	}
 	assertContains(t, stderr.String(), "Waiting for an answer to Q-1")
 	out := stdout.String()
-	assertContains(t, out, "✓ Q-1 answered: B (recorded as D-1 under ## Decisions)")
+	assertContains(t, out, "✓ Q-1 answered: B (recorded as cli/sample#D-1 under ## Decisions; cite it as that ref)")
 	assertContains(t, out, `- **D-1** · 2026-10-02 · answered in inbox (Q-1): Does unspent gold carry over between stages? → **B. Carry over, capped at 300**, "revisit later"`)
 	assertContains(t, out, "✓ Waited: 20s")
 }

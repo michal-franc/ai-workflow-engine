@@ -28,7 +28,7 @@ func runShow(ctx *Context, args []string) error {
 		return err
 	}
 
-	issue, _, err := findIssueOrErr(ctx, slug)
+	issue, issues, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
 	}
@@ -70,6 +70,7 @@ func runShow(ctx *Context, args []string) error {
 	}
 
 	printOpenQuestions(ctx, issue)
+	printReplacedCitations(ctx, issue, issues)
 
 	hasAuto, hasManual := tracker.HasTestPlan(issue.BodyRaw)
 	if hasAuto || hasManual {

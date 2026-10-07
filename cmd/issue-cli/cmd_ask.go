@@ -46,6 +46,7 @@ type askOutput struct {
 	State    string `json:"state"`
 	Answer   string `json:"answer,omitempty"`
 	Decision string `json:"decision,omitempty"`
+	Ref      string `json:"decision_ref,omitempty"`
 	Line     string `json:"decision_line,omitempty"`
 	Inbox    string `json:"inbox"`
 	Waited   int64  `json:"waited_seconds,omitempty"`
@@ -196,10 +197,10 @@ func waitForAnswer(ctx *Context, issue *tracker.Issue, id, inbox string, opts wa
 	if ctx.JSONOutput {
 		return writeJSON(ctx.Stdout, askOutput{
 			Slug: issue.Slug, Question: answered.ID, State: answered.State, Answer: answered.Answer,
-			Decision: answered.Decision, Line: line, Inbox: inbox, Waited: int64(waited / time.Second),
+			Decision: answered.Decision, Ref: issue.Slug + "#" + answered.Decision, Line: line, Inbox: inbox, Waited: int64(waited / time.Second),
 		})
 	}
-	fmt.Fprintf(ctx.Stdout, "✓ %s answered: %s (recorded as %s under ## Decisions)\n", answered.ID, answered.Answer, answered.Decision)
+	fmt.Fprintf(ctx.Stdout, "✓ %s answered: %s (recorded as %s#%s under ## Decisions; cite it as that ref)\n", answered.ID, answered.Answer, issue.Slug, answered.Decision)
 	if line != "" {
 		fmt.Fprintln(ctx.Stdout, line)
 	}

@@ -122,6 +122,8 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleInbox(w, r, proj, prefix)
 	case rest == "inbox.json" && r.Method == http.MethodGet:
 		s.handleInboxJSON(w, r, proj)
+	case rest == "decisions" && r.Method == http.MethodGet:
+		s.handleDecisions(w, r, proj, prefix)
 	case rest == "hash":
 		s.handleHash(w, r, proj)
 	case rest == "issues.json":

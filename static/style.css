@@ -2704,3 +2704,49 @@ a.inbox-chip:hover { text-decoration: none; border-color: var(--text-secondary);
 .inbox-option:has(input:focus-visible) { outline: 2px solid var(--text-link); outline-offset: 2px; }
 .inbox-links { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; font-size: 13px; word-break: break-all; }
 .inbox-links-label { color: var(--text-secondary); }
+
+/* Decisions (generated index of D-n lines) */
+.inbox-stat.stale .inbox-stat-num { color: #f85149; }
+.decisions-filters { display: flex; flex-direction: column; gap: 8px; margin: 20px 0 16px; }
+.decisions-chips { margin: 0; align-items: center; }
+.decisions-chips-label { width: 56px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.chip-stale { color: #f85149; border-color: rgba(248, 81, 73, 0.5); background: rgba(248, 81, 73, 0.1); }
+.inbox-chip.chip-stale.active { background: #f85149; border-color: #f85149; color: #fff; }
+.decisions-nomatch { margin: 24px 0; color: var(--text-secondary); }
+.decisions-empty p { max-width: 560px; margin: 0 auto; }
+.decisions-empty-icon { color: var(--text-secondary); }
+.decisions-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-secondary); }
+.decisions-table { width: 100%; min-width: 960px; border-collapse: collapse; font-size: 14px; }
+.decisions-table th { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.decisions-table td { padding: 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.decisions-table tr:last-child td { border-bottom: none; }
+.decision-row.dim .decision-text { color: var(--text-secondary); }
+.decision-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #d29922; white-space: nowrap; }
+.decision-copy { display: block; margin-top: 4px; padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; background: none; color: var(--text-secondary); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; cursor: pointer; }
+.decision-copy:hover { color: var(--text); border-color: var(--text-secondary); }
+.decision-copy:focus-visible { outline: 2px solid var(--text-link); outline-offset: 2px; }
+.decision-date { white-space: nowrap; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.decision-text { max-width: 460px; overflow-wrap: anywhere; }
+.decision-how { margin-top: 4px; font-size: 12px; color: var(--text-secondary); max-width: 460px; overflow-wrap: anywhere; }
+.decision-ref, .decision-slug, .decision-cites li a { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; }
+.decision-slug { display: inline-block; max-width: 260px; }
+.decision-sys { margin-top: 4px; font-size: 11px; color: var(--text-secondary); }
+.decision-cites summary { cursor: pointer; white-space: nowrap; }
+.decision-cites.stale summary { color: #f85149; }
+.decision-cites ul { list-style: none; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; max-width: 280px; }
+.decision-cites li { font-size: 12px; }
+.decision-status { margin-left: 4px; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.decision-none { color: var(--text-secondary); }
+.decision-state { display: inline-block; padding: 1px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.decision-state.s-active { color: #3fb950; border-color: rgba(63, 185, 80, 0.5); background: rgba(63, 185, 80, 0.1); }
+.decision-state.s-deferred { color: #58a6ff; border-color: rgba(88, 166, 255, 0.5); background: rgba(88, 166, 255, 0.1); }
+.decision-state.s-replaced { color: var(--text-secondary); }
+.decision-state.s-stale { color: #f85149; border-color: rgba(248, 81, 73, 0.5); background: rgba(248, 81, 73, 0.1); }
+[data-theme="light"] .decision-id { color: #9a6700; }
+[data-theme="light"] .decision-state.s-active { color: #1a7f37; }
+[data-theme="light"] .decision-state.s-deferred { color: #0969da; }
+[data-theme="light"] .decision-state.s-stale,
+[data-theme="light"] .decision-cites.stale summary,
+[data-theme="light"] .chip-stale,
+[data-theme="light"] .inbox-stat.stale .inbox-stat-num { color: #cf222e; }
+[data-theme="light"] .inbox-chip.chip-stale.active { color: #fff; background: #cf222e; }

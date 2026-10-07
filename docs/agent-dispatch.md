@@ -12,7 +12,7 @@ The board and detail views can dispatch issues to AI agents (Claude or Codex) vi
 - **tmux** is mandatory. The whole dispatch lifecycle is tmux: creating the session, injecting the environment, logging via `pipe-pane`, and delivering the prompt via `send-keys`.
 - **The agent CLI**: `claude` or `codex` on the `PATH` of the server.
 - **git**, when the workflow sets `worktree: true`.
-- **A terminal command**, or `terminal: "none"` to attach yourself (see [Terminal Configuration](#terminal-configuration)). The default, i3 + alacritty, is only needed if you leave `terminal` unset.
+- **A terminal** to watch the agent in. Leave `terminal` unset and the board detects one; set it to choose, or to `"none"` to attach yourself (see [Terminal Configuration](#terminal-configuration)).
 
 > **Tip.** Not sure which `terminal` value fits your setup? Ask your coding agent: *"Look at my OS, window manager and installed terminals, then set the `terminal:` field in `projects.yaml` to something that works here."* It can detect i3, GNOME, macOS or WSL, check what's on `$PATH`, and pick the right command, or fall back to `"none"`.
 
@@ -64,7 +64,25 @@ The handler substitutes `{{session}}` with the tmux session name and runs the co
 | macOS + Terminal.app       | `osascript -e 'tell app "Terminal" to do script "tmux attach -t {{session}}"'` |
 | Headless (attach manually) | `none`                                                                       |
 
-If `terminal` is unset, defaults to i3 + alacritty. Set to `none` to only create the tmux session (the response includes the `attach_cmd`).
+Set it to `none` to only create the tmux session. The dispatch dialog then shows the `tmux attach` command with a Copy button (the API response carries it as `attach_cmd`).
+
+### When `terminal` is unset
+
+The board picks a terminal when it starts and prints what it chose, one line per project:
+
+```
+  My Project: terminal not set, using kitty (set terminal: in projects.yaml to choose)
+```
+
+It checks, in order:
+
+1. `i3-msg` and `alacritty` both on `PATH`: i3 + alacritty, the original default (`i3_workspace` still applies).
+2. macOS: iTerm2 when the board was started from iTerm2 (`TERM_PROGRAM=iTerm.app`), otherwise Terminal.app.
+3. No `DISPLAY` or `WAYLAND_DISPLAY` (SSH, containers, cloud sessions): `none`.
+4. The first of `x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal`, `kitty`, `wezterm`, `alacritty`, `foot` and `xterm` on `PATH`, started in the background with `tmux attach -t {{session}}`.
+5. Nothing found: `none`.
+
+Detection runs once at start, in both `-config` and `-dir` mode. The code is `detectTerminal` in `terminal.go`.
 
 ## Shared tmux Session
 

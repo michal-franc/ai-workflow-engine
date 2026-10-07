@@ -7,6 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='1' y='1' width='4' height='14' rx='1' fill='%238b949e'/><rect x='6' y='1' width='4' height='10' rx='1' fill='%238b949e'/><rect x='11' y='1' width='4' height='12' rx='1' fill='%238b949e'/></svg>">
     <link rel="stylesheet" href="/static/style.css">
     <script src="/static/theme.js"></script>
+    <script src="/static/dispatch.js"></script>
 </head>
 <body>
     <div class="header">
@@ -649,6 +650,7 @@
                     + '</div>';
             });
             stepsEl.innerHTML = html;
+            if (data.attach_cmd) showAttachCommand(stepsEl, data.attach_cmd);
         }).catch(function(err) {
             stepsEl.innerHTML = '<div class="dispatch-step error">Failed: ' + err.message + '</div>';
         });

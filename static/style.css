@@ -2556,3 +2556,33 @@ select.modal-input option {
     font-variant-numeric: tabular-nums;
     font-family: var(--font-mono, monospace);
 }
+
+.dispatch-attach {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.dispatch-attach code {
+    font-family: monospace;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.dispatch-attach-copy {
+    margin-left: auto;
+    font-size: 12px;
+    padding: 2px 8px;
+    cursor: pointer;
+    background: var(--bg-tertiary);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}

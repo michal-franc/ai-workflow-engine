@@ -4,6 +4,10 @@ projects:
     slug: "my-project"
     issues: "./issues"
     docs: "./docs"
+    # Window opened on a dispatched agent's tmux session; {{session}} is
+    # substituted. "none" = headless (the dispatch dialog shows the attach
+    # command). Unset = detected when the board starts (docs/agent-dispatch.md).
+    # terminal: "kitty tmux attach -t {{session}}"
     # Which model dispatched agents use:
     #   global  (default) - no --model flag; the agent uses its own global settings
     #   project           - enforce agent_models below via --model

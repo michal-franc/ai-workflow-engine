@@ -39,6 +39,7 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 	}
 
 	clone := &WorkflowConfig{
+		Template:       w.Template,
 		Statuses:       append([]WorkflowStatus(nil), w.Statuses...),
 		Transitions:    make([]WorkflowTransition, len(w.Transitions)),
 		Systems:        make(map[string]WorkflowOverlay, len(w.Systems)),

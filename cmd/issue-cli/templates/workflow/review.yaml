@@ -1,3 +1,9 @@
+# Bundled template stamp: which template this file came from and the
+# issue-cli release that last changed it. `issue-cli workflow upgrade` compares
+# it with the template bundled in the binary and proposes newer features.
+# Set it to `custom` if this workflow is no longer based on a template.
+template: review@v0.34.0
+
 board:
   columns:
     - inbox
@@ -27,6 +33,7 @@ statuses:
     prompt: |
       Read the item carefully and write your review notes directly into the issue body.
       Decide on one of two outcomes: approved (ready to land) or needs-changes (sender must revise).
+      To approve, tell the human in chat that it needs `approved` approval in the issue viewer, then run `issue-cli transition <slug> --to "approved" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
   - name: "needs-changes"
     description: "Sent back to the author for revisions"
     prompt: |
@@ -36,6 +43,7 @@ statuses:
     description: "Review complete and approved"
     prompt: |
       Approval is recorded. The item is ready to be archived once any follow-up actions are taken.
+      Tell the human in chat that it needs `archived` approval in the issue viewer, then run `issue-cli transition <slug> --to "archived" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
   - name: "archived"
     description: "Closed out, no further action"
 
@@ -90,3 +98,16 @@ transitions:
     actions:
       - type: "require_human_approval"
         status: "archived"
+
+# One-shot agent buttons on the project views (list/board/graph). Each opens an
+# agent session briefed with the prompt; no validation, no status change.
+# issue_actions: does the same on the issue detail view ({{slug}}, {{title}}, …).
+project_actions:
+  - id: "triage-inbox"
+    label: "Triage inbox"
+    agent: "claude"
+    prompt: |
+      Read every item in the {{project}} inbox. For each, say whether it has enough
+      context to triage, suggest labels and a priority, and flag anything that needs
+      more from the submitter. Post each note with:
+      issue-cli comment <slug> --text "triage: <note>"

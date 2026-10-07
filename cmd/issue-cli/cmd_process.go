@@ -151,6 +151,7 @@ func runProcessWorkflow(ctx *Context, args []string) error {
 		printTypesBlock(ctx.Stdout, base)
 	}
 	printLintBlock(ctx.Stdout, base)
+	printWorkflowUpgradeHint(ctx)
 	return nil
 }
 

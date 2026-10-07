@@ -1,3 +1,9 @@
+# Bundled template stamp: which template this file came from and the
+# issue-cli release that last changed it. `issue-cli workflow upgrade` compares
+# it with the template bundled in the binary and proposes newer features.
+# Set it to `custom` if this workflow is no longer based on a template.
+template: writing@v0.34.0
+
 board:
   columns:
     - idea
@@ -32,11 +38,13 @@ statuses:
     prompt: |
       Read the draft cold. Cut what does not earn its keep.
       Tighten language, fix structure, and verify every claim.
+      When the edit is done, tell the human in chat that it needs `review` approval in the issue viewer, then run `issue-cli transition <slug> --to "review" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
   - name: "review"
     description: "Out for outside review"
     prompt: |
       Wait for review feedback.
       When feedback is in, decide whether to revise (back to editing) or proceed to publish.
+      To publish, tell the human in chat that it needs `published` approval in the issue viewer, then run `issue-cli transition <slug> --to "published" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
   - name: "published"
     description: "Live"
 
@@ -97,3 +105,16 @@ transitions:
         rule: "section_checkboxes_checked: Review"
       - type: "require_human_approval"
         status: "published"
+
+# One-shot agent buttons on the project views (list/board/graph). Each opens an
+# agent session briefed with the prompt; no validation, no status change.
+# issue_actions: does the same on the issue detail view ({{slug}}, {{title}}, …).
+project_actions:
+  - id: "editorial-review"
+    label: "Editorial review"
+    agent: "claude"
+    prompt: |
+      Review every piece in {{project}} that is not yet published. For each, note
+      where it is stuck, what the next concrete step is, and whether its priority
+      still looks right. Post each note with:
+      issue-cli comment <slug> --text "editorial: <note>"

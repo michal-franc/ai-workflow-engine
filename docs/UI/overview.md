@@ -16,6 +16,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/docs.html` — documentation viewer with sidebar navigation
 - `templates/_create_modal.html` — shared "New issue" modal partial included by list and board
 - `templates/_project_actions.html` — shared project-level custom action bar + dispatch modal, included by list, board, and graph
+- `templates/decisions.html` — generated decisions index (`handlers_decisions.go`, index built by `tracker.BuildDecisionIndex`)
 - `static/style.css` — all CSS (dark GitHub theme)
 
 ## Views
@@ -28,6 +29,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
 | `/issue/<slug>`   | `detail.html` | Detail with edit, approve, dispatch, comments    |
 | `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
+| `/decisions`      | `decisions.html` | Generated index of every `D-n` decision: how it was made, recording issue, citing issues, state (active / deferred / replaced / replaced · stale). System and state chips (`?system=`, `?state=`); reloads when `/hash` changes |
 
 In projects whose `workflow.yaml` defines `types:` ([Types of Work](../Workflow/types.md)), the list and board show a type badge and an "All types" filter (`?type=`), `type` joins the default board card fields, `/graph?type=<t>` draws that type's path, and the detail sidebar has a **Type** select (`POST /p/<project>/issue/<slug>/type`; a `409` with `statuses` asks the human which status on the new path to move to). Without `types:` none of these controls render.
 

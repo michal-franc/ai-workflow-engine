@@ -34,6 +34,8 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli start <slug>`         | Pick up issue from any status — claim + auto-advance handoff states (announced with a banner). `--wait` blocks until the handoff approval exists |
 | `issue-cli transition <slug>`    | Attempt the next workflow transition. `--dry-run` lists every unmet requirement; `--wait` blocks until the human approval exists |
 | `issue-cli comment <slug>`       | Add a comment to an issue                |
+| `issue-cli decide <slug>`        | Record a decision as a `D-n` line under `## Decisions`; `--replaces <slug>#D-n` lists the open issues still citing the old one |
+| `issue-cli decisions`            | List the project's decisions (active, deferred, replaced, stale) with `--system`, `--state`, `--issue`, `--json` |
 | `issue-cli check <slug> <id>...` | Tick checkboxes by id (several at once), whole section (`--section X --all`), text, or `--section` + `--index` |
 | `issue-cli checklist <slug>`     | List checkboxes grouped by section, each with its id (`D3`, `AC2`) |
 | `issue-cli append <slug>`        | Append content to issue body             |
@@ -240,6 +242,19 @@ The CLI points agents at `--wait` itself, so the guidance does not depend on any
 - The `== Next ==` block from `transition` and `start` prints the `--wait` form when the next step needs a human approval. That is `start <slug> --wait --timeout 9m` from a handoff status, otherwise `transition … --wait --timeout 9m`. A one-line note follows it. It is never suggested for `done`. `--json` carries this as `next_command` / `next_command_note`.
 - A missing-approval error from `transition` or `start` ends with the exact `--wait` command to run instead of retrying.
 - When the same command fails 3+ times in a row on a missing approval, the retry hint points at that `--wait` command instead of the generic "try a different approach".
+
+### `decide` and `decisions`
+
+`issue-cli decide <slug> --text "…"` appends a dated `D-n` line to the issue's `## Decisions` (format: [Issue File Format](../issue-format.md#decisions)).
+
+- `--how` says how the decision was made (`chat`, `project rule`, `playtest`; default `recorded by agent`; no `:`).
+- `--quote` adds the human's words.
+- `--deferred` marks it as decide-later.
+- `--replaces <slug>#D-n` (repeatable, or `D-n` in the same issue) marks older decisions as replaced. Each ref must exist, or nothing is written and the error points at `issue-cli decisions --issue <slug>`.
+
+The output names the ref to cite and lists, per replaced decision, the open issues still citing it, followed by a `Next:` line. `--json` returns `{decision, stale_citers, decisions_url}`.
+
+`issue-cli decisions [--system S] [--state active|deferred|replaced|stale] [--issue <slug>] [--json]` prints the same index as the viewer's Decisions tab, newest first. `--state replaced` includes stale ones. `ask --wait` prints the answer's full ref (`decision_ref` in JSON).
 
 ### `process transitions`
 

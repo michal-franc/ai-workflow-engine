@@ -110,6 +110,28 @@ The marker accepts `statuses=` (the row status dropdown) and an optional `tiers=
 
 The table reads from a sidecar JSON file (`<slug>.data.json`) — manage rows via `issue-cli data add | list | set-status | set-tier | set-comment | remove`, never by editing the JSON directly.
 
+## Decisions
+
+Decisions live as numbered lines under an issue's `## Decisions` section. Inbox answers write them (see `issue-cli ask`), and `issue-cli decide` writes the rest. The viewer's **Decisions** tab (`/p/<project>/decisions`) is generated from these lines, so nobody edits the index by hand.
+
+```markdown
+## Decisions
+- **D-1** · 2026-10-02 · answered in inbox (Q-1): Does gold carry over? → **B. Carry over, capped at 300**, "revisit after the economy pass" (also considered: A Reset; C Carry over in full)
+- **D-2** · 2026-10-04 · deferred · chat: Balance classes once more elements are in place
+- **D-3** · 2026-10-06 · chat: The raid becomes an ET-style objective format, 6v6, "no readable tension" (replaces D-1, sim/gdd-match-phases#D-1)
+```
+
+The line format is `- **D-<n>** · <YYYY-MM-DD>[ · deferred] · <how>: <text>[, "<quote>"][ (also considered: …)][ (replaces <ref>, …)]`.
+
+- **IDs are per issue.** `D-n` restarts in each issue, and the global ref is `<slug>#D-n`. Inside the same issue, `D-n` alone also works in `replaces`.
+- **Citations.** Any `<slug>#D-n` (or `#<slug>#D-n`, or a viewer URL ending in it) in another issue's body is a citation. Refs inside fenced code, in the recording issue itself, or inside `(replaces …)` don't count.
+- **States:**
+  - `active`, or `deferred` (marked with `· deferred`).
+  - `replaced` once another line names it in `(replaces …)`. The newest replacer wins.
+  - `stale` when it is replaced but an open issue still cites it. Open means the issue's status sorts before `done`; `done` and anything after it (e.g. `obsolete`) count as closed.
+- **What is skipped.** Only lines under a level-2 `## Decisions` heading and outside fenced code are parsed. Free-form notes in that section are left alone and not listed.
+- **Revising.** `issue-cli show` prints `== Cites replaced decisions ==` for an issue that still builds on a replaced decision.
+
 ## Images
 
 Standard markdown images render in issue bodies and doc pages:

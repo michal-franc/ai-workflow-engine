@@ -16,6 +16,10 @@ adoption artifact. Each one can ship on its own. #1 is a bug and should go first
 
 ### 1. Make `make demo` work on a fresh clone (bug, S)
 
+**Done** on branch `claude/project-adoption-ideas-gtw1bo` (PR #51): `!demo/projects.yaml` in `.gitignore`, the
+config committed with `workflow: demo/workflow.yaml` and `terminal: "none"`, and `TestDemoConfig` (`demo_test.go`)
+keeping it loadable. There's no CI test workflow in the repo yet, so the test runs under `make validate`.
+
 The Makefile runs `issue-viewer -config demo/projects.yaml`, but the bare `projects.yaml` rule in `.gitignore`
 also matches `demo/projects.yaml`, so that file was never committed. A fresh clone fails with:
 

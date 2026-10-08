@@ -10,11 +10,11 @@ import (
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
-// setupBalanceProject: the inbox fixture plus a workbench.balance block, two
+// setupBalanceProject: the workbench fixture plus a workbench.balance block, two
 // pass issues (2 done, 3 planned) and balance comments.
 func setupBalanceProject(t *testing.T) tracker.Project {
 	t.Helper()
-	f := setupInboxProject(t, time.Now())
+	f := setupWorkbenchProject(t, time.Now())
 	wf, err := os.ReadFile(f.proj.WorkflowFile)
 	if err != nil {
 		t.Fatal(err)
@@ -58,11 +58,11 @@ func TestHandleBalance_RendersBoard(t *testing.T) {
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
 
-	page := inboxGet(t, ts.URL+"/p/inbox/balance")
+	page := pageGet(t, ts.URL+"/p/wb/balance")
 	for _, want := range []string{
-		`href="/p/inbox/balance" class="view-tab active"`,
-		`<span class="inbox-stat-num">2</span><span class="inbox-stat-label">notes</span>`,
-		`<span class="inbox-stat-num">1</span><span class="inbox-stat-label">unsorted</span>`,
+		`href="/p/wb/balance" class="view-tab active"`,
+		`<span class="wb-stat-num">2</span><span class="wb-stat-label">notes</span>`,
+		`<span class="wb-stat-num">1</span><span class="wb-stat-label">unsorted</span>`,
 		`class="balance-pass done">Pass 2 · 30 Sep · 1 note</a>`,
 		`class="balance-pass planned">Pass 3 · planned · 1 note collected</a>`,
 		"agent not running",
@@ -74,7 +74,7 @@ func TestHandleBalance_RendersBoard(t *testing.T) {
 		"1 earlier note",
 		`<span class="decision-state s-kept">kept</span>`,
 		"Unsorted notes",
-		`from <a href="/p/inbox/issue/sim/scout" class="decision-ref">sim/scout</a>`,
+		`from <a href="/p/wb/issue/sim/scout" class="decision-ref">sim/scout</a>`,
 		`<span class="balance-more-link">more</span>`,
 		"Kept 1", "Open 1",
 	} {
@@ -87,11 +87,11 @@ func TestHandleBalance_RendersBoard(t *testing.T) {
 		t.Error("group with open notes should come first")
 	}
 
-	page = inboxGet(t, ts.URL+"/p/inbox/balance?state=kept")
+	page = pageGet(t, ts.URL+"/p/wb/balance?state=kept")
 	if strings.Contains(page, `id="metric-full-holds"`) || !strings.Contains(page, `id="metric-dominant-plays"`) {
 		t.Error("state filter wrong")
 	}
-	page = inboxGet(t, ts.URL+"/p/inbox/balance?state=reverted")
+	page = pageGet(t, ts.URL+"/p/wb/balance?state=reverted")
 	if !strings.Contains(page, "No notes in this state") {
 		t.Error("no-match state missing")
 	}
@@ -102,23 +102,23 @@ func TestHandleBalance_RunningAgentHidesStart(t *testing.T) {
 	withMockTmuxSessions(t, []AgentSession{{Name: "agent-sim-pass-3"}})
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
-	page := inboxGet(t, ts.URL+"/p/inbox/balance")
+	page := pageGet(t, ts.URL+"/p/wb/balance")
 	if !strings.Contains(page, "agent running in agent-sim-pass-3") || strings.Contains(page, "Start pass 3</button>") {
 		t.Error("running pass agent should replace the Start button")
 	}
 }
 
 func TestHandleBalance_OffWithoutWorkbench(t *testing.T) {
-	f := setupInboxProject(t, time.Now())
+	f := setupWorkbenchProject(t, time.Now())
 	withMockTmuxSessions(t, nil)
 	ts := newTestServer(t, []tracker.Project{f.proj})
 	defer ts.Close()
-	page := inboxGet(t, ts.URL+"/p/inbox/balance")
+	page := pageGet(t, ts.URL+"/p/wb/balance")
 	if !strings.Contains(page, "The balance board is off for this project") {
 		t.Fatal("off page not rendered")
 	}
-	for _, path := range []string{"/", "/board", "/decisions", "/inbox", "/stats"} {
-		if strings.Contains(inboxGet(t, ts.URL+"/p/inbox"+path), `href="/p/inbox/balance"`) {
+	for _, path := range []string{"/", "/board", "/decisions", "/stats"} {
+		if strings.Contains(pageGet(t, ts.URL+"/p/wb"+path), `href="/p/wb/balance"`) {
 			t.Errorf("%s: Balance tab shown without workbench.balance", path)
 		}
 	}
@@ -129,10 +129,10 @@ func TestNavLinksToBalance(t *testing.T) {
 	withMockTmuxSessions(t, nil)
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
-	for _, path := range []string{"/", "/board", "/graph", "/docs", "/stats", "/inbox", "/decisions", "/retros", "/workflow-flow", "/workflow-designer"} {
-		page := inboxGet(t, ts.URL+"/p/inbox"+path)
-		decisions := strings.Index(page, `href="/p/inbox/decisions"`)
-		balance := strings.Index(page, `href="/p/inbox/balance"`)
+	for _, path := range []string{"/", "/board", "/graph", "/docs", "/stats", "/decisions", "/retros", "/workflow-flow", "/workflow-designer"} {
+		page := pageGet(t, ts.URL+"/p/wb"+path)
+		decisions := strings.Index(page, `href="/p/wb/decisions"`)
+		balance := strings.Index(page, `href="/p/wb/balance"`)
 		if balance < 0 || balance < decisions {
 			t.Errorf("%s: Balance nav link missing or not after Decisions", path)
 		}
@@ -140,13 +140,13 @@ func TestNavLinksToBalance(t *testing.T) {
 }
 
 func TestBalanceEmptyBoard(t *testing.T) {
-	f := setupInboxProject(t, time.Now())
+	f := setupWorkbenchProject(t, time.Now())
 	wf, _ := os.ReadFile(f.proj.WorkflowFile)
 	os.WriteFile(f.proj.WorkflowFile, append(wf, []byte("  balance:\n    comment_prefix: \"tuning:\"\n")...), 0644)
 	withMockTmuxSessions(t, nil)
 	ts := newTestServer(t, []tracker.Project{f.proj})
 	defer ts.Close()
-	page := inboxGet(t, ts.URL+"/p/inbox/balance")
+	page := pageGet(t, ts.URL+"/p/wb/balance")
 	for _, want := range []string{"No balance notes yet", "No joint passes yet", "<code>tuning:</code>"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("empty board missing %q", want)

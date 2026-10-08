@@ -52,7 +52,7 @@ While workers run, the lead checks in on a schedule (Raid League uses :07, :27 a
 
 ### 5. Relaying questions
 
-Workers that need a decision post numbered `question:` comments with options and a recommendation, say they're waiting, and stop. The lead brings them to you **one at a time**, with the worker's recommendation and its own. It records your answer under `## Decisions` in the issue, in your words, then messages the worker.
+Workers that need a decision write it with `issue-cli ask` (options and a recommendation, stored under `## Questions` in the issue), say they're waiting, and stop. The lead brings them to you **one at a time**, with the worker's recommendation and its own. It records your answer in your words with `issue-cli answer <slug> Q-n --option B --note "…"`, which writes the `D-n` line under `## Decisions`, then messages the worker. Decisions that answer no question go in with `issue-cli decide`.
 
 ### 6. Letting the lead tick a gate
 

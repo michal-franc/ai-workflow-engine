@@ -80,7 +80,9 @@ issue-cli set-meta <slug> --key waiting --value "blocked on design review"
 issue-cli set-meta <slug> --key waiting --clear
 ```
 
-Workflow-managed fields (`title`, `status`, `human_approval`, `approved_for`, `started_at`, `done_at`, `number`, `repo`, `created`, `labels`) are refused — use the dedicated commands (`transition`, `update --title`, etc.) for those.
+Workflow-managed fields (`title`, `status`, `human_approval`, `queued_approval`, `approved_for`, `started_at`, `done_at`, `number`, `repo`, `created`, `labels`) are refused — use the dedicated commands (`transition`, `update --title`, etc.) for those.
+
+`queued_approval` is written by the detail page's **Approved for backlog and in progress** button next to `human_approval: backlog`. When the `backlog` approval is consumed by its transition, the queued approval becomes the new `human_approval`, so the agent's next `start` continues into `in progress` without a second wait. Any other transition drops it.
 
 ## Scoring Fields
 
@@ -110,13 +112,35 @@ The marker accepts `statuses=` (the row status dropdown) and an optional `tiers=
 
 The table reads from a sidecar JSON file (`<slug>.data.json`) — manage rows via `issue-cli data add | list | set-status | set-tier | set-comment | remove`, never by editing the JSON directly.
 
+## Questions
+
+`issue-cli ask` writes structured questions for the owner under `## Questions`, which is created when missing. The issue file is the mailbox: the question and its answer survive even when the asking session ends.
+
+```markdown
+## Questions
+
+### Q-3 · open · 2026-10-02 14:05
+Does unspent gold carry over between stages?
+
+At PROBE_N=200 teams bank about 140 gold at a stage lock.
+
+- **A** Reset to the stage's starting gold — Simplest. Stage 3 buys look like stage 1.
+- **B** (recommended) Carry over, capped at 300 — Rewards saving without snowballing.
+
+Links: docs/economy.md
+```
+
+- `Q-n` numbers are per issue. Options are one letter, with the label and tradeoff split by ` — `.
+- `issue-cli answer <slug> Q-3 --option B` replaces the whole entry with a pointer, `### Q-3 · answered 2026-10-02 14:46 → B · D-7` followed by the question line, and appends the `D-7` line under [Decisions](#decisions).
+- Questions never gate a transition. Approvals stay the gate.
+
 ## Decisions
 
-Decisions live as numbered lines under an issue's `## Decisions` section. Inbox answers write them (see `issue-cli ask`), and `issue-cli decide` writes the rest. The viewer's **Decisions** tab (`/p/<project>/decisions`) is generated from these lines, so nobody edits the index by hand.
+Decisions live as numbered lines under an issue's `## Decisions` section. `issue-cli answer` writes them for answered [questions](#questions), and `issue-cli decide` writes the rest. The viewer's **Decisions** tab (`/p/<project>/decisions`) is generated from these lines, so nobody edits the index by hand.
 
 ```markdown
 ## Decisions
-- **D-1** · 2026-10-02 · answered in inbox (Q-1): Does gold carry over? → **B. Carry over, capped at 300**, "revisit after the economy pass" (also considered: A Reset; C Carry over in full)
+- **D-1** · 2026-10-02 · answered in lead chat (Q-1): Does gold carry over? → **B. Carry over, capped at 300**, "revisit after the economy pass" (also considered: A Reset; C Carry over in full)
 - **D-2** · 2026-10-04 · deferred · chat: Balance classes once more elements are in place
 - **D-3** · 2026-10-06 · chat: The raid becomes an ET-style objective format, 6v6, "no readable tension" (replaces D-1, sim/gdd-match-phases#D-1)
 ```

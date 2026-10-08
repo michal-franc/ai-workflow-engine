@@ -187,9 +187,14 @@ func (s *Server) handleApproveIssue(w http.ResponseWriter, r *http.Request, proj
 		return
 	}
 
-	// Toggle: if already human-approved for this status, clear it
+	// Toggle: if already approved exactly as asked, clear it. Asking for a
+	// follow-up on an approval that has none adds the follow-up instead.
 	var humanApproval string
-	if !strings.EqualFold(issue.HumanApproval, body.Status) {
+	alreadyApproved := strings.EqualFold(issue.HumanApproval, body.Status)
+	if alreadyApproved && body.Then != "" && issue.QueuedApproval == "" {
+		alreadyApproved = false
+	}
+	if !alreadyApproved {
 		humanApproval = body.Status
 	}
 

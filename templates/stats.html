@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <title>{{.ProjectName}} — Workflow Stats</title>
     <link rel="stylesheet" href="/static/style.css">
-    <script src="/static/inbox-badge.js" defer></script>
 </head>
 <body>
     <div class="page-header">
@@ -26,7 +25,6 @@
                 {{if .SupportsGitHub}}
                 <a href="{{.Prefix}}/github" class="view-tab">GitHub</a>
                 {{end}}
-                <a href="{{.Prefix}}/inbox" class="view-tab">Inbox <span class="inbox-badge" data-inbox-count></span></a>
                 <a href="{{.Prefix}}/decisions" class="view-tab">Decisions</a>
                 {{if workbenchTab "balance" .Prefix}}<a href="{{.Prefix}}/balance" class="view-tab">Balance</a>{{end}}
             </nav>

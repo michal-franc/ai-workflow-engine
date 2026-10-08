@@ -141,11 +141,11 @@ func TestAnswerQuestion_WritesDecisionAndCollapses(t *testing.T) {
 	}
 
 	answeredAt := time.Date(2026, 10, 2, 14, 46, 0, 0, time.Local)
-	res, err := AnswerQuestion(fp, "q-1", "b", "B, but revisit\nafter the economy pass", answeredAt)
+	res, err := AnswerQuestion(fp, "q-1", "b", "B, but revisit\nafter the economy pass", "", answeredAt)
 	if err != nil {
 		t.Fatalf("AnswerQuestion: %v", err)
 	}
-	want := `- **D-1** · 2026-10-02 · answered in inbox (Q-1): Does unspent gold carry over between stages? → **B. Carry over, capped at 300**, "B, but revisit after the economy pass" (also considered: A Reset to the stage's starting gold; C Carry over in full)`
+	want := `- **D-1** · 2026-10-02 · answered in lead chat (Q-1): Does unspent gold carry over between stages? → **B. Carry over, capped at 300**, "B, but revisit after the economy pass" (also considered: A Reset to the stage's starting gold; C Carry over in full)`
 	if res.DecisionLine != want {
 		t.Fatalf("decision line:\n got %s\nwant %s", res.DecisionLine, want)
 	}
@@ -177,11 +177,11 @@ func TestAnswerQuestion_WritesDecisionAndCollapses(t *testing.T) {
 		t.Fatal("question wait not cleared on answer")
 	}
 
-	if _, err := AnswerQuestion(fp, "Q-1", "A", "", answeredAt); !errors.Is(err, ErrQuestionNotOpen) {
+	if _, err := AnswerQuestion(fp, "Q-1", "A", "", "", answeredAt); !errors.Is(err, ErrQuestionNotOpen) {
 		t.Fatalf("second answer err = %v, want ErrQuestionNotOpen", err)
 	}
 
-	res2, err := AnswerQuestion(fp, "Q-2", "A", "", answeredAt)
+	res2, err := AnswerQuestion(fp, "Q-2", "A", "", "", answeredAt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,14 +199,21 @@ func TestAnswerQuestion_UnknownOptionAndQuestion(t *testing.T) {
 	if _, err := AddQuestion(fp, goldQuestion(), askedAt); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := AnswerQuestion(fp, "Q-1", "Z", "", askedAt); err == nil || !strings.Contains(err.Error(), "no option") {
+	if _, err := AnswerQuestion(fp, "Q-1", "Z", "", "", askedAt); err == nil || !strings.Contains(err.Error(), "no option") {
 		t.Fatalf("unknown option err = %v", err)
 	}
-	if _, err := AnswerQuestion(fp, "Q-9", "A", "", askedAt); !errors.Is(err, ErrQuestionNotOpen) {
+	if _, err := AnswerQuestion(fp, "Q-9", "A", "", "", askedAt); !errors.Is(err, ErrQuestionNotOpen) {
 		t.Fatalf("unknown question err = %v", err)
+	}
+	if _, err := AnswerQuestion(fp, "Q-1", "A", "", "chat: owner", askedAt); err == nil || !strings.Contains(err.Error(), "must not contain ':'") {
+		t.Fatalf("how with ':' err = %v", err)
 	}
 	if got := len(OpenQuestions(readBody(t, fp))); got != 1 {
 		t.Fatalf("failed answer changed the file: %d open", got)
+	}
+	res, err := AnswerQuestion(fp, "Q-1", "A", "", "playtest", askedAt)
+	if err != nil || !strings.Contains(res.DecisionLine, "· answered in playtest (Q-1): ") {
+		t.Fatalf("custom how: %v %+v", err, res)
 	}
 }
 

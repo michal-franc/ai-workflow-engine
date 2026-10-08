@@ -14,7 +14,7 @@ import (
 )
 
 // The Decisions tab is generated from every issue's `## Decisions` D-n lines
-// (inbox answers and `issue-cli decide`). It is read-only: nothing here
+// (`issue-cli answer` and `issue-cli decide`). It is read-only: nothing here
 // writes, and the index is rebuilt from the issue files on each request.
 
 type DecisionView struct {

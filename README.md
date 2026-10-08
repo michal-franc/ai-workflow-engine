@@ -205,7 +205,7 @@ Version 0.32 (October 2026). Pre-1.0 and moving fast: v0.28 to v0.32 shipped bet
 
 Next on the tool's own board:
 
-- A workbench redesign of the board: an inbox, system pages and a decisions index (in testing)
+- A workbench redesign of the board: system pages, a balance board and a decisions index (in testing)
 - Umbrella issues with parent links and roll-up progress
 - A command that validates `workflow.yaml`
 - `issue-cli` that works from inside an agent's worktree

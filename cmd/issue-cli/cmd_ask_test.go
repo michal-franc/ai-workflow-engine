@@ -19,7 +19,7 @@ var goldArgs = []string{
 	"--link", "docs/economy.md",
 }
 
-func TestAskWritesQuestionAndHintsWait(t *testing.T) {
+func TestAskWritesQuestionAndHintsLeadRelay(t *testing.T) {
 	proj, issuePath := makeGateFixture(t, "in design", "", true)
 	ctx, stdout, _ := newTestContext(proj, false)
 	if err := runAsk(ctx, goldArgs); err != nil {
@@ -27,8 +27,11 @@ func TestAskWritesQuestionAndHintsWait(t *testing.T) {
 	}
 	out := stdout.String()
 	assertContains(t, out, "✓ Asked Q-1 on cli/sample")
-	assertContains(t, out, "/p/test/inbox?issue=cli/sample")
-	assertContains(t, out, "Next: issue-cli ask cli/sample --wait-for Q-1 --timeout 9m")
+	assertContains(t, out, "Next: say in chat that Q-1 is waiting for an answer, then end your turn.")
+	assertContains(t, out, `issue-cli answer cli/sample Q-1 --option <ID> --note "<the owner's words>"`)
+	if strings.Contains(out, "--wait") || strings.Contains(out, "inbox") {
+		t.Errorf("ask output should not suggest waiting or the inbox:\n%s", out)
+	}
 
 	content := readFile(t, issuePath)
 	assertContains(t, content, "## Questions")
@@ -66,7 +69,7 @@ func TestAskWaitReturnsDecisionWhenAnswered(t *testing.T) {
 			if _, ok := store.QuestionWaits["Q-1"]; !ok {
 				t.Error("question wait not recorded while blocked")
 			}
-			if _, err := tracker.AnswerQuestion(issuePath, "Q-1", "B", "revisit later", clock.now); err != nil {
+			if _, err := tracker.AnswerQuestion(issuePath, "Q-1", "B", "revisit later", "", clock.now); err != nil {
 				t.Errorf("answer: %v", err)
 			}
 		},
@@ -79,7 +82,7 @@ func TestAskWaitReturnsDecisionWhenAnswered(t *testing.T) {
 	assertContains(t, stderr.String(), "Waiting for an answer to Q-1")
 	out := stdout.String()
 	assertContains(t, out, "✓ Q-1 answered: B (recorded as cli/sample#D-1 under ## Decisions; cite it as that ref)")
-	assertContains(t, out, `- **D-1** · 2026-10-02 · answered in inbox (Q-1): Does unspent gold carry over between stages? → **B. Carry over, capped at 300**, "revisit later"`)
+	assertContains(t, out, `- **D-1** · 2026-10-02 · answered in lead chat (Q-1): Does unspent gold carry over between stages? → **B. Carry over, capped at 300**, "revisit later"`)
 	assertContains(t, out, "✓ Waited: 20s")
 }
 
@@ -124,7 +127,7 @@ func TestAskJSONAndShowListsOpenQuestions(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
 		t.Fatalf("json: %v\n%s", err, stdout.String())
 	}
-	if out.Question != "Q-1" || out.State != "open" || out.Slug != "cli/sample" {
+	if out.Question != "Q-1" || out.State != "open" || out.Slug != "cli/sample" || !strings.HasPrefix(out.AnswerBy, "issue-cli answer cli/sample Q-1 ") {
 		t.Fatalf("json output = %+v", out)
 	}
 
@@ -138,5 +141,64 @@ func TestAskJSONAndShowListsOpenQuestions(t *testing.T) {
 	if err := runChecklist(ctx, []string{"cli/sample"}); err != nil {
 		t.Fatal(err)
 	}
-	assertContains(t, stdout.String(), "Block on one: issue-cli ask cli/sample --wait-for Q-1 --timeout 9m")
+	assertContains(t, stdout.String(), "The lead records an answer with: issue-cli answer cli/sample Q-1 --option <ID>")
+}
+
+func TestAnswerRecordsDecisionAndRejectsBadInput(t *testing.T) {
+	proj, issuePath := makeGateFixture(t, "in design", "", true)
+	ctx, _, _ := newTestContext(proj, false)
+	if err := runAsk(ctx, goldArgs); err != nil {
+		t.Fatal(err)
+	}
+	before := readFile(t, issuePath)
+	bad := map[string][]string{
+		"no question id": {"cli/sample", "--option", "B"},
+		"no option":      {"cli/sample", "Q-1"},
+		"unknown option": {"cli/sample", "Q-1", "--option", "Z"},
+		"unknown q":      {"cli/sample", "Q-9", "--option", "A"},
+		"how with colon": {"cli/sample", "Q-1", "--option", "A", "--how", "chat: owner"},
+		"unknown issue":  {"cli/nope", "Q-1", "--option", "A"},
+	}
+	for name, args := range bad {
+		ctx, _, _ := newTestContext(proj, false)
+		if err := runAnswer(ctx, args); err == nil {
+			t.Errorf("%s: want error, got nil", name)
+		}
+	}
+	if readFile(t, issuePath) != before {
+		t.Fatal("rejected answer modified the issue")
+	}
+
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runAnswer(ctx, []string{"cli/sample", "q-1", "--option", "b", "--note", "revisit later"}); err != nil {
+		t.Fatalf("answer: %v", err)
+	}
+	out := stdout.String()
+	assertContains(t, out, "✓ Q-1 answered: B (recorded as cli/sample#D-1 under ## Decisions)")
+	assertContains(t, out, `answered in lead chat (Q-1): Does unspent gold carry over between stages? → **B. Carry over, capped at 300**, "revisit later"`)
+	content := readFile(t, issuePath)
+	assertContains(t, content, "### Q-1 · answered ")
+	assertContains(t, content, "- **D-1** · ")
+
+	ctx, stdout, _ = newTestContext(proj, true)
+	err := runAnswer(ctx, []string{"cli/sample", "Q-1", "--option", "A"})
+	if err == nil || !strings.Contains(err.Error(), "has no open question Q-1") {
+		t.Fatalf("second answer err = %v", err)
+	}
+
+	ctx, _, _ = newTestContext(proj, false)
+	if err := runAsk(ctx, goldArgs); err != nil {
+		t.Fatal(err)
+	}
+	ctx, stdout, _ = newTestContext(proj, true)
+	if err := runAnswer(ctx, []string{"cli/sample", "Q-2", "--option", "A", "--how", "playtest"}); err != nil {
+		t.Fatal(err)
+	}
+	var res answerOutput
+	if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
+		t.Fatalf("json: %v\n%s", err, stdout.String())
+	}
+	if res.Decision != "D-2" || res.Ref != "cli/sample#D-2" || !strings.Contains(res.Line, "answered in playtest (Q-2)") {
+		t.Fatalf("json answer = %+v", res)
+	}
 }

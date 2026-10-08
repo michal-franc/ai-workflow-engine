@@ -12,32 +12,53 @@ import (
 
 var askCommand = &Command{
 	Name:      "ask",
-	ShortHelp: "Ask the human a structured question (answered in the viewer inbox)",
-	LongHelp: `Write a structured question into the issue's ## Questions section. The human
-answers it in the viewer inbox (/p/<project>/inbox). The answer is recorded as a
-dated D-n line under ## Decisions, so it survives even if this session ends.
+	ShortHelp: "Ask the human a structured question (the lead relays the answer)",
+	LongHelp: `Write a structured question into the issue's ## Questions section, then say
+in chat that it is waiting and end your turn. The project's lead agent relays
+it to the owner and records the answer with issue-cli answer, as a dated D-n
+line under ## Decisions. The issue file is the mailbox: the answer survives
+even if this session ends, and the next session sees it with show.
 
 Questions do not gate transitions; approvals stay the gate.
 
 Options are "ID=Label|Tradeoff" with a one-letter ID (A–Z); at least 2 are
 required. --recommend names the option you would pick.
 
---wait blocks until the question is answered and prints the decision.
---wait-for Q-n blocks on a question asked earlier. --timeout exits 3 with
-nothing changed; re-run the same command to keep waiting.
+--wait / --wait-for Q-n block until the question is answered (--timeout exits
+3 with nothing changed). Dispatched workers should not wait: end the turn.
 
-Examples:
+Example:
   issue-cli ask <slug> --question "Does unspent gold carry over between stages?" \
     --context "At PROBE_N=200 teams bank ~140 gold at a stage lock." \
     --option "A=Reset to the stage's starting gold|Simplest" \
     --option "B=Carry over, capped at 300|Rewards saving without snowballing" \
-    --recommend B --link docs/economy.md --wait --timeout 9m
-  issue-cli ask <slug> --wait-for Q-3 --timeout 9m`,
+    --recommend B --link docs/economy.md`,
 	Run: runAsk,
+}
+
+var answerCommand = &Command{
+	Name:      "answer",
+	ShortHelp: "Record the answer to an open question (Q-n) as a D-n decision",
+	LongHelp: `Record the owner's answer to a question asked with issue-cli ask. In one
+write the question collapses to a one-line "answered" pointer and a D-n line
+is appended to ## Decisions:
+
+  - **D-7** · 2026-10-02 · answered in lead chat (Q-3): <question> → **B. <label>**, "<note>"
+
+  --option   the chosen option ID (required)
+  --note     the owner's own words, quoted after the choice
+  --how      where it was answered (default "lead chat"; must not contain ':')
+
+Examples:
+  issue-cli answer economy/gold-and-items-shop Q-3 --option B \
+    --note "B, but revisit after the economy pass"
+  issue-cli answer economy/gold-and-items-shop Q-4 --option A --how playtest`,
+	Run: runAnswer,
 }
 
 func init() {
 	registerCommand(askCommand)
+	registerCommand(answerCommand)
 }
 
 type askOutput struct {
@@ -48,7 +69,7 @@ type askOutput struct {
 	Decision string `json:"decision,omitempty"`
 	Ref      string `json:"decision_ref,omitempty"`
 	Line     string `json:"decision_line,omitempty"`
-	Inbox    string `json:"inbox"`
+	AnswerBy string `json:"answer_command,omitempty"`
 	Waited   int64  `json:"waited_seconds,omitempty"`
 }
 
@@ -102,8 +123,6 @@ func runAsk(ctx *Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	inbox := inboxURL(ctx.Project, issue.Slug)
-
 	id := waitFor
 	if id == "" {
 		q := tracker.NewQuestion{Text: *questionFlag, Context: normalizeEscapedText(*contextFlag), Options: options, Links: links}
@@ -127,14 +146,14 @@ func runAsk(ctx *Context, args []string) error {
 			return fmt.Errorf("failed to add question: %w", err)
 		}
 		if !*opts.wait {
-			out := askOutput{Slug: issue.Slug, Question: id, State: tracker.QuestionOpen, Inbox: inbox}
+			out := askOutput{Slug: issue.Slug, Question: id, State: tracker.QuestionOpen, AnswerBy: answerCommandFor(issue.Slug, id)}
 			if ctx.JSONOutput {
 				return writeJSON(ctx.Stdout, out)
 			}
 			fmt.Fprintf(ctx.Stdout, "✓ Asked %s on %s\n", id, issue.Slug)
 			fmt.Fprintf(ctx.Stdout, "file: %s\n", issue.FilePath)
-			fmt.Fprintf(ctx.Stdout, "Answer: %s\n", inbox)
-			fmt.Fprintf(ctx.Stdout, "Next: issue-cli ask %s --wait-for %s --timeout %s   (blocks until answered; exit 3 = still waiting, re-run it)\n", issue.Slug, id, suggestedWaitTimeout)
+			fmt.Fprintf(ctx.Stdout, "Next: say in chat that %s is waiting for an answer, then end your turn. The lead records it with:\n", id)
+			fmt.Fprintf(ctx.Stdout, "  %s\n", out.AnswerBy)
 			return nil
 		}
 		if !ctx.JSONOutput {
@@ -142,12 +161,12 @@ func runAsk(ctx *Context, args []string) error {
 		}
 	}
 
-	return waitForAnswer(ctx, issue, id, inbox, opts)
+	return waitForAnswer(ctx, issue, id, opts)
 }
 
 // waitForAnswer blocks until question id is answered, polling the issue file
 // (the mailbox) — nothing depends on the viewer reaching this process.
-func waitForAnswer(ctx *Context, issue *tracker.Issue, id, inbox string, opts waitOptions) error {
+func waitForAnswer(ctx *Context, issue *tracker.Issue, id string, opts waitOptions) error {
 	body, err := readIssueBody(issue.FilePath)
 	if err != nil {
 		return err
@@ -161,7 +180,7 @@ func waitForAnswer(ctx *Context, issue *tracker.Issue, id, inbox string, opts wa
 		if started, err = tracker.BeginQuestionWait(issue.FilePath, q.ID, ctx.now()); err != nil {
 			return err
 		}
-		fmt.Fprintf(ctx.Stderr, "Waiting for an answer to %s — answer: %s (timeout: %s)\n", q.ID, inbox, opts.timeoutLabel())
+		fmt.Fprintf(ctx.Stderr, "Waiting for an answer to %s — record it with: %s (timeout: %s)\n", q.ID, answerCommandFor(issue.Slug, q.ID), opts.timeoutLabel())
 	}
 
 	var answered *tracker.Question
@@ -197,7 +216,7 @@ func waitForAnswer(ctx *Context, issue *tracker.Issue, id, inbox string, opts wa
 	if ctx.JSONOutput {
 		return writeJSON(ctx.Stdout, askOutput{
 			Slug: issue.Slug, Question: answered.ID, State: answered.State, Answer: answered.Answer,
-			Decision: answered.Decision, Ref: issue.Slug + "#" + answered.Decision, Line: line, Inbox: inbox, Waited: int64(waited / time.Second),
+			Decision: answered.Decision, Ref: issue.Slug + "#" + answered.Decision, Line: line, Waited: int64(waited / time.Second),
 		})
 	}
 	fmt.Fprintf(ctx.Stdout, "✓ %s answered: %s (recorded as %s#%s under ## Decisions; cite it as that ref)\n", answered.ID, answered.Answer, issue.Slug, answered.Decision)
@@ -259,13 +278,65 @@ func questionIDs(qs []tracker.Question) string {
 	return strings.Join(ids, ", ")
 }
 
-// inboxURL links the viewer inbox with the issue's questions selected.
-func inboxURL(proj *tracker.Project, slug string) string {
-	base := strings.TrimRight(viewerBaseURL(), "/")
-	if proj != nil {
-		return fmt.Sprintf("%s/p/%s/inbox?issue=%s", base, proj.Slug, slug)
+// answerCommandFor is the command the lead runs to record an answer.
+func answerCommandFor(slug, id string) string {
+	return fmt.Sprintf(`issue-cli answer %s %s --option <ID> --note "<the owner's words>"`, slug, id)
+}
+
+type answerOutput struct {
+	Slug     string `json:"slug"`
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+	Decision string `json:"decision"`
+	Ref      string `json:"decision_ref"`
+	Line     string `json:"decision_line"`
+}
+
+func runAnswer(ctx *Context, args []string) error {
+	slug, rest, err := requireSlug(args, "answer")
+	if err != nil {
+		return err
 	}
-	return fmt.Sprintf("%s/inbox?issue=%s", base, slug)
+	if len(rest) == 0 || strings.HasPrefix(rest[0], "-") {
+		return fmt.Errorf("usage: issue-cli answer <slug> <Q-n> --option <ID> [--note \"...\"] [--how \"lead chat\"]")
+	}
+	id := strings.ToUpper(strings.TrimSpace(rest[0]))
+	fs := newFlagSet("answer", ctx)
+	optionFlag := fs.String("option", "", "the chosen option ID")
+	noteFlag := fs.String("note", "", "the owner's own words, quoted after the choice")
+	howFlag := fs.String("how", "", `where it was answered (default "lead chat")`)
+	if err := parseFlags(ctx, fs, rest[1:]); err != nil {
+		return err
+	}
+	option := strings.ToUpper(strings.TrimSpace(*optionFlag))
+	if option == "" {
+		return fmt.Errorf("--option is required\n\nExample:\n  issue-cli answer %s %s --option B --note \"...\"", slug, id)
+	}
+
+	issue, _, err := findIssueOrErr(ctx, slug)
+	if err != nil {
+		return err
+	}
+	res, err := tracker.AnswerQuestion(issue.FilePath, id, option, normalizeEscapedText(*noteFlag), *howFlag, ctx.now())
+	if errors.Is(err, tracker.ErrQuestionNotOpen) {
+		body, _ := readIssueBody(issue.FilePath)
+		return fmt.Errorf("%s has no open question %s\n\nOpen questions: %s", issue.Slug, id, questionIDs(tracker.OpenQuestions(body)))
+	}
+	if err != nil && res == nil {
+		return err
+	}
+	if err != nil {
+		fmt.Fprintf(ctx.Stderr, "warning: %v\n", err)
+	}
+
+	out := answerOutput{Slug: issue.Slug, Question: res.QuestionID, Answer: option, Decision: res.DecisionID, Ref: issue.Slug + "#" + res.DecisionID, Line: res.DecisionLine}
+	if ctx.JSONOutput {
+		return writeJSON(ctx.Stdout, out)
+	}
+	fmt.Fprintf(ctx.Stdout, "✓ %s answered: %s (recorded as %s under ## Decisions)\n", out.Question, out.Answer, out.Ref)
+	fmt.Fprintln(ctx.Stdout, out.Line)
+	fmt.Fprintf(ctx.Stdout, "Next: tell the agent on %s; a new session reads the answer with issue-cli show %s\n", issue.Slug, issue.Slug)
+	return nil
 }
 
 // printOpenQuestions renders the open-questions block shared by show and
@@ -279,6 +350,5 @@ func printOpenQuestions(ctx *Context, issue *tracker.Issue) {
 	for _, q := range open {
 		fmt.Fprintf(ctx.Stdout, "  %s  %s\n", q.ID, q.Text)
 	}
-	fmt.Fprintf(ctx.Stdout, "Answered in the inbox: %s\n", inboxURL(ctx.Project, issue.Slug))
-	fmt.Fprintf(ctx.Stdout, "Block on one: issue-cli ask %s --wait-for %s --timeout %s\n\n", issue.Slug, open[0].ID, suggestedWaitTimeout)
+	fmt.Fprintf(ctx.Stdout, "The lead records an answer with: %s\n\n", answerCommandFor(issue.Slug, open[0].ID))
 }

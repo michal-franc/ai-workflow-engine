@@ -28,7 +28,7 @@ import (
 //
 // The decision line format is a contract for the generated decisions index:
 //
-//	- **D-7** · 2026-10-02 · answered in inbox (Q-3): <question> → **B. <label>**, "<note>" (also considered: A <label>; C <label>)
+//	- **D-7** · 2026-10-02 · answered in lead chat (Q-3): <question> → **B. <label>**, "<note>" (also considered: A <label>; C <label>)
 
 const (
 	QuestionsSection = "Questions"
@@ -271,11 +271,23 @@ type AnswerResult struct {
 	DecisionLine string `json:"decision_line"`
 }
 
+// DefaultAnswerHow is how an answer was given when the caller does not say:
+// the project's lead agent relays the owner's answer from its chat.
+const DefaultAnswerHow = "lead chat"
+
 // AnswerQuestion records the answer to an open question in one locked file
-// write: the question collapses to a one-line pointer and a `D-n` line is
-// appended to `## Decisions`. Returns ErrQuestionNotOpen when the question is
-// missing or already answered, and clears any pending question wait.
-func AnswerQuestion(filePath, questionID, optionID, note string, now time.Time) (*AnswerResult, error) {
+// write: the question collapses to a one-line pointer and a `D-n` line
+// ("answered in <how> (Q-n): …") is appended to `## Decisions`. Returns
+// ErrQuestionNotOpen when the question is missing or already answered, and
+// clears any pending question wait.
+func AnswerQuestion(filePath, questionID, optionID, note, how string, now time.Time) (*AnswerResult, error) {
+	how = oneLine(how)
+	if how == "" {
+		how = DefaultAnswerHow
+	}
+	if strings.Contains(how, ":") {
+		return nil, fmt.Errorf("how %q must not contain ':' (it separates how from the decision text)", how)
+	}
 	var res *AnswerResult
 	_, _, err := UpdateIssueBody(filePath, func(body string) (string, bool, error) {
 		q := FindQuestion(body, questionID)
@@ -297,8 +309,8 @@ func AnswerQuestion(filePath, questionID, optionID, note string, now time.Time) 
 		}
 
 		decisionID := fmt.Sprintf("D-%d", nextNumber(decisionIDRe, body))
-		line := fmt.Sprintf("- **%s** · %s · answered in inbox (%s): %s → **%s. %s**",
-			decisionID, now.Format("2006-01-02"), q.ID, q.Text, chosen.ID, chosen.Label)
+		line := fmt.Sprintf("- **%s** · %s · answered in %s (%s): %s → **%s. %s**",
+			decisionID, now.Format("2006-01-02"), how, q.ID, q.Text, chosen.ID, chosen.Label)
 		if n := oneLine(note); n != "" {
 			line += fmt.Sprintf(", %q", n)
 		}

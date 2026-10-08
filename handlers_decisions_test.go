@@ -11,11 +11,11 @@ import (
 )
 
 // setupDecisionsProject: pivot (done) replaces phases#D-1; creeps (backlog)
-// still cites phases#D-1, so it is stale; shop has an inbox answer and a
+// still cites phases#D-1, so it is stale; shop has an answered question and a
 // deferred decision.
 func setupDecisionsProject(t *testing.T) tracker.Project {
 	t.Helper()
-	f := setupInboxProject(t, time.Now())
+	f := setupWorkbenchProject(t, time.Now())
 	dir := filepath.Join(f.proj.IssueDir, "Sim")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		t.Fatal(err)
@@ -29,8 +29,8 @@ func setupDecisionsProject(t *testing.T) tracker.Project {
 	write("pivot", "done", "## Decisions\n- **D-1** · 2026-09-28 · chat: The raid becomes an **ET-style** objective format <6v6>., \"no readable tension\" (replaces sim/phases#D-1)")
 	write("phases", "done", "## Decisions\n- **D-1** · 2026-09-27 · project rule: Three phases of 20 minutes.")
 	write("creeps", "backlog", "Camps follow sim/phases#D-1 and sim/pivot#D-1.")
-	writeInboxIssue(t, f.proj.IssueDir, "shop", "in design", "", "## Decisions\n"+
-		"- **D-1** · 2026-10-02 · answered in inbox (Q-1): Does gold carry over? → **B. Capped at 300**, \"revisit\" (also considered: A Reset)\n"+
+	writeWorkbenchIssue(t, f.proj.IssueDir, "shop", "in design", "", "## Decisions\n"+
+		"- **D-1** · 2026-10-02 · answered in lead chat (Q-1): Does gold carry over? → **B. Capped at 300**, \"revisit\" (also considered: A Reset)\n"+
 		"- **D-2** · 2026-10-04 · deferred · chat: Balance later.")
 	return f.proj
 }
@@ -41,22 +41,22 @@ func TestHandleDecisions_RendersIndex(t *testing.T) {
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
 
-	page := inboxGet(t, ts.URL+"/p/inbox/decisions")
+	page := pageGet(t, ts.URL+"/p/wb/decisions")
 	for _, want := range []string{
 		`class="view-tab active">`,
-		`<span class="inbox-stat-num">4</span><span class="inbox-stat-label">decisions</span>`,
-		`inbox-stat stale"><span class="inbox-stat-num">1</span>`,
+		`<span class="wb-stat-num">4</span><span class="wb-stat-label">decisions</span>`,
+		`wb-stat stale"><span class="wb-stat-num">1</span>`,
 		"All systems 4", "Economy 2", "Sim 2", "Has stale citations 1",
 		`data-ref="sim/phases#D-1"`,
 		"The raid becomes an <strong>ET-style</strong> objective format &lt;6v6&gt;.",
 		`, "no readable tension"`,
-		`replaces <a href="/p/inbox/issue/sim/phases" class="decision-ref">sim/phases#D-1</a>`,
-		`replaced by <a href="/p/inbox/issue/sim/pivot" class="decision-ref">sim/pivot#D-1</a> on 28 Sep`,
+		`replaces <a href="/p/wb/issue/sim/phases" class="decision-ref">sim/phases#D-1</a>`,
+		`replaced by <a href="/p/wb/issue/sim/pivot" class="decision-ref">sim/pivot#D-1</a> on 28 Sep`,
 		"1 open issue still cite it",
-		`<a href="/p/inbox/issue/sim/creeps">sim/creeps</a><span class="decision-status">· backlog</span>`,
+		`<a href="/p/wb/issue/sim/creeps">sim/creeps</a><span class="decision-status">· backlog</span>`,
 		`<span class="decision-state s-stale">replaced · stale</span>`,
 		`<span class="decision-state s-deferred">deferred</span>`,
-		"answered in inbox (Q-1) · also considered: A Reset",
+		"answered in lead chat (Q-1) · also considered: A Reset",
 		"Does gold carry over? → <strong>B. Capped at 300</strong>",
 		"none yet",
 	} {
@@ -76,50 +76,51 @@ func TestHandleDecisions_Filters(t *testing.T) {
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
 
-	page := inboxGet(t, ts.URL+"/p/inbox/decisions?state=stale")
+	page := pageGet(t, ts.URL+"/p/wb/decisions?state=stale")
 	if !strings.Contains(page, `data-ref="sim/phases#D-1"`) || strings.Contains(page, `data-ref="sim/pivot#D-1"`) {
 		t.Error("stale filter wrong")
 	}
-	page = inboxGet(t, ts.URL+"/p/inbox/decisions?system=economy&state=deferred")
+	page = pageGet(t, ts.URL+"/p/wb/decisions?system=economy&state=deferred")
 	if !strings.Contains(page, `data-ref="shop#D-2"`) || strings.Contains(page, `data-ref="shop#D-1"`) || strings.Contains(page, `data-ref="sim/`) {
 		t.Error("system+state filter wrong")
 	}
 	// Chips keep the other row's filter.
-	if !strings.Contains(page, `href="/p/inbox/decisions?state=deferred&amp;system=Sim"`) {
+	if !strings.Contains(page, `href="/p/wb/decisions?state=deferred&amp;system=Sim"`) {
 		t.Error("system chip drops the state filter")
 	}
-	page = inboxGet(t, ts.URL+"/p/inbox/decisions?system=Sim&state=deferred")
+	page = pageGet(t, ts.URL+"/p/wb/decisions?system=Sim&state=deferred")
 	if !strings.Contains(page, "No decisions match these filters") {
 		t.Error("no-match state missing")
 	}
-	page = inboxGet(t, ts.URL+"/p/inbox/decisions?state=replaced")
+	page = pageGet(t, ts.URL+"/p/wb/decisions?state=replaced")
 	if !strings.Contains(page, `data-ref="sim/phases#D-1"`) || strings.Contains(page, `data-ref="shop`) {
 		t.Error("replaced filter should include stale replaced decisions only")
 	}
 }
 
 func TestHandleDecisions_EmptyState(t *testing.T) {
-	f := setupInboxProject(t, time.Now())
+	f := setupWorkbenchProject(t, time.Now())
 	withMockTmuxSessions(t, nil)
 	ts := newTestServer(t, []tracker.Project{f.proj})
 	defer ts.Close()
-	page := inboxGet(t, ts.URL+"/p/inbox/decisions")
+	page := pageGet(t, ts.URL+"/p/wb/decisions")
 	if !strings.Contains(page, "No decisions recorded yet") || strings.Contains(page, "decisions-table") {
 		t.Fatal("empty decisions state not rendered")
 	}
 }
 
 func TestNavLinksToDecisions(t *testing.T) {
-	f := setupInboxProject(t, time.Now())
+	f := setupWorkbenchProject(t, time.Now())
 	withMockTmuxSessions(t, nil)
 	ts := newTestServer(t, []tracker.Project{f.proj})
 	defer ts.Close()
-	for _, path := range []string{"/", "/board", "/graph", "/docs", "/stats", "/inbox", "/retros", "/workflow-flow", "/workflow-designer"} {
-		page := inboxGet(t, ts.URL+"/p/inbox"+path)
-		inbox := strings.Index(page, `href="/p/inbox/inbox"`)
-		decisions := strings.Index(page, `href="/p/inbox/decisions"`)
-		if decisions < 0 || decisions < inbox {
-			t.Errorf("%s: Decisions nav link missing or not after Inbox", path)
+	for _, path := range []string{"/", "/board", "/graph", "/docs", "/stats", "/retros", "/workflow-flow", "/workflow-designer"} {
+		page := pageGet(t, ts.URL+"/p/wb"+path)
+		if !strings.Contains(page, `href="/p/wb/decisions"`) {
+			t.Errorf("%s: Decisions nav link missing", path)
+		}
+		if strings.Contains(page, `/p/wb/inbox`) || strings.Contains(page, "inbox-badge") {
+			t.Errorf("%s: the removed Inbox tab is still in the nav", path)
 		}
 	}
 }

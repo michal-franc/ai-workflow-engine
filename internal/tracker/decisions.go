@@ -9,9 +9,9 @@ import (
 	"time"
 )
 
-// Decisions are numbered lines under an issue's `## Decisions` section. The
-// inbox writes them when a question is answered and `issue-cli decide` writes
-// them for decisions made elsewhere. The project-wide decisions index is
+// Decisions are numbered lines under an issue's `## Decisions` section.
+// `issue-cli answer` writes them when a question is answered and
+// `issue-cli decide` writes them for decisions made elsewhere. The project-wide decisions index is
 // generated from these lines; nobody edits it by hand.
 //
 //	- **D-<n>** · <YYYY-MM-DD>[ · deferred] · <how>: <text>[, "<quote>"][ (also considered: …)][ (replaces <ref>[, <ref>])]

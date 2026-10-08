@@ -137,10 +137,6 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleWorkflowDesignerPreview(w, r, proj)
 	case rest == "workflow-designer" && r.Method == http.MethodPost:
 		s.handleSaveWorkflowDesigner(w, r, proj)
-	case rest == "inbox" && r.Method == http.MethodGet:
-		s.handleInbox(w, r, proj, prefix)
-	case rest == "inbox.json" && r.Method == http.MethodGet:
-		s.handleInboxJSON(w, r, proj)
 	case rest == "decisions" && r.Method == http.MethodGet:
 		s.handleDecisions(w, r, proj, prefix)
 	case rest == "balance" && r.Method == http.MethodGet:
@@ -181,8 +177,6 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleTransitionPreview(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/type") && r.Method == http.MethodPost:
 		s.handleSetIssueType(w, r, proj, prefix)
-	case strings.HasPrefix(rest, "issue/") && strings.Contains(rest, "/questions/") && strings.HasSuffix(rest, "/answer") && r.Method == http.MethodPost:
-		s.handleAnswerQuestion(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/approve") && r.Method == http.MethodPost:
 		s.handleApproveIssue(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/delete") && r.Method == http.MethodPost:

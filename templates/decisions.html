@@ -7,7 +7,6 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 1l1.5 3H14v2H2V4h4.5zM3 7h2v6H3zm4 0h2v6H7zm4 0h2v6h-2zM1 14h14v1.5H1z' fill='%2358a6ff'/></svg>">
     <link rel="stylesheet" href="/static/style.css">
     <script src="/static/theme.js"></script>
-    <script src="/static/inbox-badge.js" defer></script>
 </head>
 <body>
     <div class="header">
@@ -52,10 +51,6 @@
                     GitHub
                 </a>
                 {{end}}
-                <a href="{{.Prefix}}/inbox" class="view-tab">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.8 2h10.4l1.8 6.5V13a1 1 0 01-1 1H2a1 1 0 01-1-1V8.5L2.8 2zm.9 1.5L2.4 8H5.5l1 1.5h3l1-1.5h3.1l-1.3-4.5H3.7z"/></svg>
-                    Inbox <span class="inbox-badge" data-inbox-count></span>
-                </a>
                 <a href="{{.Prefix}}/decisions" class="view-tab active">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.5 3H14v2H2V4h4.5L8 1zM3 7h2v6H3V7zm4 0h2v6H7V7zm4 0h2v6h-2V7zM1 14h14v1.5H1V14z"/></svg>
                     Decisions
@@ -76,44 +71,44 @@
         </div>
     </div>
 
-    <main class="container inbox decisions">
-        <div class="inbox-head">
+    <main class="container wb-page decisions">
+        <div class="wb-head">
             <div>
-                <h2 class="inbox-title">Decisions</h2>
-                <p class="inbox-sub">Generated from every issue's <code>## Decisions</code> section. Nobody edits this list. Answer a question in the Inbox, or have an agent run <code>issue-cli decide</code>, to add one.</p>
+                <h2 class="wb-title">Decisions</h2>
+                <p class="wb-sub">Generated from every issue's <code>## Decisions</code> section. Nobody edits this list. The lead adds one with <code>issue-cli answer</code> (a question asked with <code>issue-cli ask</code>) or <code>issue-cli decide</code>.</p>
             </div>
             {{if .Total}}
-            <div class="inbox-stats">
-                <div class="inbox-stat"><span class="inbox-stat-num">{{.Total}}</span><span class="inbox-stat-label">decisions</span></div>
-                <div class="inbox-stat"><span class="inbox-stat-num">{{.Active}}</span><span class="inbox-stat-label">active</span></div>
-                <div class="inbox-stat"><span class="inbox-stat-num">{{.Replaced}}</span><span class="inbox-stat-label">replaced</span></div>
-                <div class="inbox-stat{{if .Stale}} stale{{end}}"><span class="inbox-stat-num">{{.Stale}}</span><span class="inbox-stat-label">stale citations</span></div>
+            <div class="wb-stats">
+                <div class="wb-stat"><span class="wb-stat-num">{{.Total}}</span><span class="wb-stat-label">decisions</span></div>
+                <div class="wb-stat"><span class="wb-stat-num">{{.Active}}</span><span class="wb-stat-label">active</span></div>
+                <div class="wb-stat"><span class="wb-stat-num">{{.Replaced}}</span><span class="wb-stat-label">replaced</span></div>
+                <div class="wb-stat{{if .Stale}} stale{{end}}"><span class="wb-stat-num">{{.Stale}}</span><span class="wb-stat-label">stale citations</span></div>
             </div>
             {{end}}
         </div>
 
         {{if not .Total}}
-        <div class="inbox-empty decisions-empty">
-            <div class="inbox-empty-icon decisions-empty-icon">⚖</div>
+        <div class="wb-empty decisions-empty">
+            <div class="wb-empty-icon decisions-empty-icon">⚖</div>
             <h3>No decisions recorded yet</h3>
-            <p>Decisions appear here when you answer a question in the <a href="{{.Prefix}}/inbox">Inbox</a>, or when an agent records one with <code>issue-cli decide &lt;slug&gt; --text "…"</code>. Free-form <code>## Decisions</code> notes in older issues are not listed.</p>
+            <p>Decisions appear here when the lead records an answer with <code>issue-cli answer &lt;slug&gt; Q-n --option B</code>, or when an agent records one with <code>issue-cli decide &lt;slug&gt; --text "…"</code>. Free-form <code>## Decisions</code> notes in older issues are not listed.</p>
         </div>
         {{else}}
         <div class="decisions-filters">
-            <div class="inbox-chips decisions-chips">
+            <div class="wb-chips decisions-chips">
                 <span class="decisions-chips-label">System</span>
-                <a href="{{$.FilterURL "" $.State}}" class="inbox-chip{{if eq .System ""}} active{{end}}">All systems {{.Total}}</a>
+                <a href="{{$.FilterURL "" $.State}}" class="wb-chip{{if eq .System ""}} active{{end}}">All systems {{.Total}}</a>
                 {{range .Systems}}
-                <a href="{{$.FilterURL .Name $.State}}" class="inbox-chip{{if eq $.System .Name}} active{{end}}">{{.Name}} {{.Count}}</a>
+                <a href="{{$.FilterURL .Name $.State}}" class="wb-chip{{if eq $.System .Name}} active{{end}}">{{.Name}} {{.Count}}</a>
                 {{end}}
             </div>
-            <div class="inbox-chips decisions-chips">
+            <div class="wb-chips decisions-chips">
                 <span class="decisions-chips-label">State</span>
-                <a href="{{$.FilterURL $.System ""}}" class="inbox-chip{{if eq .State ""}} active{{end}}">All</a>
-                <a href="{{$.FilterURL $.System "active"}}" class="inbox-chip{{if eq .State "active"}} active{{end}}">Active {{.Active}}</a>
-                <a href="{{$.FilterURL $.System "deferred"}}" class="inbox-chip{{if eq .State "deferred"}} active{{end}}">Deferred {{.Deferred}}</a>
-                <a href="{{$.FilterURL $.System "replaced"}}" class="inbox-chip{{if eq .State "replaced"}} active{{end}}">Replaced {{.Replaced}}</a>
-                <a href="{{$.FilterURL $.System "stale"}}" class="inbox-chip chip-stale{{if eq .State "stale"}} active{{end}}">Has stale citations {{.Stale}}</a>
+                <a href="{{$.FilterURL $.System ""}}" class="wb-chip{{if eq .State ""}} active{{end}}">All</a>
+                <a href="{{$.FilterURL $.System "active"}}" class="wb-chip{{if eq .State "active"}} active{{end}}">Active {{.Active}}</a>
+                <a href="{{$.FilterURL $.System "deferred"}}" class="wb-chip{{if eq .State "deferred"}} active{{end}}">Deferred {{.Deferred}}</a>
+                <a href="{{$.FilterURL $.System "replaced"}}" class="wb-chip{{if eq .State "replaced"}} active{{end}}">Replaced {{.Replaced}}</a>
+                <a href="{{$.FilterURL $.System "stale"}}" class="wb-chip chip-stale{{if eq .State "stale"}} active{{end}}">Has stale citations {{.Stale}}</a>
             </div>
         </div>
 
@@ -169,7 +164,7 @@
             </table>
         </div>
         {{end}}
-        <p class="inbox-footnote">Cite a decision from another issue as <code>&lt;slug&gt;#D-n</code>. Replace one with <code>issue-cli decide &lt;slug&gt; --replaces &lt;slug&gt;#D-n</code>.</p>
+        <p class="wb-footnote">Cite a decision from another issue as <code>&lt;slug&gt;#D-n</code>. Replace one with <code>issue-cli decide &lt;slug&gt; --replaces &lt;slug&gt;#D-n</code>.</p>
         {{end}}
     </main>
 

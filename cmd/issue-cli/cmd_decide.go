@@ -10,9 +10,10 @@ import (
 var decideCommand = &Command{
 	Name:      "decide",
 	ShortHelp: "Record a decision as a D-n line under ## Decisions",
-	LongHelp: `Record a decision made outside the inbox (in chat, by a project rule, after a
-playtest) as a dated D-n line under the issue's ## Decisions section. The
-viewer's Decisions tab (/p/<project>/decisions) is generated from these lines.
+	LongHelp: `Record a decision as a dated D-n line under the issue's ## Decisions
+section: one made in chat, by a project rule or after a playtest. (Answers to
+issue-cli ask questions are recorded with issue-cli answer.) The viewer's
+Decisions tab (/p/<project>/decisions) is generated from these lines.
 
 Other issues cite a decision as <slug>#D-n anywhere in their body.
 --replaces marks older decisions as replaced by this one; the output lists the
@@ -227,7 +228,7 @@ func runDecisions(ctx *Context, args []string) error {
 	}
 	if len(rows) == 0 {
 		if len(index.Entries) == 0 {
-			fmt.Fprintln(ctx.Stdout, "No decisions recorded yet. Record one with: issue-cli decide <slug> --text \"...\" (inbox answers are recorded too).")
+			fmt.Fprintln(ctx.Stdout, "No decisions recorded yet. Record one with: issue-cli decide <slug> --text \"...\" (issue-cli answer records answers to questions).")
 		} else {
 			fmt.Fprintln(ctx.Stdout, "No decisions match these filters.")
 		}

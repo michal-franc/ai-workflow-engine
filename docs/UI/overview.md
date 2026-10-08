@@ -75,6 +75,13 @@ Both states persist independently in `localStorage` (`sidebar-locked`, `sidebar-
 
 Lock defaults to on (the early-load check is `localStorage.getItem('sidebar-locked') !== 'false'`), so an explicit user opt-out is required to keep the sidebar scrolling with the body.
 
+## Approving two steps at once
+
+The sidebar's **Human Approval** section shows one **Human-approved for <status>** toggle per approval-gated next step. When that step lands on a handoff status (`backlog`, `human-testing`) whose own next step also needs an approval, a second toggle, **Approved for backlog and in progress**, approves both in one click.
+- It posts `{"status":"backlog","then":"in progress"}` to `POST /issue/<slug>/approve`, which writes `human_approval: backlog` plus `queued_approval: in progress` (see [Issue File Format](../issue-format.md#custom-fields)).
+- The agent's tmux session gets one nudge naming both statuses.
+- Clicking it again clears both. Clicking it on an issue already approved for `backlog` only adds the queued approval.
+
 ## Create issue modal
 
 Both `list.html` and `board.html` show a **+ New issue** button in the header (next to the theme picker) that opens a shared modal defined in `templates/_create_modal.html`. The modal posts to `POST /p/<project>/issues/create` (handler `handleCreateIssue` in `handlers_issue_mutate.go`) and on `201` navigates the browser to the new issue's detail page.

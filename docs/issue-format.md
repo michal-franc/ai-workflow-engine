@@ -132,6 +132,27 @@ The line format is `- **D-<n>** · <YYYY-MM-DD>[ · deferred] · <how>: <text>[,
 - **What is skipped.** Only lines under a level-2 `## Decisions` heading and outside fenced code are parsed. Free-form notes in that section are left alone and not listed.
 - **Revising.** `issue-cli show` prints `== Cites replaced decisions ==` for an issue that still builds on a replaced decision.
 
+## Balance notes
+
+A balance note is a comment on the issue whose change it reports on, starting with the project's balance prefix (`workbench.balance.comment_prefix` in `workflow.yaml`, default `balance:`). `issue-cli balance` writes the typed form:
+
+```
+balance: full-holds · open
+hypothesis: Defenders revive too freely because nobody finishes a downed attacker.
+change: FinishChance ↑ (proposed)
+evidence: finish rate 0% across 200 matches
+verdict: Needs the finish action first.
+pass: 3
+```
+
+- **First line:** `<prefix> <metric> · <state>`. The metric is one token (letters, digits, `.`, `_`, `-`). The state is `open`, `kept`, `reverted`, `needs pieces` or `not this branch`.
+- **Other lines:** optional `hypothesis`, `change`, `evidence`, `verdict` and `pass` (an integer). Any other line is shown as a note.
+- **Latest wins:** notes with the same issue, metric and change (case- and space-insensitive) are one experiment. The newest comment is current, and the older ones are its history.
+- **Free text:** a balance comment that doesn't match the first-line shape is an *unsorted* note. A leading `[#slug]` names the source issue.
+- **Joint passes:** an issue with frontmatter `balance_pass: <n>` is a pass. It is past once it is `done` (or later), and the lowest open pass is the planned one. A note counts towards the pass in its `pass:` line; open and needs-pieces notes without one count towards the planned pass.
+
+The viewer's **Balance** tab (`/p/<project>/balance`) is generated from these comments and is shown only when `workflow.yaml` has a `workbench.balance` block.
+
 ## Images
 
 Standard markdown images render in issue bodies and doc pages:

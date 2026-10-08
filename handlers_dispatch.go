@@ -15,71 +15,14 @@ import (
 )
 
 func buildAgentPrompt(proj *tracker.Project, issue *tracker.Issue, wf *tracker.WorkflowConfig, worktreePath, worktreeBranch string) string {
-	currentPrompt := "Use issue-cli to inspect the current workflow requirements for this status before making changes."
-	if wf != nil {
-		if prompt := wf.StatusPrompt(issue.Status); strings.TrimSpace(prompt) != "" {
-			currentPrompt = prompt
-		}
-	}
-
-	statusReminder := ""
-	switch issue.Status {
-	case "in design":
-		statusReminder = fmt.Sprintf("When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition %s --to \"backlog\" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).", issue.Slug)
-	case "backlog":
-		statusReminder = fmt.Sprintf("Tell the human in chat that this needs `in progress` approval in the issue viewer, then run `issue-cli start %s --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).", issue.Slug)
-	}
-
-	// Typed issues get a Type line under Status in the metadata block, so the
-	// agent knows its path before reading any workflow output.
-	statusField := issue.Status
-	if wf != nil && wf.ActiveType != "" {
-		statusField += fmt.Sprintf("\n  Type: %s (%s)", wf.ActiveType, wf.PathLine())
-	}
-
-	prompt := fmt.Sprintf(tracker.AgentDispatchPromptTemplate,
-		issue.Slug,
-		currentPrompt,
-		statusReminder,
-		issue.Slug,
-		issue.Slug,
-		issue.Slug,
-		issue.Slug,
-		issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.System, issue.System, issue.Slug,
-		issue.Title, statusField, issue.Priority,
-		issue.BodyRaw)
-
-	// Inject --project so dispatched bots in a multi-project projects.yaml
-	// setup don't silently run against the default project. The web app
-	// already knows the project; the bot would otherwise have to discover or
-	// guess it. Replace bare `issue-cli ` (trailing space) so we don't break
-	// adjacent tokens, and skip when the project has no slug (bootstrap mode).
-	if proj != nil && proj.Slug != "" {
-		prompt = strings.ReplaceAll(prompt, "issue-cli ", "issue-cli --project "+proj.Slug+" ")
-	}
-
-	if worktreePath != "" {
-		prompt += fmt.Sprintf(`
-
-## Worktree
-
-You are already in an isolated git worktree at %s on branch %s.
-- Do your code work and make commits here on %s. Do not switch this checkout to another branch.
-- Issue management is NOT code work. The issues/ tree is excluded from this worktree on purpose — it lives on the primary checkout (master). Run every issue-cli command exactly as written: --project already points it at the primary checkout, so it manages the issue on master regardless of your worktree branch. Do not cd into the primary checkout, and do not try to create or edit issue files inside this worktree.
-- The human handles cleanup (running git worktree remove) after the issue is shipped — you do not need to remove the worktree yourself.
-`, worktreePath, worktreeBranch, worktreeBranch)
-	}
-	return prompt
+	return tracker.BuildAgentPrompt(proj, issue, wf, worktreePath, worktreeBranch)
 }
 
 // resolveWorktree returns the worktree path, branch name, and whether the
 // dispatch should create one. Pure: no side effects, safe to call before
 // deciding whether to actually run git.
 func resolveWorktree(workdir, slug string, wf *tracker.WorkflowConfig) (path, branch string, enabled bool) {
-	if wf == nil || !wf.WorktreeEnabled() || strings.TrimSpace(slug) == "" || strings.TrimSpace(workdir) == "" {
-		return "", "", false
-	}
-	return filepath.Join(workdir, ".worktrees", slug), "work/" + slug, true
+	return tracker.ResolveWorktree(workdir, slug, wf)
 }
 
 // runGitWorktreeAdd is the seam for tests to stub the actual git invocation.
@@ -257,17 +200,41 @@ func viewerURLFromRequest(r *http.Request) string {
 // into a tmux shell unquoted.
 var validModelName = regexp.MustCompile(`^[A-Za-z0-9._:/\[\]-]+$`)
 
-// agentLaunchCommand builds the shell command typed into tmux. A --model flag
-// is added only when the project enforces one (agent_model_source: project).
+// agentLaunchCommand builds the shell command typed into tmux. The prompt is
+// passed as the agent's positional argument (both claude and codex accept
+// one and start interactive with it). A --model flag is added only when the
+// project enforces one (agent_model_source: project).
 func agentLaunchCommand(proj *tracker.Project, agentType string, promptPath string) string {
 	modelFlag := ""
 	if m := proj.AgentModel(agentType); m != "" && validModelName.MatchString(m) {
 		modelFlag = " --model " + m
 	}
-	if agentType == "codex" {
-		return fmt.Sprintf("codex%s \"$(cat %q)\"", modelFlag, promptPath)
+	return fmt.Sprintf("%s%s \"$(cat %q)\"", agentType, modelFlag, promptPath)
+}
+
+// writeDispatchPrompt persists prompt as <sessionLogDir>/dispatch-prompt.txt
+// and returns its path.
+func writeDispatchPrompt(sessionLogDir, prompt string) (string, error) {
+	if err := os.MkdirAll(sessionLogDir, 0755); err != nil {
+		return "", err
 	}
-	return agentType + modelFlag
+	path := filepath.Join(sessionLogDir, "dispatch-prompt.txt")
+	return path, os.WriteFile(path, []byte(prompt), 0644)
+}
+
+// repromptURL is the endpoint that re-sends the briefing into a live agent
+// session, quoted in dispatch hints. Empty when session is not the issue's
+// main agent session (custom actions, retros reviews), which reprompt can't
+// reach.
+func repromptURL(proj *tracker.Project, session, issueSlug string) string {
+	if issueSlug == "" || session != tmuxSessionName(issueSlug) {
+		return ""
+	}
+	prefix := ""
+	if proj != nil && proj.Slug != "" {
+		prefix = "/p/" + proj.Slug
+	}
+	return prefix + "/issue/" + issueSlug + "/dispatch/reprompt"
 }
 
 func runStep(steps *[]DispatchStep, name string, cmd *exec.Cmd) bool {
@@ -342,21 +309,6 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 	}
 	workDir = newDir
 
-	promptFile, err := os.CreateTemp("", "agent-prompt-*.txt")
-	if err != nil {
-		return DispatchResponse{Status: "error", Steps: []DispatchStep{{Name: "Create prompt file", Status: "error", Detail: err.Error()}}}
-	}
-	promptPath := promptFile.Name()
-	if _, err := promptFile.WriteString(prompt); err != nil {
-		promptFile.Close()
-		os.Remove(promptPath)
-		return DispatchResponse{Status: "error", Steps: []DispatchStep{{Name: "Write prompt file", Status: "error", Detail: err.Error()}}}
-	}
-	if err := promptFile.Close(); err != nil {
-		os.Remove(promptPath)
-		return DispatchResponse{Status: "error", Steps: []DispatchStep{{Name: "Close prompt file", Status: "error", Detail: err.Error()}}}
-	}
-
 	steps := append([]DispatchStep{}, worktreeSteps...)
 	sessionLogDir := filepath.Join(workDir, ".agent-logs", session)
 	rawLog := filepath.Join(sessionLogDir, "rawlog")
@@ -379,8 +331,10 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 		// still running. Re-running new-session/send-keys would clobber whatever
 		// the agent is doing and re-paste the prompt, so skip all setup and just
 		// open a terminal attached to the existing session.
-		os.Remove(promptPath)
 		steps = append(steps, DispatchStep{Name: "Existing session — attaching", Status: "reattached"})
+		if u := repromptURL(proj, session, issueSlug); u != "" {
+			steps = append(steps, DispatchStep{Name: "Prompt not re-sent", Status: "reattached", Detail: "to re-send the current briefing use Re-send prompt or POST " + u})
+		}
 		response.Status = "reattached"
 		attachAgentStep(proj, session, &steps)
 		if proj != nil && proj.Terminal == "none" {
@@ -407,12 +361,16 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 		exec.Command("tmux", "rename-window", "-t", session, windowName).Run()
 	}
 
-	os.MkdirAll(sessionLogDir, 0755)
-
-	// Persist the exact prompt the bot is briefed with so the timeline view
-	// can replay it later instead of reconstructing an approximation.
-	dispatchPromptPath := filepath.Join(sessionLogDir, "dispatch-prompt.txt")
-	_ = os.WriteFile(dispatchPromptPath, []byte(prompt), 0644)
+	// Persist the exact prompt the bot is briefed with. The agent is launched
+	// with this file as its argument, and the timeline view replays it later
+	// instead of reconstructing an approximation.
+	promptPath, err := writeDispatchPrompt(sessionLogDir, prompt)
+	if err != nil {
+		steps = append(steps, DispatchStep{Name: "Write prompt file", Status: "error", Detail: err.Error()})
+		response.Status = "error"
+		response.Steps = steps
+		return response
+	}
 
 	runStep(&steps, fmt.Sprintf("Log to %s", rawLog),
 		exec.Command("tmux", "pipe-pane", "-t", target, "-o", fmt.Sprintf("cat >> %s", rawLog)))
@@ -452,26 +410,14 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 
 	time.Sleep(500 * time.Millisecond)
 
-	if agentType == "codex" {
-		runStep(&steps, "Start codex with prompt file",
-			exec.Command("tmux", "send-keys", "-t", target, agentLaunchCommand(proj, agentType, promptPath), "Enter"))
-		// tmux send-keys returns before the shell in the pane expands $(cat ...).
-		// Keep the temp file around a bit longer so codex can read it reliably.
-		time.AfterFunc(2*time.Minute, func() {
-			_ = os.Remove(promptPath)
-		})
-	} else {
-		runStep(&steps, fmt.Sprintf("Start %s (interactive)", agentType),
-			exec.Command("tmux", "send-keys", "-t", target, agentLaunchCommand(proj, agentType, promptPath), "Enter"))
-		time.Sleep(3 * time.Second)
-		runStep(&steps, "Load prompt into tmux buffer",
-			exec.Command("tmux", "load-buffer", promptPath))
-		runStep(&steps, fmt.Sprintf("Paste prompt to %s", agentType),
-			exec.Command("tmux", "paste-buffer", "-t", target))
-		time.Sleep(200 * time.Millisecond)
-		runStep(&steps, "Submit prompt",
-			exec.Command("tmux", "send-keys", "-t", target, "Enter"))
-		_ = os.Remove(promptPath)
+	// The prompt goes in as the agent's launch argument, never pasted:
+	// a paste sent before the agent's input is ready is silently dropped.
+	// Both agents start interactive, so a human stays in the loop.
+	runStep(&steps, fmt.Sprintf("Start %s (interactive, prompt as argument)", agentType),
+		exec.Command("tmux", "send-keys", "-t", target, agentLaunchCommand(proj, agentType, promptPath), "Enter"))
+	// Only Claude's pane rendering has been checked for the delivery marker.
+	if agentType != "codex" {
+		promptDeliveryStep(&steps, target, prompt, repromptURL(proj, session, issueSlug))
 	}
 
 	response.Steps = steps
@@ -687,11 +633,100 @@ func (s *Server) handleDispatchAgent(w http.ResponseWriter, r *http.Request, pro
 	}
 
 	wf := proj.LoadWorkflowForIssue(issue)
-	wtPath, wtBranch, _ := resolveWorktree(resolveProjectWorkDir(proj), issue.Slug, wf)
-	prompt := buildAgentPrompt(proj, issue, wf, wtPath, wtBranch)
+	prompt := tracker.BuildDispatchPrompt(proj, issue, wf, resolveProjectWorkDir(proj)).Prompt
 	session := tmuxSessionName(slug)
 	resp := dispatchAgentSession(proj, session, prompt, issue.Slug, agentType, viewerURLFromRequest(r), wf)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// handleDispatchPrompt serves GET /p/<project>/issue/<slug>/dispatch-prompt:
+// the prompt a dispatch would send right now, without creating a worktree,
+// session, or file. Plain text by default; ?format=json adds where it would
+// run.
+func (s *Server) handleDispatchPrompt(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	slug := strings.TrimPrefix(r.URL.Path, prefix+"/issue/")
+	slug = strings.TrimSuffix(slug, "/dispatch-prompt")
+
+	issue := s.findIssueBySlug(proj, slug)
+	if issue == nil {
+		http.NotFound(w, r)
+		return
+	}
+	dp := tracker.BuildDispatchPrompt(proj, issue, proj.LoadWorkflowForIssue(issue), resolveProjectWorkDir(proj))
+	if r.URL.Query().Get("format") == "json" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(dp)
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	fmt.Fprint(w, dp.Prompt)
+}
+
+// handleDispatchReprompt serves POST /p/<project>/issue/<slug>/dispatch/reprompt:
+// re-sends the current briefing into the issue's live agent session. It never
+// creates a session or worktree; with no live session it answers 409.
+func (s *Server) handleDispatchReprompt(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	slug := strings.TrimPrefix(r.URL.Path, prefix+"/issue/")
+	slug = strings.TrimSuffix(slug, "/dispatch/reprompt")
+
+	issue := s.findIssueBySlug(proj, slug)
+	if issue == nil {
+		http.NotFound(w, r)
+		return
+	}
+	dp := tracker.BuildDispatchPrompt(proj, issue, proj.LoadWorkflowForIssue(issue), resolveProjectWorkDir(proj))
+	workDir := resolveProjectWorkDir(proj)
+	if dp.Worktree != "" && fileExists(dp.Worktree) {
+		workDir = dp.Worktree
+	}
+	resp := repromptAgentSession(proj, tmuxSessionName(issue.Slug), dp.Prompt, issue.Slug, workDir)
+	w.Header().Set("Content-Type", "application/json")
+	if resp.Status == "no-session" {
+		w.WriteHeader(http.StatusConflict)
+	}
+	json.NewEncoder(w).Encode(resp)
+}
+
+// repromptAgentSession pastes prompt into the live agent session and checks
+// it arrived. The paste goes through a buffer named after the session
+// (deleted after pasting) so concurrent reprompts can't swap prompts, and as
+// a bracketed paste so the agent takes multi-line text as one message.
+func repromptAgentSession(proj *tracker.Project, session, prompt, issueSlug, workDir string) DispatchResponse {
+	target := agentTmuxTarget(proj, session)
+	response := DispatchResponse{Status: "reprompted", Prompt: prompt, Session: agentDisplayName(proj, session)}
+	if !tmuxHasSession(target) {
+		response.Status = "no-session"
+		response.Steps = []DispatchStep{{
+			Name:   "No live agent session",
+			Status: "error",
+			Detail: fmt.Sprintf("%s is not running; dispatch the issue instead (POST /p/%s/issue/%s/dispatch or the Claude button)", response.Session, proj.Slug, issueSlug),
+		}}
+		return response
+	}
+
+	var steps []DispatchStep
+	promptPath, err := writeDispatchPrompt(filepath.Join(workDir, ".agent-logs", session), prompt)
+	if err != nil {
+		response.Status = "error"
+		response.Steps = []DispatchStep{{Name: "Write prompt file", Status: "error", Detail: err.Error()}}
+		return response
+	}
+	buffer := "issue-viewer-" + session
+	ok := runStep(&steps, "Load prompt into tmux buffer "+buffer,
+		exec.Command("tmux", "load-buffer", "-b", buffer, promptPath)) &&
+		runStep(&steps, "Paste prompt into "+response.Session,
+			exec.Command("tmux", "paste-buffer", "-d", "-p", "-b", buffer, "-t", target))
+	if ok {
+		time.Sleep(200 * time.Millisecond)
+		ok = runStep(&steps, "Submit prompt", exec.Command("tmux", "send-keys", "-t", target, "Enter"))
+	}
+	if ok {
+		promptDeliveryStep(&steps, target, prompt, repromptURL(proj, session, issueSlug))
+	} else {
+		response.Status = "error"
+	}
+	response.Steps = steps
+	return response
 }
 

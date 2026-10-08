@@ -5,11 +5,11 @@ order: 6
 
 ## Overview
 
-The board and detail views can dispatch issues to AI agents (Claude or Codex) via tmux sessions. Dispatch creates a session, opens a terminal, and pastes a generated prompt.
+The board and detail views can dispatch issues to AI agents (Claude or Codex) via tmux sessions. Dispatch creates a session, opens a terminal, and starts the agent with a generated prompt.
 
 ## Requirements
 
-- **tmux** is mandatory. The whole dispatch lifecycle is tmux: creating the session, injecting the environment, logging via `pipe-pane`, and delivering the prompt via `send-keys`.
+- **tmux** is mandatory. The whole dispatch lifecycle is tmux: creating the session, injecting the environment, logging via `pipe-pane`, and launching the agent in the session.
 - **The agent CLI**: `claude` or `codex` on the `PATH` of the server.
 - **git**, when the workflow sets `worktree: true`.
 - **A terminal command**, or `terminal: "none"` to attach yourself (see [Terminal Configuration](#terminal-configuration)). The default, i3 + alacritty, is only needed if you leave `terminal` unset.
@@ -22,9 +22,23 @@ The board and detail views can dispatch issues to AI agents (Claude or Codex) vi
 - **Detail view** — two buttons in the sidebar (Claude / Codex)
 - **API** — `POST /p/<project>/issue/<slug>/dispatch` with `{"agent": "claude"}` or `{"agent": "codex"}`
 
+## How the prompt is delivered
+
+The prompt is saved to `<workdir>/.agent-logs/<session>/dispatch-prompt.txt`, and the agent starts with it as its positional argument (`claude "<prompt>"`, the same as codex). It is never pasted into a booting agent. Earlier versions typed `claude`, waited a fixed 3 s and pasted the prompt. When Claude took longer to start, the paste was dropped, yet every step still reported ok.
+
+Dispatch then polls the pane for the prompt's last line. It reports the step **Prompt delivered**, or a failed step after 20 s. Nothing is re-sent automatically.
+
+### Re-send prompt
+
+If an agent came up without its briefing, use **Re-send prompt** in the issue sidebar, or the link in the reattach banner. It sends `POST /p/<project>/issue/<slug>/dispatch/reprompt`, which pastes the current briefing into the issue's live session through a per-session named tmux buffer and submits it. It asks for confirmation first. If no agent session is alive, it fails with "No live agent session" and creates nothing; dispatch instead.
+
+### Read the prompt without dispatching
+
+`GET /p/<project>/issue/<slug>/dispatch-prompt` (`?format=json` for `{"prompt","slug","status","worktree","branch","session"}`) and `issue-cli dispatch-prompt <slug> [--json]` print the prompt a dispatch would send right now. Both share one builder (`tracker.BuildDispatchPrompt`), so the two outputs are byte-identical. Neither creates a worktree, session or file. The prompt follows the issue's current status, so it can differ from the saved `dispatch-prompt.txt` of an earlier dispatch.
+
 ## Re-dispatching to a live session
 
-Dispatching to an issue whose tmux session is still alive does **not** error out and does **not** re-prompt the agent. The handler probes `tmux has-session -t <name>` first; if the session exists it skips `new-session`, all logging/env setup, and the prompt-paste, and just opens a terminal attached to the existing session.
+Dispatching to an issue whose tmux session is still alive does **not** error out and does **not** re-prompt the agent. The handler probes `tmux has-session -t <name>` first; if the session exists it skips `new-session`, all logging/env setup, and the prompt, and just opens a terminal attached to the existing session.
 
 The response in this case is:
 
@@ -39,7 +53,7 @@ The response in this case is:
 }
 ```
 
-The dispatch modal renders this with a yellow warning banner. Kill the existing session manually (`tmux kill-session -t agent-<slug>`) if you want a fresh dispatch with a re-pasted prompt.
+The dispatch modal renders this with a yellow warning banner. The banner links **Re-send prompt** for an agent that never got its briefing. Kill the existing session manually (`tmux kill-session -t agent-<slug>`) if you want a fresh dispatch instead.
 
 The same pattern applies to **Edit in nvim**: re-triggering it while the previous edit session is still alive returns `{"status": "reattached", "reattached": true, ...}` and opens a terminal attached to the existing nvim instance. The reattach request does NOT register a new save-on-exit handler — the original request's goroutine still owns the sync-back when nvim exits.
 

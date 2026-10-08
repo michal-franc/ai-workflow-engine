@@ -16,6 +16,12 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.33.2 — 2026-10-08
+
+- Dispatch: Claude now starts with its briefing as the launch argument instead of a paste typed in after a fixed 3 s wait. When Claude took longer to boot, the paste was dropped and the agent sat at an empty prompt while every step reported ok. Dispatch now polls the pane and reports **Prompt delivered**, or a failed step after 20 s.
+- Web UI: a **Re-send prompt** button in the issue sidebar and the reattach banner (`POST /p/<project>/issue/<slug>/dispatch/reprompt`) pastes the current briefing into the issue's live agent session, after a confirmation.
+- API and CLI: `GET /p/<project>/issue/<slug>/dispatch-prompt` (`?format=json`) and `issue-cli dispatch-prompt <slug> [--json]` print the prompt a dispatch would send, read-only, from one shared builder.
+
 ## v0.33.1 — 2026-10-06
 
 - `make demo` works on a fresh clone. Its config, `demo/projects.yaml`, was hidden by the `projects.yaml` rule in `.gitignore` and never committed, so the board exited with `Failed to load config`. The file is now in the repo, points at the demo's own `workflow.yaml`, and uses `terminal: "none"` so ▶ prints the `tmux attach` command instead of opening i3 + alacritty. A test keeps the demo loadable.

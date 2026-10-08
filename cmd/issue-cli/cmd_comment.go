@@ -64,5 +64,8 @@ func runComment(ctx *Context, args []string) error {
 	}
 	fmt.Fprintf(ctx.Stdout, "✓ Comment added to %s\n", issue.Slug)
 	fmt.Fprintf(ctx.Stdout, "file: %s\n", issue.FilePath)
+	if _, typed, isBalance := tracker.ParseBalanceComment(balancePrefix(ctx), text); isBalance && !typed {
+		fmt.Fprintf(ctx.Stdout, "Tip: issue-cli balance %s --metric <id> --state <state> --hypothesis \"...\" --change \"...\" --evidence \"...\" puts this on the Balance board as a typed note.\n", issue.Slug)
+	}
 	return nil
 }

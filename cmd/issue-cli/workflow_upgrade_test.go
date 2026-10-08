@@ -39,10 +39,10 @@ func mustLatest(t *testing.T, name string) string {
 	return v
 }
 
-func changelogIDs(entries []changelogEntry, template string) []string {
+func proposableIDs(entries []featureEntry, template string) []string {
 	var ids []string
 	for _, e := range entries {
-		if e.appliesTo(template) {
+		if e.Propose && e.appliesTo(template) {
 			ids = append(ids, e.ID)
 		}
 	}
@@ -57,50 +57,10 @@ func proposalIDs(plan *upgradePlan) []string {
 	return ids
 }
 
-func TestWorkflowChangelogEntriesAreComplete(t *testing.T) {
-	entries, err := loadWorkflowChangelog()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(entries) == 0 {
-		t.Fatal("bundled workflow changelog has no entries")
-	}
-	seen := map[string]bool{}
-	for _, e := range entries {
-		if e.ID == "" || seen[e.ID] {
-			t.Errorf("entry id %q is empty or duplicated", e.ID)
-		}
-		seen[e.ID] = true
-		if parseVersion(e.Version) == nil {
-			t.Errorf("%s: version %q is not vX.Y.Z", e.ID, e.Version)
-		}
-		for field, v := range map[string]string{"title": e.Title, "what": e.What, "why": e.Why, "where": e.Where, "snippet": e.Snippet, "question": e.Question} {
-			if strings.TrimSpace(v) == "" {
-				t.Errorf("%s: %s is empty", e.ID, field)
-			}
-		}
-		if len(e.Detect.HasKey)+len(e.Detect.Contains) == 0 {
-			t.Errorf("%s: detect has no has_key or contains probe", e.ID)
-		}
-		if len(e.Templates) == 0 {
-			t.Errorf("%s: templates is empty", e.ID)
-		}
-		for _, tmpl := range e.Templates {
-			if !isBundledTemplate(tmpl) {
-				t.Errorf("%s: template %q is not bundled", e.ID, tmpl)
-			}
-		}
-		var snippet map[string]any
-		if err := yaml.Unmarshal([]byte(e.Snippet), &snippet); err != nil {
-			t.Errorf("%s: snippet does not parse as YAML: %v", e.ID, err)
-		}
-	}
-}
-
-// Each bundled template's stamp must be backed by changelog entries, and the
-// entries must agree with what the template actually ships.
-func TestWorkflowChangelogMatchesBundledTemplates(t *testing.T) {
-	entries, err := loadWorkflowChangelog()
+// Each bundled template's stamp must be backed by catalog entries, and its
+// features: record must be exactly what scan detects in it.
+func TestWorkflowFeatureCatalogMatchesBundledTemplates(t *testing.T) {
+	entries, err := loadFeatureCatalog()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +71,6 @@ func TestWorkflowChangelogMatchesBundledTemplates(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			keys := topLevelKeys(data)
 			hasStampEntry := false
 			for _, e := range entries {
 				if !e.appliesTo(name) {
@@ -123,16 +82,23 @@ func TestWorkflowChangelogMatchesBundledTemplates(t *testing.T) {
 				if e.Version == latest {
 					hasStampEntry = true
 				}
-				present := e.presentIn(data, keys)
-				if e.InTemplate && !present {
-					t.Errorf("%s: in_template is true but its detect probe doesn't find it in %s.yaml", e.ID, name)
-				}
-				if !e.InTemplate && present {
-					t.Errorf("%s: in_template is false but %s.yaml already has it — set in_template: true", e.ID, name)
-				}
 			}
 			if !hasStampEntry {
-				t.Errorf("template stamp %s@%s has no changelog entry with that version", name, latest)
+				t.Errorf("template stamp %s@%s has no catalog entry with that version", name, latest)
+			}
+			rec, ok := readFeatureRecord(data)
+			if !ok {
+				t.Fatalf("%s.yaml has no features: record; run issue-cli workflow scan on it", name)
+			}
+			res, err := scanWorkflowFeatures(name+".yaml", data, scanOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(res.Changes) > 0 || strings.Join(res.Record.Installed, ",") != strings.Join(rec.Installed, ",") {
+				t.Errorf("%s.yaml features: record is stale; re-run issue-cli workflow scan on it. Changes: %v", name, res.Changes)
+			}
+			if len(rec.Declined) > 0 {
+				t.Errorf("a bundled template declines nothing; got %v", rec.Declined)
 			}
 		})
 	}
@@ -167,7 +133,7 @@ func TestBundledTemplatesAreStampedAndLintClean(t *testing.T) {
 	}
 }
 
-func TestTemplateStampSurvivesMarshalRoundTrip(t *testing.T) {
+func TestTemplateStampAndRecordSurviveMarshalRoundTrip(t *testing.T) {
 	data, err := readWorkflowTemplate("development")
 	if err != nil {
 		t.Fatal(err)
@@ -183,40 +149,46 @@ func TestTemplateStampSurvivesMarshalRoundTrip(t *testing.T) {
 	if got := readTemplateStamp(out); got != readTemplateStamp(data) {
 		t.Fatalf("stamp after round trip = %q, want %q", got, readTemplateStamp(data))
 	}
+	want, _ := readFeatureRecord(data)
+	got, ok := readFeatureRecord(out)
+	if !ok || strings.Join(got.Installed, ",") != strings.Join(want.Installed, ",") {
+		t.Fatalf("features after round trip = %+v, want %+v", got, want)
+	}
 }
 
 func TestBuildUpgradePlanUnstampedProposesMissingFeatures(t *testing.T) {
-	entries, err := loadWorkflowChangelog()
+	entries, err := loadFeatureCatalog()
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := buildUpgradePlan("workflow.yaml", []byte(oldDevelopmentWorkflow), "")
+	plan, err := buildUpgradePlan("workflow.yaml", []byte(oldDevelopmentWorkflow), "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.Status != upgradeUnstamped || plan.Template != "development" || plan.Current != "" {
+	if plan.Status != upgradeUnstamped || plan.Template != "development" || plan.Current != "" || plan.RecordSource != "detection" {
 		t.Fatalf("plan = %+v", plan)
 	}
 	if plan.Latest != mustLatest(t, "development") {
 		t.Errorf("latest = %q", plan.Latest)
 	}
-	want := changelogIDs(entries, "development")
+	want := proposableIDs(entries, "development")
 	if strings.Join(proposalIDs(plan), ",") != strings.Join(want, ",") {
-		t.Errorf("proposals = %v, want every development entry %v", proposalIDs(plan), want)
+		t.Errorf("proposals = %v, want every proposable development entry %v", proposalIDs(plan), want)
 	}
 	for i, p := range plan.Proposals {
-		if p.Number != i+1 || p.Question == "" || p.Snippet == "" {
+		if p.Number != i+1 || p.Question == "" || p.Snippet == "" || p.Kind != proposalNew {
 			t.Errorf("proposal %d = %+v", i, p)
 		}
 	}
-	if len(plan.Steps) == 0 || !strings.Contains(strings.Join(plan.Steps, "\n"), "workflow.old1.yaml") {
-		t.Errorf("steps should name the backup file: %v", plan.Steps)
+	steps := strings.Join(plan.Steps, "\n")
+	if !strings.Contains(steps, "workflow.old1.yaml") || !strings.Contains(steps, "workflow scan --installed") {
+		t.Errorf("steps should name the backup file and the scan record step: %v", plan.Steps)
 	}
 }
 
 func TestBuildUpgradePlanSkipsFeaturesAlreadyPresent(t *testing.T) {
 	raw := oldDevelopmentWorkflow + "worktree: true\ndefault_type: feature\ntypes:\n  feature:\n    description: x\n"
-	plan, err := buildUpgradePlan("workflow.yaml", []byte(raw), "")
+	plan, err := buildUpgradePlan("workflow.yaml", []byte(raw), "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +220,7 @@ func TestBuildUpgradePlanStatuses(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			plan, err := buildUpgradePlan("workflow.yaml", []byte(tc.raw), tc.flag)
+			plan, err := buildUpgradePlan("workflow.yaml", []byte(tc.raw), tc.flag, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -267,7 +239,7 @@ func TestBuildUpgradePlanStatuses(t *testing.T) {
 
 func TestBuildUpgradePlanOnlyProposesEntriesNewerThanStamp(t *testing.T) {
 	latest := mustLatest(t, "development")
-	plan, err := buildUpgradePlan("workflow.yaml", []byte("template: development@v0.1.0\n"+oldDevelopmentWorkflow), "")
+	plan, err := buildUpgradePlan("workflow.yaml", []byte("template: development@v0.1.0\n"+oldDevelopmentWorkflow), "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +251,7 @@ func TestBuildUpgradePlanOnlyProposesEntriesNewerThanStamp(t *testing.T) {
 }
 
 func TestBuildUpgradePlanRejectsConflictingTemplateFlag(t *testing.T) {
-	_, err := buildUpgradePlan("workflow.yaml", []byte("template: development@v0.1.0\n"), "review")
+	_, err := buildUpgradePlan("workflow.yaml", []byte("template: development@v0.1.0\n"), "review", false)
 	if err == nil || !strings.Contains(err.Error(), "--template only applies") {
 		t.Fatalf("err = %v", err)
 	}
@@ -365,7 +337,7 @@ func TestRunWorkflowUpgradeJSON(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &plan); err != nil {
 		t.Fatalf("not JSON: %v\n%s", err, stdout.String())
 	}
-	for _, key := range []string{"status", "template", "current", "latest", "proposals", "already_present", "backup_path", "steps", "message"} {
+	for _, key := range []string{"status", "template", "current", "latest", "record_source", "proposals", "already_present", "declined", "detected_unrecorded", "backup_path", "steps", "message"} {
 		if _, ok := plan[key]; !ok {
 			t.Errorf("JSON plan missing %q", key)
 		}
@@ -375,7 +347,7 @@ func TestRunWorkflowUpgradeJSON(t *testing.T) {
 		t.Fatal("no proposals in JSON")
 	}
 	first, _ := proposals[0].(map[string]any)
-	for _, key := range []string{"number", "id", "version", "title", "what", "why", "where", "snippet", "question"} {
+	for _, key := range []string{"number", "id", "kind", "version", "category", "title", "what", "why", "where", "snippet", "question"} {
 		if _, ok := first[key]; !ok {
 			t.Errorf("proposal missing %q", key)
 		}

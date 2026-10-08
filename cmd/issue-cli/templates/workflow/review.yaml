@@ -4,6 +4,23 @@
 # Set it to `custom` if this workflow is no longer based on a template.
 template: review@v0.34.0
 
+# Feature record: catalog features this file has (<id>@<version>) and the
+# ones the human declined. Written by `issue-cli workflow scan`, read by
+# `issue-cli workflow upgrade`.
+features:
+  installed:
+    - status-prompts@v0.34.0
+    - human-approval-gates@v0.34.0
+    - checklist-gates@v0.34.0
+    - assignee-gate@v0.34.0
+    - comment-evidence-gates@v0.34.0
+    - body-structure-gates@v0.34.0
+    - checklist-sections@v0.34.0
+    - project-actions@v0.34.0
+    - board-columns@v0.34.0
+    - board-card-fields@v0.34.0
+    - lead-handoff-prompts@v0.34.0
+
 board:
   columns:
     - inbox
@@ -33,7 +50,7 @@ statuses:
     prompt: |
       Read the item carefully and write your review notes directly into the issue body.
       Decide on one of two outcomes: approved (ready to land) or needs-changes (sender must revise).
-      To approve, tell the human in chat that it needs `approved` approval in the issue viewer, then run `issue-cli transition <slug> --to "approved" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
+      To approve, say in chat that it needs `approved` approval in the issue viewer, then end your turn. Don't wait or poll: the lead (or the human) relays the request and resumes you once it is approved.
   - name: "needs-changes"
     description: "Sent back to the author for revisions"
     prompt: |
@@ -43,7 +60,7 @@ statuses:
     description: "Review complete and approved"
     prompt: |
       Approval is recorded. The item is ready to be archived once any follow-up actions are taken.
-      Tell the human in chat that it needs `archived` approval in the issue viewer, then run `issue-cli transition <slug> --to "archived" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
+      Say in chat that it needs `archived` approval in the issue viewer, then end your turn. Don't wait or poll: the lead (or the human) relays the request and resumes you once it is approved.
   - name: "archived"
     description: "Closed out, no further action"
 

@@ -140,12 +140,23 @@ type ScoringConfig struct {
 	DefaultSort string         `yaml:"default_sort,omitempty" desc:"Initial sort on list/board: score_desc, created_desc, updated_desc"`
 }
 
+// FeatureRecord is the per-project feature state next to the template stamp.
+// Installed entries are "<id>@<version>"; declined entries are bare ids.
+type FeatureRecord struct {
+	Installed []string `yaml:"installed,omitempty" desc:"Installed catalog features as <id>@<version> (e.g. types-of-work@v0.34.0)"`
+	Declined  []string `yaml:"declined,omitempty" desc:"Catalog feature ids the human declined; upgrade stops proposing them"`
+}
+
 type WorkflowConfig struct {
 	// Template stamps the bundled template this file came from, as
 	// <name>@<issue-cli release> ("custom" opts out). `issue-cli workflow
 	// upgrade` compares it with the bundled template. Declared here so the
 	// designer's marshal round-trip keeps it.
-	Template    string                     `yaml:"template,omitempty" desc:"Bundled template stamp <name>@<release> (e.g. development@v0.34.0), or custom; read by issue-cli workflow upgrade"`
+	Template string `yaml:"template,omitempty" desc:"Bundled template stamp <name>@<release> (e.g. development@v0.34.0), or custom; read by issue-cli workflow upgrade"`
+	// Features records which catalog features this file has installed or
+	// declined. Written by `issue-cli workflow scan`, read by `workflow
+	// upgrade`; the engine itself never acts on it.
+	Features    FeatureRecord              `yaml:"features,omitempty" desc:"Feature record: installed <id>@<version> and declined <id> lists; written by issue-cli workflow scan, read by issue-cli workflow upgrade"`
 	Statuses    []WorkflowStatus           `yaml:"statuses" desc:"Status lifecycle definitions"`
 	Transitions []WorkflowTransition       `yaml:"transitions" desc:"Transition rules between statuses"`
 	Systems     map[string]WorkflowOverlay `yaml:"systems" desc:"Per-system overrides keyed by system name"`

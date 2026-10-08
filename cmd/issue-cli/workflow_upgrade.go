@@ -1,7 +1,6 @@
 package main
 
 import (
-	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,13 +11,6 @@ import (
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
-
-// workflowChangelogYAML lists the template features `workflow upgrade`
-// proposes. It sits outside templates/workflow/ so the *.yaml template glob
-// doesn't pick it up as a template.
-//
-//go:embed templates/workflow-changelog.yaml
-var workflowChangelogYAML []byte
 
 // customTemplateStamp marks a hand-built workflow.yaml: no hints, no proposals.
 const customTemplateStamp = "custom"
@@ -35,76 +27,6 @@ const (
 	upgradeCustom          = "custom"
 	upgradeUnknownTemplate = "unknown_template"
 )
-
-type changelogEntry struct {
-	ID         string          `yaml:"id"`
-	Version    string          `yaml:"version"`
-	Templates  []string        `yaml:"templates"`
-	InTemplate bool            `yaml:"in_template"`
-	Title      string          `yaml:"title"`
-	What       string          `yaml:"what"`
-	Why        string          `yaml:"why"`
-	Where      string          `yaml:"where"`
-	Snippet    string          `yaml:"snippet"`
-	Question   string          `yaml:"question"`
-	Detect     changelogDetect `yaml:"detect"`
-}
-
-// changelogDetect is a data-only probe: the feature counts as present when any
-// listed top-level key exists or any listed string appears in the raw file.
-type changelogDetect struct {
-	HasKey   []string `yaml:"has_key"`
-	Contains []string `yaml:"contains"`
-}
-
-func (e changelogEntry) appliesTo(template string) bool {
-	for _, t := range e.Templates {
-		if t == template {
-			return true
-		}
-	}
-	return false
-}
-
-// presentIn reports whether the workflow file already has the feature.
-func (e changelogEntry) presentIn(raw []byte, topKeys map[string]bool) bool {
-	for _, k := range e.Detect.HasKey {
-		if topKeys[k] {
-			return true
-		}
-	}
-	for _, s := range e.Detect.Contains {
-		if strings.Contains(string(raw), s) {
-			return true
-		}
-	}
-	return false
-}
-
-func loadWorkflowChangelog() ([]changelogEntry, error) {
-	var doc struct {
-		Entries []changelogEntry `yaml:"entries"`
-	}
-	if err := yaml.Unmarshal(workflowChangelogYAML, &doc); err != nil {
-		return nil, fmt.Errorf("parsing bundled workflow changelog: %w", err)
-	}
-	return doc.Entries, nil
-}
-
-// topLevelKeys returns the keys of the workflow.yaml mapping. A file that
-// doesn't parse as a mapping yields an empty set rather than an error, so the
-// hint never breaks a command over a broken workflow.yaml.
-func topLevelKeys(raw []byte) map[string]bool {
-	var m map[string]any
-	if err := yaml.Unmarshal(raw, &m); err != nil {
-		return map[string]bool{}
-	}
-	keys := make(map[string]bool, len(m))
-	for k := range m {
-		keys[k] = true
-	}
-	return keys
-}
 
 // readTemplateStamp returns the raw `template:` value of a workflow file.
 func readTemplateStamp(raw []byte) string {
@@ -182,8 +104,12 @@ func compareVersions(a, b string) int {
 type upgradeProposal struct {
 	Number     int    `json:"number"`
 	ID         string `json:"id"`
+	Kind       string `json:"kind"` // "new", or "update" for a newer version of an installed feature
 	Version    string `json:"version"`
+	Installed  string `json:"installed_version,omitempty"`
+	Category   string `json:"category"`
 	InTemplate bool   `json:"in_template"`
+	Declined   bool   `json:"declined,omitempty"`
 	Title      string `json:"title"`
 	What       string `json:"what"`
 	Why        string `json:"why"`
@@ -193,23 +119,45 @@ type upgradeProposal struct {
 }
 
 type upgradePlan struct {
-	Status       string            `json:"status"`
-	WorkflowFile string            `json:"workflow_file"`
-	Template     string            `json:"template"`
-	Current      string            `json:"current"`
-	Latest       string            `json:"latest"`
+	Status       string `json:"status"`
+	WorkflowFile string `json:"workflow_file"`
+	Template     string `json:"template"`
+	Current      string `json:"current"`
+	Latest       string `json:"latest"`
+	// RecordSource is "record" when the file has a features: record (it
+	// decides what is installed) or "detection" when the catalog probes do.
+	RecordSource string            `json:"record_source"`
+	Record       *featureRecordOut `json:"record,omitempty"`
+	All          bool              `json:"all"`
 	Proposals    []upgradeProposal `json:"proposals"`
 	Present      []string          `json:"already_present"`
+	Declined     []string          `json:"declined"`
+	Unrecorded   []string          `json:"detected_unrecorded"`
 	BackupPath   string            `json:"backup_path,omitempty"`
 	Steps        []string          `json:"steps"`
 	Message      string            `json:"message"`
 }
 
+type featureRecordOut struct {
+	Installed []string `json:"installed"`
+	Declined  []string `json:"declined"`
+}
+
+const (
+	proposalNew    = "new"
+	proposalUpdate = "update"
+)
+
 // buildUpgradePlan compares a workflow file with the bundled templates and
-// lists the features to propose. It reads only; templateFlag picks the
-// template for an unstamped file.
-func buildUpgradePlan(path string, raw []byte, templateFlag string) (*upgradePlan, error) {
-	plan := &upgradePlan{WorkflowFile: path, Proposals: []upgradeProposal{}, Present: []string{}, Steps: []string{}}
+// the feature catalog and lists the features to propose. It reads only;
+// templateFlag picks the template for an unstamped file, and all lists every
+// catalog feature the file lacks (ignoring the stamp, propose: and
+// templates:), declined ones included.
+//
+// What counts as installed comes from the features: record when the file has
+// one, otherwise from the catalog's detection probes.
+func buildUpgradePlan(path string, raw []byte, templateFlag string, all bool) (*upgradePlan, error) {
+	plan := &upgradePlan{WorkflowFile: path, All: all, Proposals: []upgradeProposal{}, Present: []string{}, Declined: []string{}, Unrecorded: []string{}, Steps: []string{}}
 	stamp := readTemplateStamp(raw)
 	templateFlag = strings.TrimSpace(templateFlag)
 
@@ -250,50 +198,102 @@ func buildUpgradePlan(path string, raw []byte, templateFlag string) (*upgradePla
 		return nil, err
 	}
 	plan.Latest = latest
-
+	upToDate := plan.Status == "" && compareVersions(plan.Current, latest) >= 0
 	if plan.Status == "" {
-		if compareVersions(plan.Current, latest) >= 0 {
-			plan.Status = upgradeUpToDate
-			plan.Message = fmt.Sprintf("workflow.yaml is up to date with the bundled %s template (%s).", plan.Template, latest)
-			return plan, nil
-		}
 		plan.Status = upgradeBehind
+		if upToDate {
+			plan.Status = upgradeUpToDate
+		}
 	}
 
-	entries, err := loadWorkflowChangelog()
+	entries, err := loadFeatureCatalog()
 	if err != nil {
 		return nil, err
 	}
-	keys := topLevelKeys(raw)
+	inTemplate, err := bundledTemplateFeatures(plan.Template)
+	if err != nil {
+		return nil, err
+	}
+	rec, hasRecord := readFeatureRecord(raw)
+	installed, declined := recordIndex(rec)
+	plan.RecordSource = "detection"
+	if hasRecord {
+		plan.RecordSource = "record"
+		plan.Record = &featureRecordOut{Installed: append([]string{}, rec.Installed...), Declined: append([]string{}, rec.Declined...)}
+	}
+	doc := parseWorkflowDoc(raw)
+
 	for _, e := range entries {
-		if !e.appliesTo(plan.Template) {
-			continue
-		}
-		if plan.Current != "" && compareVersions(e.Version, plan.Current) <= 0 {
-			continue
-		}
-		if e.presentIn(raw, keys) {
-			plan.Present = append(plan.Present, e.ID)
-			continue
-		}
-		plan.Proposals = append(plan.Proposals, upgradeProposal{
-			Number:     len(plan.Proposals) + 1,
+		// newer: the stamp predates the entry, so the project hasn't been
+		// offered this version yet.
+		newer := plan.Current == "" || compareVersions(e.Version, plan.Current) > 0
+		offer := all || (newer && e.Propose && e.appliesTo(plan.Template))
+		p := upgradeProposal{
 			ID:         e.ID,
+			Kind:       proposalNew,
 			Version:    e.Version,
-			InTemplate: e.InTemplate,
+			Category:   e.Category,
+			InTemplate: inTemplate[e.ID],
 			Title:      e.Title,
 			What:       strings.TrimSpace(e.What),
 			Why:        strings.TrimSpace(e.Why),
 			Where:      e.Where,
 			Snippet:    strings.TrimRight(e.Snippet, "\n"),
 			Question:   e.Question,
-		})
+		}
+		if hasRecord {
+			if v, ok := installed[e.ID]; ok {
+				plan.Present = append(plan.Present, e.ID)
+				if (all || newer) && v != "" && compareVersions(e.Version, v) > 0 {
+					p.Kind, p.Installed = proposalUpdate, v
+					plan.Proposals = append(plan.Proposals, p)
+				}
+				continue
+			}
+			if declined[e.ID] {
+				plan.Declined = append(plan.Declined, e.ID)
+				if all {
+					p.Declined = true
+					plan.Proposals = append(plan.Proposals, p)
+				}
+				continue
+			}
+			if detectFeature(e, doc).Matches > 0 {
+				// In the file but not in the record: scan, don't propose.
+				plan.Unrecorded = append(plan.Unrecorded, e.ID)
+				continue
+			}
+		} else if detectFeature(e, doc).Matches > 0 {
+			plan.Present = append(plan.Present, e.ID)
+			continue
+		}
+		if offer {
+			plan.Proposals = append(plan.Proposals, p)
+		}
+	}
+	for i := range plan.Proposals {
+		plan.Proposals[i].Number = i + 1
 	}
 
 	stampLine := fmt.Sprintf("template: %s@%s", plan.Template, latest)
+	scanStep := "Record the result: `issue-cli workflow scan --installed <picked ids> --declined <declined ids>` (comma-separated). It writes the features: record, and upgrade stops proposing declined items; the human can re-open one later with `issue-cli workflow scan --forget <id>`."
 	if len(plan.Proposals) == 0 {
-		plan.Message = fmt.Sprintf("No features to propose: workflow.yaml already has everything the bundled %s template (%s) offers. Add `%s` at the top of workflow.yaml to record that.", plan.Template, latest, stampLine)
-		plan.Steps = append(plan.Steps, fmt.Sprintf("Set the stamp: add or update `%s` at the top of %s.", stampLine, path))
+		switch {
+		case upToDate && hasRecord:
+			plan.Message = fmt.Sprintf("workflow.yaml is up to date with the bundled %s template (%s).", plan.Template, latest)
+		case upToDate:
+			plan.Message = fmt.Sprintf("workflow.yaml is up to date with the bundled %s template (%s). It has no features: record yet; `issue-cli workflow scan` writes one.", plan.Template, latest)
+			plan.Steps = append(plan.Steps, "Record the features the file has: `issue-cli workflow scan` (preview with --dry-run).")
+		default:
+			plan.Message = fmt.Sprintf("No features to propose: workflow.yaml already has everything the bundled %s template (%s) offers. Add `%s` at the top of workflow.yaml to record that.", plan.Template, latest, stampLine)
+			plan.Steps = append(plan.Steps, fmt.Sprintf("Set the stamp: add or update `%s` at the top of %s.", stampLine, path))
+			if !hasRecord {
+				plan.Steps = append(plan.Steps, "Record the features the file has: `issue-cli workflow scan` (preview with --dry-run).")
+			}
+		}
+		if len(plan.Unrecorded) > 0 {
+			plan.Steps = append(plan.Steps, "Some features are in the file but not in its features: record; run `issue-cli workflow scan` to record them.")
+		}
 		return plan, nil
 	}
 
@@ -304,11 +304,28 @@ func buildUpgradePlan(path string, raw []byte, templateFlag string) (*upgradePla
 		"Propose the items one at a time: say what it is and why it helps, ask its question, and note whether the human picks or declines it. Don't apply anything they didn't pick.",
 		fmt.Sprintf("Back up the current file: cp %s %s", path, plan.BackupPath),
 		fmt.Sprintf("Write the new %s: the old content plus each picked snippet, adapted to the project's own status names and sections. Keep every existing customisation; ask the human when a snippet conflicts with one.", filepath.Base(path)),
-		fmt.Sprintf("Set the stamp at the top of the file: `%s`. Declined items are then no longer proposed.", stampLine),
+		fmt.Sprintf("Set the stamp at the top of the file: `%s`.", stampLine),
+		scanStep,
 		"Validate: run `issue-cli process workflow` and fix anything under == Warnings (workflow.yaml) ==.",
 		"Existing issues keep the checklist sections they already have; new sections appear as issues pass the changed transitions.",
 	}
 	return plan, nil
+}
+
+// bundledTemplateFeatures is the set of feature ids in a bundled template's
+// own features: record.
+func bundledTemplateFeatures(name string) (map[string]bool, error) {
+	data, err := readWorkflowTemplate(name)
+	if err != nil {
+		return nil, err
+	}
+	rec, _ := readFeatureRecord(data)
+	installed, _ := recordIndex(rec)
+	set := make(map[string]bool, len(installed))
+	for id := range installed {
+		set[id] = true
+	}
+	return set, nil
 }
 
 func isBundledTemplate(name string) bool {
@@ -359,7 +376,7 @@ func workflowUpgradeHint(p *tracker.Project) string {
 	if err != nil {
 		return ""
 	}
-	plan, err := buildUpgradePlan(path, raw, "")
+	plan, err := buildUpgradePlan(path, raw, "", false)
 	if err != nil || len(plan.Proposals) == 0 {
 		return ""
 	}

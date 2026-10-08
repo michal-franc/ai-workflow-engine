@@ -819,7 +819,7 @@ entries:
       A worker blocked on a gate or a question wastes a session waiting, or retries the
       transition in a loop. Handing the request to the lead keeps every worker's asks
       in one place and resumes the worker only when there is an answer. Replaces older
-      prompts that told agents to block with `--wait`.
+      prompts that told agents to block at the gate until it was approved.
     where: "statuses[].prompt of each status whose next transition has require_human_approval; also any prompt that tells the agent to stop and ask"
     snippet: |
       statuses:

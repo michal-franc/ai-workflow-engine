@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — Balance</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 1l1.5 3H14v2H2V4h4.5zM3 7h2v6H3zm4 0h2v6H7zm4 0h2v6h-2zM1 14h14v1.5H1z' fill='%2358a6ff'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+    <script src="/static/inbox-badge.js" defer></script>
+</head>
+<body>
+    <div class="header">
+        <div class="container header-inner">
+            <div style="display:flex;align-items:center;">
+                <a href="/" class="project-back-link">Projects</a>
+                <span class="header-sep">/</span>
+                <h1>{{.ProjectName}}</h1>
+            </div>
+            <nav class="view-tabs">
+                <a href="{{.Prefix}}/" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v1.5H2V2zm0 4h12v1.5H2V6zm0 4h12v1.5H2V10zm0 4h12v1.5H2V14z"/></svg>
+                    List
+                </a>
+                <a href="{{.Prefix}}/board" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v8H6V2zm5 0h4v10h-4V2z"/></svg>
+                    Board
+                </a>
+                <a href="{{.Prefix}}/graph" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.5" cy="8" r="1.75"/><circle cx="8" cy="2.5" r="1.75"/><circle cx="13.5" cy="8" r="1.75"/><circle cx="8" cy="13.5" r="1.75"/><path d="M4.2 8h7.6M8 4.2v7.6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
+                    Graph
+                </a>
+                <a href="{{.Prefix}}/docs" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h5v2H3v10h4v2H1V1zm9 0h5v14H8v-2h4V3H10V1zM5 5h2v1H5V5zm0 2h2v1H5V7zm0 2h2v1H5V9z"/></svg>
+                    Docs
+                </a>
+                <a href="{{.Prefix}}/retros" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.75A1.75 1.75 0 014.75 1h6.5A1.75 1.75 0 0113 2.75v10.5A1.75 1.75 0 0111.25 15h-6.5A1.75 1.75 0 013 13.25V2.75zm2 .75v1.25h6V3.5H5zm0 3v1.25h6V6.5H5zm0 3v1.25h4V9.5H5z"/></svg>
+                    Retros
+                </a>
+                <a href="{{.Prefix}}/workflow-designer" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3.25A1.25 1.25 0 013.75 2h2.5A1.25 1.25 0 017.5 3.25v2.5A1.25 1.25 0 016.25 7h-2.5A1.25 1.25 0 012.5 5.75v-2.5zm6 0A1.25 1.25 0 019.75 2h2.5a1.25 1.25 0 011.25 1.25v2.5A1.25 1.25 0 0112.25 7h-2.5A1.25 1.25 0 018.5 5.75v-2.5zm-6 6A1.25 1.25 0 013.75 8h2.5A1.25 1.25 0 017.5 9.25v2.5A1.25 1.25 0 016.25 13h-2.5a1.25 1.25 0 01-1.25-1.25v-2.5zm9.25.75a.75.75 0 010 1.5H10v1.75a.75.75 0 01-1.5 0V11.5H6.75a.75.75 0 010-1.5H8.5V8.25a.75.75 0 011.5 0V10h1.75z"/></svg>
+                    Workflow
+                </a>
+                <a href="{{.Prefix}}/stats" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 14h14v1H1v-1zm2-4h2v3H3v-3zm3-4h2v7H6V6zm3 2h2v5H9V8zm3-6h2v11h-2V2z"/></svg>
+                    Stats
+                </a>
+                {{if .SupportsGitHub}}
+                <a href="{{.Prefix}}/github" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+                {{end}}
+                <a href="{{.Prefix}}/inbox" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.8 2h10.4l1.8 6.5V13a1 1 0 01-1 1H2a1 1 0 01-1-1V8.5L2.8 2zm.9 1.5L2.4 8H5.5l1 1.5h3l1-1.5h3.1l-1.3-4.5H3.7z"/></svg>
+                    Inbox <span class="inbox-badge" data-inbox-count></span>
+                </a>
+                <a href="{{.Prefix}}/decisions" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.5 3H14v2H2V4h4.5L8 1zM3 7h2v6H3V7zm4 0h2v6H7V7zm4 0h2v6h-2V7zM1 14h14v1.5H1V14z"/></svg>
+                    Decisions
+                </a>
+                <a href="{{.Prefix}}/balance" class="view-tab active">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M7.25 1h1.5v2.1l4.6 1.15-.36 1.46-.79-.2L14 10.5c0 1.1-1.12 2-2.5 2S9 11.6 9 10.5l1.9-4.55-2.15-.54V13.5H12V15H4v-1.5h3.25V5.41l-2.15.54L7 10.5C7 11.6 5.88 12.5 4.5 12.5S2 11.6 2 10.5l1.79-4.29-.79.2-.36-1.46 4.61-1.15V1zM4.5 7.6 3.6 9.75h1.8L4.5 7.6zm7 0-.9 2.15h1.8l-.9-2.15z"/></svg>
+                    Balance
+                </a>
+            </nav>
+            <div class="theme-picker">
+                <div class="agent-activity-summary">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
+                <button class="theme-btn" data-theme="dark" title="Dark"></button>
+                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
+                <button class="theme-btn" data-theme="light" title="Light"></button>
+            </div>
+        </div>
+    </div>
+
+    <main class="container inbox balance">
+        <div class="inbox-head">
+            <div>
+                <h2 class="inbox-title">Balance</h2>
+                <p class="inbox-sub">Every <code>{{.CommentPrefix}}</code> note from every issue, grouped by the metric it moves. Agents add typed notes with <code>issue-cli balance</code>. Targets and knobs stay in the project's files.</p>
+            </div>
+            {{if .Enabled}}
+            <div class="inbox-stats">
+                <div class="inbox-stat"><span class="inbox-stat-num">{{.Total}}</span><span class="inbox-stat-label">notes</span></div>
+                <div class="inbox-stat{{if .Open}} old{{end}}"><span class="inbox-stat-num">{{.Open}}</span><span class="inbox-stat-label">open</span></div>
+                <div class="inbox-stat"><span class="inbox-stat-num">{{.Metrics}}</span><span class="inbox-stat-label">metrics</span></div>
+                <div class="inbox-stat"><span class="inbox-stat-num">{{len .Unsorted}}</span><span class="inbox-stat-label">unsorted</span></div>
+            </div>
+            {{end}}
+        </div>
+
+        {{if not .Enabled}}
+        <div class="inbox-empty balance-off">
+            <div class="inbox-empty-icon decisions-empty-icon">⚖</div>
+            <h3>The balance board is off for this project</h3>
+            <p>Add a <code>workbench.balance</code> block to <code>workflow.yaml</code> to show the Balance tab:</p>
+            <pre class="balance-yaml">workbench:
+  balance:
+    comment_prefix: "balance:"</pre>
+            <p>Notes stay comments on their issues. Nothing else is stored.</p>
+        </div>
+        {{else}}
+
+        <div class="balance-passes">
+            <span class="decisions-chips-label balance-passes-label">Joint passes</span>
+            {{if not .Passes}}
+            <span class="balance-passes-none">No joint passes yet. Mark an issue with <code>balance_pass: 1</code> to plan one.</span>
+            {{end}}
+            {{range .Passes}}
+            <a href="{{$.Prefix}}/issue/{{.Issue.Slug}}" class="balance-pass{{if .Closed}} done{{else if .Planned}} planned{{end}}">Pass {{.Number}} · {{if .Closed}}{{.DateLabel}} · {{.Notes}} note{{if ne .Notes 1}}s{{end}}{{else if .Planned}}planned · {{.Notes}} note{{if ne .Notes 1}}s{{end}} collected{{else}}later · {{.Notes}} note{{if ne .Notes 1}}s{{end}}{{end}}</a>
+            {{end}}
+            {{with .Planned}}
+            <span class="balance-passes-issue">in <a href="{{$.Prefix}}/issue/{{.Issue.Slug}}">{{.Issue.Slug}}</a> · {{if $.PlannedAgent}}agent running in {{$.PlannedAgent}}{{else}}agent not running{{end}}</span>
+            {{if not $.PlannedAgent}}<button type="button" class="inbox-primary balance-start" data-slug="{{.Issue.Slug}}" data-pass="{{.Number}}">Start pass {{.Number}}</button>{{end}}
+            {{end}}
+        </div>
+
+        {{if .Total}}
+        <div class="inbox-chips decisions-chips balance-chips">
+            <span class="decisions-chips-label">State</span>
+            <a href="{{.StateURL ""}}" class="inbox-chip{{if eq .State ""}} active{{end}}">All {{.Total}}</a>
+            {{range .Chips}}
+            <a href="{{$.StateURL .State}}" class="inbox-chip balance-chip {{$.StateClass .State}}{{if eq $.State .State}} active{{end}}">{{.Label}} {{.Count}}</a>
+            {{end}}
+        </div>
+        {{end}}
+
+        {{if and (not .Total) (not .Unsorted)}}
+        <div class="inbox-empty">
+            <div class="inbox-empty-icon decisions-empty-icon">⚖</div>
+            <h3>No balance notes yet</h3>
+            <p>Agents add notes with <code>issue-cli balance &lt;slug&gt; --metric &lt;id&gt; --state open --hypothesis "…" --change "…"</code>. Free-text <code>{{.CommentPrefix}}</code> comments show up here too, under Unsorted notes.</p>
+        </div>
+        {{else if and .Total (not .Groups)}}
+        <p class="decisions-nomatch">No notes in this state · <a href="{{.Prefix}}/balance">Show all</a></p>
+        {{end}}
+
+        {{range .Groups}}
+        <section class="balance-group" id="metric-{{.Metric}}">
+            <div class="balance-group-head">
+                <h3 class="balance-metric">{{.Metric}}</h3>
+                <span class="balance-group-count">{{.Total}} note{{if ne .Total 1}}s{{end}}{{if .Open}} · {{.Open}} open{{end}}</span>
+            </div>
+            <div class="balance-cards">
+                {{range .Notes}}
+                <article class="balance-card" data-key="{{.Slug}}|{{.Metric}}|{{.Change}}">
+                    <div class="balance-card-top">
+                        <a href="{{$.Prefix}}/issue/{{.Slug}}" class="decision-slug balance-slug">{{.Slug}}</a>
+                        <span class="decision-state {{$.StateClass .State}}">{{.State}}</span>
+                    </div>
+                    <dl class="balance-fields">
+                        {{if .Hypothesis}}<dt>Hypothesis</dt><dd>{{.Hypothesis}}</dd>{{end}}
+                        {{if .Change}}<dt>Change</dt><dd class="mono">{{.Change}}</dd>{{end}}
+                        {{if .Evidence}}<dt>Evidence</dt><dd class="mono">{{.Evidence}}</dd>{{end}}
+                        {{if .Verdict}}<dt>Verdict</dt><dd>{{.Verdict}}</dd>{{end}}
+                        {{range .Extra}}<dt>Note</dt><dd>{{.}}</dd>{{end}}
+                    </dl>
+                    <div class="balance-card-foot">
+                        {{.DateLabel}}{{if .PassLabel}} · {{.PassLabel}}{{end}}
+                        {{if .History}}
+                        · <details class="balance-history"><summary>{{len .History}} earlier note{{if ne (len .History) 1}}s{{end}}</summary>
+                            <ul>{{range .History}}<li>{{.Date}} · <span class="decision-state {{$.StateClass .State}}">{{.State}}</span>{{if .Change}} {{.Change}}{{end}}{{if .Verdict}}: {{.Verdict}}{{end}}</li>{{end}}</ul>
+                        </details>
+                        {{end}}
+                    </div>
+                </article>
+                {{end}}
+            </div>
+        </section>
+        {{end}}
+
+        {{if .Unsorted}}
+        <section class="balance-group balance-unsorted">
+            <div class="balance-group-head">
+                <h3 class="balance-metric plain">Unsorted notes</h3>
+                <span class="balance-group-count">{{len .Unsorted}} free-text <code>{{.CommentPrefix}}</code> comment{{if ne (len .Unsorted) 1}}s{{end}} without a metric or state</span>
+            </div>
+            <ul class="balance-loose">
+                {{range .Unsorted}}
+                <li>
+                    <div class="balance-loose-top">
+                        <a href="{{$.Prefix}}/issue/{{.Slug}}" class="decision-slug">{{.Slug}}</a>
+                        <span class="balance-loose-from">{{if .From}}from <a href="{{$.Prefix}}/issue/{{.From}}" class="decision-ref">{{.From}}</a> · {{end}}{{.DateLabel}}</span>
+                    </div>
+                    {{if .Short}}
+                    <details class="balance-more"><summary><span class="balance-loose-text">{{.Short}}</span> <span class="balance-more-link">more</span></summary><p class="balance-loose-text">{{.Text}}</p></details>
+                    {{else}}
+                    <p class="balance-loose-text">{{.Text}}</p>
+                    {{end}}
+                </li>
+                {{end}}
+            </ul>
+        </section>
+        {{end}}
+
+        <p class="inbox-footnote">Add a typed note: <code>issue-cli balance &lt;slug&gt; --metric full-holds --state open --hypothesis "…" --change "Knob ↑" --evidence "…"</code>. A later note with the same metric and change updates its state.</p>
+        {{end}}
+    </main>
+
+    <div id="save-toast" class="save-toast"></div>
+
+    <script>
+    (function() {
+        var prefix = {{.Prefix}};
+
+        function showToast(msg, isError) {
+            var toast = document.getElementById('save-toast');
+            toast.textContent = msg;
+            toast.className = 'save-toast show' + (isError ? ' error' : '');
+            setTimeout(function() { toast.className = 'save-toast'; }, 3500);
+        }
+
+        var start = document.querySelector('.balance-start');
+        if (start) start.addEventListener('click', function() {
+            var slug = start.dataset.slug;
+            if (!confirm('Start an agent on pass ' + start.dataset.pass + ' (' + slug + ')?')) return;
+            start.disabled = true;
+            fetch(prefix + '/issue/' + slug + '/dispatch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agent: 'claude' })
+            }).then(function(res) {
+                if (!res.ok) return res.text().then(function(t) { throw new Error(t.trim() || res.statusText); });
+                return res.json();
+            }).then(function(data) {
+                showToast(data.status === 'reattached' ? 'Attached to the existing session ' + data.session : 'Agent started in ' + data.session);
+            }).catch(function(err) { showToast('Dispatch failed: ' + err.message, true); start.disabled = false; });
+        });
+
+        // Generated view: reload when any issue file changes.
+        var last = null;
+        setInterval(function() {
+            fetch(prefix + '/hash').then(function(r) { return r.json(); }).then(function(d) {
+                if (last !== null && d.hash !== last) location.reload();
+                last = d.hash;
+            }).catch(function() {});
+        }, 5000);
+    })();
+    </script>
+</body>
+</html>

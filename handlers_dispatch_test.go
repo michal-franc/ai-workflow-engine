@@ -29,13 +29,13 @@ func TestAgentLaunchCommand_ModelSource(t *testing.T) {
 		agent string
 		want  string
 	}{
-		{"nil project", nil, "claude", "claude"},
-		{"default source is global", &tracker.Project{AgentModels: models}, "claude", "claude"},
-		{"explicit global", &tracker.Project{AgentModels: models, AgentModelSource: "global"}, "claude", "claude"},
-		{"project enforces claude", &tracker.Project{AgentModels: models, AgentModelSource: "project"}, "claude", "claude --model claude-opus-5-5"},
+		{"nil project", nil, "claude", `claude "$(cat "/p")"`},
+		{"default source is global", &tracker.Project{AgentModels: models}, "claude", `claude "$(cat "/p")"`},
+		{"explicit global", &tracker.Project{AgentModels: models, AgentModelSource: "global"}, "claude", `claude "$(cat "/p")"`},
+		{"project enforces claude", &tracker.Project{AgentModels: models, AgentModelSource: "project"}, "claude", `claude --model claude-opus-5-5 "$(cat "/p")"`},
 		{"project enforces codex", &tracker.Project{AgentModels: models, AgentModelSource: "project"}, "codex", `codex --model gpt-5 "$(cat "/p")"`},
-		{"project without model for agent", &tracker.Project{AgentModels: map[string]string{"codex": "gpt-5"}, AgentModelSource: "project"}, "claude", "claude"},
-		{"unsafe model ignored", &tracker.Project{AgentModels: map[string]string{"claude": "x; rm -rf /"}, AgentModelSource: "project"}, "claude", "claude"},
+		{"project without model for agent", &tracker.Project{AgentModels: map[string]string{"codex": "gpt-5"}, AgentModelSource: "project"}, "claude", `claude "$(cat "/p")"`},
+		{"unsafe model ignored", &tracker.Project{AgentModels: map[string]string{"claude": "x; rm -rf /"}, AgentModelSource: "project"}, "claude", `claude "$(cat "/p")"`},
 	}
 	for _, c := range cases {
 		if got := agentLaunchCommand(c.proj, c.agent, "/p"); got != c.want {
@@ -100,16 +100,15 @@ func TestStartAgentSession_DoesNotReattachWhenSessionMissing(t *testing.T) {
 	// of whether the downstream new-session call succeeds in the test env.
 	//
 	// startAgentSession's downstream new-session step actually shells out to
-	// real tmux, so the test must clean up any session it accidentally creates.
-	proj := &tracker.Project{Slug: "test", Terminal: "none"}
+	// tmux, so run it on a private server with a stand-in agent: launching
+	// claude here would start a real session with the test prompt.
+	isolateTmux(t)
+	proj := &tracker.Project{Slug: "test", Terminal: "none", WorkDir: t.TempDir()}
 	session := "issue-viewer-test-missing-session-xyz"
-	t.Cleanup(func() {
-		_ = exec.Command("tmux", "kill-session", "-t", session).Run()
-	})
 
 	withMockTmuxHasSession(t, func(string) bool { return false })
 
-	resp := startAgentSession(proj, session, "prompt", "slug", "claude", "", nil)
+	resp := startAgentSession(proj, session, "prompt", "slug", "true", "", nil)
 	if resp.Status == "reattached" {
 		t.Fatalf("Status = reattached when session does not exist; steps=%+v", resp.Steps)
 	}

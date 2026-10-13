@@ -16,6 +16,17 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.34.0 — 2026-10-13
+
+- Bundled workflow templates are versioned. `development`, `review` and `writing` start with `template: <name>@v0.34.0` and a `features:` record, so `workflow init` writes a stamped, recorded file. `template: custom` opts a hand-built workflow out.
+- The refreshed templates add: approval gates that hand off to the lead (the agent says what it needs and ends its turn; no waiting or polling), design overlap and discoverability checks, throwaway-sandbox manual tests, a rule for documenting unrelated test failures, types of work (`feature`, `tweak`, `bugfix`) in `development`, and a sample project action.
+- New feature catalog (bundled `templates/workflow-features.yaml`): 34 entries, one per `workflow.yaml` capability (statuses, gates, automation, actions, board, worktrees, template conventions). Each has what/why/where, a YAML snippet, the question to ask the human, and structural detection probes over the parsed YAML.
+- `issue-cli workflow scan` detects which catalog features a `workflow.yaml` has and writes its `features:` record (installed `<id>@<version>`, declined `<id>`). It rewrites only that block. `--dry-run` previews; `--installed`, `--declined` and `--forget` record what an upgrade picked, declined or re-opened.
+- `issue-cli workflow upgrade` (alias `issue-cli upgrade`) is read-only. It proposes the features a project lacks, item by item, using the `features:` record first and the probes as a fallback, lists declined features, proposes updates for older installed versions, and prints the upgrade steps. `--all` lists the whole catalog, and `--json` gives agents a plan.
+- `start` and `process workflow` print a one-line hint when upgrade has proposals: tell the operator, and upgrade only if they ask.
+- `process schema` lists `template` and `features`, and the web designer's save keeps both.
+- `issue-cli workflow init` works in an empty directory without a `projects.yaml`.
+
 ## v0.33.2 — 2026-10-08
 
 - Dispatch: Claude now starts with its briefing as the launch argument instead of a paste typed in after a fixed 3 s wait. When Claude took longer to boot, the paste was dropped and the agent sat at an empty prompt while every step reported ok. Dispatch now polls the pane and reports **Prompt delivered**, or a failed step after 20 s.

@@ -79,6 +79,7 @@ func runStart(ctx *Context, args []string) error {
 	fmt.Fprintf(ctx.Stdout, "== Starting work on: %s ==\n", issue.Title)
 	fmt.Fprintf(ctx.Stdout, "Status: %s%s\n", statusLabel(wf, started.FromStatus), typeLabel(wf))
 	printTypeWarnings(ctx.Stdout, wf, issue)
+	printLeadLines(ctx, issue)
 
 	// A start that transitions is always a handoff auto-advance: StartIssueOnce
 	// only sets a target status when the from-status is a handoff state. This is

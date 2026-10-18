@@ -140,6 +140,13 @@ type ScoringConfig struct {
 	DefaultSort string         `yaml:"default_sort,omitempty" desc:"Initial sort on list/board: score_desc, created_desc, updated_desc"`
 }
 
+// LeadsConfig is the `leads:` block of workflow.yaml: the brief each kind of
+// lead is spawned with. An empty prompt uses the built-in default.
+type LeadsConfig struct {
+	Project string `yaml:"project,omitempty" desc:"Brief for the project lead (one per project, runs in the project checkout)"`
+	Epic    string `yaml:"epic,omitempty" desc:"Brief for an epic's sub-lead (runs in the epic's base-branch worktree)"`
+}
+
 type WorkflowConfig struct {
 	Statuses    []WorkflowStatus           `yaml:"statuses" desc:"Status lifecycle definitions"`
 	Transitions []WorkflowTransition       `yaml:"transitions" desc:"Transition rules between statuses"`
@@ -159,9 +166,12 @@ type WorkflowConfig struct {
 	// ProjectActions are custom one-shot agent buttons shown on the project-level
 	// views (list, board, graph). Unlike issue actions they are not bound to a
 	// single issue, so their prompts template against project context ({{project}}) only.
-	ProjectActions []CustomAction      `yaml:"project_actions,omitempty" desc:"Custom one-shot agent buttons shown on the project views (list/board/graph); prompts template with {{project}}"`
-	Board          WorkflowBoardConfig `yaml:"board" desc:"Board display configuration"`
-	Scoring        ScoringConfig       `yaml:"scoring,omitempty" desc:"Ticket scoring policy (opt-in)"`
+	ProjectActions []CustomAction `yaml:"project_actions,omitempty" desc:"Custom one-shot agent buttons shown on the project views (list/board/graph); prompts template with {{project}}"`
+	// Leads holds the briefs lead agents are spawned with (`issue-cli lead
+	// spawn [--epic]`). Empty prompts fall back to the built-in defaults.
+	Leads   LeadsConfig         `yaml:"leads,omitempty" desc:"Briefs for lead agents: project (the project lead) and epic (a sub-lead); prompts template with {{project}}/{{lead}}/{{project_lead}}/{{epic}}/{{title}}/{{base}}"`
+	Board   WorkflowBoardConfig `yaml:"board" desc:"Board display configuration"`
+	Scoring ScoringConfig       `yaml:"scoring,omitempty" desc:"Ticket scoring policy (opt-in)"`
 	// AllowShell opts in to the command_succeeds validator. When false, any
 	// transition with a command_succeeds rule fails at validate time.
 	AllowShell bool `yaml:"allow_shell,omitempty" desc:"Permit command_succeeds validators to run shell commands (default false)"`

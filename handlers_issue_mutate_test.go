@@ -410,7 +410,7 @@ func TestStartIssueBodyEditor_ReattachWhenSessionExists(t *testing.T) {
 		t.Fatalf("startIssueBodyEditor returned error on reattach: %v", err)
 	}
 	if probedSession != expectedSession {
-		t.Errorf("tmuxHasSession probed %q, want %q", probedSession, expectedSession)
+		t.Errorf("agentrun.HasSession probed %q, want %q", probedSession, expectedSession)
 	}
 	if !resp.Reattached {
 		t.Errorf("response.Reattached = false, want true")

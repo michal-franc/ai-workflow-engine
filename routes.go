@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"github.com/michal-franc/issue-viewer/internal/agentrun"
 	"html/template"
 	"net/http"
 	"path/filepath"
@@ -22,10 +23,8 @@ type Server struct {
 	tmpl     *template.Template
 }
 
-type AgentSession struct {
-	Name      string `json:"name"`
-	StartTime string `json:"start_time"`
-}
+// AgentSession is one live tmux session (or shared-session window).
+type AgentSession = agentrun.Session
 
 type approvalResponse struct {
 	Status              string `json:"status"`
@@ -229,4 +228,3 @@ func (s *Server) handleProjectList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
-

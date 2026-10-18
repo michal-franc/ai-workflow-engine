@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/agentrun"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -273,7 +274,7 @@ func openEditorTerminal(proj *tracker.Project, session string) (string, error) {
 	}
 	if shared := sharedTmuxSession(proj); shared != "" {
 		exec.Command("tmux", "select-window", "-t", agentTmuxTarget(proj, session)).Run()
-		if tmuxSessionAttached(shared) {
+		if agentrun.SessionAttached(shared) {
 			return "", nil
 		}
 		session = shared
@@ -306,7 +307,7 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 	waitSignal := session + "-done"
 	target := agentTmuxTarget(proj, session)
 
-	if tmuxHasSession(target) {
+	if agentrun.HasSession(target) {
 		// A previous edit session is still alive (commonly leaked: the wait-for
 		// goroutine died before nvim exited). Don't try to reuse its temp
 		// body/status files — we don't know them and the previous request owns

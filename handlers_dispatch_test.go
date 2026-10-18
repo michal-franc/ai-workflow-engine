@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/michal-franc/issue-viewer/internal/agentrun"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -51,7 +52,7 @@ func TestStartAgentSession_ReattachWhenSessionExists(t *testing.T) {
 
 	withMockTmuxHasSession(t, func(name string) bool {
 		if name != session {
-			t.Errorf("tmuxHasSession called with %q, want %q", name, session)
+			t.Errorf("agentrun.HasSession called with %q, want %q", name, session)
 		}
 		return true
 	})
@@ -95,7 +96,7 @@ func TestStartAgentSession_ReattachWhenSessionExists(t *testing.T) {
 }
 
 func TestStartAgentSession_DoesNotReattachWhenSessionMissing(t *testing.T) {
-	// Regression guard: when tmuxHasSession returns false, the reattach branch
+	// Regression guard: when agentrun.HasSession returns false, the reattach branch
 	// must NOT fire — the response status must not be "reattached" regardless
 	// of whether the downstream new-session call succeeds in the test env.
 	//
@@ -189,12 +190,12 @@ func TestEnsureWorktree_DisabledReturnsOriginalDir(t *testing.T) {
 func TestEnsureWorktree_EnabledStubsGitAndReportsSuccess(t *testing.T) {
 	tmp := t.TempDir()
 	var gotWorkdir, gotBranch, gotPath string
-	orig := runGitWorktreeAdd
-	runGitWorktreeAdd = func(workdir, branch, wtPath string) ([]byte, error) {
+	orig := agentrun.RunGitWorktreeAdd
+	agentrun.RunGitWorktreeAdd = func(workdir, branch, wtPath, _ string) ([]byte, error) {
 		gotWorkdir, gotBranch, gotPath = workdir, branch, wtPath
 		return nil, nil
 	}
-	t.Cleanup(func() { runGitWorktreeAdd = orig })
+	t.Cleanup(func() { agentrun.RunGitWorktreeAdd = orig })
 	stubSparseCheckoutOK(t)
 
 	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true)}
@@ -219,11 +220,11 @@ func TestEnsureWorktree_EnabledStubsGitAndReportsSuccess(t *testing.T) {
 
 func TestEnsureWorktree_GitFailureSurfacesErrorAndAborts(t *testing.T) {
 	tmp := t.TempDir()
-	orig := runGitWorktreeAdd
-	runGitWorktreeAdd = func(workdir, branch, wtPath string) ([]byte, error) {
+	orig := agentrun.RunGitWorktreeAdd
+	agentrun.RunGitWorktreeAdd = func(workdir, branch, wtPath, _ string) ([]byte, error) {
 		return []byte("fatal: dirty working tree\n"), errStub{}
 	}
-	t.Cleanup(func() { runGitWorktreeAdd = orig })
+	t.Cleanup(func() { agentrun.RunGitWorktreeAdd = orig })
 
 	got, steps, ok := ensureWorktree(tmp, "fix-foo", &tracker.WorkflowConfig{Worktree: boolPtr(true)})
 	if ok {
@@ -250,12 +251,12 @@ func TestEnsureWorktree_ReusesExistingDir(t *testing.T) {
 	}
 
 	called := false
-	orig := runGitWorktreeAdd
-	runGitWorktreeAdd = func(string, string, string) ([]byte, error) {
+	orig := agentrun.RunGitWorktreeAdd
+	agentrun.RunGitWorktreeAdd = func(string, string, string, string) ([]byte, error) {
 		called = true
 		return nil, nil
 	}
-	t.Cleanup(func() { runGitWorktreeAdd = orig })
+	t.Cleanup(func() { agentrun.RunGitWorktreeAdd = orig })
 
 	got, steps, ok := ensureWorktree(tmp, "fix-foo", &tracker.WorkflowConfig{Worktree: boolPtr(true)})
 	if !ok {
@@ -511,18 +512,18 @@ func TestHandleProjectAction_UnknownActionReturns404(t *testing.T) {
 
 func TestEnsureWorktree_RunsSetupAfterCreate(t *testing.T) {
 	tmp := t.TempDir()
-	origGit := runGitWorktreeAdd
-	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
-	t.Cleanup(func() { runGitWorktreeAdd = origGit })
+	origGit := agentrun.RunGitWorktreeAdd
+	agentrun.RunGitWorktreeAdd = func(string, string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { agentrun.RunGitWorktreeAdd = origGit })
 	stubSparseCheckoutOK(t)
 
 	var gotPath, gotCmd string
-	origSetup := runWorktreeSetup
-	runWorktreeSetup = func(wtPath, cmd string) ([]byte, error) {
+	origSetup := agentrun.RunWorktreeSetup
+	agentrun.RunWorktreeSetup = func(wtPath, cmd string) ([]byte, error) {
 		gotPath, gotCmd = wtPath, cmd
 		return []byte("built\n"), nil
 	}
-	t.Cleanup(func() { runWorktreeSetup = origSetup })
+	t.Cleanup(func() { agentrun.RunWorktreeSetup = origSetup })
 
 	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true), WorktreeSetup: "make"}
 	got, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
@@ -546,16 +547,16 @@ func TestEnsureWorktree_RunsSetupAfterCreate(t *testing.T) {
 
 func TestEnsureWorktree_SetupFailureAborts(t *testing.T) {
 	tmp := t.TempDir()
-	origGit := runGitWorktreeAdd
-	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
-	t.Cleanup(func() { runGitWorktreeAdd = origGit })
+	origGit := agentrun.RunGitWorktreeAdd
+	agentrun.RunGitWorktreeAdd = func(string, string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { agentrun.RunGitWorktreeAdd = origGit })
 	stubSparseCheckoutOK(t)
 
-	origSetup := runWorktreeSetup
-	runWorktreeSetup = func(string, string) ([]byte, error) {
+	origSetup := agentrun.RunWorktreeSetup
+	agentrun.RunWorktreeSetup = func(string, string) ([]byte, error) {
 		return []byte("missing target\n"), errStub{}
 	}
-	t.Cleanup(func() { runWorktreeSetup = origSetup })
+	t.Cleanup(func() { agentrun.RunWorktreeSetup = origSetup })
 
 	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true), WorktreeSetup: "make"}
 	got, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
@@ -579,38 +580,38 @@ func TestEnsureWorktree_SetupFailureAborts(t *testing.T) {
 // the create path completes without invoking real git.
 func stubSparseCheckoutOK(t *testing.T) {
 	t.Helper()
-	origSparse := runGitSparseCheckout
-	runGitSparseCheckout = func(string, []string) ([]byte, error) { return nil, nil }
-	origCheckout := runGitCheckoutHead
-	runGitCheckoutHead = func(string) ([]byte, error) { return nil, nil }
+	origSparse := agentrun.RunGitSparseCheckout
+	agentrun.RunGitSparseCheckout = func(string, []string) ([]byte, error) { return nil, nil }
+	origCheckout := agentrun.RunGitCheckoutHead
+	agentrun.RunGitCheckoutHead = func(string) ([]byte, error) { return nil, nil }
 	t.Cleanup(func() {
-		runGitSparseCheckout = origSparse
-		runGitCheckoutHead = origCheckout
+		agentrun.RunGitSparseCheckout = origSparse
+		agentrun.RunGitCheckoutHead = origCheckout
 	})
 }
 
 func TestEnsureWorktree_SparseCheckoutUsesDefaultExclude(t *testing.T) {
 	tmp := t.TempDir()
-	orig := runGitWorktreeAdd
-	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
-	t.Cleanup(func() { runGitWorktreeAdd = orig })
+	orig := agentrun.RunGitWorktreeAdd
+	agentrun.RunGitWorktreeAdd = func(string, string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { agentrun.RunGitWorktreeAdd = orig })
 
 	var gotPath string
 	var gotExcludes []string
-	origSparse := runGitSparseCheckout
-	runGitSparseCheckout = func(wtPath string, excludes []string) ([]byte, error) {
+	origSparse := agentrun.RunGitSparseCheckout
+	agentrun.RunGitSparseCheckout = func(wtPath string, excludes []string) ([]byte, error) {
 		gotPath, gotExcludes = wtPath, excludes
 		return nil, nil
 	}
-	t.Cleanup(func() { runGitSparseCheckout = origSparse })
+	t.Cleanup(func() { agentrun.RunGitSparseCheckout = origSparse })
 
 	checkoutCalled := false
-	origCheckout := runGitCheckoutHead
-	runGitCheckoutHead = func(string) ([]byte, error) {
+	origCheckout := agentrun.RunGitCheckoutHead
+	agentrun.RunGitCheckoutHead = func(string) ([]byte, error) {
 		checkoutCalled = true
 		return nil, nil
 	}
-	t.Cleanup(func() { runGitCheckoutHead = origCheckout })
+	t.Cleanup(func() { agentrun.RunGitCheckoutHead = origCheckout })
 
 	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true)}
 	_, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
@@ -705,21 +706,21 @@ func TestEnsureWorktree_RealGitMaterializesTree(t *testing.T) {
 
 func TestEnsureWorktree_SparseCheckoutHonorsCustomList(t *testing.T) {
 	tmp := t.TempDir()
-	orig := runGitWorktreeAdd
-	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
-	t.Cleanup(func() { runGitWorktreeAdd = orig })
+	orig := agentrun.RunGitWorktreeAdd
+	agentrun.RunGitWorktreeAdd = func(string, string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { agentrun.RunGitWorktreeAdd = orig })
 
 	var gotExcludes []string
-	origSparse := runGitSparseCheckout
-	runGitSparseCheckout = func(_ string, excludes []string) ([]byte, error) {
+	origSparse := agentrun.RunGitSparseCheckout
+	agentrun.RunGitSparseCheckout = func(_ string, excludes []string) ([]byte, error) {
 		gotExcludes = excludes
 		return nil, nil
 	}
-	t.Cleanup(func() { runGitSparseCheckout = origSparse })
+	t.Cleanup(func() { agentrun.RunGitSparseCheckout = origSparse })
 
-	origCheckout := runGitCheckoutHead
-	runGitCheckoutHead = func(string) ([]byte, error) { return nil, nil }
-	t.Cleanup(func() { runGitCheckoutHead = origCheckout })
+	origCheckout := agentrun.RunGitCheckoutHead
+	agentrun.RunGitCheckoutHead = func(string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { agentrun.RunGitCheckoutHead = origCheckout })
 
 	custom := []string{"issues/", "docs/", ".images/"}
 	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true), WorktreeSparseExclude: &custom}
@@ -734,25 +735,25 @@ func TestEnsureWorktree_SparseCheckoutHonorsCustomList(t *testing.T) {
 
 func TestEnsureWorktree_EmptyExcludeFallsBackToPlainCheckout(t *testing.T) {
 	tmp := t.TempDir()
-	orig := runGitWorktreeAdd
-	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
-	t.Cleanup(func() { runGitWorktreeAdd = orig })
+	orig := agentrun.RunGitWorktreeAdd
+	agentrun.RunGitWorktreeAdd = func(string, string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { agentrun.RunGitWorktreeAdd = orig })
 
 	sparseCalled := false
-	origSparse := runGitSparseCheckout
-	runGitSparseCheckout = func(string, []string) ([]byte, error) {
+	origSparse := agentrun.RunGitSparseCheckout
+	agentrun.RunGitSparseCheckout = func(string, []string) ([]byte, error) {
 		sparseCalled = true
 		return nil, nil
 	}
-	t.Cleanup(func() { runGitSparseCheckout = origSparse })
+	t.Cleanup(func() { agentrun.RunGitSparseCheckout = origSparse })
 
 	var gotCheckoutPath string
-	origCheckout := runGitCheckoutHead
-	runGitCheckoutHead = func(wtPath string) ([]byte, error) {
+	origCheckout := agentrun.RunGitCheckoutHead
+	agentrun.RunGitCheckoutHead = func(wtPath string) ([]byte, error) {
 		gotCheckoutPath = wtPath
 		return nil, nil
 	}
-	t.Cleanup(func() { runGitCheckoutHead = origCheckout })
+	t.Cleanup(func() { agentrun.RunGitCheckoutHead = origCheckout })
 
 	empty := []string{}
 	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true), WorktreeSparseExclude: &empty}
@@ -771,15 +772,15 @@ func TestEnsureWorktree_EmptyExcludeFallsBackToPlainCheckout(t *testing.T) {
 
 func TestEnsureWorktree_SparseCheckoutFailureAborts(t *testing.T) {
 	tmp := t.TempDir()
-	orig := runGitWorktreeAdd
-	runGitWorktreeAdd = func(string, string, string) ([]byte, error) { return nil, nil }
-	t.Cleanup(func() { runGitWorktreeAdd = orig })
+	orig := agentrun.RunGitWorktreeAdd
+	agentrun.RunGitWorktreeAdd = func(string, string, string, string) ([]byte, error) { return nil, nil }
+	t.Cleanup(func() { agentrun.RunGitWorktreeAdd = orig })
 
-	origSparse := runGitSparseCheckout
-	runGitSparseCheckout = func(string, []string) ([]byte, error) {
+	origSparse := agentrun.RunGitSparseCheckout
+	agentrun.RunGitSparseCheckout = func(string, []string) ([]byte, error) {
 		return []byte("bad pattern\n"), errStub{}
 	}
-	t.Cleanup(func() { runGitSparseCheckout = origSparse })
+	t.Cleanup(func() { agentrun.RunGitSparseCheckout = origSparse })
 
 	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true)}
 	got, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
@@ -805,12 +806,12 @@ func TestEnsureWorktree_SetupSkippedOnReuse(t *testing.T) {
 	}
 
 	called := false
-	origSetup := runWorktreeSetup
-	runWorktreeSetup = func(string, string) ([]byte, error) {
+	origSetup := agentrun.RunWorktreeSetup
+	agentrun.RunWorktreeSetup = func(string, string) ([]byte, error) {
 		called = true
 		return nil, nil
 	}
-	t.Cleanup(func() { runWorktreeSetup = origSetup })
+	t.Cleanup(func() { agentrun.RunWorktreeSetup = origSetup })
 
 	wf := &tracker.WorkflowConfig{Worktree: boolPtr(true), WorktreeSetup: "make"}
 	_, steps, ok := ensureWorktree(tmp, "fix-foo", wf)
@@ -885,9 +886,9 @@ func TestAttachAgentStep_SharedSessionAlreadyAttachedOpensNoTerminal(t *testing.
 	isolateTmux(t)
 	// A terminal command that fails loudly if it were run.
 	proj := &tracker.Project{Slug: "test", Terminal: "exit 1", TmuxSession: "work"}
-	original := tmuxSessionAttached
-	tmuxSessionAttached = func(string) bool { return true }
-	t.Cleanup(func() { tmuxSessionAttached = original })
+	original := agentrun.SessionAttached
+	agentrun.SessionAttached = func(string) bool { return true }
+	t.Cleanup(func() { agentrun.SessionAttached = original })
 
 	var steps []DispatchStep
 	if !attachAgentStep(proj, "agent-a", &steps) {
@@ -903,9 +904,9 @@ func TestAttachAgentStep_SharedSessionAlreadyAttachedOpensNoTerminal(t *testing.
 func TestAttachAgentStep_SharedSessionDetachedOpensTerminal(t *testing.T) {
 	isolateTmux(t)
 	proj := &tracker.Project{Slug: "test", Terminal: "true {{session}}", TmuxSession: "work"}
-	original := tmuxSessionAttached
-	tmuxSessionAttached = func(string) bool { return false }
-	t.Cleanup(func() { tmuxSessionAttached = original })
+	original := agentrun.SessionAttached
+	agentrun.SessionAttached = func(string) bool { return false }
+	t.Cleanup(func() { agentrun.SessionAttached = original })
 
 	var steps []DispatchStep
 	attachAgentStep(proj, "agent-a", &steps)

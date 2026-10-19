@@ -80,12 +80,12 @@ func waitCommand(slug, from, to string) string {
 
 // waitNote is the one-liner printed under a suggested --wait command.
 func waitNote(required string) string {
-	return fmt.Sprintf("(needs human approval for %q — blocks until approved; exit 3 = still waiting, re-run it)", required)
+	return fmt.Sprintf("(needs human approval for %q — tell the human what to approve, then stop and end your turn; run it once they say it is approved)", required)
 }
 
 // nextStepCommand returns the command for the next step from → next and an
-// optional note. When the step is gated on a human approval it is the --wait
-// form, so agents discover blocking from the output they already read. `done`
+// optional note. When the step is gated on a human approval the note tells the
+// agent to hand the approval to the human and stop, instead of waiting or polling. `done`
 // is excluded: only humans close issues.
 func nextStepCommand(wf *tracker.WorkflowConfig, slug, from, next string) (cmd, note string) {
 	plain := fmt.Sprintf("issue-cli transition %s --to %q", slug, next)
@@ -96,7 +96,10 @@ func nextStepCommand(wf *tracker.WorkflowConfig, slug, from, next string) (cmd, 
 	if required == "" {
 		return plain, ""
 	}
-	return waitCommand(slug, from, next), waitNote(required)
+	if tracker.IsHandoffStatus(from) {
+		return fmt.Sprintf("issue-cli start %s", slug), waitNote(required)
+	}
+	return plain, waitNote(required)
 }
 
 // transitionProblem is one unmet requirement for a transition.

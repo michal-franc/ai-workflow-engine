@@ -213,7 +213,7 @@ Defaults to `false` when absent — projects keep their existing dispatch behavi
 
 Behavior when enabled:
 
-- Branch: `work/<issue-slug>` (created off the project workdir's current HEAD)
+- Branch: `work/<issue-slug>`, created off the project workdir's current HEAD, or off the epic's `base:` branch for a child of an epic. An epic with `base:` uses `.worktrees/<epic-slug>` on the base branch itself (see [The lead session](../patterns/lead-session.md#epics)).
 - Path: `<project.workdir>/.worktrees/<issue-slug>` (gitignored)
 - Re-dispatch on the same issue reuses the existing worktree directory rather than re-running `git worktree add`.
 - The tree is materialized with `git checkout HEAD` after sparse-checkout patterns are configured. Paths in `worktree_sparse_exclude` (default `["issues/"]`) are kept out of the worktree, so a dispatched agent sees the source but not the issue store. If an old worktree was created empty (every file shown as staged-for-deletion), recover it with `git -C .worktrees/<slug> checkout HEAD`.

@@ -97,7 +97,7 @@ On dispatch:
 - A terminal (via `terminal`, where `{{session}}` becomes the shared session name) is opened **only when no client is attached** to the shared session. If you already have it open, the new window just appears there.
 - Re-dispatching an issue whose window is still alive reattaches (selects the window) instead of re-prompting.
 
-"Edit in nvim" follows the same rule: it opens as an `agent-<slug>-edit` window, and only that window is closed when the edit finishes. Agent windows are listed as `work:agent-<slug>` and receive approval notifications like per-agent sessions. With `terminal: none`, `attach_cmd` is `tmux attach -t work \; select-window -t agent-<slug>`.
+"Edit in nvim" follows the same rule: it opens as an `agent-<slug>-edit` window, and only that window is closed when the edit finishes. Agent windows are listed as `work:agent-<slug>` and receive approval notifications like per-agent sessions. Lead windows (`lead-<project>`, `lead-<epic>`) live in the same shared session and are listed as `work:lead-<…>`. With `terminal: none`, `attach_cmd` is `tmux attach -t work \; select-window -t agent-<slug>`.
 
 ## Per-issue Worktrees
 
@@ -114,7 +114,23 @@ worktree_sparse_exclude: ["issues/"]   # the default; [] keeps everything
 - `worktree_setup` runs on creation only. If it fails, the dispatch stops and reports the error.
 - Removing the worktree after the issue ships is left to you (`git worktree remove`).
 
-To branch a worktree from somewhere other than `HEAD` (for example a staging branch for a large feature), create it yourself before dispatching; the viewer will reuse it. See [The lead session](patterns/lead-session.md#umbrella-features).
+Epics change where a worktree starts:
+
+- A child of an epic (`parent: <epic>`, or the legacy `umbrella:`) whose epic has `base:` gets its worktree branched from that base branch instead of `HEAD`. Its prompt gets a `## Base branch` section: build on the base, merge the base (never `main`), ship into the base.
+- The epic issue itself reuses the base-branch worktree its sub-lead runs in (`.worktrees/<epic-slug>` on `base:`); it gets no `work/<slug>` branch.
+
+See [The lead session](patterns/lead-session.md#epics).
+
+## Lead Sessions
+
+Lead agents run in tmux like workers, under fixed names: `lead-<project>` for the project lead (in the project checkout) and `lead-<epic-slug>` for an epic's sub-lead (in the epic's base-branch worktree). Start them with `issue-cli lead spawn [--epic <slug>]`, the **Spawn lead** button in the Actions bar, or **Spawn sub-lead** on the agents canvas or the epic's detail page (`POST /p/<project>/lead/spawn`, body `{"epic": "<slug>"}` or `{}`). A live lead is re-attached, never started twice.
+
+- Leads use the same launcher, terminal, `tmux_session` and `agent_model_source` settings as dispatched workers.
+- Their brief comes from `leads:` in `workflow.yaml`, or the built-in defaults.
+- A `lead-<epic>` session is not counted as an active agent on the epic issue, although its name contains the slug.
+- Every worker's dispatch prompt has a `## Your lead` section naming who it reports to: the epic's sub-lead while it is live, otherwise the project lead.
+
+See [The lead session](patterns/lead-session.md) for roles, routing and authority.
 
 ## Agent Model
 
@@ -167,4 +183,5 @@ Dispatched sessions export:
 - `ISSUE_CLI_LOG` — logging path
 - `ISSUE_VIEWER_SERVER_PWD` — server working directory
 - `ISSUE_VIEWER_ISSUE_SLUG` — slug of the dispatched issue (attached to bug reports automatically)
+- `ISSUE_VIEWER_LEAD_SCOPE` — lead sessions only: `project` for the project lead, or the epic slug for a sub-lead. `issue-cli lead whoami`, `approve` and `lead spawn` read it to know who is asking.
 - `ISSUE_VIEWER_URL` — base URL of the dispatching server, reconstructed from the inbound request's `Host` (and `X-Forwarded-Host`/`X-Forwarded-Proto` if behind a proxy). The CLI uses it to build approval-gate deep links so dispatched bots' errors point back at the same host the human just clicked from.

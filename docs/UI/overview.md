@@ -13,6 +13,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/board.html` — kanban board with drag-and-drop
 - `templates/detail.html` — issue detail with sidebar, comments, dispatch
 - `templates/graph.html` — workflow status graph
+- `templates/agents.html` — agents canvas: lead/worker tree, unfinished jobs, selected-agent panel (handlers in `handlers_agents.go`)
 - `templates/docs.html` — documentation viewer with sidebar navigation
 - `templates/_create_modal.html` — shared "New issue" modal partial included by list and board
 - `templates/_project_actions.html` — shared project-level custom action bar + dispatch modal, included by list, board, and graph
@@ -25,6 +26,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 | `/`               | `list.html`   | Filterable list with status, system, priority    |
 | `/board`          | `board.html`  | Kanban with configurable columns and card fields |
 | `/graph`          | `graph.html`  | Workflow DAG with stale highlighting             |
+| `/agents`         | `agents.html` | Agents canvas: leads, workers, their issues (see below) |
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
 | `/issue/<slug>`   | `detail.html` | Detail with edit, approve, dispatch, comments    |
 | `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
@@ -91,6 +93,30 @@ Server-side wiring: both `ListData` and `BoardData` carry `CreatableStatuses []s
 
 Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location.reload()` (board "needs reload" path and the detail-view path) when `window.__createModalOpen` is true, so a polled refresh cannot wipe an in-flight create.
 
+## Agents canvas
+
+`/p/<project>/agents` (the **Agents** tab) shows who is working on what, built from `tmux ls`, the issues' `parent:` links and git. The page polls `GET /p/<project>/agents.json` (the `AgentsModel` in `handlers_agents.go`) every 5 seconds; the toolbar shows `live · tmux ls Ns ago`, or `offline` when a poll fails.
+
+- **Tree:** You → the project lead (`lead-<project>`) → one box per open epic, then workers with no epic. Each epic box shows its title, base branch, `N of M children running`, `main is N ahead` when `main` has commits the base lacks, its sub-lead node (`lead-<epic>`) and the workers on its children.
+- **Worker states:**
+  - *working*: live session, nothing pending;
+  - *at gate*: the next transition needs a human approval not yet given (the gate's status is shown);
+  - *question*: the issue's newest comment starts with `question:`;
+  - *stopped*: no live session, but a worktree or an active status (`in progress` up to, not including, `done`). "retro not swept" is added when a retro for the issue is not yet processed or archived.
+- **Unfinished jobs:** the stopped workers. With Group umbrellas on, an epic's stopped children appear in its box and the lane shows the rest.
+- **Issue cards:** each worker links to its issue card with a dashed line in the status color.
+- **Toolbar:** Tree / Radial layout (radial puts the project lead in the middle, sub-leads on an inner ring and workers outside), and the Show issues, Group umbrellas and Show stopped toggles. **Spawn lead** shows while the project lead is not running.
+- **Selected-agent panel** (click a node): kind, state, tmux location, the issue, then:
+  - **Approve gate** (at-gate workers) calls the issue's existing `/approve` endpoint, a direct human action;
+  - **Spawn lead** / **Spawn sub-lead** for a lead that is not running;
+  - **Copy attach** copies the `tmux attach` command;
+  - **Message** (live sessions) posts to `POST /p/<project>/agents/message` `{"session", "text"}`, which pastes `[from human] <text>` into the session; `409` when the session is gone;
+  - the pane's last 20 lines, the issue's last 5 comments and the branch's `git diff --stat` against its base (or `main`), from `GET /p/<project>/agents/detail?session=<name>&issue=<slug>`.
+
+Spawn buttons POST to `/p/<project>/lead/spawn` (`{}` for the project lead, `{"epic": "<slug>"}` for a sub-lead) and show the launch steps in a modal. It runs the same `agentrun.LeadSpec` as `issue-cli lead spawn`; a non-epic slug returns `422`.
+
+The detail page's sidebar has a **Lead** section: on an epic, its sub-lead, whether it is live, its base branch and a **Spawn sub-lead** button; on any other issue, the lead it reports to and its epic.
+
 ## Project action bar
 
-The list, board, and graph views show an **Actions** bar below the header (rendered by `templates/_project_actions.html`, included via `{{template "project-actions-bar" .}}`) when the workflow defines `project_actions:`. Each button POSTs to `POST /p/<project>/action/<id>` (handler `handleProjectAction` in `handlers_dispatch.go`), which dispatches a one-shot agent with no issue context — prompts template with `{{project}}` only. The shared dispatch result modal is defined in the same partial (`project-actions-modal`). This mirrors the per-issue custom action buttons on `detail.html`, which come from `issue_actions:` (legacy alias: `actions:`). `ListData`, `BoardData`, and `GraphData` each carry `ProjectActions []tracker.CustomAction`.
+The list, board, and graph views show an **Actions** bar below the header (rendered by `templates/_project_actions.html`, included via `{{template "project-actions-bar" .}}`). It always has **Spawn lead** (`POST /p/<project>/lead/spawn`), followed by one button per `project_actions:` entry. Each button POSTs to `POST /p/<project>/action/<id>` (handler `handleProjectAction` in `handlers_dispatch.go`), which dispatches a one-shot agent with no issue context — prompts template with `{{project}}` only. The shared dispatch result modal is defined in the same partial (`project-actions-modal`). This mirrors the per-issue custom action buttons on `detail.html`, which come from `issue_actions:` (legacy alias: `actions:`). `ListData`, `BoardData`, and `GraphData` each carry `ProjectActions []tracker.CustomAction`.

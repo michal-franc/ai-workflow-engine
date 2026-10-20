@@ -39,8 +39,10 @@ handlers_workflow.go        — designer, retros, bug status, docs handlers
 handlers_dispatch.go        — agent dispatch + prompt builders
 handlers_github.go          — github page, fetch, import
 handlers_stats.go           — /stats workflow token-cost view
+handlers_agents.go          — /agents canvas, agents.json, agent message/detail, lead spawn endpoint
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
+internal/agentrun/          — shared tmux/worktree launcher used by the server and issue-cli (leads, dispatch)
 templates/                  — Go HTML templates (list.html, board.html, detail.html, docs.html)
 static/style.css            — all CSS (dark GitHub theme)
 sync-issues.sh              — downloads issues from GitHub Project into ./issues/<System>/
@@ -82,6 +84,7 @@ Markdown body here. Supports `[x]` checkboxes.
 - `created` — date string for sorting (newest first)
 - `number` — GitHub issue number (used in board card display as `#number`)
 - `repo` — GitHub repo in `owner/repo` format
+- `parent` — slug of the epic this issue belongs to (`umbrella` is a legacy alias); an epic may carry `base` (its base branch) and `lead` (its sub-lead session)
 - `type` — type of work when `workflow.yaml` defines `types:` (picks the issue's path; see docs/Workflow/types.md)
 
 ### Custom fields
@@ -129,11 +132,11 @@ Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI
 - [Workflow](docs/workflow.md) — lifecycle, prompts, side-effects, system overlays
 - [Agent Workflow Flow](docs/agent-workflow-flow.md) — full dispatch-to-done agent flow
 - [Board Configuration](docs/board-configuration.md) — columns, card fields
-- [Agent Dispatch](docs/agent-dispatch.md) — terminal config, approval notifications
+- [Agent Dispatch](docs/agent-dispatch.md) — terminal config, approval notifications, lead sessions, epic worktrees
 - [GitHub Integration](docs/github-integration.md) — sync, issue reference, auto-close
 - [Per-issue Data Store](docs/data-store.md) — sidecar JSON, `<!-- data -->` marker, `issue-cli data` commands
 - [Workflow Stats](docs/workflow-stats.md) — `/stats` tab, per-issue stats sidecar, token-cost estimation
-- [The Lead Session](docs/patterns/lead-session.md) — pattern: one lead agent supervising dispatched workers, umbrella features
+- [The Lead Session](docs/patterns/lead-session.md) — lead agents: project lead and per-epic sub-leads (`issue-cli lead`, `approve`), routing, authority, handoff, epics on a base branch, agents canvas
 
 Per-system docs:
 

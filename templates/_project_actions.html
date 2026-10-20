@@ -1,8 +1,11 @@
 {{define "project-actions-bar"}}
-{{if .ProjectActions}}
 <div class="container">
     <div class="project-actions-bar">
         <span class="project-actions-label">Actions</span>
+        <button class="dispatch-btn" title="Start (or re-attach) the project lead agent, lead-&lt;project&gt;" onclick="spawnProjectLead('{{$.Prefix}}')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="2"/><circle cx="3" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><path d="M8 5v3M8 8L3.6 10.4M8 8l4.4 2.4" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
+            Spawn lead
+        </button>
         {{range .ProjectActions}}
         <button class="dispatch-btn dispatch-btn-custom" onclick="dispatchProjectAction('{{$.Prefix}}', '{{.ID}}', '{{.Label}}')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM4.5 7.5h7a.5.5 0 010 1h-7a.5.5 0 010-1z"/></svg>
@@ -12,10 +15,8 @@
     </div>
 </div>
 {{end}}
-{{end}}
 
 {{define "project-actions-modal"}}
-{{if .ProjectActions}}
 <!-- Project action dispatch modal -->
 <div class="modal-overlay" id="project-action-modal" style="display:none">
     <div class="modal" style="max-width:640px">
@@ -34,8 +35,15 @@
     </div>
 </div>
 <script>
-// dispatchProjectAction POSTs to the project-level action endpoint and renders
-// the {status, session, prompt, steps} response into the project-action modal.
+// spawnProjectLead starts (or re-attaches to) the project lead and shows the
+// launch steps in the project-action modal.
+function spawnProjectLead(prefix) {
+    dispatchProjectAction(prefix, null, 'project lead');
+}
+
+// dispatchProjectAction POSTs to the project-level action endpoint (or, with a
+// null id, the lead spawn endpoint) and renders the {status, session, prompt,
+// steps} response into the project-action modal.
 function dispatchProjectAction(prefix, id, label) {
     var modal = document.getElementById('project-action-modal');
     var stepsEl = document.getElementById('project-action-steps');
@@ -46,7 +54,7 @@ function dispatchProjectAction(prefix, id, label) {
     promptEl.textContent = '';
     sessionEl.textContent = '';
 
-    fetch(prefix + '/action/' + encodeURIComponent(id), {
+    fetch(id === null ? prefix + '/lead/spawn' : prefix + '/action/' + encodeURIComponent(id), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}'
@@ -78,5 +86,4 @@ function dispatchProjectAction(prefix, id, label) {
     });
 }
 </script>
-{{end}}
 {{end}}

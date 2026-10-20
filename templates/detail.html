@@ -137,6 +137,43 @@
                 </div>
                 {{end}}
 
+                <div class="sidebar-section" id="lead-section">
+                    <h3>Lead</h3>
+                    {{if .Lead.IsEpic}}
+                    <div class="active-session-item">
+                        <div class="active-session-name">{{.Lead.SubLead}}</div>
+                        <div class="active-session-time">sub-lead · {{if .Lead.SubLeadLive}}live{{else}}not running{{end}} · base {{.Lead.Base}}</div>
+                    </div>
+                    {{if not .Lead.SubLeadLive}}
+                    <button class="dispatch-btn" style="margin-top:6px" onclick="spawnSubLead('{{.Prefix}}', '{{.Issue.Slug}}')">Spawn sub-lead</button>
+                    <div class="dispatch-steps" id="spawn-sub-lead-steps"></div>
+                    {{end}}
+                    {{else}}
+                    <div class="active-session-item">
+                        <div class="active-session-name">{{.Lead.Route.Lead}}</div>
+                        <div class="active-session-time">{{if .Lead.Route.Live}}live{{else}}not running{{end}}{{if .Lead.Route.Epic}} · epic <a href="{{.Prefix}}/issue/{{.Lead.Route.Epic}}">{{.Lead.Route.Epic}}</a>{{end}}</div>
+                    </div>
+                    {{end}}
+                    <a href="{{.Prefix}}/agents" style="font-size:12px">Agents canvas</a>
+                </div>
+                <script>
+                function spawnSubLead(prefix, slug) {
+                    var el = document.getElementById('spawn-sub-lead-steps');
+                    el.innerHTML = '<div class="dispatch-step pending">Spawning sub-lead…</div>';
+                    fetch(prefix + '/lead/spawn', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({epic: slug})})
+                        .then(function(r) { return r.json(); })
+                        .then(function(d) {
+                            el.innerHTML = (d.steps || []).map(function(s) {
+                                var div = document.createElement('div');
+                                div.className = 'dispatch-step ' + (s.status === 'error' ? 'error' : 'ok');
+                                div.textContent = s.name + (s.detail ? ' (' + s.detail + ')' : '');
+                                return div.outerHTML;
+                            }).join('');
+                        })
+                        .catch(function(e) { el.textContent = 'Failed: ' + e.message; });
+                }
+                </script>
+
                 <div class="sidebar-section" id="active-agent-section" {{if not .Issue.HasActiveAgent}}style="display:none"{{end}}>
                     <h3>Active Agent</h3>
                     <div class="active-session-list" id="active-session-list">

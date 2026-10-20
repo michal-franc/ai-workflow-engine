@@ -91,47 +91,27 @@ func runLeadSpawn(ctx *Context, args []string) error {
 	}
 
 	root := projectRoot(proj)
-	wf := proj.LoadWorkflow()
-	spec := agentrun.Spec{
-		AgentType: *agentFlag,
-		WorkDir:   root,
-		Workflow:  wf,
-		ViewerURL: strings.TrimSpace(os.Getenv("ISSUE_VIEWER_URL")),
-		Headless:  !*attachFlag,
-	}
 	var epic *tracker.Issue
 	if slug := strings.TrimSpace(*epicFlag); slug != "" {
-		epic, _, err = findIssueOrErr(ctx, slug)
-		if err != nil {
+		if epic, _, err = findIssueOrErr(ctx, slug); err != nil {
 			return err
 		}
-		if !tracker.IsEpic(epic, issues) {
-			return fmt.Errorf("%s is not an epic: no issue names it as parent, and it has no type: epic or lead:.\n\nMake it one by linking a child:\n  issue-cli set-meta <child-slug> --key parent --value %s", epic.Slug, epic.Slug)
-		}
-		if epic.Field("base") == "" {
-			if err := tracker.SetFrontmatterField(epic.FilePath, "base", tracker.EpicBase(epic), false); err != nil {
-				return fmt.Errorf("recording base: on %s: %w", epic.Slug, err)
-			}
-			epic.ExtraFields = append(epic.ExtraFields, tracker.ExtraField{Key: "base", Value: tracker.EpicBase(epic)})
-		}
-		spec.Session = tracker.LeadSessionName(proj, epic.Slug)
-		spec.LeadScope = epic.Slug
-		spec.Worktree = tracker.EpicWorktree(root, epic)
-	} else {
-		spec.Session = projectLead
-		spec.LeadScope = tracker.LeadScopeProject
 	}
-	spec.Prompt = tracker.LeadBrief(wf, tracker.LeadBriefInput{Project: proj, Epic: epic, Root: root, Now: ctx.now()})
+	spec, err := agentrun.LeadSpec(proj, proj.LoadWorkflow(), issues, epic, root, ctx.now())
+	if err != nil {
+		return err
+	}
+	spec.AgentType = *agentFlag
+	spec.ViewerURL = strings.TrimSpace(os.Getenv("ISSUE_VIEWER_URL"))
+	spec.Headless = !*attachFlag
 
 	resp := startAgent(proj, spec)
 	if resp.Status == "error" {
 		printSteps(ctx, resp.Steps)
 		return fmt.Errorf("spawning %s failed (see the steps above)", spec.Session)
 	}
-	if epic != nil && epic.Field("lead") != spec.Session {
-		if err := tracker.SetFrontmatterField(epic.FilePath, "lead", spec.Session, false); err != nil {
-			return fmt.Errorf("recording lead: on %s: %w", epic.Slug, err)
-		}
+	if err := agentrun.RecordLead(epic, resp, spec.Session); err != nil {
+		return fmt.Errorf("recording lead: on %s: %w", epic.Slug, err)
 	}
 
 	if ctx.JSONOutput {

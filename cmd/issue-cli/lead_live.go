@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/michal-franc/issue-viewer/internal/agentrun"
@@ -49,24 +48,8 @@ var currentTmuxNames = func() (session, window string) {
 }
 
 // commitsBehind counts the commits on the main branch that base lacks. A var
-// for tests. ok is false when either branch can't be resolved.
-var commitsBehind = func(workdir, base string) (n int, mainBranch string, ok bool) {
-	for _, candidate := range []string{"main", "master"} {
-		if exec.Command("git", "-C", workdir, "rev-parse", "--verify", "--quiet", "refs/heads/"+candidate).Run() == nil {
-			mainBranch = candidate
-			break
-		}
-	}
-	if mainBranch == "" {
-		return 0, "", false
-	}
-	out, err := exec.Command("git", "-C", workdir, "rev-list", "--count", base+".."+mainBranch).Output()
-	if err != nil {
-		return 0, mainBranch, false
-	}
-	n, err = strconv.Atoi(strings.TrimSpace(string(out)))
-	return n, mainBranch, err == nil
-}
+// for tests.
+var commitsBehind = agentrun.MainAhead
 
 // workingDir is os.Getwd, a var so tests don't depend on where they run.
 var workingDir = os.Getwd

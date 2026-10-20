@@ -98,6 +98,16 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleGitHubImport(w, r, proj)
 	case rest == "stats":
 		s.handleStats(w, r, proj, prefix)
+	case rest == "agents" && r.Method == http.MethodGet:
+		s.handleAgents(w, r, proj, prefix)
+	case rest == "agents.json" && r.Method == http.MethodGet:
+		s.handleAgentsJSON(w, r, proj, prefix)
+	case rest == "agents/detail" && r.Method == http.MethodGet:
+		s.handleAgentDetail(w, r, proj, prefix)
+	case rest == "agents/message" && r.Method == http.MethodPost:
+		s.handleAgentMessage(w, r, proj, prefix)
+	case rest == "lead/spawn" && r.Method == http.MethodPost:
+		s.handleLeadSpawn(w, r, proj, prefix)
 	case rest == "retros":
 		s.handleRetros(w, r, proj, prefix)
 	case rest == "retros/review" && r.Method == http.MethodPost:

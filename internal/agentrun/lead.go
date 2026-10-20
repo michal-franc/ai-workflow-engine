@@ -13,7 +13,8 @@ import (
 // LeadSpec builds the launch spec for the project lead (epic nil) or for an
 // epic's sub-lead, rooted at the project checkout root. For a sub-lead it
 // refuses a non-epic and records the epic's base branch (`base:`) when it has
-// none yet, so the brief and the worktree agree. The caller fills in
+// none yet, so the brief and the worktree agree. A missing base branch is
+// created from main (else master, else HEAD). The caller fills in
 // AgentType, ViewerURL and Headless, starts it, then calls RecordLead.
 func LeadSpec(proj *tracker.Project, wf *tracker.WorkflowConfig, issues []*tracker.Issue, epic *tracker.Issue, root string, now time.Time) (Spec, error) {
 	spec := Spec{WorkDir: root, Workflow: wf}
@@ -35,6 +36,9 @@ func LeadSpec(proj *tracker.Project, wf *tracker.WorkflowConfig, issues []*track
 		spec.Session = tracker.LeadSessionName(proj, epic.Slug)
 		spec.LeadScope = epic.Slug
 		spec.Worktree = tracker.EpicWorktree(root, epic)
+		// A base branch that doesn't exist yet starts from main, not from
+		// whatever the project checkout has checked out.
+		spec.Worktree.StartPoint = MainBranch(root)
 	}
 	spec.Prompt = tracker.LeadBrief(wf, tracker.LeadBriefInput{Project: proj, Epic: epic, Root: root, Now: now})
 	return spec, nil

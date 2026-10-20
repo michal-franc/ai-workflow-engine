@@ -95,8 +95,8 @@ func viewerURLFromRequest(r *http.Request) string {
 	return scheme + "://" + host
 }
 
-func agentLaunchCommand(proj *tracker.Project, agentType string, promptPath string) string {
-	return agentrun.LaunchCommand(proj, agentType, promptPath)
+func agentLaunchCommand(proj *tracker.Project, agentType, session, promptPath string) string {
+	return agentrun.LaunchCommand(proj, agentType, session, promptPath)
 }
 
 func writeDispatchPrompt(sessionLogDir, prompt string) (string, error) {

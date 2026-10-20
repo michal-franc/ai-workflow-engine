@@ -95,6 +95,7 @@ func LeadBrief(wf *WorkflowConfig, in LeadBriefInput) string {
 		fmt.Fprintf(&b, "- Role: sub-lead (%s) of epic %s, guarding base branch %s. You report to %s.\n", lead, epic, base, projectLead)
 		fmt.Fprintf(&b, "- Authority: you may tick gates only on %s and its children, and only after %s relays the human's words: issue-cli approve <slug> --to <status> --quote \"<the human's words>\" --how \"relayed by %s\". Never Human Testing; workers never tick.\n", epic, projectLead, projectLead)
 	}
+	fmt.Fprintf(&b, "- Messaging: in Claude Code, agents on this project message each other with ListAgents / SendMessage, addressed by tmux name (yours is %s; workers are agent-<slug>). Workers and sub-leads may message you directly. issue-cli lead message is the tmux-paste fallback, e.g. for Codex.\n", lead)
 	b.WriteString("- Decisions: record each owner decision under ## Decisions with the human's words (issue-cli append <slug> --section Decisions --body \"- **D-n** · <date> · lead chat: ...\").\n")
 	notesDir := filepath.Join(in.Root, "sessions")
 	if note := NewestHandoffNote(notesDir, lead, in.Epic == nil); note != "" {

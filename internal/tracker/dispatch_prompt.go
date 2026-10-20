@@ -73,6 +73,7 @@ func LeadPromptSection(issue *Issue, route LeadRoute, base string) string {
 		fmt.Fprintf(&b, "You report to the project lead %s (%s).\n", route.ProjectLead, state(route.Live))
 	}
 	fmt.Fprintf(&b, "- Your lead follows your issue trail: ask with `issue-cli comment %s \"question: ...\"` and report with `progress:` comments. It relays questions and approvals to the human.\n", issue.Slug)
+	fmt.Fprintf(&b, "- In Claude Code you can also message %s, or another agent on this project, with ListAgents / SendMessage. An agent's address is its tmux name (lead-<scope>, agent-<slug>); yours is %s.\n", route.Lead, AgentSessionName(issue.Slug))
 	b.WriteString("- Only the human decides; a worker never ticks a gate.\n")
 	b.WriteString("- `issue-cli lead whoami` shows your lead and whether it is live right now.\n")
 	if base != "" {

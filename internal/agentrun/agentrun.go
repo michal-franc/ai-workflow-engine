@@ -64,16 +64,27 @@ type Spec struct {
 // into a tmux shell unquoted.
 var validModelName = regexp.MustCompile(`^[A-Za-z0-9._:/\[\]-]+$`)
 
+// validSessionName limits the -n value to characters that are safe to type
+// into a tmux shell unquoted; agent-<slug> and lead-<scope> names always are.
+var validSessionName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
 // LaunchCommand builds the shell command typed into tmux. The prompt is
 // passed as the agent's positional argument (both claude and codex accept
-// one and start interactive with it). A --model flag is added only when the
-// project enforces one (agent_model_source: project).
-func LaunchCommand(proj *tracker.Project, agentType string, promptPath string) string {
+// one and start interactive with it). Claude is named after its tmux session
+// (-n agent-<slug>, -n lead-<scope>), so the tmux name is also its address
+// for Claude Code's cross-session messaging (ListAgents / SendMessage). A
+// --model flag is added only when the project enforces one
+// (agent_model_source: project).
+func LaunchCommand(proj *tracker.Project, agentType, session, promptPath string) string {
+	nameFlag := ""
+	if agentType == "claude" && validSessionName.MatchString(session) {
+		nameFlag = " -n " + session
+	}
 	modelFlag := ""
 	if m := proj.AgentModel(agentType); m != "" && validModelName.MatchString(m) {
 		modelFlag = " --model " + m
 	}
-	return fmt.Sprintf("%s%s \"$(cat %q)\"", agentType, modelFlag, promptPath)
+	return fmt.Sprintf("%s%s%s \"$(cat %q)\"", agentType, nameFlag, modelFlag, promptPath)
 }
 
 // WritePrompt persists prompt as <sessionLogDir>/dispatch-prompt.txt and
@@ -226,7 +237,7 @@ func Start(proj *tracker.Project, spec Spec) Response {
 	// a paste sent before the agent's input is ready is silently dropped.
 	// Both agents start interactive, so a human stays in the loop.
 	RunStep(&steps, fmt.Sprintf("Start %s (interactive, prompt as argument)", spec.AgentType),
-		exec.Command("tmux", "send-keys", "-t", target, LaunchCommand(proj, spec.AgentType, promptPath), "Enter"))
+		exec.Command("tmux", "send-keys", "-t", target, LaunchCommand(proj, spec.AgentType, session, promptPath), "Enter"))
 	// Only Claude's pane rendering has been checked for the delivery marker.
 	if spec.AgentType != "codex" {
 		PromptDeliveryStep(&steps, target, prompt, spec.RepromptURL)

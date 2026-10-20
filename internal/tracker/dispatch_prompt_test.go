@@ -39,6 +39,9 @@ func TestBuildDispatchPrompt(t *testing.T) {
 	if dp.Lead != "lead-proj" || !strings.Contains(dp.Prompt, "## Your lead\n\nYou report to the project lead lead-proj (not running).") {
 		t.Fatalf("lead = %q, prompt missing the lead section: %q", dp.Lead, dp.Prompt)
 	}
+	if !strings.Contains(dp.Prompt, "message lead-proj, or another agent on this project, with ListAgents / SendMessage") || !strings.Contains(dp.Prompt, "yours is agent-api-fix") {
+		t.Fatalf("prompt missing the SendMessage line: %q", dp.Prompt)
+	}
 	if !strings.Contains(dp.Prompt, "issue-cli --project proj ") || !strings.Contains(dp.Prompt, "## Worktree") {
 		t.Fatalf("prompt missing --project injection or worktree section")
 	}

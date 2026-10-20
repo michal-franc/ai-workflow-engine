@@ -24,7 +24,7 @@ The board and detail views can dispatch issues to AI agents (Claude or Codex) vi
 
 ## How the prompt is delivered
 
-The prompt is saved to `<workdir>/.agent-logs/<session>/dispatch-prompt.txt`, and the agent starts with it as its positional argument (`claude "<prompt>"`, the same as codex). It is never pasted into a booting agent. Earlier versions typed `claude`, waited a fixed 3 s and pasted the prompt. When Claude took longer to start, the paste was dropped, yet every step still reported ok.
+The prompt is saved to `<workdir>/.agent-logs/<session>/dispatch-prompt.txt`, and the agent starts with it as its positional argument (`claude "<prompt>"`, the same as codex). It is never pasted into a booting agent. Claude is also started with `-n <session name>` (`claude -n agent-<slug> "<prompt>"`, `-n lead-<scope>` for leads), so its tmux name is its address for Claude Code's built-in messaging between sessions (`ListAgents` / `SendMessage`); codex gets no name. Earlier versions typed `claude`, waited a fixed 3 s and pasted the prompt. When Claude took longer to start, the paste was dropped, yet every step still reported ok.
 
 Dispatch then polls the pane for the prompt's last line. It reports the step **Prompt delivered**, or a failed step after 20 s. Nothing is re-sent automatically.
 
@@ -129,6 +129,7 @@ Lead agents run in tmux like workers, under fixed names: `lead-<project>` for th
 - Their brief comes from `leads:` in `workflow.yaml`, or the built-in defaults.
 - A `lead-<epic>` session is not counted as an active agent on the epic issue, although its name contains the slug.
 - Every worker's dispatch prompt has a `## Your lead` section naming who it reports to: the epic's sub-lead while it is live, otherwise the project lead.
+- Agents message each other with Claude Code's own `ListAgents` / `SendMessage`, addressed by tmux name. The tool builds nothing on top of it; the briefs just say it is there. A session in a different permission mode from the sender holds incoming messages for its human's approval, as Claude Code does out of the box.
 
 See [The lead session](patterns/lead-session.md) for roles, routing and authority.
 

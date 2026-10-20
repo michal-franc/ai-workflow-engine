@@ -13,12 +13,31 @@ import (
 )
 
 func TestAgentLaunchCommand_CodexUsesPromptFile(t *testing.T) {
-	got := agentLaunchCommand(nil, "codex", "/tmp/agent-prompt-123.txt")
+	got := agentLaunchCommand(nil, "codex", "agent-x", "/tmp/agent-prompt-123.txt")
 	if !strings.Contains(got, `codex "$(cat `) {
 		t.Fatalf("agentLaunchCommand(codex) = %q, want codex to read from a temp prompt file", got)
 	}
 	if !strings.Contains(got, `/tmp/agent-prompt-123.txt`) {
 		t.Fatalf("agentLaunchCommand(codex) = %q, missing prompt path", got)
+	}
+	if strings.Contains(got, " -n ") {
+		t.Fatalf("agentLaunchCommand(codex) = %q, codex has no -n session name", got)
+	}
+}
+
+// Claude is named after its tmux session so ListAgents / SendMessage address
+// it by the same string; a name unsafe to type into the shell is dropped.
+func TestAgentLaunchCommand_ClaudeSessionName(t *testing.T) {
+	cases := map[string]string{
+		"agent-ui-child":    `claude -n agent-ui-child "$(cat "/p")"`,
+		"lead-issue-viewer": `claude -n lead-issue-viewer "$(cat "/p")"`,
+		"agent-x; rm -rf /": `claude "$(cat "/p")"`,
+		"":                  `claude "$(cat "/p")"`,
+	}
+	for session, want := range cases {
+		if got := agentLaunchCommand(nil, "claude", session, "/p"); got != want {
+			t.Errorf("session %q: got %q, want %q", session, got, want)
+		}
 	}
 }
 
@@ -39,7 +58,7 @@ func TestAgentLaunchCommand_ModelSource(t *testing.T) {
 		{"unsafe model ignored", &tracker.Project{AgentModels: map[string]string{"claude": "x; rm -rf /"}, AgentModelSource: "project"}, "claude", `claude "$(cat "/p")"`},
 	}
 	for _, c := range cases {
-		if got := agentLaunchCommand(c.proj, c.agent, "/p"); got != c.want {
+		if got := agentLaunchCommand(c.proj, c.agent, "", "/p"); got != c.want {
 			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
 		}
 	}

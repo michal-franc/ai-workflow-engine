@@ -25,6 +25,9 @@ func TestLeadBrief_CustomPromptsAndPlaceholders(t *testing.T) {
 	if !strings.Contains(got, "/r/sessions/2026-10-18-lead-p.md") || !strings.Contains(got, "no earlier handoff note") {
 		t.Fatalf("project brief handoff lines:\n%s", got)
 	}
+	if !strings.Contains(got, "message each other with ListAgents / SendMessage, addressed by tmux name (yours is lead-p;") {
+		t.Fatalf("project brief messaging line:\n%s", got)
+	}
 
 	epic := &Issue{Slug: "ui/epic", Title: "Epic", ExtraFields: []ExtraField{{Key: "base", Value: "exp"}}}
 	got = LeadBrief(&wf, LeadBriefInput{Project: proj, Epic: epic, Root: "/r", Now: day})

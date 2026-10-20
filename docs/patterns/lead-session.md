@@ -93,7 +93,7 @@ The worker's dispatch prompt names its lead under `## Your lead`. A child of an 
 | `issue-cli lead message <target> "text"` | Pastes the text into a session, signed `[from lead-x]`. Target: `project`, a `lead-`/`agent-` name, an epic slug (its sub-lead) or an issue slug (its worker) |
 | `/p/<project>/agents` | The agents canvas: the whole tree, each agent's state, the unfinished jobs, and a panel to approve, message or attach |
 
-Workers can't use `lead message`. They post `question:` comments, which their lead reads from the issue trail. A lead still reads everything without interrupting anyone:
+Agents can also message each other with Claude Code's built-in messaging between sessions (`ListAgents` / `SendMessage`): Claude agents are launched with `-n <tmux name>`, so `lead-<project>`, `lead-<epic>` and `agent-<slug>` are their addresses, and the briefs tell workers they may message their lead or a peer this way. Nothing in the tool gates or records these messages. `lead message` is the tmux-paste fallback (for Codex), and workers can't use it; they post `question:` comments, which their lead reads from the issue trail. A lead still reads everything without interrupting anyone:
 
 | Channel | Command | Shows |
 |---|---|---|

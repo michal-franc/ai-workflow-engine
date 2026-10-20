@@ -85,9 +85,11 @@ func runLeadSpawn(ctx *Context, args []string) error {
 	projectLead := tracker.LeadSessionName(proj, tracker.LeadScopeProject)
 	switch me.Role {
 	case tracker.RoleWorker:
-		return fmt.Errorf("workers can't spawn leads (you are %s, detected from %s).\n\nPost a question: comment on your issue instead; your lead relays it:\n  issue-cli comment <slug> \"question: ...\"", valueOr(me.Name, "a worker"), me.Signal)
+		return fmt.Errorf("workers can't spawn leads (you are %s, detected from %s).\n\nPost a question: comment on your issue instead; your lead relays it:\n  %s", valueOr(me.Name, "a worker"), me.Signal,
+			tracker.InjectProject(proj, fmt.Sprintf("issue-cli comment %s \"question: ...\"", valueOr(me.Slug, "<slug>"))))
 	case tracker.RoleSubLead:
-		return fmt.Errorf("sub-leads can't spawn leads: the hierarchy is fixed at project lead → sub-lead → worker.\n\nAsk the project lead:\n  issue-cli lead message %s \"...\"", projectLead)
+		return fmt.Errorf("sub-leads can't spawn leads: the hierarchy is fixed at project lead → sub-lead → worker.\n\nAsk the project lead:\n  %s",
+			tracker.InjectProject(proj, fmt.Sprintf("issue-cli lead message %s \"...\"", projectLead)))
 	}
 
 	root := projectRoot(proj)

@@ -22,7 +22,8 @@ func LeadSpec(proj *tracker.Project, wf *tracker.WorkflowConfig, issues []*track
 		spec.LeadScope = tracker.LeadScopeProject
 	} else {
 		if !tracker.IsEpic(epic, issues) {
-			return Spec{}, fmt.Errorf("%s is not an epic: no issue names it as parent, and it has no type: epic or lead:.\n\nMake it one by linking a child:\n  issue-cli set-meta <child-slug> --key parent --value %s", epic.Slug, epic.Slug)
+			return Spec{}, fmt.Errorf("%s is not an epic: no issue names it as parent, and it has no type: epic, lead: or base:.\n\nMake it one by linking a child:\n  %s",
+				epic.Slug, tracker.InjectProject(proj, "issue-cli set-meta <child-slug> --key parent --value "+epic.Slug))
 		}
 		if epic.Field("base") == "" {
 			base := tracker.EpicBase(epic)

@@ -150,7 +150,7 @@ The dispatch prompt and the status prompts in `workflow.yaml` already tell worke
 
 ### Handoff and restarts
 
-Each lead writes its own handoff note before it exits: `sessions/YYYY-MM-DD-lead-<scope>.md`, where scope is the project slug or the epic slug with dashes. The project lead's note lists its live sub-leads. A new lead's brief names its newest note to read first; the project lead falls back to the older `sessions/*-lead-session.md`.
+Each lead writes its own handoff note before it exits: `sessions/YYYY-MM-DD-lead-<scope>.md`, where scope is the project slug or the epic slug with dashes. Each note ends with a `## Next` section: the ordered next steps. The viewer's Status page (`/p/<project>/status`) shows the project lead's `## Next` list, and its text form, `/p/<project>/status.md`, is a ready-made stand-up to paste. The project lead's note lists its live sub-leads. A new lead's brief names its newest note to read first; the project lead falls back to the older `sessions/*-lead-session.md`.
 
 After a restart (tmux and the board gone, worktrees kept):
 

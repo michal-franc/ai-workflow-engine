@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/michal-franc/issue-viewer/internal/testids"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -87,6 +88,9 @@ var funcMap = template.FuncMap{
 	// statusFragment normalises a status name into the form used by the
 	// `id="approve-<status>"` anchors on the detail page so deep links emitted
 	// by the CLI (`#approve-in-progress`) line up with the DOM.
+	// tid turns a status or slug into one data-testid segment (see
+	// internal/testids).
+	"tid": testids.Segment,
 	"statusFragment": func(s string) string {
 		return strings.ReplaceAll(strings.TrimSpace(s), " ", "-")
 	},

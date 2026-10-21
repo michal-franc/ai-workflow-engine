@@ -9,49 +9,49 @@
     <script src="/static/theme.js"></script>
 </head>
 <body>
-    <div class="header">
+    <div class="header" data-testid="header.bar">
         <div class="container header-inner">
             <div style="display:flex;align-items:center;">
                 <a href="/" class="project-back-link">Projects</a>
                 <span class="header-sep">/</span>
                 <h1>{{.ProjectName}}</h1>
-                <span class="count">{{.Total}}</span>
+                <span class="count" data-testid="header.count">{{.Total}}</span>
             </div>
             <nav class="view-tabs">
-                <a href="{{.Prefix}}/" class="view-tab">
+                <a href="{{.Prefix}}/" data-testid="nav.tab.list" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v1.5H2V2zm0 4h12v1.5H2V6zm0 4h12v1.5H2V10zm0 4h12v1.5H2V14z"/></svg>
                     List
                 </a>
-                <a href="{{.Prefix}}/board" class="view-tab active">
+                <a href="{{.Prefix}}/board" data-testid="nav.tab.board" class="view-tab active">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v8H6V2zm5 0h4v10h-4V2z"/></svg>
                     Board
                 </a>
-                <a href="{{.Prefix}}/graph" class="view-tab">
+                <a href="{{.Prefix}}/graph" data-testid="nav.tab.graph" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.5" cy="8" r="1.75"/><circle cx="8" cy="2.5" r="1.75"/><circle cx="13.5" cy="8" r="1.75"/><circle cx="8" cy="13.5" r="1.75"/><path d="M4.2 8h7.6M8 4.2v7.6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
                     Graph
                 </a>
-                <a href="{{.Prefix}}/canvas" class="view-tab">
+                <a href="{{.Prefix}}/canvas" data-testid="nav.tab.canvas" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.75C1 1.78 1.78 1 2.75 1h2.5C6.22 1 7 1.78 7 2.75v2.5C7 6.22 6.22 7 5.25 7h-2.5C1.78 7 1 6.22 1 5.25v-2.5zm8 0C9 1.78 9.78 1 10.75 1h2.5c.97 0 1.75.78 1.75 1.75v2.5c0 .97-.78 1.75-1.75 1.75h-2.5C9.78 7 9 6.22 9 5.25v-2.5zM2.5 9h3.75v1.5H2.5zm0 3h3.75v1.5H2.5zM9 9.75C9 9.34 9.34 9 9.75 9h4.5c.41 0 .75.34.75.75v4.5c0 .41-.34.75-.75.75h-4.5A.75.75 0 019 14.25v-4.5z"/></svg>
                     Canvas
                 </a>
-                <a href="{{.Prefix}}/docs" class="view-tab">
+                <a href="{{.Prefix}}/docs" data-testid="nav.tab.docs" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h5v2H3v10h4v2H1V1zm9 0h5v14H8v-2h4V3H10V1zM5 5h2v1H5V5zm0 2h2v1H5V7zm0 2h2v1H5V9z"/></svg>
                     Docs
                 </a>
-                <a href="{{.Prefix}}/retros" class="view-tab">
+                <a href="{{.Prefix}}/retros" data-testid="nav.tab.retros" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.75A1.75 1.75 0 014.75 1h6.5A1.75 1.75 0 0113 2.75v10.5A1.75 1.75 0 0111.25 15h-6.5A1.75 1.75 0 013 13.25V2.75zm2 .75v1.25h6V3.5H5zm0 3v1.25h6V6.5H5zm0 3v1.25h4V9.5H5z"/></svg>
                     Retros
                 </a>
-                <a href="{{.Prefix}}/workflow-designer" class="view-tab">
+                <a href="{{.Prefix}}/workflow-designer" data-testid="nav.tab.workflow_designer" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3.25A1.25 1.25 0 013.75 2h2.5A1.25 1.25 0 017.5 3.25v2.5A1.25 1.25 0 016.25 7h-2.5A1.25 1.25 0 012.5 5.75v-2.5zm6 0A1.25 1.25 0 019.75 2h2.5a1.25 1.25 0 011.25 1.25v2.5A1.25 1.25 0 0112.25 7h-2.5A1.25 1.25 0 018.5 5.75v-2.5zm-6 6A1.25 1.25 0 013.75 8h2.5A1.25 1.25 0 017.5 9.25v2.5A1.25 1.25 0 016.25 13h-2.5a1.25 1.25 0 01-1.25-1.25v-2.5zm9.25.75a.75.75 0 010 1.5H10v1.75a.75.75 0 01-1.5 0V11.5H6.75a.75.75 0 010-1.5H8.5V8.25a.75.75 0 011.5 0V10h1.75z"/></svg>
                     Workflow
                 </a>
-                <a href="{{.Prefix}}/stats" class="view-tab">
+                <a href="{{.Prefix}}/stats" data-testid="nav.tab.stats" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 14h14v1H1v-1zm2-4h2v3H3v-3zm3-4h2v7H6V6zm3 2h2v5H9V8zm3-6h2v11h-2V2z"/></svg>
                     Stats
                 </a>
                 {{if .SupportsGitHub}}
-                <a href="{{.Prefix}}/github" class="view-tab">
+                <a href="{{.Prefix}}/github" data-testid="nav.tab.github" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
                     GitHub
                 </a>
@@ -59,7 +59,7 @@
             </nav>
             <div class="theme-picker">
                 <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
-                <button class="header-create-btn" title="New issue" onclick="openCreateModal('')">
+                <button class="header-create-btn" data-testid="header.create" title="New issue" onclick="openCreateModal('')">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M7.25 1a.75.75 0 01.75.75V7h5.25a.75.75 0 010 1.5H8v5.25a.75.75 0 01-1.5 0V8.5H1.25a.75.75 0 010-1.5H6.5V1.75A.75.75 0 017.25 1z"/></svg>
                     New issue
                 </button>
@@ -72,17 +72,17 @@
 
     {{template "project-actions-bar" .}}
 
-    <form class="board-filter-bar" method="GET" action="{{.Prefix}}/board">
-        <input type="search" class="board-search" id="board-search" placeholder="Search issues..." oninput="filterBoardCards(this.value)">
+    <form class="board-filter-bar" data-testid="board.filters" method="GET" action="{{.Prefix}}/board">
+        <input type="search" class="board-search" id="board-search" data-testid="board.search" placeholder="Search issues..." oninput="filterBoardCards(this.value)">
 
-        <select name="version" onchange="this.form.submit()">
+        <select name="version" data-testid="board.filter.version" onchange="this.form.submit()">
             <option value="">All versions</option>
             {{range .Versions}}
             <option value="{{.}}" {{if eq . $.Version}}selected{{end}}>v{{.}}</option>
             {{end}}
         </select>
 
-        <select name="system" onchange="this.form.submit()">
+        <select name="system" data-testid="board.filter.system" onchange="this.form.submit()">
             <option value="">All systems</option>
             {{range .Systems}}
             <option value="{{.}}" {{if eq . $.System}}selected{{end}}>{{.}}</option>
@@ -90,7 +90,7 @@
         </select>
 
         {{if .WorkTypes}}
-        <select name="type" onchange="this.form.submit()">
+        <select name="type" data-testid="board.filter.type" onchange="this.form.submit()">
             <option value="">All types</option>
             {{range .WorkTypes}}
             <option value="{{.Name}}" title="{{.Path}}" {{if eq .Name $.WorkType}}selected{{end}}>{{.Name}}</option>
@@ -98,7 +98,7 @@
         </select>
         {{end}}
 
-        <select name="assignee" onchange="this.form.submit()">
+        <select name="assignee" data-testid="board.filter.assignee" onchange="this.form.submit()">
             <option value="">All assignees</option>
             <option value="_claimed" {{if eq .Assignee "_claimed"}}selected{{end}}>Claimed</option>
             <option value="_unclaimed" {{if eq .Assignee "_unclaimed"}}selected{{end}}>Unclaimed</option>
@@ -108,15 +108,15 @@
         </select>
 
         {{if or .Version .System .Assignee .HideEmpty .WorkType}}
-        <a href="{{.Prefix}}/board" class="clear-btn">Clear filters</a>
+        <a href="{{.Prefix}}/board" class="clear-btn" data-testid="board.clear">Clear filters</a>
         {{end}}
 
-        <label class="board-hide-empty" title="Hide statuses with no issues">
+        <label class="board-hide-empty" data-testid="board.hide_empty" title="Hide statuses with no issues">
             <input type="checkbox" name="hide_empty" value="1" {{if .HideEmpty}}checked{{end}} onchange="this.form.submit()">
             Hide empty
         </label>
 
-        <button class="board-layout-btn" id="layout-toggle" title="Toggle layout" onclick="toggleBoardLayout()">
+        <button class="board-layout-btn" id="layout-toggle" data-testid="board.layout_toggle" title="Toggle layout" onclick="toggleBoardLayout()">
             <svg id="layout-icon-h" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v12H6V2zm5 0h4v12h-4V2z"/></svg>
             <svg id="layout-icon-v" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="display:none"><path d="M2 1h12v4H2V1zm0 5h12v4H2V6zm0 5h12v4H2v-4z"/></svg>
         </button>
@@ -125,16 +125,16 @@
     <div class="board-container">
         <div class="board">
             {{range .Columns}}
-            <div class="board-column{{if .Optional}} board-column-optional{{end}}{{if .Global}} board-column-global{{end}}" data-status="{{.Status}}">
+            <div class="board-column{{if .Optional}} board-column-optional{{end}}{{if .Global}} board-column-global{{end}}" data-status="{{.Status}}" data-testid="board.column.{{tid .Status}}">
                 <div class="board-column-header" onclick="toggleColumn(this)">
                     <div class="board-column-header-top">
                         <svg class="board-column-chevron" width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M4 2l4 4-4 4"/></svg>
                         <span class="board-column-dot" style="border-color:{{statusColor .Status}}"></span>
-                        <span class="board-column-title">{{.Status}}</span>
+                        <span class="board-column-title" data-testid="board.column.{{tid .Status}}.title">{{.Status}}</span>
                         {{if .Optional}}<span class="board-column-optional-badge" title="Optional status — forward transitions may skip this column">optional</span>{{end}}
                         {{if .Global}}<span class="board-column-global-badge" title="Global status — transitions from here are allowed to any status">global</span>{{end}}
-                        <span class="board-column-count">{{len .Issues}}</span>
-                        <button class="board-column-add" title="Add issue" onclick="event.stopPropagation(); openCreateModal('{{.Status}}')">
+                        <span class="board-column-count" data-testid="board.column.{{tid .Status}}.count">{{len .Issues}}</span>
+                        <button class="board-column-add" data-testid="board.column.{{tid .Status}}.add" title="Add issue" onclick="event.stopPropagation(); openCreateModal('{{.Status}}')">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M7.25 1a.75.75 0 01.75.75V7h5.25a.75.75 0 010 1.5H8v5.25a.75.75 0 01-1.5 0V8.5H1.25a.75.75 0 010-1.5H6.5V1.75A.75.75 0 017.25 1z"/></svg>
                         </button>
                     </div>
@@ -142,10 +142,10 @@
                     <div class="board-column-desc">{{.Description}}</div>
                     {{end}}
                 </div>
-                <div class="board-column-cards">
+                <div class="board-column-cards" data-testid="board.column.{{tid .Status}}.cards">
                     {{range .Issues}}
                     <div class="board-card-wrapper" data-slug="{{.Slug}}">
-                        <a href="{{$.Prefix}}/issue/{{.Slug}}?from=board{{if $.Version}}%3Fversion%3D{{$.Version}}{{end}}" class="board-card{{if .HasActiveAgent}} board-card-agent-active{{end}}" draggable="true" data-slug="{{.Slug}}">
+                        <a href="{{$.Prefix}}/issue/{{.Slug}}?from=board{{if $.Version}}%3Fversion%3D{{$.Version}}{{end}}" class="board-card{{if .HasActiveAgent}} board-card-agent-active{{end}}" draggable="true" data-slug="{{.Slug}}" data-testid="board.card.{{tid .Slug}}">
                             {{if and $.ScoringEnabled .HasScore}}
                             <span class="board-card-score" style="background:{{scoreColor .Score}}" title="Ticket score — open for breakdown">⚡ {{formatScore .Score}}</span>
                             {{end}}
@@ -163,7 +163,7 @@
                                     {{end}}
                                 {{end}}
                             </div>
-                            <div class="board-card-title">{{.Title}}</div>
+                            <div class="board-card-title" data-testid="board.card.{{tid .Slug}}.title">{{.Title}}</div>
                         </a>
                         <div class="board-card-dispatch" onclick="event.stopPropagation(); toggleAgentPicker(this)">
                             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.75a.75.75 0 00-1.19.61v11.28a.75.75 0 001.19.61l9.5-5.64a.75.75 0 000-1.22L1.5 1.75z"/></svg>
@@ -204,17 +204,17 @@
     {{template "project-actions-modal" .}}
 
     <!-- Transition prompt modal -->
-    <div class="modal-overlay" id="transition-modal" style="display:none">
+    <div class="modal-overlay" id="transition-modal" data-testid="board.transition_modal" style="display:none">
         <div class="modal" style="max-width:560px">
-            <div class="modal-title" id="transition-modal-title">Confirm transition</div>
+            <div class="modal-title" id="transition-modal-title" data-testid="board.transition_modal.title">Confirm transition</div>
             <div class="modal-body">
                 <div id="transition-modal-summary" style="margin-bottom:12px;color:#8b949e;font-size:13px"></div>
                 <div id="transition-modal-fields"></div>
-                <div id="transition-modal-error" style="color:#f85149;font-size:13px;margin-top:8px;display:none"></div>
+                <div id="transition-modal-error" data-testid="board.transition_modal.error" style="color:#f85149;font-size:13px;margin-top:8px;display:none"></div>
             </div>
             <div class="modal-actions">
-                <button class="modal-btn modal-btn-cancel" id="transition-modal-cancel">Cancel</button>
-                <button class="modal-btn modal-btn-primary" id="transition-modal-confirm">Confirm</button>
+                <button class="modal-btn modal-btn-cancel" id="transition-modal-cancel" data-testid="board.transition_modal.cancel">Cancel</button>
+                <button class="modal-btn modal-btn-primary" id="transition-modal-confirm" data-testid="board.transition_modal.confirm">Confirm</button>
             </div>
         </div>
     </div>
@@ -237,7 +237,7 @@
         </div>
     </div>
 
-    <div class="save-toast" id="save-toast">Saved</div>
+    <div class="save-toast" id="save-toast" data-testid="board.toast">Saved</div>
 
     <script>
     // Board layout toggle

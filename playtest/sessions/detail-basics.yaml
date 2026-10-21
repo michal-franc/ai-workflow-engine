@@ -1,0 +1,57 @@
+session: detail-basics
+issue: workflow/playtest-sessions-an-issues-manual-checks-as-a-runnable-yaml-session-on-a-sandbox-scenario
+title: Detail page edits reach the issue file
+scenario: basic
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+  # Known bug: at phone width the header doesn't wrap (see board-basics).
+  layout_ignore: [header.bar]
+
+steps:
+  - id: TP7
+    title: Ticking a body checkbox saves it to the issue file
+    setup:
+      - open: /p/{project}/issue/ui/card-titles-overflow-on-a-phone
+      - check: { issue: { slug: ui/card-titles-overflow-on-a-phone, checkbox: P1, checked: false } }
+    act:
+      - click: detail.body.checkbox.0
+    checks:
+      - selected: detail.body.checkbox.0
+      - issue: { slug: ui/card-titles-overflow-on-a-phone, checkbox: P1, checked: true }
+      - issue: { slug: ui/card-titles-overflow-on-a-phone, checkbox: P2, checked: false }
+
+  - id: TP8
+    title: The approval button approves the issue for the next status
+    setup:
+      - open: /p/{project}/issue/cli/export-issues-as-csv
+    act:
+      - click: detail.approve.in_progress
+    checks:
+      - selected: detail.approve.in_progress
+      - issue: { slug: cli/export-issues-as-csv, field: human_approval, equals: in progress }
+
+  - id: TP9
+    title: Changing status in the sidebar writes it to the file
+    setup:
+      - open: /p/{project}/issue/ui/dark-mode-toggle
+    act:
+      - select: { target: detail.status, value: backlog }
+    checks:
+      - value_equals: { target: detail.status, value: backlog }
+      - issue: { slug: ui/dark-mode-toggle, field: status, equals: backlog }
+
+  - id: TP10
+    title: A comment added on a body block is saved
+    setup:
+      - open: /p/{project}/issue/ui/dark-mode-toggle
+    act:
+      - hover: detail.block.1
+      - click: detail.comment.eye.1
+      - type: { target: detail.comment.input.1, text: "playtest says hi" }
+      - click: detail.comment.submit.1
+    checks:
+      - text_equals: { target: detail.comment.eye.1, text: "1" }
+      - issue: { slug: ui/dark-mode-toggle, comment_contains: playtest says hi }

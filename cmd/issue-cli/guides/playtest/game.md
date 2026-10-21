@@ -6,8 +6,8 @@ order: 22
 # Playtest example: a game
 
 This is how RogueTech.X (a Godot game) playtests its screens. Its full
-reference is `docs/workflows/playtest-sessions.md` in that repo, with code in
-`Game/Playtest/`, `UI/Testing/` and `tools/PlaytestTool/`. Copy the parts
+reference is the playtest-sessions page under docs/workflows in that repo,
+with code in its Game/Playtest, UI/Testing and tools/PlaytestTool folders. Copy the parts
 your game needs. The shared shape is in `issue-cli process playtest`.
 
 ## What is different from a web app

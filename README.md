@@ -131,7 +131,7 @@ you    tick the approval on the issue page                       ← gate 1: the
 agent  issue-cli start <slug> --wait --timeout 9m        waits for the go-ahead to build
 you    tick the next approval                                    ← gate 2: start building
 agent  builds, tests, posts "tests: go test ./... green", moves to testing, then human-testing
-you    try it with the manual steps it wrote, tick the approval  ← gate 3: it works
+you    judge the steps a machine can't (make playtest), tick the approval  ← gate 3: it works
 agent  documentation → shipping
 you    tick the last approval                                    ← gate 4: ship it
 agent  → done, then files a retrospective on the workflow
@@ -198,6 +198,14 @@ Raid League is a football-manager-style game about a fantasy siege tourney, buil
 ![Child branches start from the experiment's base branch and merge back into it; the base branch goes to main only when the human decides](docs/images/umbrella-branches.png)
 
 The lead session and umbrella features are conventions written into that project's `workflow.yaml` prompts and frontmatter, not built-in features (yet). How to set them up for your own project: [docs/patterns/lead-session.md](docs/patterns/lead-session.md).
+
+Manual checks run as playtest sessions:
+
+- Each issue's checks are a YAML file whose step ids are the issue's checkbox ids.
+- A machine runs everything it can see in headless Chrome against a throwaway board.
+- You only judge the rest, in an overlay on the board, and a report ticks the boxes that passed.
+
+To build one for your own project, see [docs/patterns/playtest/](docs/patterns/playtest/README.md) or run `issue-cli process playtest`.
 
 ## Status and roadmap
 

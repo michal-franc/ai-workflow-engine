@@ -39,7 +39,7 @@ func readTemplateStamp(raw []byte) string {
 	return strings.TrimSpace(doc.Template)
 }
 
-// parseTemplateStamp splits "development@v0.34.0" into name and version.
+// parseTemplateStamp splits "development@v0.36.0" into name and version.
 func parseTemplateStamp(stamp string) (name, version string, ok bool) {
 	name, version, found := strings.Cut(stamp, "@")
 	name, version = strings.TrimSpace(name), strings.TrimSpace(version)
@@ -179,7 +179,7 @@ func buildUpgradePlan(path string, raw []byte, templateFlag string, all bool) (*
 		if !ok {
 			plan.Status = upgradeUnknownTemplate
 			plan.Template = stamp
-			plan.Message = fmt.Sprintf("`template: %s` is not <name>@vX.Y.Z (e.g. %s@%s) or custom. Fix the stamp, or remove it and pass --template.", stamp, defaultUpgradeTemplate, "v0.34.0")
+			plan.Message = fmt.Sprintf("`template: %s` is not <name>@vX.Y.Z (e.g. %s@%s) or custom. Fix the stamp, or remove it and pass --template.", stamp, defaultUpgradeTemplate, "v0.36.0")
 			return plan, nil
 		}
 		if templateFlag != "" && templateFlag != name {

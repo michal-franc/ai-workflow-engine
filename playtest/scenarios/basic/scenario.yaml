@@ -1,0 +1,9 @@
+# A small project: five statuses, five issues spread over them, one
+# approval gate (backlog → in progress). The default for board, list and
+# detail sessions.
+title: Small project, one approval gate
+project:
+  name: Playtest Demo
+  slug: demo
+issues: tracker
+workflow: workflow.yaml

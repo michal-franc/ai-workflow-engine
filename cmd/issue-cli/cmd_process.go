@@ -22,6 +22,7 @@ Topics:
   transitions    Transition rules (--system <name>, --type <name> or <issue-slug>)
   format         Issue file format
   testing        Test plan convention
+  playtest       Manual checks as runnable sessions (playtest web | game: examples)
   docs           Documentation convention
   systems        Available systems
   schema         workflow.yaml schema
@@ -36,7 +37,7 @@ For per-command help (flags, examples) run: issue-cli help <command>`,
 
 // processTopics are the canonical topic names normalizeTopic resolves to.
 // help and process both record them as their telemetry subcommand.
-var processTopics = []string{"workflow", "transitions", "format", "testing", "docs", "systems", "schema", "changes", "references"}
+var processTopics = []string{"workflow", "transitions", "format", "testing", "playtest", "docs", "systems", "schema", "changes", "references"}
 
 func init() {
 	registerCommand(processCommand)
@@ -63,6 +64,8 @@ func runProcess(ctx *Context, args []string) error {
 	case "testing":
 		fmt.Fprint(ctx.Stdout, processTestingText)
 		return nil
+	case "playtest":
+		return runProcessPlaytest(ctx, topicArgs)
 	case "docs":
 		fmt.Fprint(ctx.Stdout, processDocsText)
 		return nil
@@ -76,7 +79,7 @@ func runProcess(ctx *Context, args []string) error {
 		fmt.Fprint(ctx.Stdout, processReferencesText)
 		return nil
 	default:
-		return fmt.Errorf("unknown topic: %s\n\nAvailable topics: workflow, format, transitions, schema, changes, testing, docs, systems, references\nFor a specific command run: issue-cli help <command>  (e.g. issue-cli help transition)", args[0])
+		return fmt.Errorf("unknown topic: %s\n\nAvailable topics: workflow, format, transitions, schema, changes, testing, playtest, docs, systems, references\nFor a specific command run: issue-cli help <command>  (e.g. issue-cli help transition)", args[0])
 	}
 }
 
@@ -93,6 +96,8 @@ func normalizeTopic(topic string) string {
 		return "format"
 	case "test", "tests", "testing", "test-plan", "testplan":
 		return "testing"
+	case "playtest", "playtests", "ux-test", "uxtest":
+		return "playtest"
 	case "doc", "docs", "documentation":
 		return "docs"
 	case "system", "systems":
@@ -737,6 +742,9 @@ Rules:
   - Only humans check off ### Manual items
   - A test results comment is required:
     issue-cli comment <slug> --text "tests: 3 unit tests added, all passing"
+  - When the project has a playtest system, write the ### Manual steps as a
+    playtest session (step id = checkbox id) so a machine runs what it can
+    and the owner sees only the judgement steps: issue-cli process playtest
 
 To add a Test Plan section to an issue:
   issue-cli append <slug> --body "## Test Plan

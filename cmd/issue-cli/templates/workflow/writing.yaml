@@ -2,23 +2,23 @@
 # issue-cli release that last changed it. `issue-cli workflow upgrade` compares
 # it with the template bundled in the binary and proposes newer features.
 # Set it to `custom` if this workflow is no longer based on a template.
-template: writing@v0.34.0
+template: writing@v0.36.0
 
 # Feature record: catalog features this file has (<id>@<version>) and the
 # ones the human declined. Written by `issue-cli workflow scan`, read by
 # `issue-cli workflow upgrade`.
 features:
   installed:
-    - status-prompts@v0.34.0
-    - human-approval-gates@v0.34.0
-    - checklist-gates@v0.34.0
-    - comment-evidence-gates@v0.34.0
-    - body-structure-gates@v0.34.0
-    - checklist-sections@v0.34.0
-    - project-actions@v0.34.0
-    - board-columns@v0.34.0
-    - board-card-fields@v0.34.0
-    - lead-handoff-prompts@v0.34.0
+    - status-prompts@v0.36.0
+    - human-approval-gates@v0.36.0
+    - checklist-gates@v0.36.0
+    - comment-evidence-gates@v0.36.0
+    - body-structure-gates@v0.36.0
+    - checklist-sections@v0.36.0
+    - project-actions@v0.36.0
+    - board-columns@v0.36.0
+    - board-card-fields@v0.36.0
+    - lead-handoff-prompts@v0.36.0
 
 board:
   columns:

@@ -157,6 +157,17 @@ func TestFeatureProbesAreStructural(t *testing.T) {
 			not:  []string{"sandbox-manual-tests", "status-prompts"},
 		},
 		{
+			name: "a playtest status is not the playtest-sessions convention",
+			raw:  "statuses:\n  - name: playtest\n    prompt: the human watches the playtest in-game\n",
+			want: []string{"status-prompts"},
+			not:  []string{"playtest-sessions"},
+		},
+		{
+			name: "playtest session wording is the playtest-sessions convention",
+			raw:  "statuses:\n  - name: testing\n    prompt: write the manual checks as a playtest session\n",
+			want: []string{"playtest-sessions"},
+		},
+		{
 			name: "rule names match before the colon",
 			raw:  "transitions:\n  - from: a\n    to: b\n    actions:\n      - type: validate\n        rule: \"section_checkboxes_checked: Design\"\n      - type: validate\n        rule: has_any_label\n",
 			want: []string{"checklist-gates", "label-gates"},
@@ -219,7 +230,7 @@ statuses:
 `
 
 func TestWriteFeatureRecordInsertsAfterTemplate(t *testing.T) {
-	rec := tracker.FeatureRecord{Installed: []string{"status-prompts@v0.34.0"}, Declined: []string{"scoring"}}
+	rec := tracker.FeatureRecord{Installed: []string{"status-prompts@v0.36.0"}, Declined: []string{"scoring"}}
 	out, err := writeFeatureRecord([]byte(recordWorkflow), rec)
 	if err != nil {
 		t.Fatal(err)
@@ -247,7 +258,7 @@ func TestWriteFeatureRecordReplacesExistingBlock(t *testing.T) {
 		"features: {installed: [old@v0.1.0]}\n",
 	} {
 		raw := "template: development@v0.1.0\n" + existing + "\n# keep me\nstatuses:\n  - name: idea\n"
-		rec := tracker.FeatureRecord{Installed: []string{"new@v0.34.0"}}
+		rec := tracker.FeatureRecord{Installed: []string{"new@v0.36.0"}}
 		out, err := writeFeatureRecord([]byte(raw), rec)
 		if err != nil {
 			t.Fatal(err)
@@ -275,7 +286,7 @@ func TestScanWorkflowFeaturesMergesRecordAndFlags(t *testing.T) {
 	gotInstalled := strings.Join(res.Record.Installed, ",")
 	// status-prompts keeps its recorded version; scoring is recorded but not
 	// detected (kept); parked-status is detected, so it leaves declined.
-	want := "status-prompts@v0.1.0,parked-status@v0.34.0,types-of-work@v0.34.0,scoring@v0.1.0,from-the-future@v9.0.0"
+	want := "status-prompts@v0.1.0,parked-status@v0.36.0,types-of-work@v0.36.0,scoring@v0.1.0,from-the-future@v9.0.0"
 	if gotInstalled != want {
 		t.Errorf("installed = %s\nwant      %s", gotInstalled, want)
 	}
@@ -283,7 +294,7 @@ func TestScanWorkflowFeaturesMergesRecordAndFlags(t *testing.T) {
 		t.Errorf("declined = %s, want issue-actions (worktree forgotten, parked-status installed)", got)
 	}
 	changes := strings.Join(res.Changes, "\n")
-	for _, c := range []string{"+ installed parked-status@v0.34.0", "- declined parked-status (now installed)", "+ installed types-of-work@v0.34.0", "+ declined issue-actions", "- declined worktree (re-opened)"} {
+	for _, c := range []string{"+ installed parked-status@v0.36.0", "- declined parked-status (now installed)", "+ installed types-of-work@v0.36.0", "+ declined issue-actions", "- declined worktree (re-opened)"} {
 		assertContains(t, changes, c)
 	}
 	notes := strings.Join(res.Notes, "\n")
@@ -311,12 +322,12 @@ func TestScanWorkflowFeaturesRejectsBadFlags(t *testing.T) {
 }
 
 func TestScanWorkflowFeaturesForgetRemovesUndetectedInstall(t *testing.T) {
-	raw := "features:\n  installed: [scoring@v0.34.0]\nstatuses:\n  - name: idea\n"
+	raw := "features:\n  installed: [scoring@v0.36.0]\nstatuses:\n  - name: idea\n"
 	res, err := scanWorkflowFeatures("workflow.yaml", []byte(raw), scanOptions{Forget: []string{"scoring"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(res.Record.Installed) != 0 || !strings.Contains(strings.Join(res.Changes, ","), "- installed scoring@v0.34.0") {
+	if len(res.Record.Installed) != 0 || !strings.Contains(strings.Join(res.Changes, ","), "- installed scoring@v0.36.0") {
 		t.Fatalf("record = %+v, changes = %v", res.Record, res.Changes)
 	}
 }
@@ -399,7 +410,7 @@ func TestBuildUpgradePlanUsesRecordFirst(t *testing.T) {
 	// types-of-work is recorded but not in the file: the record wins, so it
 	// isn't proposed. worktree is in the file but not recorded: listed as
 	// unrecorded, not proposed. scoring is declined: listed, not proposed.
-	raw := "features:\n  installed: [types-of-work@v0.34.0]\n  declined: [scoring]\nworktree: true\n" + oldDevelopmentWorkflow
+	raw := "features:\n  installed: [types-of-work@v0.36.0]\n  declined: [scoring]\nworktree: true\n" + oldDevelopmentWorkflow
 	plan, err := buildUpgradePlan("workflow.yaml", []byte(raw), "", false)
 	if err != nil {
 		t.Fatal(err)

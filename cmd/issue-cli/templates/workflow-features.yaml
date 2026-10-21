@@ -41,7 +41,7 @@
 entries:
   # ---------------------------------------------------------------- lifecycle
   - id: status-prompts
-    version: v0.34.0
+    version: v0.36.0
     category: lifecycle
     propose: false
     title: "Per-status agent guidance"
@@ -63,7 +63,7 @@ entries:
       - path: statuses[].prompt
 
   - id: optional-statuses
-    version: v0.34.0
+    version: v0.36.0
     category: lifecycle
     propose: false
     title: "Optional (skippable) statuses"
@@ -93,7 +93,7 @@ entries:
       - path: transitions[].cta_label
 
   - id: parked-status
-    version: v0.34.0
+    version: v0.36.0
     category: lifecycle
     propose: true
     templates: [development]
@@ -127,7 +127,7 @@ entries:
         equals: true
 
   - id: wildcard-transitions
-    version: v0.34.0
+    version: v0.36.0
     category: lifecycle
     propose: false
     title: "Wildcard transitions (from: \"*\")"
@@ -150,7 +150,7 @@ entries:
         equals: "*"
 
   - id: transition-fields
-    version: v0.34.0
+    version: v0.36.0
     category: lifecycle
     propose: false
     title: "Transition fields (answers collected before a move)"
@@ -173,7 +173,7 @@ entries:
       - path: transitions[].fields[].name
 
   - id: types-of-work
-    version: v0.34.0
+    version: v0.36.0
     category: lifecycle
     propose: true
     templates: [development]
@@ -232,7 +232,7 @@ entries:
       - path: types
 
   - id: system-overlays
-    version: v0.34.0
+    version: v0.36.0
     category: lifecycle
     propose: true
     title: "Per-system prompt and checklist overlays"
@@ -258,7 +258,7 @@ entries:
 
   # -------------------------------------------------------------------- gates
   - id: human-approval-gates
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "Human approval gates"
@@ -282,7 +282,7 @@ entries:
         one_of: [require_human_approval]
 
   - id: checklist-gates
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "Checklist gates"
@@ -306,7 +306,7 @@ entries:
         rule_in: [section_checkboxes_checked, section_has_checkboxes, all_checkboxes_checked, has_checkboxes]
 
   - id: assignee-gate
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "Assignee required to start"
@@ -329,7 +329,7 @@ entries:
         rule_in: [has_assignee]
 
   - id: test-plan-gate
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "Test plan required"
@@ -352,7 +352,7 @@ entries:
         rule_in: [has_test_plan]
 
   - id: comment-evidence-gates
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "Evidence comments required (tests:, docs:)"
@@ -375,7 +375,7 @@ entries:
         rule_in: [has_comment_prefix]
 
   - id: body-structure-gates
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "Body and section content gates"
@@ -399,7 +399,7 @@ entries:
         rule_in: [body_not_empty, has_section, section_min_length, section_max_length]
 
   - id: todo-marker-gate
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "No TODO/FIXME markers"
@@ -422,7 +422,7 @@ entries:
         rule_in: [no_todo_markers]
 
   - id: frontmatter-gates
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "Frontmatter field gates"
@@ -447,7 +447,7 @@ entries:
         rule_in: [field_present, field_not_empty, field_in, field_matches]
 
   - id: label-gates
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "Label gates"
@@ -469,7 +469,7 @@ entries:
         rule_in: [has_label, has_any_label]
 
   - id: pr-url-gate
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "Pull request link required"
@@ -491,7 +491,7 @@ entries:
         rule_in: [has_pr_url]
 
   - id: linked-issue-gate
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "Linked issue status gate"
@@ -516,7 +516,7 @@ entries:
         rule_in: [linked_issue_in_status]
 
   - id: shell-gate
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: true
     templates: [development]
@@ -547,7 +547,7 @@ entries:
         rule_in: [command_succeeds]
 
   - id: failure-hints
-    version: v0.34.0
+    version: v0.36.0
     category: gates
     propose: false
     title: "Custom failure hints"
@@ -572,7 +572,7 @@ entries:
 
   # --------------------------------------------------------------- automation
   - id: checklist-sections
-    version: v0.34.0
+    version: v0.36.0
     category: automation
     propose: false
     title: "Checklist sections appended on transition"
@@ -599,7 +599,7 @@ entries:
         one_of: [append_section]
 
   - id: transition-prompts
-    version: v0.34.0
+    version: v0.36.0
     category: automation
     propose: false
     title: "Prompts injected on a transition"
@@ -623,7 +623,7 @@ entries:
         one_of: [inject_prompt]
 
   - id: set-fields
-    version: v0.34.0
+    version: v0.36.0
     category: automation
     propose: false
     title: "Set or clear frontmatter on transition"
@@ -648,7 +648,7 @@ entries:
 
   # ------------------------------------------------------------------ actions
   - id: issue-actions
-    version: v0.34.0
+    version: v0.36.0
     category: actions
     propose: true
     title: "Issue action buttons"
@@ -674,7 +674,7 @@ entries:
       - path: actions
 
   - id: project-actions
-    version: v0.34.0
+    version: v0.36.0
     category: actions
     propose: true
     title: "Project action buttons"
@@ -699,7 +699,7 @@ entries:
 
   # -------------------------------------------------------------------- board
   - id: board-columns
-    version: v0.34.0
+    version: v0.36.0
     category: board
     propose: false
     title: "Custom board columns"
@@ -717,7 +717,7 @@ entries:
       - path: board.columns
 
   - id: board-card-fields
-    version: v0.34.0
+    version: v0.36.0
     category: board
     propose: false
     title: "Custom board card fields"
@@ -735,7 +735,7 @@ entries:
       - path: board.card_fields
 
   - id: scoring
-    version: v0.34.0
+    version: v0.36.0
     category: board
     propose: true
     templates: [development]
@@ -763,7 +763,7 @@ entries:
 
   # ----------------------------------------------------------------- dispatch
   - id: worktree
-    version: v0.34.0
+    version: v0.36.0
     category: dispatch
     propose: true
     templates: [development]
@@ -784,7 +784,7 @@ entries:
         equals: true
 
   - id: worktree-setup
-    version: v0.34.0
+    version: v0.36.0
     category: dispatch
     propose: false
     title: "Worktree setup command"
@@ -806,7 +806,7 @@ entries:
   # Prompt and checklist wording the bundled templates ship. The probes match
   # text, but only inside the fields that carry it.
   - id: lead-handoff-prompts
-    version: v0.34.0
+    version: v0.36.0
     category: conventions
     propose: true
     title: "Approval gates and questions are handed to the lead"
@@ -835,7 +835,7 @@ entries:
         contains: "end your turn"
 
   - id: design-overlap-discoverability
-    version: v0.34.0
+    version: v0.36.0
     category: conventions
     propose: true
     templates: [development]
@@ -872,7 +872,7 @@ entries:
         contains: "overlap reviewed"
 
   - id: sandbox-manual-tests
-    version: v0.34.0
+    version: v0.36.0
     category: conventions
     propose: true
     templates: [development]
@@ -909,8 +909,40 @@ entries:
       - path: transitions[].actions[].body
         contains: "sandbox"
 
+  - id: playtest-sessions
+    version: v0.36.0
+    category: conventions
+    propose: true
+    templates: [development]
+    title: "Manual checks as playtest sessions"
+    what: |
+      The testing and human-testing prompts say: if the project has a playtest system
+      (`issue-cli process playtest`), write the manual checks as a playtest session
+      (step id = checkbox id), pass its machine run before handing over, and point the
+      human at its playtest and report commands.
+    why: |
+      A machine runs the repeatable checks, so the human only judges what a machine
+      can't, and the report ticks the boxes that passed instead of the agent asking.
+    where: "the \"testing\" and \"human-testing\" status prompts"
+    snippet: |
+      statuses:
+        - name: "testing"
+          prompt: |
+            If the project has a playtest system (see `issue-cli process playtest`), write the manual checks as a playtest session (step id = checkbox id) and pass its machine run (ux-test) before handing over, so the human only judges what a machine can't.
+        - name: "human-testing"
+          prompt: |
+            If the manual checks are a playtest session, point the human at its playtest and report commands; the report ticks the boxes that passed and comments failures as `playtest:`.
+    question: "Should agents write manual checks as playtest sessions when the project has a playtest system (adds a line to the testing and human-testing prompts)?"
+    detect:
+      - path: statuses[].prompt
+        contains: "playtest session"
+      - path: transitions[].actions[].prompt
+        contains: "playtest session"
+      - path: transitions[].actions[].body
+        contains: "playtest session"
+
   - id: testing-unrelated-failures
-    version: v0.34.0
+    version: v0.36.0
     category: conventions
     propose: true
     templates: [development]

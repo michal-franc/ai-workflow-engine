@@ -32,7 +32,7 @@ Usage:
   issue-cli --json workflow upgrade               # machine-readable plan
 
 Stamp values:
-  template: development@v0.34.0   compared with the bundled development template
+  template: development@v0.36.0   compared with the bundled development template
   template: custom                hand-built workflow: no hints, no proposals
   (missing)                       unstamped: every feature the file lacks is proposed
 

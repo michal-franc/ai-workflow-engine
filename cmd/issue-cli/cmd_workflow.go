@@ -24,7 +24,7 @@ Subcommands:
 Feature record (top level of workflow.yaml, next to template:):
   features:
     installed:
-      - types-of-work@v0.34.0
+      - types-of-work@v0.36.0
     declined:
       - scoring
 

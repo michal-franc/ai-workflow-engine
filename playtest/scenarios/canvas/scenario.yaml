@@ -1,0 +1,11 @@
+# Epics, umbrellas and versions for the issues canvas: versions 0.1, 0.2
+# and 0.10 plus unversioned issues; a typed epic with a base branch, a
+# sub-epic and a legacy umbrella: child; an untyped umbrella; an epic whose
+# children all lack a version; done and obsolete issues; a child whose
+# parent doesn't exist.
+title: Epics, umbrellas and versions
+project:
+  name: Canvas Demo
+  slug: canvas
+issues: tracker
+workflow: workflow.yaml

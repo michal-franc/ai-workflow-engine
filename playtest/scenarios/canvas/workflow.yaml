@@ -1,0 +1,20 @@
+statuses:
+  - name: "idea"
+    description: "Raw idea"
+  - name: "backlog"
+    description: "Ready to work on"
+  - name: "in progress"
+    description: "Being built"
+  - name: "done"
+    description: "Finished"
+  - name: "obsolete"
+    optional: true
+    description: "No longer relevant"
+
+transitions:
+  - from: "idea"
+    to: "backlog"
+  - from: "backlog"
+    to: "in progress"
+  - from: "in progress"
+    to: "done"

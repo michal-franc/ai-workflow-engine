@@ -2,32 +2,33 @@
 # issue-cli release that last changed it. `issue-cli workflow upgrade` compares
 # it with the template bundled in the binary and proposes newer features.
 # Set it to `custom` if this workflow is no longer based on a template.
-template: development@v0.34.0
+template: development@v0.36.0
 
 # Feature record: catalog features this file has (<id>@<version>) and the
 # ones the human declined. Written by `issue-cli workflow scan`, read by
 # `issue-cli workflow upgrade`.
 features:
   installed:
-    - status-prompts@v0.34.0
-    - types-of-work@v0.34.0
-    - human-approval-gates@v0.34.0
-    - checklist-gates@v0.34.0
-    - assignee-gate@v0.34.0
-    - test-plan-gate@v0.34.0
-    - comment-evidence-gates@v0.34.0
-    - body-structure-gates@v0.34.0
-    - failure-hints@v0.34.0
-    - checklist-sections@v0.34.0
-    - transition-prompts@v0.34.0
-    - set-fields@v0.34.0
-    - project-actions@v0.34.0
-    - board-columns@v0.34.0
-    - board-card-fields@v0.34.0
-    - lead-handoff-prompts@v0.34.0
-    - design-overlap-discoverability@v0.34.0
-    - sandbox-manual-tests@v0.34.0
-    - testing-unrelated-failures@v0.34.0
+    - status-prompts@v0.36.0
+    - types-of-work@v0.36.0
+    - human-approval-gates@v0.36.0
+    - checklist-gates@v0.36.0
+    - assignee-gate@v0.36.0
+    - test-plan-gate@v0.36.0
+    - comment-evidence-gates@v0.36.0
+    - body-structure-gates@v0.36.0
+    - failure-hints@v0.36.0
+    - checklist-sections@v0.36.0
+    - transition-prompts@v0.36.0
+    - set-fields@v0.36.0
+    - project-actions@v0.36.0
+    - board-columns@v0.36.0
+    - board-card-fields@v0.36.0
+    - lead-handoff-prompts@v0.36.0
+    - design-overlap-discoverability@v0.36.0
+    - sandbox-manual-tests@v0.36.0
+    - playtest-sessions@v0.36.0
+    - testing-unrelated-failures@v0.36.0
 
 board:
   columns:
@@ -78,12 +79,14 @@ statuses:
       Before checking test-related boxes, make sure the Test Plan section in the issue body contains the explicit automated and manual steps being verified.
       For manual checks, prepare a throwaway sandbox scenario (a gitignored path such as `.agent-logs/<name>-sandbox/`, never committed): isolated config, data and state, and one script with setup/run/clean steps. It must never touch real user data or state.
       Describe it under `### Manual` in the Test Plan: where the script lives, the exact commands the human runs, what to look at, the expected result for each step, and how to clean up.
+      If the project has a playtest system (see `issue-cli process playtest`), write the manual checks as a playtest session (step id = checkbox id) and pass its machine run (ux-test) before handing over, so the human only judges what a machine can't.
   - name: "human-testing"
     description: "Manual verification by humans"
     prompt: |
       Say in chat which manual checks to run and that `documentation` needs approval in the issue viewer, then end your turn. Don't wait or poll: the lead (or the human) relays the request and resumes you once it is approved.
       Make sure the manual checks are explicit, minimal, and reproducible.
       Point the human at the sandbox scenario and the `### Manual` steps in the Test Plan; do not ask them to verify against real data.
+      If the manual checks are a playtest session, point the human at its playtest and report commands; the report ticks the boxes that passed and comments failures as `playtest:`.
   - name: "documentation"
     description: "Being documented"
     prompt: |

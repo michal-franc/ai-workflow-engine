@@ -404,7 +404,7 @@ func TestWaitFlagValidation(t *testing.T) {
 	}
 }
 
-func TestNextBlockSuggestsWaitForGatedStep(t *testing.T) {
+func TestNextBlockTellsAgentToStopAtGatedStep(t *testing.T) {
 	proj, _ := makeGateFixture(t, "in design", "backlog", true)
 	ctx, stdout, _ := newTestContext(proj, false)
 
@@ -412,8 +412,8 @@ func TestNextBlockSuggestsWaitForGatedStep(t *testing.T) {
 		t.Fatalf("transition: %v", err)
 	}
 	// backlog is a handoff status, so the gated next step goes through start.
-	assertContains(t, stdout.String(), "  issue-cli start cli/sample --wait --timeout 9m\n")
-	assertContains(t, stdout.String(), `(needs human approval for "in progress" — blocks until approved; exit 3 = still waiting, re-run it)`)
+	assertContains(t, stdout.String(), "  issue-cli start cli/sample\n")
+	assertContains(t, stdout.String(), `(needs human approval for "in progress" — tell the human what to approve, then stop and end your turn; run it once they say it is approved)`)
 }
 
 func TestNextStepCommand(t *testing.T) {
@@ -421,11 +421,11 @@ func TestNextStepCommand(t *testing.T) {
 	wf := proj.LoadWorkflow()
 
 	cmd, note := nextStepCommand(wf, "cli/x", "in design", "backlog")
-	if cmd != `issue-cli transition cli/x --to "backlog" --wait --timeout 9m` || note == "" {
+	if cmd != `issue-cli transition cli/x --to "backlog"` || note == "" {
 		t.Fatalf("gated non-handoff: %q / %q", cmd, note)
 	}
 	cmd, _ = nextStepCommand(wf, "cli/x", "backlog", "in progress")
-	if cmd != "issue-cli start cli/x --wait --timeout 9m" {
+	if cmd != "issue-cli start cli/x" {
 		t.Fatalf("gated handoff: %q", cmd)
 	}
 	cmd, note = nextStepCommand(wf, "cli/x", "in progress", "done")
@@ -434,7 +434,7 @@ func TestNextStepCommand(t *testing.T) {
 	}
 }
 
-func TestApprovalErrorSuggestsWaitCommand(t *testing.T) {
+func TestApprovalErrorTellsAgentToStop(t *testing.T) {
 	proj, _ := makeGateFixture(t, "in design", "", true)
 	ctx, _, _ := newTestContext(proj, false)
 
@@ -442,21 +442,21 @@ func TestApprovalErrorSuggestsWaitCommand(t *testing.T) {
 	if !errors.Is(err, tracker.ErrApprovalMissing) {
 		t.Fatalf("want approval error, got %v", err)
 	}
-	assertContains(t, err.Error(), "To block until it is approved instead of retrying:")
-	assertContains(t, err.Error(), `issue-cli transition cli/sample --to "backlog" --wait --timeout 9m`)
+	assertContains(t, err.Error(), "then stop and end your turn")
+	assertNotContains(t, err.Error(), "--wait")
 
 	ctx, _, _ = newTestContext(proj, false)
 	proj2, _ := makeGateFixture(t, "backlog", "", true)
 	ctx.Project = proj2
 	err = decorateApprovalError(runStart(ctx, []string{"cli/sample"}), ctx)
-	assertContains(t, err.Error(), "issue-cli start cli/sample --wait --timeout 9m")
+	assertNotContains(t, err.Error(), "--wait")
 }
 
 func TestPrintRetryHint(t *testing.T) {
 	var buf bytes.Buffer
 	printRetryHint(&buf, 3, fmt.Errorf("wrapped: %w", tracker.ErrApprovalMissing))
 	assertContains(t, buf.String(), "failed 3 times")
-	assertContains(t, buf.String(), "run the --wait command above")
+	assertContains(t, buf.String(), "then stop and end your turn")
 
 	buf.Reset()
 	printRetryHint(&buf, 3, errors.New("something else"))

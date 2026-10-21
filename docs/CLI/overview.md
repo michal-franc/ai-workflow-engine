@@ -46,6 +46,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli process transitions`  | Print transition rules (default workflow, or scoped via `--system <name>`, `--type <t>` or `<issue-slug>`) |
 | `issue-cli process schema`       | Print the `workflow.yaml` schema (fields, action types, validation rules) |
 | `issue-cli process changes`      | Print the release history (last 20 versions) |
+| `issue-cli process playtest [web\|game]` | Print the shared playtest-session contract, or one of the two worked examples (web app with chromedp, game engine). The guides are embedded; `docs/patterns/playtest/` holds the same files |
 | `issue-cli report-bug "..."`     | File a bug report about issue-cli itself |
 | `issue-cli retrospective <slug>` | Save a workflow retrospective            |
 | `issue-cli data <sub> <slug>`    | Per-issue structured data store — see [Per-issue Data Store](../data-store.md) |
@@ -350,7 +351,7 @@ issue-cli --json workflow upgrade               # machine-readable plan
 **Upgrade hint.** `start` and `process workflow` end with one line when the default plan has at least one proposal:
 
 ```
-ℹ workflow.yaml has no template: stamp (compared with the bundled development@v0.34.0): 12 upgrade proposal(s). Tell the operator; run `issue-cli workflow upgrade` only if they ask you to upgrade.
+ℹ workflow.yaml has no template: stamp (compared with the bundled development@v0.36.0): 13 upgrade proposal(s). Tell the operator; run `issue-cli workflow upgrade` only if they ask you to upgrade.
 ```
 
 It is built by `workflowUpgradeHint`, which returns `""` on any error so the hint can never break the command that prints it. `custom` and up-to-date files print nothing. `doctor` can reuse the same function.

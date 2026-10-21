@@ -77,9 +77,9 @@ func BuildAgentPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, worktreeP
 	statusReminder := ""
 	switch issue.Status {
 	case "in design":
-		statusReminder = fmt.Sprintf("When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition %s --to \"backlog\" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).", issue.Slug)
+		statusReminder = "When the design is complete, tell the human in chat which approval it needs in the issue viewer (see the status guidance), then stop and end your turn. Continue when the human messages you that it is approved."
 	case "backlog":
-		statusReminder = fmt.Sprintf("Tell the human in chat that this needs `in progress` approval in the issue viewer, then run `issue-cli start %s --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).", issue.Slug)
+		statusReminder = "Tell the human in chat that this needs `in progress` approval in the issue viewer, then stop and end your turn. Continue when the human messages you that it is approved."
 	}
 
 	// Typed issues get a Type line under Status in the metadata block, so the
@@ -118,7 +118,7 @@ func BuildAgentPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, worktreeP
 You are already in an isolated git worktree at %s on branch %s.
 - Do your code work and make commits here on %s. Do not switch this checkout to another branch.
 - Issue management is NOT code work. The issues/ tree is excluded from this worktree on purpose — it lives on the primary checkout (master). Run every issue-cli command exactly as written: --project already points it at the primary checkout, so it manages the issue on master regardless of your worktree branch. Do not cd into the primary checkout, and do not try to create or edit issue files inside this worktree.
-- The human handles cleanup (running git worktree remove) after the issue is shipped — you do not need to remove the worktree yourself.
+- Leave the worktree in place after the issue ships: do not remove it, and nobody has to clean it up.
 `, worktreePath, worktreeBranch, worktreeBranch)
 	}
 	return prompt

@@ -1,0 +1,21 @@
+session: canvas-phone
+issue: ui/issues-canvas-epics-umbrellas-and-versions-on-one-map
+title: Issues canvas at phone width
+scenario: canvas
+
+session_checks:
+  viewports: [390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+  # Known bug: at phone width the shared header doesn't wrap (see
+  # board-basics). canvas.world is the pan surface: it is meant to extend
+  # past the screen and is moved with drag and zoom, not page scroll.
+  layout_ignore: [header.bar, canvas.world]
+
+steps:
+  - id: TP12
+    title: At phone width the toolbar wraps and the page never scrolls sideways
+    setup:
+      - open: /p/{project}/canvas
+    checks:
+      - visible: [canvas.toolbar, canvas.rows, canvas.collapse_done, canvas.show_no_version, canvas.zoom.fit, canvas.viewport]

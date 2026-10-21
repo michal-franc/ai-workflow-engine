@@ -85,14 +85,14 @@ Status colours stay per status (`statusColor`). A status chip tints its colour w
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
 | `/issue/<slug>`   | `detail.html` | Detail with edit, approve, dispatch, comments    |
 | `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
-| `/balance`        | `balance.html` | Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise the tab is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
+| `/balance`        | `balance.html` | Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise its sidebar entry is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
 | `/decisions`      | `decisions.html` | Generated index of every `D-n` decision: how it was made, recording issue, citing issues, state (active / deferred / replaced / replaced · stale). System and state chips (`?system=`, `?state=`); reloads when `/hash` changes. The page renders the `/hash` value it was built from as the polling baseline, so a change made before the first 5 s poll still triggers a reload |
 
 In projects whose `workflow.yaml` defines `types:` ([Types of Work](../Workflow/types.md)), the list and board show a type badge and an "All types" filter (`?type=`), `type` joins the default board card fields, `/graph?type=<t>` draws that type's path, and the detail sidebar has a **Type** select (`POST /p/<project>/issue/<slug>/type`; a `409` with `statuses` asks the human which status on the new path to move to). Without `types:` none of these controls render.
 
 ## Issues canvas
 
-`/p/<project>/canvas` (the **Canvas** tab, after Graph) is a read-only map of what each epic holds and what each version plans. `buildCanvas` in `handlers_canvas.go` holds every rule and is unit-tested without HTTP. The template only renders the view model.
+`/p/<project>/canvas` (**Canvas** under More in the sidebar, after Graph) is a read-only map of what each epic holds and what each version plans. `buildCanvas` in `handlers_canvas.go` holds every rule and is unit-tested without HTTP. The template only renders the view model.
 
 - **Columns** are the distinct `version:` values, sorted as dotted numbers (0.2 before 0.10). Each header shows "done/total", side-status counts and a status-coloured bar.
 - **The "no version" column** is hidden unless `?nover=1`, and the toolbar says how many issues it hides. When no issue has a version, the column is the only one and the toggle is disabled.
@@ -177,7 +177,7 @@ The sidebar's **Human Approval** section shows one **Human-approved for <status>
 
 ## Create issue modal
 
-Both `list.html` and `board.html` show a **+ New issue** button in the header (next to the theme picker) that opens a shared modal defined in `templates/_create_modal.html`. The modal posts to `POST /p/<project>/issues/create` (handler `handleCreateIssue` in `handlers_issue_mutate.go`) and on `201` navigates the browser to the new issue's detail page.
+The sidebar's **New issue** button opens a shared modal defined in `templates/_create_modal.html`, included by `list.html` and `board.html`. On other pages the button links to `/?new=1`, and the list opens the modal on load. The modal posts to `POST /p/<project>/issues/create` (handler `handleCreateIssue` in `handlers_issue_mutate.go`) and on `201` navigates the browser to the new issue's detail page.
 
 Form fields:
 
@@ -189,7 +189,7 @@ Form fields:
 - **Labels** (optional, comma-separated)
 - **Type** (only in projects with `types:`; defaults to `default_type`). A status the type's path skips — for example the board's `+` on a column a tweak never visits — starts the issue at the type's first status.
 
-The board's per-column `+` buttons keep working and pass their column status as a preset to `openCreateModal(status)`; the header button calls `openCreateModal('')` for the default.
+The board's per-column `+` buttons keep working and pass their column status as a preset to `openCreateModal(status)`; the sidebar button calls `openCreateModal('')` for the default.
 
 Server-side wiring: both `ListData` and `BoardData` carry `CreatableStatuses []string` and `BodyTemplates map[string]string`. The templates JSON is embedded into the page via the `toJSON` template helper (`template_funcs.go`) which returns `template.JS` to bypass HTML escaping.
 
@@ -197,7 +197,7 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 
 ## Agents canvas
 
-`/p/<project>/agents` (the **Agents** tab) shows who is working on what, built from `tmux ls`, the issues' `parent:` links and git. The page polls `GET /p/<project>/agents.json` (the `AgentsModel` in `handlers_agents.go`) every 5 seconds; the toolbar shows `live · tmux ls Ns ago`, or `offline` when a poll fails.
+`/p/<project>/agents` (**Agents** under More in the sidebar) shows who is working on what, built from `tmux ls`, the issues' `parent:` links and git. The page polls `GET /p/<project>/agents.json` (the `AgentsModel` in `handlers_agents.go`) every 5 seconds; the toolbar shows `live · tmux ls Ns ago`, or `offline` when a poll fails.
 
 - **Tree:** the hierarchy only: You → the project lead (`lead-<project>`) → its workers, plus any live sub-lead (`lead-<epic>`, started from the CLI). Epics are not drawn here; the [issues canvas](#issues-canvas) shows them. Nodes show the session name without `agent-`, cut at 32 characters; the full name is the tooltip. The epic data (base branch, children running, `main` ahead) stays in `agents.json`.
 - **Worker states:**

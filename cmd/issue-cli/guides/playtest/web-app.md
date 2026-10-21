@@ -187,6 +187,6 @@ A list such as `visible: [a, b]` becomes one check per item.
   block first.
 - A popover that closes after submit can't be checked by its text. Check the
   state it leaves behind (a count, the file).
-- At phone width the header and filter bar don't wrap. They are waived with
-  `layout_ignore` and a comment naming the bug; remove the waiver when it
-  is fixed.
+- Waive a known layout bug with `layout_ignore` on its container and a
+  comment naming the bug; remove the waiver when it is fixed. A pan surface
+  (`canvas.world`) is waived for good: it is meant to run past the screen.

@@ -23,7 +23,7 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 - `handlers_workflow.go` — workflow designer (data/preview/save), retros, bug status, docs pages
 - `handlers_dispatch.go` — agent dispatch, `startAgentSession`, `buildAgentPrompt`, `buildRetrosReviewPrompt`
 - `handlers_github.go` — github page, fetch, import
-- `handlers_agents.go` — agents canvas (`buildAgentsModel`, `AgentsModel`), agent detail/message, `handleLeadSpawn`
+- `handlers_agents.go` — agents canvas (`buildAgentsModel`, `AgentsModel`), agent detail, `handleAgentOpen` (open a session in a terminal), `handleLeadSpawn`
 - `internal/agentrun/` — the shared tmux + worktree launcher (`Start`, `Paste`, `CapturePane`) used by the server and `issue-cli`; `lead.go` holds `LeadSpec`/`RecordLead` so `POST /lead/spawn` and `issue-cli lead spawn` start identical sessions
 - `internal/tracker/lead.go`, `lead_brief.go` — epic link (`ParentSlug`, `IsEpic`, `EpicChildren`, `EpicBase`), `LeadSessionName`, `LeadFor` routing, `IssueWorktree` (children start from the epic's base), lead briefs and handoff notes
 - `internal/tracker/issue.go` — Issue struct, ParseIssue, LoadIssues, frontmatter update, `RewriteIssueFile` (parse-validated, locked, atomic full-file write)
@@ -70,8 +70,8 @@ When working on API changes:
 | GET    | `/hash`                                       | Content hash for polling       |
 | GET    | `/agents`                                     | Agents canvas (see [UI](../UI/overview.md#agents-canvas)) |
 | GET    | `/agents.json`                                | Canvas model: `project_lead`, `epics` (sub-lead, base, `main_ahead`, children running/total), `workers`, `unfinished`, `others`, `listed_at` |
-| GET    | `/agents/detail?session=<name>&issue=<slug>`  | Selected-agent panel: the pane's last 20 lines, the issue's last 5 comments, `branch`/`against`/`diff_stat`. `400` unless `session` is an `agent-*`/`lead-*` name |
-| POST   | `/agents/message`                             | Paste `[from human] <text>` into a session — body `{session, text}`; `409` with `status: "no-session"` when it isn't running |
+| GET    | `/agents/detail?session=<name>&issue=<slug>`  | Selected-agent panel: the issue's last 5 comments, `branch`/`against`/`diff_stat`. `400` unless `session` is an `agent-*`/`lead-*` name |
+| POST   | `/agents/open`                                | Open a live session in a terminal, like a dispatch re-attach — body `{session}`. Returns `{status: "opened", steps, attach_cmd}`; `409` with `status: "no-session"` when it isn't running, `400` for a name that isn't `agent-*`/`lead-*` |
 | POST   | `/lead/spawn`                                 | Start (or re-attach) the project lead, or with `{"epic": "<slug>"}` that epic's sub-lead; optional `agent`. Returns the dispatch `{status, session, steps}`; `422` for a non-epic, `404` for an unknown slug |
 
 ## Edit in nvim

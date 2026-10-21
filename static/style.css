@@ -2683,17 +2683,6 @@ select.modal-input option {
 .agents-panel p { margin: 4px 0; }
 .agents-panel-empty { color: var(--text-secondary); }
 .agents-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-.agents-message { display: grid; gap: 4px; margin: 8px 0; }
-.agents-message textarea {
-    width: 100%;
-    padding: 6px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
-    color: var(--text);
-    font: inherit;
-}
-.agents-message button { justify-self: start; }
 .agents-pane {
     max-height: 260px;
     overflow: auto;

@@ -55,7 +55,7 @@
         <div class="agents-body">
             <div class="agents-canvas" id="agents-canvas" data-testid="agents.canvas"></div>
             <aside class="agents-panel" id="agents-panel" data-testid="agents.panel">
-                <p class="agents-panel-empty">Select an agent to see its issue, pane and branch.</p>
+                <p class="agents-panel-empty">Click an agent to open its tmux session and see its issue and branch.</p>
             </aside>
         </div>
     </div>
@@ -255,17 +255,55 @@
         return allNodes().filter(function(n) { return n.name === name; })[0];
     }
 
+    // select shows the agent in the panel and, when it is live, opens its tmux
+    // session in a terminal: the pane is watched there, not in the page.
     function select(name) {
         selected = name;
         render();
         renderPanel();
+        var n = findNode(name);
+        if (n && n.live) openSession(n);
+    }
+
+    function openSession(n) {
+        var status = document.getElementById('panel-open-status');
+        if (status) status.textContent = 'Opening ' + n.name + '…';
+        fetch(prefix + '/agents/open', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session: n.name })
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            var el = document.getElementById('panel-open-status');
+            if (!el || selected !== n.name) return;
+            var steps = d.steps || [];
+            var headless = steps.some(function(s) { return s.name.indexOf('Terminal: headless') === 0; });
+            var failed = steps.filter(function(s) { return s.status === 'error'; })[0];
+            if (d.status === 'no-session') {
+                el.textContent = n.name + ' is not running.';
+            } else if (failed) {
+                el.textContent = 'Could not open ' + n.name + ': ' + failed.name + (failed.detail ? ' (' + failed.detail + ')' : '');
+            } else if (headless) {
+                el.textContent = 'No terminal configured (terminal: none). Attach with: ' + d.attach_cmd;
+            } else {
+                el.textContent = 'Opened ' + n.name + ' in a terminal.';
+            }
+        }).catch(function(e) {
+            var el = document.getElementById('panel-open-status');
+            if (el) el.textContent = 'Could not open: ' + e.message;
+        });
+    }
+
+    // panelKey changes when what the panel shows for the selected agent does,
+    // so a poll re-renders it only then (keeping the open status line).
+    var panelKey = '';
+    function keyOf(n) {
+        return n ? [n.name, n.live, n.state, n.gate || ''].join('|') : '';
     }
 
     function renderPanel() {
         var panel = document.getElementById('agents-panel');
         var n = selected && findNode(selected);
         if (!n) {
-            panel.innerHTML = '<p class="agents-panel-empty">Select an agent to see its issue, pane and branch.</p>';
+            panel.innerHTML = '<p class="agents-panel-empty">Click an agent to open its tmux session and see its issue and branch.</p>';
             return;
         }
         var html = '<h2 data-testid="agents.panel.title">' + esc(n.name) + '</h2><p class="agents-sub">' + esc(n.kind.replace('-', ' ')) + ' · ' + esc(stateLabel[n.state] || n.state)
@@ -284,14 +322,19 @@
         if (!n.live && n.kind === 'sub-lead' && n.epic) {
             html += '<button type="button" class="dispatch-btn" data-testid="agents.panel.spawn" onclick="spawnLead(' + esc(JSON.stringify(n.epic)) + ')">Spawn sub-lead</button>';
         }
+        if (n.live) {
+            html += '<button type="button" class="btn" id="panel-open" data-testid="agents.panel.open">Open in tmux</button>';
+        }
         html += '<button type="button" class="btn" id="panel-copy" data-testid="agents.panel.copy">Copy attach</button></div>';
         if (n.live) {
-            html += '<form class="agents-message" id="panel-message"><label for="panel-message-text">Message</label>'
-                + '<textarea id="panel-message-text" data-testid="agents.panel.message.text" rows="2" placeholder="Sent into the session as [from human] …"></textarea>'
-                + '<button type="submit" class="btn" data-testid="agents.panel.message.send">Send</button><span id="panel-message-status" data-testid="agents.panel.message.status"></span></form>';
+            html += '<p class="agents-sub" id="panel-open-status" data-testid="agents.panel.open_status"></p>';
         }
-        html += '<div id="panel-detail"><p class="agents-sub">Loading pane and branch…</p></div>';
+        html += '<div id="panel-detail"><p class="agents-sub">Loading branch…</p></div>';
         panel.innerHTML = html;
+        panelKey = keyOf(n);
+
+        var open = document.getElementById('panel-open');
+        if (open) open.addEventListener('click', function() { openSession(n); });
 
         var copy = document.getElementById('panel-copy');
         copy.addEventListener('click', function() {
@@ -307,28 +350,11 @@
             }).then(function(r) { return r.json(); }).then(function() { approve.textContent = 'Approved'; load(); })
               .catch(function(e) { approve.textContent = 'Failed: ' + e.message; approve.disabled = false; });
         });
-        var form = document.getElementById('panel-message');
-        if (form) form.addEventListener('submit', function(ev) {
-            ev.preventDefault();
-            var text = document.getElementById('panel-message-text').value;
-            var status = document.getElementById('panel-message-status');
-            status.textContent = 'Sending…';
-            fetch(prefix + '/agents/message', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ session: n.name, text: text })
-            }).then(function(r) { return r.json().then(function(d) { return { ok: r.ok, d: d }; }); })
-              .then(function(res) {
-                  status.textContent = res.ok && res.d.status === 'sent' ? 'Sent' : 'Not sent (' + res.d.status + ')';
-                  if (res.ok) document.getElementById('panel-message-text').value = '';
-              }).catch(function(e) { status.textContent = 'Failed: ' + e.message; });
-        });
-
         var url = prefix + '/agents/detail?session=' + encodeURIComponent(n.name)
             + (n.issue ? '&issue=' + encodeURIComponent(n.issue.slug) : '');
         fetch(url).then(function(r) { return r.json(); }).then(function(d) {
             if (selected !== n.name) return;
             var out = '';
-            out += '<h3>Pane</h3><pre class="agents-pane" data-testid="agents.panel.pane">' + (d.pane ? esc(d.pane) : '(no live pane)') + '</pre>';
             out += '<h3>Recent activity</h3>';
             if (d.comments && d.comments.length) {
                 out += '<ul class="agents-activity" data-testid="agents.panel.activity">';
@@ -370,7 +396,7 @@
             model = m;
             listedAt = new Date();
             render();
-            if (selected && !document.getElementById('panel-message-text')) renderPanel();
+            if (selected && keyOf(findNode(selected)) !== panelKey) renderPanel();
         }).catch(function() {
             document.getElementById('agents-live').textContent = 'offline';
         });

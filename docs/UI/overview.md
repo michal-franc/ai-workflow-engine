@@ -106,12 +106,13 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 - **Unfinished jobs:** the stopped workers. With Group umbrellas on, an epic's stopped children appear in its box and the lane shows the rest.
 - **Issue cards:** each worker links to its issue card with a dashed line in the status color.
 - **Toolbar:** Tree / Radial layout (radial puts the project lead in the middle, sub-leads on an inner ring and workers outside), and the Show issues, Group umbrellas and Show stopped toggles. **Spawn lead** shows while the project lead is not running.
-- **Selected-agent panel** (click a node): kind, state, tmux location, the issue, then:
+- **Clicking a live agent** (lead, sub-lead or worker) opens its tmux session in a terminal: `POST /p/<project>/agents/open` `{"session"}` runs the same attach as a dispatch re-attach (the project's `terminal`, or in `tmux_session` mode a `select-window` plus a terminal only when no client is attached). With `terminal: none` the panel shows the attach command instead. The page never shows the pane and has no message box (D-12); you watch and type in tmux.
+- **Selected-agent panel** (shown for the clicked node): kind, state, tmux location, the issue, then:
   - **Approve gate** (at-gate workers) calls the issue's existing `/approve` endpoint, a direct human action;
   - **Spawn lead** / **Spawn sub-lead** for a lead that is not running;
+  - **Open in tmux** (live sessions) opens the session again, and a status line says what happened;
   - **Copy attach** copies the `tmux attach` command;
-  - **Message** (live sessions) posts to `POST /p/<project>/agents/message` `{"session", "text"}`, which pastes `[from human] <text>` into the session; `409` when the session is gone;
-  - the pane's last 20 lines, the issue's last 5 comments and the branch's `git diff --stat` against its base (or `main`), from `GET /p/<project>/agents/detail?session=<name>&issue=<slug>`.
+  - the issue's last 5 comments and the branch's `git diff --stat` against its base (or `main`), from `GET /p/<project>/agents/detail?session=<name>&issue=<slug>`.
 
 Spawn buttons POST to `/p/<project>/lead/spawn` (`{}` for the project lead, `{"epic": "<slug>"}` for a sub-lead) and show the launch steps in a modal. It runs the same `agentrun.LeadSpec` as `issue-cli lead spawn`; a non-epic slug returns `422`.
 

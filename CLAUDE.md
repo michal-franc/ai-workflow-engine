@@ -39,7 +39,7 @@ handlers_workflow.go        — designer, retros, bug status, docs handlers
 handlers_dispatch.go        — agent dispatch + prompt builders
 handlers_github.go          — github page, fetch, import
 handlers_stats.go           — /stats workflow token-cost view
-handlers_agents.go          — /agents canvas, agents.json, agent message/detail, lead spawn endpoint
+handlers_agents.go          — /agents canvas, agents.json, agent detail, open-in-tmux and lead spawn endpoints
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
 internal/agentrun/          — shared tmux/worktree launcher used by the server and issue-cli (leads, dispatch)

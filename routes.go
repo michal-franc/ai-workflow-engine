@@ -104,8 +104,8 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleAgentsJSON(w, r, proj, prefix)
 	case rest == "agents/detail" && r.Method == http.MethodGet:
 		s.handleAgentDetail(w, r, proj, prefix)
-	case rest == "agents/message" && r.Method == http.MethodPost:
-		s.handleAgentMessage(w, r, proj, prefix)
+	case rest == "agents/open" && r.Method == http.MethodPost:
+		s.handleAgentOpen(w, r, proj, prefix)
 	case rest == "lead/spawn" && r.Method == http.MethodPost:
 		s.handleLeadSpawn(w, r, proj, prefix)
 	case rest == "retros":

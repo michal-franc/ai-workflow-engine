@@ -286,11 +286,11 @@ func (s *Server) handleAgentsJSON(w http.ResponseWriter, r *http.Request, proj *
 	json.NewEncoder(w).Encode(model)
 }
 
-// AgentDetail is the selected-agent panel: the pane's last lines, the
-// issue's recent comments and the files its branch touches.
+// AgentDetail is the selected-agent panel: the issue's recent comments and
+// the files its branch touches. The pane itself is seen by opening the
+// session in a terminal (POST agents/open), not in the page.
 type AgentDetail struct {
 	Session  string            `json:"session"`
-	Pane     string            `json:"pane"`
 	Comments []tracker.Comment `json:"comments"`
 	Branch   string            `json:"branch,omitempty"`
 	Against  string            `json:"against,omitempty"`
@@ -320,13 +320,6 @@ func (s *Server) handleAgentDetail(w http.ResponseWriter, r *http.Request, proj 
 		return
 	}
 	detail := AgentDetail{Session: name}
-	if pane, err := agentrun.CapturePane(agentTmuxTarget(proj, name)); err == nil {
-		lines := strings.Split(strings.TrimRight(pane, "\n"), "\n")
-		if len(lines) > 20 {
-			lines = lines[len(lines)-20:]
-		}
-		detail.Pane = strings.Join(lines, "\n")
-	}
 	if slug := r.URL.Query().Get("issue"); slug != "" {
 		if issue := s.findIssueBySlug(proj, slug); issue != nil {
 			comments, _ := tracker.LoadComments(issue.FilePath)
@@ -359,28 +352,40 @@ func (s *Server) handleAgentDetail(w http.ResponseWriter, r *http.Request, proj 
 // mainBranch names the project's main branch. A var so tests don't run git.
 var mainBranch = agentrun.MainBranch
 
-// handleAgentMessage pastes a message from the human into an agent's or
-// lead's live session, signed [from human].
-func (s *Server) handleAgentMessage(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+// handleAgentOpen opens a live agent's or lead's tmux session in a terminal,
+// the way a dispatch re-attach does: a terminal from the project's terminal
+// setting, or in shared mode a select-window plus a terminal only when no
+// client is attached. With terminal: none it only returns the attach command.
+func (s *Server) handleAgentOpen(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
 	var body struct {
 		Session string `json:"session"`
-		Text    string `json:"text"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Text) == "" || !validAgentName(body.Session) {
-		http.Error(w, `{"error":"session (agent-* or lead-*) and text required"}`, http.StatusBadRequest)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || !validAgentName(body.Session) {
+		http.Error(w, `{"error":"session (agent-* or lead-*) required"}`, http.StatusBadRequest)
 		return
 	}
-	textFile := filepath.Join(resolveProjectWorkDir(proj), ".agent-logs", body.Session, "messages", time.Now().Format("20060102-150405")+".txt")
-	resp := agentPaste(proj, body.Session, "[from human] "+strings.TrimSpace(body.Text), textFile, "")
+	resp := DispatchResponse{Status: "opened", Session: agentDisplayName(proj, body.Session), AttachCmd: agentAttachCmd(proj, body.Session)}
 	w.Header().Set("Content-Type", "application/json")
-	if resp.Status == "no-session" {
+	if !agentSessionLive(proj, body.Session) {
+		resp.Status = "no-session"
+		resp.Steps = []DispatchStep{{Name: body.Session + " is not running", Status: "error"}}
 		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+	if !attachAgent(proj, body.Session, &resp.Steps) {
+		resp.Status = "error"
 	}
 	json.NewEncoder(w).Encode(resp)
 }
 
-// agentPaste and startLead are seams over agentrun for tests.
-var agentPaste = agentrun.Paste
+// agentSessionLive and attachAgent are seams over tmux for tests.
+var agentSessionLive = func(proj *tracker.Project, name string) bool {
+	return agentrun.HasSession(agentTmuxTarget(proj, name))
+}
+var attachAgent = agentrun.AttachStep
+
+// startLead is a seam over agentrun for tests.
 var startLead = agentrun.Start
 
 // handleLeadSpawn starts the project lead, or with {"epic": slug} an epic's

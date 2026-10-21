@@ -132,19 +132,22 @@ steps:
       - selected: agents.layout.radial
 
   - id: TP10
-    title: The selected sub-lead's panel shows its pane and base branch, and Message pastes into its session
+    title: Clicking a live sub-lead opens its tmux session and shows its issue and base branch; a stopped one opens nothing
     from: TP8
     act:
       - click: agents.node.lead-ui-epic
       - wait_for: agents.panel.branch
-      - type: { target: agents.panel.message.text, text: hello from the canvas }
-      - click: agents.panel.message.send
+      - check: { text_equals: { target: agents.panel.title, text: lead-ui-epic } }
+      - check: { visible: [agents.panel.open, agents.panel.copy, agents.panel.issue] }
+      - check: { text_contains: { target: agents.panel.branch, text: "base/ui/epic vs main" } }
+      # The scenario is headless (terminal: none), so opening reports the
+      # attach command instead of a window; with a terminal set it opens one.
+      - check: { text_contains: { target: agents.panel.open_status, text: "Attach with: tmux attach -t lead-ui-epic" } }
+      - click: agents.node.agent-cli-loner
     checks:
-      - text_equals: { target: agents.panel.title, text: lead-ui-epic }
-      - visible: [agents.panel.copy, agents.panel.pane, agents.panel.issue]
-      - text_contains: { target: agents.panel.branch, text: "base/ui/epic vs main" }
-      - text_equals: { target: agents.panel.message.status, text: Sent }
-      - tmux: { pane: lead-ui-epic, contains: "[from human] hello from the canvas" }
+      - text_equals: { target: agents.panel.title, text: agent-cli-loner }
+      - absent: [agents.panel.open, agents.panel.open_status]
+      - visible: agents.panel.copy
 
   - id: TP11
     title: Approve gate on an at-gate worker sets human_approval, and the worker turns working
@@ -209,7 +212,9 @@ steps:
     do: |
       1. Look over the Tree at this window size: who leads whom, each worker's
          state, the dashed links to issue cards, the Unfinished jobs lane.
-      2. Click lead-ui-epic and read the panel.
+      2. Click lead-ui-epic and read the panel. Clicking a live agent opens its
+         tmux session; this scenario has no terminal, so the panel shows the
+         attach command instead.
       3. Switch to Radial and back.
       4. Make the window narrow (about phone width, or DevTools at 390px) and
          look again.

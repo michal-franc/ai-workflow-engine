@@ -168,42 +168,41 @@ func TestLeadSpawnEndpoint(t *testing.T) {
 	}
 }
 
-func TestAgentMessageAndDetail(t *testing.T) {
+// Clicking a live agent opens its tmux session in a terminal (D-12); the page
+// never shows the pane and has no message box.
+func TestAgentOpenAndDetail(t *testing.T) {
 	proj := setupAgentsProject(t)
 	stubAgentsGit(t)
-	var gotSession, gotText string
-	origPaste := agentPaste
-	agentPaste = func(_ *tracker.Project, session, text, _, _ string) agentrun.Response {
-		gotSession, gotText = session, text
-		if session == "agent-gone" {
-			return agentrun.Response{Status: "no-session"}
-		}
-		return agentrun.Response{Status: "sent", Session: session}
+	var opened []string
+	origLive, origAttach := agentSessionLive, attachAgent
+	agentSessionLive = func(_ *tracker.Project, name string) bool { return name != "agent-gone" }
+	attachAgent = func(_ *tracker.Project, name string, steps *[]agentrun.Step) bool {
+		opened = append(opened, name)
+		*steps = append(*steps, agentrun.Step{Name: "Open terminal", Status: "ok"})
+		return true
 	}
-	origCapture := agentrun.CapturePane
-	agentrun.CapturePane = func(string) (string, error) { return strings.Repeat("line\n", 30) + "last line\n", nil }
-	t.Cleanup(func() { agentPaste, agentrun.CapturePane = origPaste, origCapture })
+	t.Cleanup(func() { agentSessionLive, attachAgent = origLive, origAttach })
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
 
-	code, _ := postJSON(t, ts.URL+"/p/agents/agents/message", `{"session":"agent-ui-child","text":" hi "}`)
-	if code != 200 || gotSession != "agent-ui-child" || gotText != "[from human] hi" {
-		t.Fatalf("message: %d %q %q", code, gotSession, gotText)
+	code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"lead-ui-epic"}`)
+	if code != 200 || resp["status"] != "opened" || len(opened) != 1 || opened[0] != "lead-ui-epic" || resp["attach_cmd"] == "" {
+		t.Fatalf("open: %d %v opened=%v", code, resp, opened)
 	}
-	if code, _ := postJSON(t, ts.URL+"/p/agents/agents/message", `{"session":"agent-gone","text":"hi"}`); code != 409 {
-		t.Fatalf("no session: %d", code)
+	if code, _ := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"agent-gone"}`); code != 409 || len(opened) != 1 {
+		t.Fatalf("not running: %d opened=%v", code, opened)
 	}
-	if code, _ := postJSON(t, ts.URL+"/p/agents/agents/message", `{"session":"zsh; rm","text":"hi"}`); code != 400 {
+	if code, _ := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"zsh; rm"}`); code != 400 {
 		t.Fatalf("bad session name: %d", code)
+	}
+	if code, _ := postJSON(t, ts.URL+"/p/agents/agents/message", `{"session":"lead-ui-epic","text":"hi"}`); code == 200 {
+		t.Fatalf("the canvas message endpoint is gone (D-12), got %d", code)
 	}
 
 	_, body := getResp(t, ts.URL+"/p/agents/agents/detail?session=agent-ui-asker&issue=ui/asker")
 	var d AgentDetail
 	if err := json.Unmarshal([]byte(body), &d); err != nil {
 		t.Fatal(err)
-	}
-	if lines := strings.Split(d.Pane, "\n"); len(lines) != 20 || lines[19] != "last line" {
-		t.Errorf("pane tail = %q", d.Pane)
 	}
 	if len(d.Comments) != 1 || d.Branch != "work/ui/asker" || d.Against != "base/ui/epic" || d.DiffStat != "base/ui/epic...work/ui/asker | 3 +++" {
 		t.Errorf("detail = %+v", d)

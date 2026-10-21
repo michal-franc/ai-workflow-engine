@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.42.0 — 2026-10-21
+
+- **Breaking:** the viewer's workflow designer is removed: the **Workflow** entry in the sidebar's More group, the `/workflow-designer` page, and its `/workflow-designer/data`, `/workflow-designer/preview` and save (`POST /workflow-designer`) endpoints. Edit `workflow.yaml` as text; `issue-cli workflow upgrade` pulls in template changes and `issue-cli process schema` prints the format. The read-only `/workflow-flow` page stays, with no sidebar entry.
+
 ## v0.41.0 — 2026-10-21
 
 - The viewer's top bar is replaced by a left sidebar on every project page. It shows the project name and version, New issue, the main views (Board, List, Balance when configured, Decisions, Docs), and a **More** group (Graph, Canvas, Agents, Retros, Workflow, Stats, GitHub) that opens on its own views and remembers whether you left it open. Below those come the running-agents count, Spawn lead with the project's actions, and the theme swatches. On the Board the sidebar also lists systems with open counts; each one filters the board.

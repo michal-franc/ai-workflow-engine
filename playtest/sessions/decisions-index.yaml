@@ -8,10 +8,6 @@ session_checks:
   viewports: [1440x900]
   layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
   console: no_errors
-  # Known bug: with the Agents, Decisions and Balance tabs the shared header
-  # no longer fits a 1440px container and scrolls sideways (as on list,
-  # board and detail). The header issue covers it; remove then.
-  layout_ignore: [header.bar]
 
 steps:
   - id: TP4
@@ -20,7 +16,8 @@ steps:
       - open: /p/{project}/
     act:
       - check: { selected: nav.tab.list }
-      - check: { visible: [nav.tab.board, nav.tab.graph, nav.tab.canvas, nav.tab.docs, nav.tab.decisions] }
+      - check: { visible: [nav.tab.board, nav.tab.docs, nav.tab.decisions] }
+      - check: { exists: [nav.tab.graph, nav.tab.canvas] }
       - open: /p/{project}/board
       - check: { visible: nav.tab.decisions }
       - open: /p/{project}/canvas
@@ -30,7 +27,8 @@ steps:
       - wait_for: { url: { contains: /decisions } }
     checks:
       - selected: nav.tab.decisions
-      - visible: [nav.tab.list, nav.tab.board, nav.tab.canvas]
+      - visible: [nav.tab.list, nav.tab.board]
+      - exists: nav.tab.canvas
 
   - id: TP5
     title: The index lists the 5 recorded decisions; fenced and free-form lines are not listed
@@ -118,7 +116,7 @@ steps:
       1. Read down the table: the direction change on top, the two dimmed
          GDD rows it replaced, and the deferred and answered decisions.
       2. Open and close a "Cited by" list.
-      3. Switch the theme (Dark, Dracula, Light) in the header.
+      3. Switch the theme (Dark, Dracula, Light) in the sidebar.
     expect: |
       Each decision reads as one line you can quote. Replaced rows are
       clearly dimmed, and the red "replaced · stale" chip and the open

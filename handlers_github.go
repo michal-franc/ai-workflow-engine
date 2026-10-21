@@ -8,11 +8,9 @@ import (
 )
 
 type GitHubPageData struct {
-	Prefix         string
-	ProjectName    string
-	Repo           string
-	ActiveBots     int
-	SupportsGitHub bool
+	Prefix      string
+	ProjectName string
+	Repo        string
 }
 
 func (s *Server) handleGitHub(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
@@ -20,16 +18,11 @@ func (s *Server) handleGitHub(w http.ResponseWriter, r *http.Request, proj *trac
 		http.NotFound(w, r)
 		return
 	}
-	issues, _ := tracker.LoadIssues(proj.IssueDir)
-	_, activeBots := sessionsByIssueSlug(proj, issues)
-
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "github.html", GitHubPageData{
-		Prefix:         prefix,
-		ProjectName:    proj.Name,
-		Repo:           proj.Repo,
-		ActiveBots:     activeBots,
-		SupportsGitHub: proj.SupportsGitHub,
+		Prefix:      prefix,
+		ProjectName: proj.Name,
+		Repo:        proj.Repo,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

@@ -9,73 +9,9 @@
     <script src="/static/theme.js"></script>
 </head>
 <body class="canvas-page">
-    <div class="header" data-testid="header.bar">
-        <div class="container header-inner">
-            <div style="display:flex;align-items:center;">
-                <a href="/" class="project-back-link">Projects</a>
-                <span class="header-sep">/</span>
-                <h1>{{.ProjectName}}</h1>
-                <span class="count" data-testid="header.count">{{.TotalIssues}}</span>
-            </div>
-            <nav class="view-tabs">
-                <a href="{{.Prefix}}/" data-testid="nav.tab.list" class="view-tab">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v1.5H2V2zm0 4h12v1.5H2V6zm0 4h12v1.5H2V10zm0 4h12v1.5H2V14z"/></svg>
-                    List
-                </a>
-                <a href="{{.Prefix}}/board" data-testid="nav.tab.board" class="view-tab">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v8H6V2zm5 0h4v10h-4V2z"/></svg>
-                    Board
-                </a>
-                <a href="{{.Prefix}}/graph" data-testid="nav.tab.graph" class="view-tab">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.5" cy="8" r="1.75"/><circle cx="8" cy="2.5" r="1.75"/><circle cx="13.5" cy="8" r="1.75"/><circle cx="8" cy="13.5" r="1.75"/><path d="M4.2 8h7.6M8 4.2v7.6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
-                    Graph
-                </a>
-                <a href="{{.Prefix}}/canvas" data-testid="nav.tab.canvas" class="view-tab active">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.75C1 1.78 1.78 1 2.75 1h2.5C6.22 1 7 1.78 7 2.75v2.5C7 6.22 6.22 7 5.25 7h-2.5C1.78 7 1 6.22 1 5.25v-2.5zm8 0C9 1.78 9.78 1 10.75 1h2.5c.97 0 1.75.78 1.75 1.75v2.5c0 .97-.78 1.75-1.75 1.75h-2.5C9.78 7 9 6.22 9 5.25v-2.5zM2.5 9h3.75v1.5H2.5zm0 3h3.75v1.5H2.5zM9 9.75C9 9.34 9.34 9 9.75 9h4.5c.41 0 .75.34.75.75v4.5c0 .41-.34.75-.75.75h-4.5A.75.75 0 019 14.25v-4.5z"/></svg>
-                    Canvas
-                </a>
-                <a href="{{.Prefix}}/agents" data-testid="nav.tab.agents" class="view-tab">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="2"/><circle cx="3" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><path d="M8 5v3M8 8L3.6 10.4M8 8l4.4 2.4" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
-                    Agents
-                </a>
-                <a href="{{.Prefix}}/docs" data-testid="nav.tab.docs" class="view-tab">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h5v2H3v10h4v2H1V1zm9 0h5v14H8v-2h4V3H10V1zM5 5h2v1H5V5zm0 2h2v1H5V7zm0 2h2v1H5V9z"/></svg>
-                    Docs
-                </a>
-                <a href="{{.Prefix}}/retros" data-testid="nav.tab.retros" class="view-tab">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.75A1.75 1.75 0 014.75 1h6.5A1.75 1.75 0 0113 2.75v10.5A1.75 1.75 0 0111.25 15h-6.5A1.75 1.75 0 013 13.25V2.75zm2 .75v1.25h6V3.5H5zm0 3v1.25h6V6.5H5zm0 3v1.25h4V9.5H5z"/></svg>
-                    Retros
-                </a>
-                <a href="{{.Prefix}}/stats" data-testid="nav.tab.stats" class="view-tab">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 14h14v1H1v-1zm2-4h2v3H3v-3zm3-4h2v7H6V6zm3 2h2v5H9V8zm3-6h2v11h-2V2z"/></svg>
-                    Stats
-                </a>
-                {{if .SupportsGitHub}}
-                <a href="{{.Prefix}}/github" data-testid="nav.tab.github" class="view-tab">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-                    GitHub
-                </a>
-                {{end}}
-                <a href="{{.Prefix}}/decisions" data-testid="nav.tab.decisions" class="view-tab">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.5 3H14v2H2V4h4.5L8 1zM3 7h2v6H3V7zm4 0h2v6H7V7zm4 0h2v6h-2V7zM1 14h14v1.5H1V14z"/></svg>
-                    Decisions
-                </a>
-{{if workbenchTab "balance" .Prefix}}
-                <a href="{{.Prefix}}/balance" data-testid="nav.tab.balance" class="view-tab">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M7.25 1h1.5v2.1l4.6 1.15-.36 1.46-.79-.2L14 10.5c0 1.1-1.12 2-2.5 2S9 11.6 9 10.5l1.9-4.55-2.15-.54V13.5H12V15H4v-1.5h3.25V5.41l-2.15.54L7 10.5C7 11.6 5.88 12.5 4.5 12.5S2 11.6 2 10.5l1.79-4.29-.79.2-.36-1.46 4.61-1.15V1zM4.5 7.6 3.6 9.75h1.8L4.5 7.6zm7 0-.9 2.15h1.8l-.9-2.15z"/></svg>
-                    Balance
-                </a>
-                {{end}}
-            </nav>
-            <div class="theme-picker">
-                <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
-                <button class="theme-btn" data-theme="dark" title="Dark"></button>
-                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
-                <button class="theme-btn" data-theme="light" title="Light"></button>
-            </div>
-        </div>
-    </div>
-
+<div class="app">
+{{template "sidebar" (sidebar .Prefix "canvas")}}
+<div class="app-main">
     <form class="canvas-toolbar" id="canvas-toolbar" data-testid="canvas.toolbar" method="GET" action="{{.Prefix}}/canvas">
         <span class="canvas-count" data-testid="canvas.count"><b>{{.ShownIssues}}</b> of {{.TotalIssues}} issues</span>
         <label>Rows
@@ -280,6 +216,8 @@
         document.getElementById('canvas-hl-clear').addEventListener('click', function() { setHighlight(''); });
     })();
     </script>
+</div>
+</div>
 </body>
 </html>
 

@@ -1,25 +1,21 @@
 session: workflow-designer-removed
 issue: ui/remove-the-workflow-designer
-title: The workflow designer is gone from the navigation
+title: The workflow designer is gone from the sidebar
 scenario: basic
 
 session_checks:
   viewports: [1440x900]
   layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
   console: no_errors
-  # Same known header overflow as balance-off; the header issue covers it.
-  layout_ignore: [header.bar]
 
 steps:
   - id: TP2
-    title: The list and the board have no Workflow tab; the other tabs are still there
+    title: The sidebar's More group has no Workflow entry; the other views are still there
     setup:
       - open: /p/{project}/
     act:
-      - check: { visible: [nav.tab.list, nav.tab.board, nav.tab.docs, nav.tab.retros, nav.tab.stats] }
-      - check: { absent: nav.tab.workflow_designer }
-      - click: nav.tab.board
+      - check: { visible: [nav.tab.board, nav.tab.list, nav.tab.docs] }
+      - click: nav.more
     checks:
-      - selected: nav.tab.board
-      - visible: [nav.tab.list, nav.tab.docs, nav.tab.retros, nav.tab.stats]
+      - visible: [nav.tab.graph, nav.tab.canvas, nav.tab.agents, nav.tab.retros, nav.tab.stats]
       - absent: nav.tab.workflow_designer

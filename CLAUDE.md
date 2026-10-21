@@ -36,6 +36,7 @@ See [docs/patterns/playtest/web-app.md](docs/patterns/playtest/web-app.md).
 ```
 main.go                     — entry point, CLI flags, starts HTTP server
 routes.go                   — Server struct, NewServer, Routes, dispatcher, project list
+nav.go                      — sidebar views (navViews) and the Nav the sidebar partial renders
 template_funcs.go           — funcMap, status/priority colors, link rewriters
 helpers.go                  — projectRoot, fileExists, small utilities
 images.go                   — relative image src rewrite, /files/ image route
@@ -55,12 +56,13 @@ handlers_agents.go          — /agents canvas, agents.json, agent detail, open-
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
 internal/agentrun/          — shared tmux/worktree launcher used by the server and issue-cli (leads, dispatch)
-templates/                  — Go HTML templates (list.html, board.html, detail.html, docs.html)
+templates/                  — Go HTML templates (list.html, board.html, detail.html, docs.html); _sidebar.html on every project page
 internal/testids/           — every data-testid the templates carry; TestTemplateTestIDs keeps them in step
 cmd/playtest/               — playtest runner: check | ux-test | playtest (overlay) | report (chromedp)
 playtest/sessions/          — playtest sessions (step id = issue checkbox id)
 playtest/scenarios/         — scenario fixtures (issues under tracker/, never issues/)
-static/style.css            — all CSS (dark GitHub theme)
+static/style.css            — all CSS: theme tokens (dark workbench, Dracula, light), shared classes, views
+static/fonts/               — Archivo and JetBrains Mono woff2 (OFL)
 sync-issues.sh              — downloads issues from GitHub Project into ./issues/<System>/
 ```
 

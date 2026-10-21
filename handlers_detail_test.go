@@ -81,7 +81,7 @@ func TestHandleDetail_ShowsActiveSessionDetails(t *testing.T) {
 		t.Fatal(err)
 	}
 	html := string(body)
-	for _, want := range []string{"1 active bot", "Active Agent", "agent-bug-in-login", "2026-04-02 21:57:59"} {
+	for _, want := range []string{"1 agent running", "Active Agent", "agent-bug-in-login", "2026-04-02 21:57:59"} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("expected detail view to contain %q\n%s", want, html)
 		}

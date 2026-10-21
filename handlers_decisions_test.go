@@ -43,7 +43,7 @@ func TestHandleDecisions_RendersIndex(t *testing.T) {
 
 	page := pageGet(t, ts.URL+"/p/wb/decisions")
 	for _, want := range []string{
-		`class="view-tab active">`,
+		`data-testid="nav.tab.decisions" aria-current="page">Decisions`,
 		`<span class="wb-stat-num">4</span><span class="wb-stat-label">decisions</span>`,
 		`wb-stat stale" data-testid="decisions.stat.stale"><span class="wb-stat-num">1</span>`,
 		"All systems 4", "Economy 2", "Sim 2", "Has stale citations 1",

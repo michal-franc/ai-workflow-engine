@@ -42,13 +42,10 @@ type ListData struct {
 	Filtered          int
 	Prefix            string
 	ProjectName       string
-	ActiveBots        int
-	SupportsGitHub    bool
 	ScoringEnabled    bool
 	Sort              string
 	CreatableStatuses []string
 	BodyTemplates     map[string]string
-	ProjectActions    []tracker.CustomAction
 	WorkTypes         []WorkTypeOption
 }
 
@@ -85,7 +82,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracke
 
 	wf := proj.LoadWorkflow()
 	filtered := filterByType(filterIssues(issues, filter), wf, filter.Type)
-	sessionMap, activeBots := sessionsByIssueSlug(proj, issues)
+	sessionMap, _ := sessionsByIssueSlug(proj, issues)
 
 	views := issueViews(filtered, sessionMap)
 	attachWorkTypes(views, wf)
@@ -114,13 +111,10 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracke
 		Filtered:          len(filtered),
 		Prefix:            prefix,
 		ProjectName:       proj.Name,
-		ActiveBots:        activeBots,
-		SupportsGitHub:    proj.SupportsGitHub,
 		ScoringEnabled:    scoring.Enabled,
 		Sort:              sortKey,
 		CreatableStatuses: creatable,
 		BodyTemplates:     templates,
-		ProjectActions:    wf.ProjectActions,
 		WorkTypes:         workTypeOptions(wf),
 	}
 

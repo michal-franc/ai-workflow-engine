@@ -26,7 +26,6 @@ type DetailData struct {
 	// ApproveThen maps a required approval to the follow-up approval that
 	// "Approve <status> and <then>" queues in one click (queued_approval).
 	ApproveThen   map[string]string
-	ActiveBots    int
 	Timeline      []TimelineEvent
 	RenderedBody  template.HTML
 	CustomActions []tracker.CustomAction
@@ -120,7 +119,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		slugMap[filepath.Base(issue.Slug)] = issue.Slug
 	}
 
-	sessionMap, activeBots := sessionsByIssueSlug(proj, issues)
+	sessionMap, _ := sessionsByIssueSlug(proj, issues)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	wf := proj.LoadWorkflowForIssue(found)
@@ -199,7 +198,6 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		NeedsApprovals:    needsApprovals,
 		OptionalApprovals: optionalApprovals,
 		ApproveThen:       approveThen,
-		ActiveBots:        activeBots,
 		Timeline:          timeline,
 		RenderedBody:      template.HTML(renderedBody),
 		CustomActions:     wf.IssueActionList(),

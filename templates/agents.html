@@ -10,37 +10,9 @@
     <script src="/static/theme.js"></script>
 </head>
 <body>
-    <div class="header" data-testid="header.bar">
-        <div class="container header-inner">
-            <div style="display:flex;align-items:center;">
-                <a href="/" class="project-back-link">Projects</a>
-                <span class="header-sep">/</span>
-                <h1>{{.ProjectName}}</h1>
-            </div>
-            <nav class="view-tabs">
-                <a href="{{.Prefix}}/" class="view-tab">List</a>
-                <a href="{{.Prefix}}/board" class="view-tab">Board</a>
-                <a href="{{.Prefix}}/graph" class="view-tab">Graph</a>
-                <a href="{{.Prefix}}/canvas" class="view-tab">Canvas</a>
-                <a href="{{.Prefix}}/agents" class="view-tab active">Agents</a>
-                <a href="{{.Prefix}}/docs" class="view-tab">Docs</a>
-                <a href="{{.Prefix}}/retros" class="view-tab">Retros</a>
-                <a href="{{.Prefix}}/stats" class="view-tab">Stats</a>
-                {{if .SupportsGitHub}}
-                <a href="{{.Prefix}}/github" class="view-tab">GitHub</a>
-                {{end}}
-                <a href="{{.Prefix}}/decisions" class="view-tab">Decisions</a>
-                {{if workbenchTab "balance" .Prefix}}<a href="{{.Prefix}}/balance" class="view-tab">Balance</a>{{end}}
-            </nav>
-            <div class="theme-picker">
-                <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
-                <button class="theme-btn" data-theme="dark" title="Dark"></button>
-                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
-                <button class="theme-btn" data-theme="light" title="Light"></button>
-            </div>
-        </div>
-    </div>
-
+<div class="app">
+{{template "sidebar" (sidebar .Prefix "agents")}}
+<div class="app-main">
     <div class="container agents-page">
         <div class="agents-toolbar" data-testid="agents.toolbar">
             <div class="agents-layouts" role="group" aria-label="Layout">
@@ -395,6 +367,8 @@
     setInterval(tick, 1000);
 })();
 </script>
+</div>
+</div>
 </body>
 </html>
 {{end}}

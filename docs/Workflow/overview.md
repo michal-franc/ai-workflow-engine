@@ -187,7 +187,7 @@ issue_actions:
 
 ### Project-Level Actions
 
-Project-level actions are the same one-shot agent buttons, but **not bound to a single issue**. They render on the project views — list, board, and graph — in an "Actions" bar below the header. Use them for project-wide chores ("triage the backlog", "summarize all in-progress work for standup").
+Project-level actions are the same one-shot agent buttons, but **not bound to a single issue**. They render on every project page, under **Actions** in the sidebar, below **Spawn lead**. Use them for project-wide chores ("triage the backlog", "summarize all in-progress work for standup").
 
 Top-level `project_actions:` list in `workflow.yaml`, with the same fields as `actions:`:
 

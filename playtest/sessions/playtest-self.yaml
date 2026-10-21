@@ -7,9 +7,6 @@ session_checks:
   viewports: [1440x900, 390x844]
   layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
   console: no_errors
-  # Known bug: at phone width the header and the filter bar don't wrap
-  # (see board-basics).
-  layout_ignore: [header.bar, board.filters]
 
 steps:
   - id: TP11

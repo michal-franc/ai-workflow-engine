@@ -46,25 +46,8 @@ func NewServer(projects []tracker.Project) (*Server, error) {
 		projects: projects,
 		tmpl:     tmpl,
 	}
-	tmpl.Funcs(template.FuncMap{"workbenchTab": s.workbenchTab})
+	tmpl.Funcs(template.FuncMap{"sidebar": s.sidebarNav})
 	return s, nil
-}
-
-// workbenchTab reports whether the project behind a /p/<slug> prefix has the
-// workbench view kind ("balance", "systems") configured in workflow.yaml.
-func (s *Server) workbenchTab(kind, prefix string) bool {
-	proj := s.findProject(strings.TrimPrefix(prefix, "/p/"))
-	if proj == nil {
-		return false
-	}
-	wb := proj.LoadWorkflow().Workbench
-	switch kind {
-	case "balance":
-		return wb.HasBalance()
-	case "systems":
-		return wb.HasSystems()
-	}
-	return false
 }
 
 func (s *Server) findProject(slug string) *tracker.Project {

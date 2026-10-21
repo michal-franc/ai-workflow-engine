@@ -66,6 +66,7 @@ type DecisionsData struct {
 	ProjectName    string
 	ActiveBots     int
 	SupportsGitHub bool
+	Hash           string // /hash at render time, the auto-reload baseline
 
 	Rows    []DecisionView
 	System  string // filter
@@ -102,7 +103,7 @@ func (s *Server) handleDecisions(w http.ResponseWriter, r *http.Request, proj *t
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	_, activeBots := sessionsByIssueSlug(issues)
+	sessionMap, activeBots := sessionsByIssueSlug(issues)
 	index := tracker.BuildDecisionIndex(issues, tracker.ClosedIssueFunc(proj))
 
 	data := DecisionsData{
@@ -110,6 +111,7 @@ func (s *Server) handleDecisions(w http.ResponseWriter, r *http.Request, proj *t
 		ProjectName:    proj.Name,
 		ActiveBots:     activeBots,
 		SupportsGitHub: proj.SupportsGitHub,
+		Hash:           issuesHash(issues, sessionMap, activeBots),
 		System:         r.URL.Query().Get("system"),
 		State:          strings.ToLower(r.URL.Query().Get("state")),
 		Total:          len(index.Entries),

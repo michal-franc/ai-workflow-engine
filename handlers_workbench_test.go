@@ -200,7 +200,7 @@ func TestDetail_ApproveBothButton(t *testing.T) {
 	page := pageGet(t, ts.URL+"/p/wb/issue/ready")
 	for _, want := range []string{
 		`id="approve-backlog"`,
-		`id="approve-then-backlog" class="approve-btn approve-then-btn "`,
+		`id="approve-then-backlog" data-testid="detail.approve_then.backlog" class="approve-btn approve-then-btn "`,
 		`data-then-status="backlog" data-then="in progress"`,
 		`Approved for backlog and in progress`,
 	} {
@@ -217,7 +217,7 @@ func TestDetail_ApproveBothButton(t *testing.T) {
 
 	pagePost(t, ts.URL+"/p/wb/issue/ready/approve", `{"status":"backlog","then":"in progress"}`)
 	page = pageGet(t, ts.URL+"/p/wb/issue/ready")
-	if !strings.Contains(page, `id="approve-then-backlog" class="approve-btn approve-then-btn approved"`) {
+	if !strings.Contains(page, `id="approve-then-backlog" data-testid="detail.approve_then.backlog" class="approve-btn approve-then-btn approved"`) {
 		t.Error("combined approve button not shown as approved once queued")
 	}
 }

@@ -9,7 +9,7 @@
     <script src="/static/theme.js"></script>
 </head>
 <body>
-    <div class="header">
+    <div class="header" data-testid="header.bar">
         <div class="container header-inner">
             <div style="display:flex;align-items:center;">
                 <a href="/" class="project-back-link">Projects</a>
@@ -80,17 +80,17 @@
                 <p class="wb-sub">Every <code>{{.CommentPrefix}}</code> note from every issue, grouped by the metric it moves. Agents add typed notes with <code>issue-cli balance</code>. Targets and knobs stay in the project's files.</p>
             </div>
             {{if .Enabled}}
-            <div class="wb-stats">
-                <div class="wb-stat"><span class="wb-stat-num">{{.Total}}</span><span class="wb-stat-label">notes</span></div>
-                <div class="wb-stat{{if .Open}} old{{end}}"><span class="wb-stat-num">{{.Open}}</span><span class="wb-stat-label">open</span></div>
-                <div class="wb-stat"><span class="wb-stat-num">{{.Metrics}}</span><span class="wb-stat-label">metrics</span></div>
-                <div class="wb-stat"><span class="wb-stat-num">{{len .Unsorted}}</span><span class="wb-stat-label">unsorted</span></div>
+            <div class="wb-stats" data-testid="balance.stats">
+                <div class="wb-stat" data-testid="balance.stat.notes"><span class="wb-stat-num">{{.Total}}</span><span class="wb-stat-label">notes</span></div>
+                <div class="wb-stat{{if .Open}} old{{end}}" data-testid="balance.stat.open"><span class="wb-stat-num">{{.Open}}</span><span class="wb-stat-label">open</span></div>
+                <div class="wb-stat" data-testid="balance.stat.metrics"><span class="wb-stat-num">{{.Metrics}}</span><span class="wb-stat-label">metrics</span></div>
+                <div class="wb-stat" data-testid="balance.stat.unsorted"><span class="wb-stat-num">{{len .Unsorted}}</span><span class="wb-stat-label">unsorted</span></div>
             </div>
             {{end}}
         </div>
 
         {{if not .Enabled}}
-        <div class="wb-empty balance-off">
+        <div class="wb-empty balance-off" data-testid="balance.off">
             <div class="wb-empty-icon decisions-empty-icon">⚖</div>
             <h3>The balance board is off for this project</h3>
             <p>Add a <code>workbench.balance</code> block to <code>workflow.yaml</code> to show the Balance tab:</p>
@@ -101,52 +101,52 @@
         </div>
         {{else}}
 
-        <div class="balance-passes">
+        <div class="balance-passes" data-testid="balance.passes">
             <span class="decisions-chips-label balance-passes-label">Joint passes</span>
             {{if not .Passes}}
             <span class="balance-passes-none">No joint passes yet. Mark an issue with <code>balance_pass: 1</code> to plan one.</span>
             {{end}}
             {{range .Passes}}
-            <a href="{{$.Prefix}}/issue/{{.Issue.Slug}}" class="balance-pass{{if .Closed}} done{{else if .Planned}} planned{{end}}">Pass {{.Number}} · {{if .Closed}}{{.DateLabel}} · {{.Notes}} note{{if ne .Notes 1}}s{{end}}{{else if .Planned}}planned · {{.Notes}} note{{if ne .Notes 1}}s{{end}} collected{{else}}later · {{.Notes}} note{{if ne .Notes 1}}s{{end}}{{end}}</a>
+            <a href="{{$.Prefix}}/issue/{{.Issue.Slug}}" data-testid="balance.pass.{{.Number}}" class="balance-pass{{if .Closed}} done{{else if .Planned}} planned{{end}}">Pass {{.Number}} · {{if .Closed}}{{.DateLabel}} · {{.Notes}} note{{if ne .Notes 1}}s{{end}}{{else if .Planned}}planned · {{.Notes}} note{{if ne .Notes 1}}s{{end}} collected{{else}}later · {{.Notes}} note{{if ne .Notes 1}}s{{end}}{{end}}</a>
             {{end}}
             {{with .Planned}}
-            <span class="balance-passes-issue">in <a href="{{$.Prefix}}/issue/{{.Issue.Slug}}">{{.Issue.Slug}}</a> · {{if $.PlannedAgent}}agent running in {{$.PlannedAgent}}{{else}}agent not running{{end}}</span>
-            {{if not $.PlannedAgent}}<button type="button" class="wb-primary balance-start" data-slug="{{.Issue.Slug}}" data-pass="{{.Number}}">Start pass {{.Number}}</button>{{end}}
+            <span class="balance-passes-issue" data-testid="balance.passes.planned">in <a href="{{$.Prefix}}/issue/{{.Issue.Slug}}">{{.Issue.Slug}}</a> · {{if $.PlannedAgent}}agent running in {{$.PlannedAgent}}{{else}}agent not running{{end}}</span>
+            {{if not $.PlannedAgent}}<button type="button" class="wb-primary balance-start" data-testid="balance.start" data-slug="{{.Issue.Slug}}" data-pass="{{.Number}}">Start pass {{.Number}}</button>{{end}}
             {{end}}
         </div>
 
         {{if .Total}}
         <div class="wb-chips decisions-chips balance-chips">
             <span class="decisions-chips-label">State</span>
-            <a href="{{.StateURL ""}}" class="wb-chip{{if eq .State ""}} active{{end}}">All {{.Total}}</a>
+            <a href="{{.StateURL ""}}" data-testid="balance.filter.all" class="wb-chip{{if eq .State ""}} active{{end}}">All {{.Total}}</a>
             {{range .Chips}}
-            <a href="{{$.StateURL .State}}" class="wb-chip balance-chip {{$.StateClass .State}}{{if eq $.State .State}} active{{end}}">{{.Label}} {{.Count}}</a>
+            <a href="{{$.StateURL .State}}" data-testid="balance.filter.{{tid .State}}" class="wb-chip balance-chip {{$.StateClass .State}}{{if eq $.State .State}} active{{end}}">{{.Label}} {{.Count}}</a>
             {{end}}
         </div>
         {{end}}
 
         {{if and (not .Total) (not .Unsorted)}}
-        <div class="wb-empty">
+        <div class="wb-empty" data-testid="balance.empty">
             <div class="wb-empty-icon decisions-empty-icon">⚖</div>
             <h3>No balance notes yet</h3>
             <p>Agents add notes with <code>issue-cli balance &lt;slug&gt; --metric &lt;id&gt; --state open --hypothesis "…" --change "…"</code>. Free-text <code>{{.CommentPrefix}}</code> comments show up here too, under Unsorted notes.</p>
         </div>
         {{else if and .Total (not .Groups)}}
-        <p class="decisions-nomatch">No notes in this state · <a href="{{.Prefix}}/balance">Show all</a></p>
+        <p class="decisions-nomatch" data-testid="balance.nomatch">No notes in this state · <a href="{{.Prefix}}/balance">Show all</a></p>
         {{end}}
 
         {{range .Groups}}
-        <section class="balance-group" id="metric-{{.Metric}}">
+        <section class="balance-group" id="metric-{{.Metric}}" data-testid="balance.group.{{tid .Metric}}">
             <div class="balance-group-head">
                 <h3 class="balance-metric">{{.Metric}}</h3>
-                <span class="balance-group-count">{{.Total}} note{{if ne .Total 1}}s{{end}}{{if .Open}} · {{.Open}} open{{end}}</span>
+                <span class="balance-group-count" data-testid="balance.group.{{tid .Metric}}.count">{{.Total}} note{{if ne .Total 1}}s{{end}}{{if .Open}} · {{.Open}} open{{end}}</span>
             </div>
             <div class="balance-cards">
                 {{range .Notes}}
-                <article class="balance-card" data-key="{{.Slug}}|{{.Metric}}|{{.Change}}">
+                <article class="balance-card" data-key="{{.Slug}}|{{.Metric}}|{{.Change}}" data-testid="balance.card.{{tid .Metric}}.{{tid .Slug}}">
                     <div class="balance-card-top">
                         <a href="{{$.Prefix}}/issue/{{.Slug}}" class="decision-slug balance-slug">{{.Slug}}</a>
-                        <span class="decision-state {{$.StateClass .State}}">{{.State}}</span>
+                        <span class="decision-state {{$.StateClass .State}}" data-testid="balance.card.{{tid .Metric}}.{{tid .Slug}}.state">{{.State}}</span>
                     </div>
                     <dl class="balance-fields">
                         {{if .Hypothesis}}<dt>Hypothesis</dt><dd>{{.Hypothesis}}</dd>{{end}}
@@ -155,10 +155,10 @@
                         {{if .Verdict}}<dt>Verdict</dt><dd>{{.Verdict}}</dd>{{end}}
                         {{range .Extra}}<dt>Note</dt><dd>{{.}}</dd>{{end}}
                     </dl>
-                    <div class="balance-card-foot">
+                    <div class="balance-card-foot" data-testid="balance.card.{{tid .Metric}}.{{tid .Slug}}.foot">
                         {{.DateLabel}}{{if .PassLabel}} · {{.PassLabel}}{{end}}
                         {{if .History}}
-                        · <details class="balance-history"><summary>{{len .History}} earlier note{{if ne (len .History) 1}}s{{end}}</summary>
+                        · <details class="balance-history" data-testid="balance.card.{{tid .Metric}}.{{tid .Slug}}.history"><summary>{{len .History}} earlier note{{if ne (len .History) 1}}s{{end}}</summary>
                             <ul>{{range .History}}<li>{{.Date}} · <span class="decision-state {{$.StateClass .State}}">{{.State}}</span>{{if .Change}} {{.Change}}{{end}}{{if .Verdict}}: {{.Verdict}}{{end}}</li>{{end}}</ul>
                         </details>
                         {{end}}
@@ -170,20 +170,20 @@
         {{end}}
 
         {{if .Unsorted}}
-        <section class="balance-group balance-unsorted">
+        <section class="balance-group balance-unsorted" data-testid="balance.unsorted">
             <div class="balance-group-head">
                 <h3 class="balance-metric plain">Unsorted notes</h3>
                 <span class="balance-group-count">{{len .Unsorted}} free-text <code>{{.CommentPrefix}}</code> comment{{if ne (len .Unsorted) 1}}s{{end}} without a metric or state</span>
             </div>
             <ul class="balance-loose">
-                {{range .Unsorted}}
-                <li>
+                {{range $i, $u := .Unsorted}}
+                <li data-testid="balance.unsorted.row.{{$i}}">
                     <div class="balance-loose-top">
                         <a href="{{$.Prefix}}/issue/{{.Slug}}" class="decision-slug">{{.Slug}}</a>
                         <span class="balance-loose-from">{{if .From}}from <a href="{{$.Prefix}}/issue/{{.From}}" class="decision-ref">{{.From}}</a> · {{end}}{{.DateLabel}}</span>
                     </div>
                     {{if .Short}}
-                    <details class="balance-more"><summary><span class="balance-loose-text">{{.Short}}</span> <span class="balance-more-link">more</span></summary><p class="balance-loose-text">{{.Text}}</p></details>
+                    <details class="balance-more" data-testid="balance.unsorted.row.{{$i}}.more"><summary><span class="balance-loose-text">{{.Short}}</span> <span class="balance-more-link">more</span></summary><p class="balance-loose-text">{{.Text}}</p></details>
                     {{else}}
                     <p class="balance-loose-text">{{.Text}}</p>
                     {{end}}
@@ -197,7 +197,7 @@
         {{end}}
     </main>
 
-    <div id="save-toast" class="save-toast"></div>
+    <div id="save-toast" class="save-toast" data-testid="balance.toast"></div>
 
     <script>
     (function() {
@@ -227,8 +227,10 @@
             }).catch(function(err) { showToast('Dispatch failed: ' + err.message, true); start.disabled = false; });
         });
 
-        // Generated view: reload when any issue file changes.
-        var last = null;
+        // Generated view: reload when any issue file changes. The baseline
+        // is the hash at render time, so a change made before the first
+        // poll is not missed.
+        var last = {{.Hash}} || null;
         setInterval(function() {
             fetch(prefix + '/hash').then(function(r) { return r.json(); }).then(function(d) {
                 if (last !== null && d.hash !== last) location.reload();

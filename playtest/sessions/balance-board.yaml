@@ -1,0 +1,150 @@
+session: balance-board
+issue: ui/workbench-balance-board-from-typed-balance-comments
+title: Balance board - notes by metric, joint passes, unsorted notes, live updates
+scenario: workbench
+
+# Desktop: balance-phone checks the phone layout and balance-off a project
+# without workbench.balance. No step clicks Start pass: it dispatches a real
+# agent terminal.
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: With workbench.balance set, every project page has a Balance tab after Decisions
+    setup:
+      - open: /p/{project}/
+    act:
+      - check: { visible: [nav.tab.decisions, nav.tab.balance] }
+      - open: /p/{project}/board
+      - check: { visible: nav.tab.balance }
+      - open: /p/{project}/canvas
+      - check: { visible: nav.tab.balance }
+      - open: /p/{project}/decisions
+      - click: nav.tab.balance
+      - wait_for: { url: { contains: /balance } }
+    checks:
+      - selected: nav.tab.balance
+      - visible: nav.tab.decisions
+
+  - id: TP5
+    title: Stats and joint passes
+    setup:
+      - open: /p/{project}/balance
+    checks:
+      - text_equals: { target: balance.stat.notes, text: 5 NOTES }
+      - text_equals: { target: balance.stat.open, text: 2 OPEN }
+      - text_equals: { target: balance.stat.metrics, text: 3 METRICS }
+      - text_equals: { target: balance.stat.unsorted, text: 2 UNSORTED }
+      - text_equals: { target: balance.pass.2, text: Pass 2 · 30 Sep · 2 notes }
+      - text_equals: { target: balance.pass.3, text: Pass 3 · planned · 3 notes collected }
+      - text_equals: { target: balance.passes.planned, text: in sim/three-lane-siege-balance-pass · agent not running }
+      - text_equals: { target: balance.start, text: Start pass 3 }
+      - enabled: balance.start
+
+  - id: TP6
+    title: Notes grouped by metric, cards with state, fields and pass, and an earlier note
+    setup:
+      - open: /p/{project}/balance
+    act:
+      - check: { text_equals: { target: balance.card.dominant-plays.ai/scouting-raids-use-perfect-intel.history, text: 1 earlier note } }
+      - click: balance.card.dominant-plays.ai/scouting-raids-use-perfect-intel.history
+    checks:
+      - count: { pattern: balance.group.*, equals: 3 }
+      - text_equals: { target: balance.group.full-holds.count, text: 2 notes · 1 open }
+      - text_equals: { target: balance.group.dominant-plays.count, text: 2 notes · 1 open }
+      - text_equals: { target: balance.group.margins.count, text: 1 note }
+      - count: { pattern: balance.card.*.*, within: balance.group.full-holds, equals: 2 }
+      - text_equals: { target: balance.card.full-holds.combat/finishing-a-downed-enemy-never-happens-in-tests.state, text: open }
+      - text_contains: { target: balance.card.full-holds.combat/finishing-a-downed-enemy-never-happens-in-tests, text: "Defenders revive too freely" }
+      - text_contains: { target: balance.card.full-holds.combat/finishing-a-downed-enemy-never-happens-in-tests.foot, text: planned pass 3 }
+      - text_equals: { target: balance.card.margins.combat/caltrops-dont-refresh-an-existing-patch.state, text: reverted }
+      - text_contains: { target: balance.card.margins.combat/caltrops-dont-refresh-an-existing-patch.foot, text: pass 2 }
+      - text_equals: { target: balance.card.dominant-plays.ai/scouting-raids-use-perfect-intel.state, text: kept }
+      - text_contains: { target: balance.card.dominant-plays.ai/scouting-raids-use-perfect-intel.history, text: "open ScoutAccuracy 1.0 → 0.7: try 0.7 before the pass" }
+
+  - id: TP7
+    title: Unsorted notes list the free-text balance comments; progress comments are not shown
+    setup:
+      - open: /p/{project}/balance
+    act:
+      - check: { count: { pattern: balance.unsorted.row.#, equals: 2 } }
+      - click: balance.unsorted.row.1.more
+    checks:
+      - text_contains: { target: balance.unsorted.row.0, text: from ai/hero-roster-for-the-three-lane-siege }
+      - text_contains: { target: balance.unsorted.row.1, text: sim/balance }
+      - text_contains: { target: balance.unsorted.row.1, text: "draughts for attackers each measured −6 points earlier" }
+      - text_contains: { target: balance.unsorted, text: "2 free-text balance: comments" }
+
+  - id: TP8
+    title: The state chips filter the cards; All shows every note again
+    setup:
+      - open: /p/{project}/balance
+    act:
+      - click: balance.filter.kept
+      - wait_for: { url: { contains: state=kept } }
+      - check: { count: { pattern: balance.card.*.*, equals: 1 } }
+      - check: { visible: balance.card.dominant-plays.ai/scouting-raids-use-perfect-intel }
+      - click: balance.filter.reverted
+      - wait_for: { url: { contains: state=reverted } }
+      - check: { count: { pattern: balance.card.*.*, equals: 1 } }
+      - check: { visible: balance.card.margins.combat/caltrops-dont-refresh-an-existing-patch }
+      - click: balance.filter.all
+    checks:
+      - count: { pattern: balance.card.*.*, equals: 5 }
+      - url: { matches: "^/p/[^/]+/balance$" }
+
+  - id: TP9
+    title: A later typed note with the same metric and change updates the card in place
+    setup:
+      - open: /p/{project}/balance
+    act:
+      - cli: [balance, combat/finishing-a-downed-enemy-never-happens-in-tests, --metric, full-holds, --state, kept, --change, "FinishChance ↑ (proposed)", --evidence, "full-holds 26% → 19%, N=200", --verdict, "Inside band once downed attackers get finished. Kept for pass 3.", --pass, "3"]
+      - wait_for: { text_equals: { target: balance.card.full-holds.combat/finishing-a-downed-enemy-never-happens-in-tests.state, text: kept }, ms: 12000 }
+    checks:
+      - text_equals: { target: balance.card.full-holds.combat/finishing-a-downed-enemy-never-happens-in-tests.history, text: 1 earlier note }
+      - text_equals: { target: balance.stat.open, text: 1 OPEN }
+      - text_equals: { target: balance.group.full-holds.count, text: 2 notes }
+      - issue: { slug: combat/finishing-a-downed-enemy-never-happens-in-tests, comment_contains: "balance: full-holds · kept" }
+
+  - id: TP10
+    title: A free-text balance comment shows first under Unsorted notes after the reload
+    setup:
+      - open: /p/{project}/balance
+    act:
+      - cli: [comment, sim/balance, --text, "balance: margins look tight again after the caltrops revert; worth a probe in pass 3"]
+      - wait_for: { text_equals: { target: balance.stat.unsorted, text: 3 UNSORTED }, ms: 12000 }
+    checks:
+      - count: { pattern: balance.unsorted.row.#, equals: 3 }
+      - text_contains: { target: balance.unsorted.row.0, text: margins look tight again after the caltrops revert }
+
+  - id: TP11
+    title: balance --list --state kept lists both kept notes
+    from: TP9
+    checks:
+      - cli: { args: [balance, --list, --state, kept], contains: "combat/finishing-a-downed-enemy-never-happens-in-tests" }
+      - cli: { args: [balance, --list, --state, kept], contains: "ai/scouting-raids-use-perfect-intel" }
+      - cli: { args: [balance, --list, --state, kept], contains: "verdict: Inside band once downed attackers get finished. Kept for pass 3." }
+      - cli: { args: [balance, --list, --state, kept], not_contains: "caltrops" }
+
+  - id: TP14
+    title: The board reads well and the state colours keep their meaning in every theme
+    setup:
+      - open: /p/{project}/balance
+    targets:
+      - { id: balance.passes, note: Joint passes }
+      - { id: balance.group.full-holds, note: Notes for one metric }
+      - { id: balance.unsorted, note: Free-text notes nobody typed yet }
+    do: |
+      1. Read the passes bar, then each metric group and its cards.
+      2. Open "1 earlier note" on the scouting card and "more" on the long
+         unsorted note.
+      3. Switch the theme (Dark, Dracula, Light) in the header.
+    expect: |
+      You can tell at a glance which metrics still have open notes and
+      which pass is next. Each card reads as hypothesis, change, evidence
+      and verdict. Open is amber, kept green, reverted red and needs pieces
+      blue in every theme, and all text stays readable.
+    why: ux-test checks counts, grouping, filters and live updates; only you can say whether the board reads well.

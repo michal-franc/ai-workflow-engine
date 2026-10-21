@@ -51,6 +51,7 @@ type BalanceData struct {
 	ProjectName    string
 	ActiveBots     int
 	SupportsGitHub bool
+	Hash           string // /hash at render time, the auto-reload baseline
 
 	Enabled       bool
 	CommentPrefix string
@@ -91,6 +92,7 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request, proj *tra
 		ProjectName:    proj.Name,
 		ActiveBots:     activeBots,
 		SupportsGitHub: proj.SupportsGitHub,
+		Hash:           issuesHash(issues, sessionMap, activeBots),
 		Enabled:        wb.HasBalance(),
 		CommentPrefix:  wb.Balance.CommentPrefix,
 		State:          tracker.NormalizeBalanceState(r.URL.Query().Get("state")),

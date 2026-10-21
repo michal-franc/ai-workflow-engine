@@ -9,7 +9,7 @@
     <script src="/static/theme.js"></script>
 </head>
 <body>
-    <div class="header">
+    <div class="header" data-testid="header.bar">
         <div class="container header-inner">
             <div style="display:flex;align-items:center;">
                 <a href="/" class="project-back-link">Projects</a>
@@ -82,54 +82,54 @@
                 <p class="wb-sub">Generated from every issue's <code>## Decisions</code> section. Nobody edits this list. The lead adds one with <code>issue-cli answer</code> (a question asked with <code>issue-cli ask</code>) or <code>issue-cli decide</code>.</p>
             </div>
             {{if .Total}}
-            <div class="wb-stats">
-                <div class="wb-stat"><span class="wb-stat-num">{{.Total}}</span><span class="wb-stat-label">decisions</span></div>
-                <div class="wb-stat"><span class="wb-stat-num">{{.Active}}</span><span class="wb-stat-label">active</span></div>
-                <div class="wb-stat"><span class="wb-stat-num">{{.Replaced}}</span><span class="wb-stat-label">replaced</span></div>
-                <div class="wb-stat{{if .Stale}} stale{{end}}"><span class="wb-stat-num">{{.Stale}}</span><span class="wb-stat-label">stale citations</span></div>
+            <div class="wb-stats" data-testid="decisions.stats">
+                <div class="wb-stat" data-testid="decisions.stat.total"><span class="wb-stat-num">{{.Total}}</span><span class="wb-stat-label">decisions</span></div>
+                <div class="wb-stat" data-testid="decisions.stat.active"><span class="wb-stat-num">{{.Active}}</span><span class="wb-stat-label">active</span></div>
+                <div class="wb-stat" data-testid="decisions.stat.replaced"><span class="wb-stat-num">{{.Replaced}}</span><span class="wb-stat-label">replaced</span></div>
+                <div class="wb-stat{{if .Stale}} stale{{end}}" data-testid="decisions.stat.stale"><span class="wb-stat-num">{{.Stale}}</span><span class="wb-stat-label">stale citations</span></div>
             </div>
             {{end}}
         </div>
 
         {{if not .Total}}
-        <div class="wb-empty decisions-empty">
+        <div class="wb-empty decisions-empty" data-testid="decisions.empty">
             <div class="wb-empty-icon decisions-empty-icon">⚖</div>
             <h3>No decisions recorded yet</h3>
             <p>Decisions appear here when the lead records an answer with <code>issue-cli answer &lt;slug&gt; Q-n --option B</code>, or when an agent records one with <code>issue-cli decide &lt;slug&gt; --text "…"</code>. Free-form <code>## Decisions</code> notes in older issues are not listed.</p>
         </div>
         {{else}}
-        <div class="decisions-filters">
+        <div class="decisions-filters" data-testid="decisions.filters">
             <div class="wb-chips decisions-chips">
                 <span class="decisions-chips-label">System</span>
-                <a href="{{$.FilterURL "" $.State}}" class="wb-chip{{if eq .System ""}} active{{end}}">All systems {{.Total}}</a>
+                <a href="{{$.FilterURL "" $.State}}" data-testid="decisions.filter.system.all" class="wb-chip{{if eq .System ""}} active{{end}}">All systems {{.Total}}</a>
                 {{range .Systems}}
-                <a href="{{$.FilterURL .Name $.State}}" class="wb-chip{{if eq $.System .Name}} active{{end}}">{{.Name}} {{.Count}}</a>
+                <a href="{{$.FilterURL .Name $.State}}" data-testid="decisions.filter.system.{{tid .Name}}" class="wb-chip{{if eq $.System .Name}} active{{end}}">{{.Name}} {{.Count}}</a>
                 {{end}}
             </div>
             <div class="wb-chips decisions-chips">
                 <span class="decisions-chips-label">State</span>
-                <a href="{{$.FilterURL $.System ""}}" class="wb-chip{{if eq .State ""}} active{{end}}">All</a>
-                <a href="{{$.FilterURL $.System "active"}}" class="wb-chip{{if eq .State "active"}} active{{end}}">Active {{.Active}}</a>
-                <a href="{{$.FilterURL $.System "deferred"}}" class="wb-chip{{if eq .State "deferred"}} active{{end}}">Deferred {{.Deferred}}</a>
-                <a href="{{$.FilterURL $.System "replaced"}}" class="wb-chip{{if eq .State "replaced"}} active{{end}}">Replaced {{.Replaced}}</a>
-                <a href="{{$.FilterURL $.System "stale"}}" class="wb-chip chip-stale{{if eq .State "stale"}} active{{end}}">Has stale citations {{.Stale}}</a>
+                <a href="{{$.FilterURL $.System ""}}" data-testid="decisions.filter.state.all" class="wb-chip{{if eq .State ""}} active{{end}}">All</a>
+                <a href="{{$.FilterURL $.System "active"}}" data-testid="decisions.filter.state.active" class="wb-chip{{if eq .State "active"}} active{{end}}">Active {{.Active}}</a>
+                <a href="{{$.FilterURL $.System "deferred"}}" data-testid="decisions.filter.state.deferred" class="wb-chip{{if eq .State "deferred"}} active{{end}}">Deferred {{.Deferred}}</a>
+                <a href="{{$.FilterURL $.System "replaced"}}" data-testid="decisions.filter.state.replaced" class="wb-chip{{if eq .State "replaced"}} active{{end}}">Replaced {{.Replaced}}</a>
+                <a href="{{$.FilterURL $.System "stale"}}" data-testid="decisions.filter.state.stale" class="wb-chip chip-stale{{if eq .State "stale"}} active{{end}}">Has stale citations {{.Stale}}</a>
             </div>
         </div>
 
         {{if not .Rows}}
-        <p class="decisions-nomatch">No decisions match these filters · <a href="{{.Prefix}}/decisions">Clear filters</a></p>
+        <p class="decisions-nomatch" data-testid="decisions.nomatch">No decisions match these filters · <a href="{{.Prefix}}/decisions" data-testid="decisions.nomatch.clear">Clear filters</a></p>
         {{else}}
         <div class="decisions-table-wrap">
-            <table class="decisions-table">
+            <table class="decisions-table" data-testid="decisions.table">
                 <thead><tr><th>ID</th><th>Date</th><th>Decision</th><th>Recorded in</th><th>Cited by</th><th>State</th></tr></thead>
                 <tbody>
                 {{range .Rows}}
-                <tr class="decision-row{{if .ReplacedBy}} dim{{end}}" data-ref="{{.Ref}}">
-                    <td><span class="decision-id">{{.ID}}</span><button type="button" class="decision-copy" data-ref="{{.Ref}}" title="Copy {{.Ref}}">copy ref</button></td>
+                <tr class="decision-row{{if .ReplacedBy}} dim{{end}}" data-ref="{{.Ref}}" data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}">
+                    <td><span class="decision-id">{{.ID}}</span><button type="button" class="decision-copy" data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}.copy" data-ref="{{.Ref}}" title="Copy {{.Ref}}">copy ref</button></td>
                     <td class="decision-date">{{.DateLabel}}</td>
                     <td>
-                        <div class="decision-text">{{.TextHTML}}{{if .Quote}}, "{{.Quote}}"{{end}}</div>
-                        <div class="decision-how">
+                        <div class="decision-text" data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}.text">{{.TextHTML}}{{if .Quote}}, "{{.Quote}}"{{end}}</div>
+                        <div class="decision-how" data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}.how">
                             {{- if .How}}{{.How}}{{end}}
                             {{- if .Deferred}} · deferred{{end}}
                             {{- if .AlsoConsidered}} · also considered: {{.AlsoConsidered}}{{end}}
@@ -143,14 +143,14 @@
                     </td>
                     <td>
                         {{if not .CitedCount}}
-                        <span class="decision-none">none yet</span>
+                        <span class="decision-none" data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}.cited">none yet</span>
                         {{else if not .CitedOpen}}
-                        <details class="decision-cites"><summary>{{len .CitedClosed}} closed issue{{if ne (len .CitedClosed) 1}}s{{end}}</summary>
+                        <details class="decision-cites" data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}.cited"><summary>{{len .CitedClosed}} closed issue{{if ne (len .CitedClosed) 1}}s{{end}}</summary>
                             <ul>{{range .CitedClosed}}<li><a href="{{$.Prefix}}/issue/{{.Slug}}">{{.Slug}}</a><span class="decision-status">· {{.Status}}</span></li>{{end}}</ul>
                         </details>
                         {{else}}
-                        <details class="decision-cites{{if .Stale}} stale{{end}}"{{if .Stale}} open{{end}}>
-                            <summary>{{if .Stale}}{{len .CitedOpen}} open issue{{if ne (len .CitedOpen) 1}}s{{end}} still cite it{{else}}{{.CitedCount}} issue{{if ne .CitedCount 1}}s{{end}}{{end}}</summary>
+                        <details class="decision-cites{{if .Stale}} stale{{end}}"{{if .Stale}} open{{end}} data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}.cited">
+                            <summary>{{if .Stale}}{{len .CitedOpen}} open issue{{if ne (len .CitedOpen) 1}}s still cite{{else}} still cites{{end}} it{{else}}{{.CitedCount}} issue{{if ne .CitedCount 1}}s{{end}}{{end}}</summary>
                             <ul>
                                 {{range .CitedOpen}}<li><a href="{{$.Prefix}}/issue/{{.Slug}}">{{.Slug}}</a><span class="decision-status">· {{.Status}}</span></li>{{end}}
                                 {{if .CitedClosed}}<li class="decision-none">+ {{len .CitedClosed}} closed issue{{if ne (len .CitedClosed) 1}}s{{end}}</li>{{end}}
@@ -159,8 +159,8 @@
                         {{end}}
                     </td>
                     <td>
-                        {{if eq .State "stale"}}<span class="decision-state s-stale">replaced · stale</span>
-                        {{else}}<span class="decision-state s-{{.State}}">{{.State}}</span>{{end}}
+                        {{if eq .State "stale"}}<span class="decision-state s-stale" data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}.state">replaced · stale</span>
+                        {{else}}<span class="decision-state s-{{.State}}" data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}.state">{{.State}}</span>{{end}}
                     </td>
                 </tr>
                 {{end}}
@@ -172,7 +172,7 @@
         {{end}}
     </main>
 
-    <div id="save-toast" class="save-toast"></div>
+    <div id="save-toast" class="save-toast" data-testid="decisions.toast"></div>
 
     <script>
     (function() {
@@ -195,8 +195,10 @@
             });
         });
 
-        // Generated view: reload when any issue file changes.
-        var last = null;
+        // Generated view: reload when any issue file changes. The baseline
+        // is the hash at render time, so a change made before the first
+        // poll is not missed.
+        var last = {{.Hash}} || null;
         setInterval(function() {
             fetch(prefix + '/hash').then(function(r) { return r.json(); }).then(function(d) {
                 if (last !== null && d.hash !== last) location.reload();

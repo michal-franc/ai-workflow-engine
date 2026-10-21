@@ -170,7 +170,7 @@
                     {{with index $.ApproveThen .}}
                     {{$both := and (eq $.Issue.HumanApproval $status) (eq $.Issue.QueuedApproval .)}}
                     <div class="sidebar-value">
-                        <button id="approve-then-{{statusFragment $status}}" class="approve-btn approve-then-btn {{if $both}}approved{{end}}" data-then-status="{{$status}}" data-then="{{.}}" onclick="toggleApproval('{{$status}}', '{{.}}')" title="Approves {{$status}} now and queues {{.}}, so the agent's start continues into {{.}} without a second approval">
+                        <button id="approve-then-{{statusFragment $status}}" data-testid="detail.approve_then.{{tid $status}}" class="approve-btn approve-then-btn {{if $both}}approved{{end}}" data-then-status="{{$status}}" data-then="{{.}}" onclick="toggleApproval('{{$status}}', '{{.}}')" title="Approves {{$status}} now and queues {{.}}, so the agent's start continues into {{.}} without a second approval">
                             <span class="approve-check">{{if $both}}&#10003;{{else}}&#9744;{{end}}</span>
                             Approved for {{$status}} and {{.}}
                         </button>

@@ -45,17 +45,19 @@ func TestHandleDecisions_RendersIndex(t *testing.T) {
 	for _, want := range []string{
 		`class="view-tab active">`,
 		`<span class="wb-stat-num">4</span><span class="wb-stat-label">decisions</span>`,
-		`wb-stat stale"><span class="wb-stat-num">1</span>`,
+		`wb-stat stale" data-testid="decisions.stat.stale"><span class="wb-stat-num">1</span>`,
 		"All systems 4", "Economy 2", "Sim 2", "Has stale citations 1",
 		`data-ref="sim/phases#D-1"`,
 		"The raid becomes an <strong>ET-style</strong> objective format &lt;6v6&gt;.",
 		`, "no readable tension"`,
 		`replaces <a href="/p/wb/issue/sim/phases" class="decision-ref">sim/phases#D-1</a>`,
 		`replaced by <a href="/p/wb/issue/sim/pivot" class="decision-ref">sim/pivot#D-1</a> on 28 Sep`,
-		"1 open issue still cite it",
+		"1 open issue still cites it",
 		`<a href="/p/wb/issue/sim/creeps">sim/creeps</a><span class="decision-status">· backlog</span>`,
-		`<span class="decision-state s-stale">replaced · stale</span>`,
-		`<span class="decision-state s-deferred">deferred</span>`,
+		`<span class="decision-state s-stale" data-testid="decisions.row.`,
+		`.state">replaced · stale</span>`,
+		`<span class="decision-state s-deferred" data-testid="decisions.row.`,
+		`.state">deferred</span>`,
 		"answered in lead chat (Q-1) · also considered: A Reset",
 		"Does gold carry over? → <strong>B. Capped at 300</strong>",
 		"none yet",
@@ -135,5 +137,27 @@ func TestDecisionDateLabel(t *testing.T) {
 	}
 	if decisionDateLabel(time.Time{}, now) != "" {
 		t.Error("zero date")
+	}
+}
+
+// The generated pages render the /hash value as their auto-reload baseline,
+// so a change made between the render and the first poll is not missed.
+func TestGeneratedPagesRenderHashBaseline(t *testing.T) {
+	proj := setupDecisionsProject(t)
+	withMockTmuxSessions(t, nil)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	hash := pageGet(t, ts.URL+"/p/wb/hash")
+	i := strings.Index(hash, `"hash":"`)
+	if i < 0 {
+		t.Fatalf("no hash in %q", hash)
+	}
+	want := hash[i+len(`"hash":"`):]
+	want = want[:strings.Index(want, `"`)]
+	for _, page := range []string{"/p/wb/decisions", "/p/wb/balance"} {
+		if got := pageGet(t, ts.URL+page); !strings.Contains(got, `var last = "`+want+`" || null;`) {
+			t.Errorf("%s does not render the /hash baseline %s", page, want)
+		}
 	}
 }

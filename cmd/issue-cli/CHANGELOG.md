@@ -16,6 +16,17 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.35.0 — 2026-10-21
+
+- **Issues canvas.** A new **Canvas** tab (`/p/<project>/canvas`) shows what each epic holds and what each version plans, on one pannable, zoomable map.
+  - Columns are versions, sorted as dotted numbers (0.2 before 0.10). Each header shows done/total, side-status counts and a status bar.
+  - Rows are epics by default. An epic is an issue with `type: epic` (EPIC), or one that another issue's `parent:` or legacy `umbrella:` points at (UMBRELLA). Each row shows the epic's base branch and a roll-up of its children; sub-epics are indented, and "No epic" comes last. `?rows=system` switches to one row per system, with an epic badge on each card.
+  - Issues without a version are hidden unless `?nover=1` (always shown when no issue has a version). Done and obsolete cards are dimmed, and `?done=collapse` folds them into a count per cell.
+  - Highlight one epic (`?hl=<slug>`) from its row, a card's badge, or **View on canvas** on the epic's detail page.
+  - Pan by dragging or with the wheel, zoom with Ctrl+wheel, or use −/+/Fit. Nothing is saved; the layout is always computed.
+- Web UI: "in progress" and "in design" now get their status colours (yellow, blue) everywhere. They rendered gray because the colour map's keys didn't match `canonicalStatusKey`.
+- Playtest: `canvas-basics` and `canvas-phone` sessions on a new `canvas` scenario; the canvas carries `canvas.*` test ids.
+
 ## v0.34.0 — 2026-10-21
 
 - **Playtest sessions.** An issue's manual checks can now be a YAML session in `playtest/sessions/`, each step's id one of the issue's checkbox ids.

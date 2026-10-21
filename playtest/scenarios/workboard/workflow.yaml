@@ -1,0 +1,33 @@
+statuses:
+  - name: "idea"
+    description: "Raw idea"
+  - name: "in design"
+    description: "Being designed"
+  - name: "backlog"
+    description: "Ready to work on"
+  - name: "in progress"
+    description: "Being built"
+  - name: "done"
+    description: "Finished"
+  - name: "parked"
+    description: "Blocked, deferred or won't do"
+    optional: true
+    global: true
+
+transitions:
+  - from: "idea"
+    to: "in design"
+  - from: "in design"
+    to: "backlog"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Design"
+      - type: "require_human_approval"
+        status: "backlog"
+  - from: "backlog"
+    to: "in progress"
+  - from: "in progress"
+    to: "done"
+    actions:
+      - type: "validate"
+        rule: "all_checkboxes_checked"

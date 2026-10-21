@@ -28,7 +28,7 @@ Put a short section at the top of the project's `CLAUDE.md`. A session is a **wo
 In a doc your `CLAUDE.md` points workers to (Raid League keeps an agents guide under its `docs/`):
 
 - Own your issue only. New ideas become `idea` issues (`issue-cli create`), referenced with `#slug`.
-- Stop at human gates. Ask once in chat, then block with `issue-cli transition <slug> --to <status> --wait --timeout 9m`. A "go" in your chat is not an approval.
+- Stop at human gates. Ask once in chat, then stop and end your turn; don't wait or poll. Continue when the human messages you that it is approved. A "go" in your chat is not an approval.
 - Leave a trail: tick boxes as they're done, add `progress:` comments at milestones, and the comments your gates require (`tests:`, `docs:`, …).
 - Commit on your own branch as you go; only shipping merges.
 - Write a retrospective when you stop (`issue-cli retrospective`).
@@ -92,7 +92,7 @@ A large feature built in many pieces runs as an **umbrella issue** with **child 
 - The lead merges `main` into the base branch now and then so it doesn't drift.
 - The umbrella issue runs the workflow too: its build boxes tick when every child has shipped into the base branch, and its final steps take the base branch to `main`.
 
-Parent links and roll-up progress for umbrella issues are on the roadmap; until then this is all convention.
+The [issues canvas](../UI/overview.md#issues-canvas) shows umbrella issues with their children and roll-up progress per version. To show the human an umbrella's state, send `/p/<project>/canvas?hl=<umbrella slug>`. The branching above is still convention.
 
 ## Worked example: Raid League
 

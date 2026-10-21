@@ -33,12 +33,12 @@ statuses:
       Write the design into the issue body under the relevant sections before checking the related boxes.
       Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
       Describe how agents will discover and use the change. Prefer hints in CLI output and error messages over prompt text, which does not reach other projects' workflows or non-dispatched sessions.
-      When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition <slug> --to "backlog" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
+      When the design is complete, tell the human in chat that it needs approval in the issue viewer: `backlog` to queue it, or `in progress` to start straight away. Then stop and end your turn. When the human says it is approved, run `issue-cli context <slug>` and transition to the status in `human_approval`.
   - name: "backlog"
     description: "Ready to work on"
     prompt: |
       This is a handoff state.
-      Tell the human in chat that this needs `in progress` approval in the issue viewer, then run `issue-cli start <slug> --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
+      Tell the human in chat that this needs `in progress` approval in the issue viewer, then stop and end your turn; continue when the human messages you that it is approved.
   - name: "in progress"
     description: "Actively being implemented"
     prompt: |
@@ -49,14 +49,15 @@ statuses:
     prompt: |
       Build or update the relevant automated coverage, record concrete test evidence, and surface any remaining manual checks clearly.
       Before checking test-related boxes, make sure the Test Plan section in the issue body contains the explicit automated and manual steps being verified.
-      For manual checks, prepare a throwaway sandbox scenario that lives only in the worktree (a gitignored path such as `.agent-logs/<name>-sandbox/`, never committed): isolated config, issues and state dirs, sandbox-built binaries, and one script with setup/run/clean steps. It must never touch the real projects.yaml, issues tree, or user state.
-      Describe it under `### Manual` in the Test Plan: where the script lives, the exact commands the human runs, what to look at, the expected result for each step, and how to clean up.
+      Write the manual checks as a playtest session, playtest/sessions/<name>.yaml (how: issue-cli process playtest web, docs/patterns/playtest/web-app.md): step id = the Test Plan checkbox id, a scenario from playtest/scenarios/ (add one if none fits; fixtures under tracker/, never issues/), machine checks for everything a machine can see, and expect:/do:/why: only for what needs the owner's eye. New elements a step points at get a data-testid listed in internal/testids/testids.go.
+      Run `make playtest-check`, single `make ux-test ISSUE=<slug>` runs while fixing, and `make ux-test ISSUE=<slug> REPEAT=2` once, as the final run before handing over. The runner builds the scenario: never point a session at the real projects.yaml, issues tree, user state or tmux server.
+      A manual check a session can't drive (real Claude behaviour, a terminal-only flow) stays as written steps under `### Manual`: exact commands, what to look at, the expected result, and cleanup. Build its throwaway setup under a gitignored `.agent-logs/<name>-sandbox/` that never touches the real projects.yaml, issues tree, user state or tmux server.
   - name: "human-testing"
     description: "Manual verification by humans"
     prompt: |
-      Ask the human to run the manual checks and approve `documentation` in the issue viewer, then run `issue-cli start <slug> --wait --timeout 9m` to block until they do (re-run it on exit code 3).
-      Make sure the manual checks are explicit, minimal, and reproducible.
-      Point the human at the worktree sandbox scenario and the `### Manual` steps in the Test Plan; do not ask them to verify against real projects or data.
+      Ask the human to run `make playtest ISSUE=<slug>` in the worktree (only the judgement steps, in an overlay on a scenario board; it reuses your last ux-test) and then `make playtest-report ISSUE=<slug> APPLY=1` (ticks the Manual boxes that passed, comments each failure and opinion), plus any written `### Manual` steps no session covers. Then ask them to approve `documentation` in the issue viewer, stop and end your turn; continue when the human messages you that it is approved.
+      Make sure the manual checks are explicit, minimal, and reproducible; do not ask the human to verify against real projects or data.
+      Read `playtest:` comments as test results: fix each failure, and answer or act on each opinion.
   - name: "documentation"
     description: "Being documented"
     prompt: |
@@ -64,13 +65,16 @@ statuses:
   - name: "shipping"
     description: "Committing and pushing changes"
     prompt: |
-      Commit the changes with a message referencing the issue, push the commit to the remote, and open a PR.
-      Add a `## vX.Y.Z — YYYY-MM-DD` entry to `cmd/issue-cli/CHANGELOG.md` with the user-facing change summary. The release-marker GitHub Action reads the version from this entry and creates the tag + GitHub Release on the merge commit when the PR is merged to main; do not create or push tags from a feature branch.
+      Ship straight to main. There are no pull requests: never open one.
+      1. Add a `## vX.Y.Z — YYYY-MM-DD` entry to `cmd/issue-cli/CHANGELOG.md` with the user-facing change summary. The release-marker GitHub Action reads the version from this entry and creates the tag + GitHub Release when your commit lands on main; do not create or push tags yourself.
+      2. Commit on your branch with a message referencing the issue.
+      3. `git fetch origin && git merge origin/main`, resolve any conflicts, and run `make validate`. If main already has your version in the CHANGELOG, bump yours above it.
+      4. `git push origin HEAD:main`. If it is rejected because main moved, repeat step 3 and push again. Never force-push.
       Pick the version bump by the nature of the change (semver):
         - Bugfix only → patch bump (e.g. v0.1.0 → v0.1.1, the `x.y.Z` digit).
         - New feature, backwards-compatible → minor bump (e.g. v0.1.1 → v0.2.0, the `x.Y.z` digit).
         - Breaking change (CLI contract, workflow.yaml schema, or API) → major bump (e.g. v0.2.0 → v1.0.0, the `X.y.z` digit).
-      Stop and ask for `done` approval in the issue viewer once the PR is opened. Merging the PR and polishing the GitHub release description is the human's responsibility.
+      Once your commit is on main and the Shipping boxes are ticked, move the issue to `done` yourself (`issue-cli transition <slug> --to "done"`); it needs no human approval. Polishing the GitHub release description is the human's responsibility. Leave the worktree as it is: nobody has to remove it.
   - name: "done"
     description: "Completed"
 
@@ -93,7 +97,7 @@ transitions:
           - [ ] Dependencies identified
           - [ ] Overlap reviewed: similar existing features listed and the need justified
           - [ ] Discoverability: how agents find and use this is documented
-          - [ ] Human approval requested for backlog
+          - [ ] Human approval requested (backlog, or in progress to start straight away)
       - type: "append_section"
         title: "Acceptance Criteria"
         body: |
@@ -111,6 +115,34 @@ transitions:
       - type: "set_fields"
         field: "assignee"
         value: ""
+  # Optional shortcut: start building straight from design, skipping the
+  # backlog queue. The human approves `in progress` from `in design` instead.
+  - from: "in design"
+    to: "in progress"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Design"
+      - type: "validate"
+        rule: "section_has_checkboxes: Acceptance Criteria"
+      - type: "require_human_approval"
+        status: "in progress"
+      - type: "validate"
+        rule: "has_assignee"
+      - type: "append_section"
+        title: "Implementation"
+        body: |
+          - [ ] Code changes complete
+          - [ ] Automated tests added or updated where practical
+          - [ ] Cross-cutting impact reviewed where relevant
+      - type: "append_section"
+        title: "Test Plan"
+        body: |
+          ### Automated
+          - [ ] Automated verification recorded
+          
+          ### Manual
+          - [ ] Throwaway sandbox scenario prepared (worktree-only, gitignored e.g. under `.agent-logs/<name>-sandbox/`, never committed; isolated config/issues/state; never touches real projects.yaml, issues, or user state)
+          - [ ] Human steps written: exact commands to run, what to look at, expected result for each, and how to clean up
   - from: "backlog"
     to: "in progress"
     actions:
@@ -131,8 +163,8 @@ transitions:
           - [ ] Automated verification recorded
           
           ### Manual
-          - [ ] Throwaway sandbox scenario prepared (worktree-only, gitignored e.g. under `.agent-logs/<name>-sandbox/`, never committed; isolated config/issues/state; never touches real projects.yaml, issues, or user state)
-          - [ ] Human steps written: exact commands to run, what to look at, expected result for each, and how to clean up
+          - [ ] Manual checks written as a playtest session (`playtest/sessions/<name>.yaml`, step id = checkbox id; judgement steps only for what needs the owner) and `make playtest-check` passes (or N/A with reason)
+          - [ ] Checks no session can drive written as steps: exact commands, what to look at, expected result, cleanup (or none)
   - from: "in progress"
     to: "testing"
     actions:
@@ -146,6 +178,7 @@ transitions:
           - [ ] Relevant tests for changed code passing
           - [ ] Known unrelated failures documented if full suite is red
           - [ ] Test results logged as comment (`issue-cli comment <slug> --text "tests: ..."`)
+          - [ ] `make ux-test ISSUE=<slug> REPEAT=2` passed, run once before handoff (or N/A: no playtest session, with reason)
       - type: "inject_prompt"
         prompt: |
           Run the relevant tests for the changed code, record results, and capture any remaining manual checks.
@@ -185,16 +218,13 @@ transitions:
         body: |
           - [ ] Changes committed with a message referencing the issue
           - [ ] `cmd/issue-cli/CHANGELOG.md` updated with `## vX.Y.Z — YYYY-MM-DD` entry (release-marker reads version from this)
-          - [ ] Commit pushed to the remote
-          - [ ] PR opened
-          - [ ] Worktree merged and removed by human after merge (`git worktree remove .worktrees/<slug>`)
+          - [ ] `origin/main` merged into the branch and `make validate` green after the merge
+          - [ ] Pushed straight to main (`git push origin HEAD:main`, no pull request)
   - from: "shipping"
     to: "done"
     actions:
       - type: "validate"
         rule: "section_checkboxes_checked: Shipping"
-      - type: "require_human_approval"
-        status: "done"
 
 # Custom one-shot agent buttons, rendered on the issue detail view below the
 # built-in Claude/Codex dispatch buttons. Each opens a tmux agent session
@@ -266,7 +296,7 @@ systems:
           For API changes that affect UI-visible state, state the source of truth, whether server-side polling plus `/hash` is the expected refresh path, and whether manual browser verification is required before human-testing.
           Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
           Describe how agents will discover and use the change. Prefer hints in CLI output and error messages over prompt text, which does not reach other projects' workflows or non-dispatched sessions.
-          When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition <slug> --to "backlog" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
+          When the design is complete, tell the human in chat that it needs approval in the issue viewer: `backlog` to queue it, or `in progress` to start straight away. Then stop and end your turn. When the human says it is approved, run `issue-cli context <slug>` and transition to the status in `human_approval`.
       - name: "documentation"
         prompt: |
           Update docs/API/ with any changed endpoints, request/response formats, or behavior.
@@ -283,7 +313,7 @@ systems:
           Document the output contract early: whether text is human-facing or agent-facing, whether script compatibility matters, and whether `--json` or other machine-readable output is in scope for this issue.
           Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
           Describe how agents will discover and use the change. Prefer hints in CLI output and error messages over prompt text, which does not reach other projects' workflows or non-dispatched sessions.
-          When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition <slug> --to "backlog" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
+          When the design is complete, tell the human in chat that it needs approval in the issue viewer: `backlog` to queue it, or `in progress` to start straight away. Then stop and end your turn. When the human says it is approved, run `issue-cli context <slug>` and transition to the status in `human_approval`.
       - name: "documentation"
         prompt: |
           Update docs/CLI/ with any changed commands, flags, or output formats.
@@ -298,6 +328,7 @@ systems:
           Turn the problem into explicit checklists, assumptions, and open questions.
           Write the design into the issue body under the relevant sections before checking the related boxes.
           For UI work that launches local tools or editors, state whether to reuse existing tmux/alacritty patterns, whether handlers may block on local processes, and what feedback the user sees after launch.
+          Name the elements the issue's playtest session will point at; each gets a data-testid listed in internal/testids/testids.go (issue-cli process playtest web).
           Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
           Describe how agents will discover and use the change. Prefer hints in CLI output and error messages over prompt text, which does not reach other projects' workflows or non-dispatched sessions.
           Mockups come before the written design for any change the user sees (docs/UI/overview.md, "Mockups in design"):
@@ -307,7 +338,7 @@ systems:
             4. Make screenshots with `tools/mockup-shots/shots.py issues/attachments/<issue-name>/` (Playwright; works for Design artboards and HTML pages). It captures each screen at full height and widens for boards that scroll sideways; add `--shot "<css>=<name>"` for a close-up of one region. Look at every image before using it.
             5. Under `## Mockups`, add one subsection per screen: the image (path relative to the issue file, e.g. `../attachments/<issue-name>/<screen>.png`) and a description of its layout, each region, the states and markers it shows, and what happens on interaction. Someone who cannot open the artifact must be able to build the screen from the image and the text.
           No visible change (e.g. a handler that launches a local tool): write why under `## Mockups` instead and tick its box.
-          When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition <slug> --to "backlog" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
+          When the design is complete, tell the human in chat that it needs approval in the issue viewer: `backlog` to queue it, or `in progress` to start straight away. Then stop and end your turn. When the human says it is approved, run `issue-cli context <slug>` and transition to the status in `human_approval`.
       - name: "documentation"
         prompt: |
           Update docs/UI/ with any changed views, templates, or interaction patterns.
@@ -326,6 +357,11 @@ systems:
         actions:
           - type: "validate"
             rule: "section_checkboxes_checked: Mockups"
+      - from: "in design"
+        to: "in progress"
+        actions:
+          - type: "validate"
+            rule: "section_checkboxes_checked: Mockups"
   Workflow:
     statuses:
       - name: "in design"
@@ -335,7 +371,7 @@ systems:
           Write the design into the issue body under the relevant sections before checking the related boxes.
           Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
           Describe how agents will discover and use the change. Prefer hints in CLI output and error messages over prompt text, which does not reach other projects' workflows or non-dispatched sessions.
-          When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition <slug> --to "backlog" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).
+          When the design is complete, tell the human in chat that it needs approval in the issue viewer: `backlog` to queue it, or `in progress` to start straight away. Then stop and end your turn. When the human says it is approved, run `issue-cli context <slug>` and transition to the status in `human_approval`.
       - name: "documentation"
         prompt: |
           Update docs/Workflow/ with any changed statuses, transitions, actions, or overlay behavior.

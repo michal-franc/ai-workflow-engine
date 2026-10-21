@@ -1,4 +1,4 @@
-.PHONY: build build-cli install demo clean validate test vet cover-cli
+.PHONY: build build-cli install demo clean validate test vet cover-cli playtest-check ux-test playtest playtest-report
 
 build:
 	go build -o issue-viewer .
@@ -16,6 +16,7 @@ demo: build
 
 clean:
 	rm -f issue-viewer issue-cli cover.out
+	rm -rf .playtest
 
 # Static validation chain: vet, full test suite, then a coverage gate on the
 # cmd/issue-cli package. The gate fails the build when coverage drops below
@@ -35,5 +36,27 @@ cover-cli:
 	  awk -v p="$$pct" -v f="$(CLI_COVERAGE_FLOOR)" 'BEGIN { exit (p+0 < f+0) }' || \
 	    { echo "FAIL: coverage below floor"; exit 1; }
 
-validate: vet test cover-cli
+validate: vet test cover-cli playtest-check
 	@echo "✓ validate passed"
+
+# Playtest sessions (playtest/sessions/*.yaml): an issue's manual checks run
+# against a throwaway scenario board in Chrome. See docs/patterns/playtest/.
+#   make playtest-check                       validate every session (no browser)
+#   make ux-test [ISSUE=slug] [S=session] [STEP=TP2,TP3] [REPEAT=2]
+#                                             machine checks, headless, desktop + phone
+#   make playtest [ISSUE=slug] [S=session]    the owner's judgement steps, in an overlay
+#   make playtest-report ISSUE=slug [APPLY=1] tick passed boxes, comment failures
+PLAYTEST = go run ./cmd/playtest
+PLAYTEST_SEL = $(if $(ISSUE),-issue $(ISSUE)) $(if $(S),-s $(S))
+
+playtest-check:
+	@$(PLAYTEST) check
+
+ux-test:
+	@$(PLAYTEST) ux-test $(PLAYTEST_SEL) $(if $(STEP),-step $(STEP)) $(if $(REPEAT),-repeat $(REPEAT))
+
+playtest:
+	@$(PLAYTEST) playtest $(PLAYTEST_SEL)
+
+playtest-report:
+	@$(PLAYTEST) report -issue $(ISSUE) $(if $(S),-s $(S)) $(if $(APPLY),-apply)

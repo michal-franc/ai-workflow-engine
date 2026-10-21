@@ -18,6 +18,7 @@
                 <a href="{{.Prefix}}/" class="view-tab">List</a>
                 <a href="{{.Prefix}}/board" class="view-tab">Board</a>
                 <a href="{{.Prefix}}/graph" class="view-tab">Graph</a>
+                <a href="{{.Prefix}}/canvas" class="view-tab">Canvas</a>
                 <a href="{{.Prefix}}/docs" class="view-tab">Docs</a>
                 <a href="{{.Prefix}}/retros" class="view-tab">Retros</a>
                 <a href="{{.Prefix}}/workflow-designer" class="view-tab">Workflow</a>
@@ -25,8 +26,8 @@
                 {{if .SupportsGitHub}}
                 <a href="{{.Prefix}}/github" class="view-tab">GitHub</a>
                 {{end}}
-                <a href="{{.Prefix}}/decisions" class="view-tab">Decisions</a>
-                {{if workbenchTab "balance" .Prefix}}<a href="{{.Prefix}}/balance" class="view-tab">Balance</a>{{end}}
+                <a href="{{.Prefix}}/decisions" data-testid="nav.tab.decisions" class="view-tab">Decisions</a>
+                {{if workbenchTab "balance" .Prefix}}<a href="{{.Prefix}}/balance" data-testid="nav.tab.balance" class="view-tab">Balance</a>{{end}}
             </nav>
         </div>
     </div>

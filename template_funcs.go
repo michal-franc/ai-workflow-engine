@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/michal-franc/issue-viewer/internal/testids"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -35,11 +36,12 @@ var funcMap = template.FuncMap{
 	// templates can show workbench tabs only for projects that configure them.
 	"workbenchTab": func(kind, prefix string) bool { return false },
 	"statusColor": func(s string) string {
+		// Keys are canonicalStatusKey form: lower case, spaces as hyphens.
 		colors := map[string]string{
 			"idea":          "#8b5cf6",
-			"in design":     "#3b82f6",
+			"in-design":     "#3b82f6",
 			"backlog":       "#64748b",
-			"in progress":   "#eab308",
+			"in-progress":   "#eab308",
 			"testing":       "#f97316",
 			"human-testing": "#ec4899",
 			"documentation": "#14b8a6",
@@ -52,7 +54,7 @@ var funcMap = template.FuncMap{
 		return "#6b7280"
 	},
 	"statusTextColor": func(s string) string {
-		dark := map[string]bool{"in progress": true, "testing": true, "human-testing": true}
+		dark := map[string]bool{"in-progress": true, "testing": true, "human-testing": true}
 		if dark[canonicalStatusKey(s)] {
 			return "#000000"
 		}
@@ -92,6 +94,9 @@ var funcMap = template.FuncMap{
 	"isURL": func(s string) bool {
 		return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
 	},
+	// tid turns a status or slug into one data-testid segment (see
+	// internal/testids).
+	"tid": testids.Segment,
 	"statusFragment": func(s string) string {
 		return strings.ReplaceAll(strings.TrimSpace(s), " ", "-")
 	},

@@ -18,8 +18,7 @@ var tmuxHasSession = defaultTmuxHasSession
 var tmuxSessionAttached = defaultTmuxSessionAttached
 
 func tmuxSessionName(slug string) string {
-	r := strings.NewReplacer("/", "-", ".", "-", " ", "-")
-	return "agent-" + r.Replace(slug)
+	return tracker.AgentSessionName(slug)
 }
 
 func defaultTmuxHasSession(session string) bool {
@@ -52,10 +51,7 @@ func agentTmuxTarget(proj *tracker.Project, name string) string {
 // agentDisplayName is the human-facing name of the agent's tmux location,
 // e.g. "agent-foo" or "work:agent-foo" in shared mode.
 func agentDisplayName(proj *tracker.Project, name string) string {
-	if shared := sharedTmuxSession(proj); shared != "" {
-		return shared + ":" + name
-	}
-	return name
+	return tracker.AgentDisplayName(proj, name)
 }
 
 // agentAttachCmd is the command a human runs to reach the agent when the
@@ -217,4 +213,45 @@ func sessionMatchesIssue(sessionName string, slug string) bool {
 		}
 	}
 	return false
+}
+
+var tmuxCapturePane = defaultTmuxCapturePane
+
+// promptDeliveryTimeout bounds how long a dispatch or reprompt waits for the
+// prompt to show up in the agent's pane before reporting it undelivered.
+var promptDeliveryTimeout = 20 * time.Second
+
+const promptDeliveryPoll = 500 * time.Millisecond
+
+func defaultTmuxCapturePane(target string) (string, error) {
+	out, err := exec.Command("tmux", "capture-pane", "-p", "-J", "-t", target).Output()
+	return string(out), err
+}
+
+// promptDeliveryStep polls the agent's pane until the prompt's delivery
+// marker appears, and records whether it did. It never re-sends: a missing
+// prompt is reported as a failed step for the human to act on.
+func promptDeliveryStep(steps *[]DispatchStep, target, prompt, repromptURL string) {
+	marker := tracker.PromptDeliveryMarker(prompt)
+	if marker == "" {
+		return
+	}
+	deadline := time.Now().Add(promptDeliveryTimeout)
+	for {
+		if pane, err := tmuxCapturePane(target); err == nil && strings.Contains(pane, marker) {
+			*steps = append(*steps, DispatchStep{Name: "Prompt delivered", Status: "ok"})
+			return
+		}
+		if !time.Now().Before(deadline) {
+			break
+		}
+		time.Sleep(promptDeliveryPoll)
+	}
+	detail := fmt.Sprintf("its last line was not visible in the pane after %s; nothing was re-sent. Check the session, then ", promptDeliveryTimeout)
+	if repromptURL != "" {
+		detail += "use Re-send prompt or POST " + repromptURL
+	} else {
+		detail += "paste the prompt from this response by hand"
+	}
+	*steps = append(*steps, DispatchStep{Name: "Prompt not delivered", Status: "error", Detail: detail})
 }

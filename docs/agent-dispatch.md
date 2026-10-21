@@ -5,11 +5,11 @@ order: 6
 
 ## Overview
 
-The board and detail views can dispatch issues to AI agents (Claude or Codex) via tmux sessions. Dispatch creates a session, opens a terminal, and pastes a generated prompt.
+The board and detail views can dispatch issues to AI agents (Claude or Codex) via tmux sessions. Dispatch creates a session, opens a terminal, and starts the agent with a generated prompt.
 
 ## Requirements
 
-- **tmux** is mandatory. The whole dispatch lifecycle is tmux: creating the session, injecting the environment, logging via `pipe-pane`, and delivering the prompt via `send-keys`.
+- **tmux** is mandatory. The whole dispatch lifecycle is tmux: creating the session, injecting the environment, logging via `pipe-pane`, and launching the agent in the session.
 - **The agent CLI**: `claude` or `codex` on the `PATH` of the server.
 - **git**, when the workflow sets `worktree: true`.
 - **A terminal command**, or `terminal: "none"` to attach yourself (see [Terminal Configuration](#terminal-configuration)). The default, i3 + alacritty, is only needed if you leave `terminal` unset.
@@ -22,9 +22,23 @@ The board and detail views can dispatch issues to AI agents (Claude or Codex) vi
 - **Detail view** — two buttons in the sidebar (Claude / Codex)
 - **API** — `POST /p/<project>/issue/<slug>/dispatch` with `{"agent": "claude"}` or `{"agent": "codex"}`
 
+## How the prompt is delivered
+
+The prompt is saved to `<workdir>/.agent-logs/<session>/dispatch-prompt.txt`, and the agent starts with it as its positional argument (`claude "<prompt>"`, the same as codex). It is never pasted into a booting agent. Earlier versions typed `claude`, waited a fixed 3 s and pasted the prompt. When Claude took longer to start, the paste was dropped, yet every step still reported ok.
+
+Dispatch then polls the pane for the prompt's last line. It reports the step **Prompt delivered**, or a failed step after 20 s. Nothing is re-sent automatically.
+
+### Re-send prompt
+
+If an agent came up without its briefing, use **Re-send prompt** in the issue sidebar, or the link in the reattach banner. It sends `POST /p/<project>/issue/<slug>/dispatch/reprompt`, which pastes the current briefing into the issue's live session through a per-session named tmux buffer and submits it. It asks for confirmation first. If no agent session is alive, it fails with "No live agent session" and creates nothing; dispatch instead.
+
+### Read the prompt without dispatching
+
+`GET /p/<project>/issue/<slug>/dispatch-prompt` (`?format=json` for `{"prompt","slug","status","worktree","branch","session"}`) and `issue-cli dispatch-prompt <slug> [--json]` print the prompt a dispatch would send right now. Both share one builder (`tracker.BuildDispatchPrompt`), so the two outputs are byte-identical. Neither creates a worktree, session or file. The prompt follows the issue's current status, so it can differ from the saved `dispatch-prompt.txt` of an earlier dispatch.
+
 ## Re-dispatching to a live session
 
-Dispatching to an issue whose tmux session is still alive does **not** error out and does **not** re-prompt the agent. The handler probes `tmux has-session -t <name>` first; if the session exists it skips `new-session`, all logging/env setup, and the prompt-paste, and just opens a terminal attached to the existing session.
+Dispatching to an issue whose tmux session is still alive does **not** error out and does **not** re-prompt the agent. The handler probes `tmux has-session -t <name>` first; if the session exists it skips `new-session`, all logging/env setup, and the prompt, and just opens a terminal attached to the existing session.
 
 The response in this case is:
 
@@ -39,7 +53,7 @@ The response in this case is:
 }
 ```
 
-The dispatch modal renders this with a yellow warning banner. Kill the existing session manually (`tmux kill-session -t agent-<slug>`) if you want a fresh dispatch with a re-pasted prompt.
+The dispatch modal renders this with a yellow warning banner. The banner links **Re-send prompt** for an agent that never got its briefing. Kill the existing session manually (`tmux kill-session -t agent-<slug>`) if you want a fresh dispatch instead.
 
 The same pattern applies to **Edit in nvim**: re-triggering it while the previous edit session is still alive returns `{"status": "reattached", "reattached": true, ...}` and opens a terminal attached to the existing nvim instance. The reattach request does NOT register a new save-on-exit handler — the original request's goroutine still owns the sync-back when nvim exits.
 
@@ -98,7 +112,7 @@ worktree_sparse_exclude: ["issues/"]   # the default; [] keeps everything
 - The worktree is `<workdir>/.worktrees/<slug>` on a new branch `work/<slug>`, created from the current `HEAD` of the project's workdir. An existing worktree is reused, so re-dispatching after a restart picks up where the agent left off.
 - `issues/` is left out with sparse-checkout, so issues are only ever edited on the main checkout. The dispatch prompt tells the agent it is in a worktree and that its `issue-cli` commands already point at the main checkout.
 - `worktree_setup` runs on creation only. If it fails, the dispatch stops and reports the error.
-- Removing the worktree after the issue ships is left to you (`git worktree remove`).
+- Worktrees stay after the issue ships. Nobody has to remove them; `git worktree remove` is there if you want the space back.
 
 To branch a worktree from somewhere other than `HEAD` (for example a staging branch for a large feature), create it yourself before dispatching; the viewer will reuse it. See [The lead session](patterns/lead-session.md#umbrella-features).
 
@@ -123,7 +137,7 @@ Model names may contain only letters, digits and `._:/[]-`; anything else is ign
 
 When a human approves a status transition in the web UI, the server sends a natural-language message to the active agent's tmux session. The message is randomized from a set of conversational templates so the agent receives a human-like prompt rather than a structured signal.
 
-This nudge is now the fallback. The primary hand-off is the agent blocking on `issue-cli transition|start --wait` (see [CLI overview](CLI/overview.md#blocking-on-a-human-approval---wait)). That picks up the approval from the issue file within about 2s, even in sessions the nudge cannot reach (no matching tmux session, or an agent that is busy). The approve handler also timestamps the approval in the issue's stats sidecar (`last_approval`), and logs nudges that fail (`agent not nudged: …`) to the server log, so their failure rate can be measured.
+This nudge is the hand-off: at a gate the agent asks in chat, then stops and ends its turn, and the approval message resumes it. Agents don't block on `--wait` or poll (the flag remains for scripts, see [CLI overview](CLI/overview.md#blocking-on-a-human-approval---wait)). If an agent wasn't reachable (no matching tmux session), tell it yourself that the approval landed. The approve handler also timestamps the approval in the issue's stats sidecar (`last_approval`), and logs nudges that fail (`agent not nudged: …`) to the server log, so their failure rate can be measured.
 
 ## Approval-gate Deep Links
 
@@ -135,9 +149,8 @@ Error: cannot start <slug>: human approval for "in progress" is missing; no chan
 A human must approve this in the issue viewer:
   http://localhost:8080/p/<project>/issue/<slug>#approve-in-progress
 
-To block until it is approved instead of retrying:
-  issue-cli start <slug> --wait --timeout 9m
-  (exit 3 = still waiting, nothing changed; re-run it)
+Tell the human what needs approving, then stop and end your turn.
+Do not wait or poll: re-run this command only after the human says it is approved.
 ```
 
 The fragment `#approve-<status>` matches the `id` on the approve button in the detail view, so clicking the link scrolls to and visually flashes the right control. For optional approvals (the ones hidden behind a "Divert to..." CTA), the page also auto-reveals the widget when the URL fragment matches.

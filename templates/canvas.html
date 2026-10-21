@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — Canvas</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='1' y='1' width='6' height='6' rx='1.5' fill='%238b949e'/><rect x='9' y='1' width='6' height='6' rx='1.5' fill='%238b949e'/><rect x='9' y='9' width='6' height='6' rx='1.5' fill='%238b949e'/><path d='M2 10h5M2 13h5' stroke='%238b949e' stroke-width='1.5'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body class="canvas-page">
+    <div class="header" data-testid="header.bar">
+        <div class="container header-inner">
+            <div style="display:flex;align-items:center;">
+                <a href="/" class="project-back-link">Projects</a>
+                <span class="header-sep">/</span>
+                <h1>{{.ProjectName}}</h1>
+                <span class="count" data-testid="header.count">{{.TotalIssues}}</span>
+            </div>
+            <nav class="view-tabs">
+                <a href="{{.Prefix}}/" data-testid="nav.tab.list" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v1.5H2V2zm0 4h12v1.5H2V6zm0 4h12v1.5H2V10zm0 4h12v1.5H2V14z"/></svg>
+                    List
+                </a>
+                <a href="{{.Prefix}}/board" data-testid="nav.tab.board" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v8H6V2zm5 0h4v10h-4V2z"/></svg>
+                    Board
+                </a>
+                <a href="{{.Prefix}}/graph" data-testid="nav.tab.graph" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.5" cy="8" r="1.75"/><circle cx="8" cy="2.5" r="1.75"/><circle cx="13.5" cy="8" r="1.75"/><circle cx="8" cy="13.5" r="1.75"/><path d="M4.2 8h7.6M8 4.2v7.6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
+                    Graph
+                </a>
+                <a href="{{.Prefix}}/canvas" data-testid="nav.tab.canvas" class="view-tab active">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.75C1 1.78 1.78 1 2.75 1h2.5C6.22 1 7 1.78 7 2.75v2.5C7 6.22 6.22 7 5.25 7h-2.5C1.78 7 1 6.22 1 5.25v-2.5zm8 0C9 1.78 9.78 1 10.75 1h2.5c.97 0 1.75.78 1.75 1.75v2.5c0 .97-.78 1.75-1.75 1.75h-2.5C9.78 7 9 6.22 9 5.25v-2.5zM2.5 9h3.75v1.5H2.5zm0 3h3.75v1.5H2.5zM9 9.75C9 9.34 9.34 9 9.75 9h4.5c.41 0 .75.34.75.75v4.5c0 .41-.34.75-.75.75h-4.5A.75.75 0 019 14.25v-4.5z"/></svg>
+                    Canvas
+                </a>
+                <a href="{{.Prefix}}/docs" data-testid="nav.tab.docs" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h5v2H3v10h4v2H1V1zm9 0h5v14H8v-2h4V3H10V1zM5 5h2v1H5V5zm0 2h2v1H5V7zm0 2h2v1H5V9z"/></svg>
+                    Docs
+                </a>
+                <a href="{{.Prefix}}/retros" data-testid="nav.tab.retros" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.75A1.75 1.75 0 014.75 1h6.5A1.75 1.75 0 0113 2.75v10.5A1.75 1.75 0 0111.25 15h-6.5A1.75 1.75 0 013 13.25V2.75zm2 .75v1.25h6V3.5H5zm0 3v1.25h6V6.5H5zm0 3v1.25h4V9.5H5z"/></svg>
+                    Retros
+                </a>
+                <a href="{{.Prefix}}/workflow-designer" data-testid="nav.tab.workflow_designer" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3.25A1.25 1.25 0 013.75 2h2.5A1.25 1.25 0 017.5 3.25v2.5A1.25 1.25 0 016.25 7h-2.5A1.25 1.25 0 012.5 5.75v-2.5zm6 0A1.25 1.25 0 019.75 2h2.5a1.25 1.25 0 011.25 1.25v2.5A1.25 1.25 0 0112.25 7h-2.5A1.25 1.25 0 018.5 5.75v-2.5zm-6 6A1.25 1.25 0 013.75 8h2.5A1.25 1.25 0 017.5 9.25v2.5A1.25 1.25 0 016.25 13h-2.5a1.25 1.25 0 01-1.25-1.25v-2.5zm9.25.75a.75.75 0 010 1.5H10v1.75a.75.75 0 01-1.5 0V11.5H6.75a.75.75 0 010-1.5H8.5V8.25a.75.75 0 011.5 0V10h1.75z"/></svg>
+                    Workflow
+                </a>
+                <a href="{{.Prefix}}/stats" data-testid="nav.tab.stats" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 14h14v1H1v-1zm2-4h2v3H3v-3zm3-4h2v7H6V6zm3 2h2v5H9V8zm3-6h2v11h-2V2z"/></svg>
+                    Stats
+                </a>
+                {{if .SupportsGitHub}}
+                <a href="{{.Prefix}}/github" data-testid="nav.tab.github" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+                {{end}}
+                <a href="{{.Prefix}}/decisions" data-testid="nav.tab.decisions" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.5 3H14v2H2V4h4.5L8 1zM3 7h2v6H3V7zm4 0h2v6H7V7zm4 0h2v6h-2V7zM1 14h14v1.5H1V14z"/></svg>
+                    Decisions
+                </a>
+{{if workbenchTab "balance" .Prefix}}
+                <a href="{{.Prefix}}/balance" data-testid="nav.tab.balance" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M7.25 1h1.5v2.1l4.6 1.15-.36 1.46-.79-.2L14 10.5c0 1.1-1.12 2-2.5 2S9 11.6 9 10.5l1.9-4.55-2.15-.54V13.5H12V15H4v-1.5h3.25V5.41l-2.15.54L7 10.5C7 11.6 5.88 12.5 4.5 12.5S2 11.6 2 10.5l1.79-4.29-.79.2-.36-1.46 4.61-1.15V1zM4.5 7.6 3.6 9.75h1.8L4.5 7.6zm7 0-.9 2.15h1.8l-.9-2.15z"/></svg>
+                    Balance
+                </a>
+                {{end}}
+            </nav>
+            <div class="theme-picker">
+                <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
+                <button class="theme-btn" data-theme="dark" title="Dark"></button>
+                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
+                <button class="theme-btn" data-theme="light" title="Light"></button>
+            </div>
+        </div>
+    </div>
+
+    <form class="canvas-toolbar" id="canvas-toolbar" data-testid="canvas.toolbar" method="GET" action="{{.Prefix}}/canvas">
+        <span class="canvas-count" data-testid="canvas.count"><b>{{.ShownIssues}}</b> of {{.TotalIssues}} issues</span>
+        <label>Rows
+            <select name="rows" data-testid="canvas.rows" onchange="this.form.submit()">
+                <option value="epic" {{if .EpicRows}}selected{{end}}>Epic</option>
+                <option value="system" {{if not .EpicRows}}selected{{end}}>System</option>
+            </select>
+        </label>
+        <span>Columns <b class="canvas-fixed">Version</b></span>
+        <span class="canvas-sep"></span>
+        <label><input type="checkbox" name="done" value="collapse" id="canvas-collapse" data-testid="canvas.collapse_done" {{if .Options.CollapseDone}}checked{{end}} onchange="this.form.submit()"> Collapse done</label>
+        <label {{if .NoVersionForced}}class="disabled"{{end}}><input type="checkbox" name="nover" value="1" id="canvas-nover" data-testid="canvas.show_no_version" {{if or .Options.ShowNoVersion .NoVersionForced}}checked{{end}} {{if .NoVersionForced}}disabled{{end}} onchange="this.form.submit()"> Show no version</label>
+        {{if .NoVersionForced}}<span class="canvas-note" data-testid="canvas.no_version_note">no issue has a version yet</span>{{else if .HiddenNoVersion}}<span class="canvas-note" data-testid="canvas.no_version_note">{{.HiddenNoVersion}} issues without a version hidden</span>{{end}}
+        <input type="hidden" name="hl" id="canvas-hl" value="{{.Options.Highlight}}">
+        <span class="canvas-hl" id="canvas-hl-chip" data-testid="canvas.highlight" {{if not .Options.Highlight}}hidden{{end}}>Highlight
+            <span class="canvas-hl-chip">⧉ <span id="canvas-hl-name" data-testid="canvas.highlight.name">{{.HighlightName}}</span>
+                <button type="button" id="canvas-hl-clear" data-testid="canvas.highlight.clear" aria-label="Clear highlight">×</button>
+            </span>
+        </span>
+        <span class="canvas-zoom">
+            <button type="button" id="canvas-zoom-out" data-testid="canvas.zoom.out" aria-label="Zoom out">−</button>
+            <span id="canvas-zoom-label" data-testid="canvas.zoom.label">100%</span>
+            <button type="button" id="canvas-zoom-in" data-testid="canvas.zoom.in" aria-label="Zoom in">+</button>
+            <button type="button" id="canvas-zoom-fit" data-testid="canvas.zoom.fit" class="canvas-fit">Fit</button>
+        </span>
+    </form>
+
+    <div class="canvas-viewport" id="canvas-viewport" data-testid="canvas.viewport">
+        <div class="canvas-world{{if .Options.Highlight}} has-highlight{{end}}" id="canvas-world" data-testid="canvas.world" style="--cols: {{len .Columns}}">
+            <div class="canvas-corner">{{if .EpicRows}}EPIC{{else}}SYSTEM{{end}} ↓ · VERSION →</div>
+            {{range .Columns}}
+            <div class="canvas-col-head" data-testid="canvas.column.{{tid .Name}}">
+                <div class="canvas-col-title"><b>{{.Name}}</b><span data-testid="canvas.column.{{tid .Name}}.progress">{{.Progress}}</span></div>
+                {{template "canvas-bar" .Bar}}
+                <div class="canvas-muted" data-testid="canvas.column.{{tid .Name}}.extra">{{.Extra}}</div>
+            </div>
+            {{end}}
+
+            {{range $lane := .Lanes}}
+            <div class="canvas-lane-head{{if .Lit}} lit{{end}}" data-testid="canvas.lane.{{tid .Key}}" data-epics="{{.Epics}}" style="--depth: {{.Depth}}">
+                <div class="canvas-lane-kind"><span data-testid="canvas.lane.{{tid .Key}}.kind">{{.Kind}}</span>{{if .Status}}<span class="canvas-status" data-testid="canvas.lane.{{tid .Key}}.status"><span class="canvas-dot" style="background: {{statusColor .Status}}"></span>{{.Status}}</span>{{end}}</div>
+                {{if .ParentTitle}}<div class="canvas-muted" data-testid="canvas.lane.{{tid .Key}}.parent">↳ in {{.ParentTitle}}</div>{{end}}
+                {{if .Slug}}<a class="canvas-lane-title" data-testid="canvas.lane.{{tid .Key}}.title" href="{{$.Prefix}}/issue/{{.Slug}}">{{.Title}}</a>{{else}}<b class="canvas-lane-title" data-testid="canvas.lane.{{tid .Key}}.title">{{.Title}}</b>{{end}}
+                {{if .Base}}<span class="canvas-base" data-testid="canvas.lane.{{tid .Key}}.base" title="base branch: {{.Base}}">⎇ {{.Base}}</span>{{end}}
+                <div class="canvas-muted" data-testid="canvas.lane.{{tid .Key}}.summary">{{.Summary}}</div>
+                {{template "canvas-bar" .Bar}}
+                {{if .Slug}}<button type="button" class="canvas-hl-btn" data-testid="canvas.lane.{{tid .Key}}.highlight" aria-pressed="{{if .Lit}}true{{else}}false{{end}}" data-highlight="{{.Slug}}" data-name="{{.ShortTitle}}">{{if .Lit}}Highlighted{{else}}Highlight{{end}}</button>{{end}}
+            </div>
+            {{if .Note}}
+            <div class="canvas-lane-note" data-testid="canvas.lane.{{tid .Key}}.note">{{.Note}}{{if .NoteNoVersion}} <button type="button" class="canvas-btn" data-testid="canvas.lane.{{tid .Key}}.show_no_version" data-show-nover>Show no version</button>{{end}}</div>
+            {{else}}
+            {{range .Cells}}
+            <div class="canvas-cell" data-testid="canvas.cell.{{tid $lane.Key}}.{{tid .Column}}">
+                <div class="canvas-cards">
+                    {{range .Cards}}
+                    <div class="canvas-card{{if .Closed}} closed{{end}}{{if .Lit}} lit{{end}}" data-testid="canvas.card.{{tid .Slug}}" data-epic="{{.Epic}}" data-order="{{.Order}}">
+                        <div class="canvas-card-meta"><span class="canvas-dot" style="background: {{statusColor .Status}}"></span><span data-testid="canvas.card.{{tid .Slug}}.status">{{.Status}}</span><span class="canvas-card-type" data-testid="canvas.card.{{tid .Slug}}.type">{{.Type}}</span></div>
+                        <a class="canvas-card-title" data-testid="canvas.card.{{tid .Slug}}.title" href="{{$.Prefix}}/issue/{{.Slug}}">{{.Title}}</a>
+                        {{if and (not $.EpicRows) .EpicName}}<button type="button" class="canvas-epic-badge" data-testid="canvas.card.{{tid .Slug}}.epic" aria-pressed="{{if .Lit}}true{{else}}false{{end}}" data-highlight="{{.Epic}}" data-name="{{.EpicName}}">⧉ {{.EpicName}}</button>{{end}}
+                        {{if .UnknownParent}}<span class="canvas-unknown" data-testid="canvas.card.{{tid .Slug}}.unknown_parent" title="parent: {{.UnknownParent}} matches no issue">⚠ unknown parent: {{.UnknownParent}}</span>{{end}}
+                    </div>
+                    {{end}}
+                </div>
+                {{if .Closed}}<button type="button" class="canvas-closed-chip" data-testid="canvas.cell.{{tid $lane.Key}}.{{tid .Column}}.closed" data-uncollapse>✓ {{.Closed}}</button>{{end}}
+                {{if .Empty}}<span class="canvas-empty" data-testid="canvas.cell.{{tid $lane.Key}}.{{tid .Column}}.empty">no issues</span>{{end}}
+            </div>
+            {{end}}
+            {{end}}
+            {{end}}
+        </div>
+    </div>
+
+    <script>
+    // initPanZoom pans `world` inside `viewport` by dragging the background
+    // and zooms it with the controls or Ctrl+wheel. Nothing is saved: the
+    // layout is always computed by the server.
+    function initPanZoom(viewport, world, controls) {
+        var x = 0, y = 0, z = 1, MIN = 0.2, MAX = 2;
+        function apply() {
+            world.style.transform = 'translate(' + x + 'px, ' + y + 'px) scale(' + z + ')';
+            controls.label.textContent = Math.round(z * 100) + '%';
+        }
+        function zoomAt(nz, cx, cy) {
+            nz = Math.min(MAX, Math.max(MIN, nz));
+            x = cx - (cx - x) * nz / z;
+            y = cy - (cy - y) * nz / z;
+            z = nz;
+            apply();
+        }
+        function zoomStep(d) {
+            zoomAt(Math.round((z + d) * 10) / 10, viewport.clientWidth / 2, viewport.clientHeight / 2);
+        }
+        controls.zoomIn.addEventListener('click', function() { zoomStep(0.1); });
+        controls.zoomOut.addEventListener('click', function() { zoomStep(-0.1); });
+        controls.fit.addEventListener('click', function() {
+            z = Math.min(MAX, Math.max(MIN, viewport.clientWidth / world.offsetWidth));
+            x = 0;
+            y = 0;
+            apply();
+        });
+
+        var drag = null;
+        viewport.addEventListener('pointerdown', function(e) {
+            if (e.button !== 0 || e.target.closest('a, button, input, select, label')) return;
+            drag = { px: e.clientX, py: e.clientY, x: x, y: y };
+            viewport.setPointerCapture(e.pointerId);
+            viewport.classList.add('dragging');
+        });
+        viewport.addEventListener('pointermove', function(e) {
+            if (!drag) return;
+            x = drag.x + e.clientX - drag.px;
+            y = drag.y + e.clientY - drag.py;
+            apply();
+        });
+        function endDrag() {
+            drag = null;
+            viewport.classList.remove('dragging');
+        }
+        viewport.addEventListener('pointerup', endDrag);
+        viewport.addEventListener('pointercancel', endDrag);
+        viewport.addEventListener('wheel', function(e) {
+            e.preventDefault();
+            if (e.ctrlKey) {
+                var r = viewport.getBoundingClientRect();
+                zoomAt(z * (e.deltaY < 0 ? 1.1 : 1 / 1.1), e.clientX - r.left, e.clientY - r.top);
+                return;
+            }
+            x -= e.deltaX;
+            y -= e.deltaY;
+            apply();
+        }, { passive: false });
+        apply();
+    }
+
+    (function() {
+        var viewport = document.getElementById('canvas-viewport');
+        var world = document.getElementById('canvas-world');
+        var form = document.getElementById('canvas-toolbar');
+        initPanZoom(viewport, world, {
+            zoomIn: document.getElementById('canvas-zoom-in'),
+            zoomOut: document.getElementById('canvas-zoom-out'),
+            fit: document.getElementById('canvas-zoom-fit'),
+            label: document.getElementById('canvas-zoom-label')
+        });
+
+        var hlInput = document.getElementById('canvas-hl');
+        var chip = document.getElementById('canvas-hl-chip');
+        var chipName = document.getElementById('canvas-hl-name');
+
+        // setHighlight lights one epic's cards (and the lanes holding them),
+        // fades the rest and moves lit cards to the front of their cell.
+        function setHighlight(slug, name) {
+            world.classList.toggle('has-highlight', !!slug);
+            world.querySelectorAll('.canvas-card').forEach(function(c) {
+                var lit = !!slug && c.dataset.epic === slug;
+                c.classList.toggle('lit', lit);
+                var badge = c.querySelector('.canvas-epic-badge');
+                if (badge) badge.setAttribute('aria-pressed', lit ? 'true' : 'false');
+            });
+            world.querySelectorAll('.canvas-lane-head').forEach(function(h) {
+                var lit = !!slug && (' ' + h.dataset.epics + ' ').indexOf(' ' + slug + ' ') >= 0;
+                h.classList.toggle('lit', lit);
+                var btn = h.querySelector('.canvas-hl-btn');
+                if (btn) {
+                    btn.textContent = lit ? 'Highlighted' : 'Highlight';
+                    btn.setAttribute('aria-pressed', lit ? 'true' : 'false');
+                }
+            });
+            world.querySelectorAll('.canvas-cards').forEach(function(cell) {
+                var cards = Array.prototype.slice.call(cell.children);
+                cards.sort(function(a, b) {
+                    var la = a.classList.contains('lit') ? 0 : 1, lb = b.classList.contains('lit') ? 0 : 1;
+                    return la - lb || a.dataset.order - b.dataset.order;
+                });
+                cards.forEach(function(c) { cell.appendChild(c); });
+            });
+            hlInput.value = slug || '';
+            chip.hidden = !slug;
+            chipName.textContent = name || '';
+            var url = new URL(window.location.href);
+            if (slug) url.searchParams.set('hl', slug); else url.searchParams.delete('hl');
+            history.replaceState(null, '', url);
+        }
+
+        world.addEventListener('click', function(e) {
+            var hl = e.target.closest('[data-highlight]');
+            if (hl) {
+                var slug = hl.dataset.highlight;
+                setHighlight(hlInput.value === slug ? '' : slug, hl.dataset.name);
+                return;
+            }
+            if (e.target.closest('[data-uncollapse]')) {
+                document.getElementById('canvas-collapse').checked = false;
+                form.submit();
+                return;
+            }
+            if (e.target.closest('[data-show-nover]')) {
+                document.getElementById('canvas-nover').checked = true;
+                form.submit();
+            }
+        });
+        document.getElementById('canvas-hl-clear').addEventListener('click', function() { setHighlight(''); });
+    })();
+    </script>
+</body>
+</html>
+
+{{define "canvas-bar"}}<div class="canvas-bar">{{range .}}<span class="{{if .Side}}side{{end}}" title="{{.Status}}: {{.Count}}" style="flex: {{.Count}} 0 0; background: {{statusColor .Status}}"></span>{{end}}</div>{{end}}

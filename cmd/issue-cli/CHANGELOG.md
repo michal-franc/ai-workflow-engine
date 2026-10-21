@@ -16,6 +16,35 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.35.0 — 2026-10-21
+
+- **Issues canvas.** A new **Canvas** tab (`/p/<project>/canvas`) shows what each epic holds and what each version plans, on one pannable, zoomable map.
+  - Columns are versions, sorted as dotted numbers (0.2 before 0.10). Each header shows done/total, side-status counts and a status bar.
+  - Rows are epics by default. An epic is an issue with `type: epic` (EPIC), or one that another issue's `parent:` or legacy `umbrella:` points at (UMBRELLA). Each row shows the epic's base branch and a roll-up of its children; sub-epics are indented, and "No epic" comes last. `?rows=system` switches to one row per system, with an epic badge on each card.
+  - Issues without a version are hidden unless `?nover=1` (always shown when no issue has a version). Done and obsolete cards are dimmed, and `?done=collapse` folds them into a count per cell.
+  - Highlight one epic (`?hl=<slug>`) from its row, a card's badge, or **View on canvas** on the epic's detail page.
+  - Pan by dragging or with the wheel, zoom with Ctrl+wheel, or use −/+/Fit. Nothing is saved; the layout is always computed.
+- Web UI: "in progress" and "in design" now get their status colours (yellow, blue) everywhere. They rendered gray because the colour map's keys didn't match `canonicalStatusKey`.
+- Playtest: `canvas-basics` and `canvas-phone` sessions on a new `canvas` scenario; the canvas carries `canvas.*` test ids.
+
+## v0.34.0 — 2026-10-21
+
+- **Playtest sessions.** An issue's manual checks can now be a YAML session in `playtest/sessions/`, each step's id one of the issue's checkbox ids.
+  - `make ux-test ISSUE=<slug> [REPEAT=2]` runs the machine checks in headless Chrome (chromedp), at desktop and phone width, against a throwaway scenario board. Each step gets its own git project, config, HOME, private tmux server and branch-built binaries. The run checks layout rules and console errors and takes screenshots.
+  - `make playtest ISSUE=<slug>` shows the owner only the judgement steps, in an overlay the runner injects into a Chrome window it drives: highlighted targets, DO / EXPECT / WHY, live checks, Pass / Fail / Skip / Replay, and Alt+N opinions.
+  - `make playtest-report ISSUE=<slug> APPLY=1` ticks the boxes that passed and posts failures and opinions as `playtest:` comments.
+  - `make playtest-check` validates every session and is part of `make validate`.
+- Web UI: the list, board and detail pages carry `data-testid` labels. They are all listed in `internal/testids`, and a test keeps the two in step.
+- CLI: `issue-cli process playtest` prints the shared playtest contract. `process playtest web` and `process playtest game` print worked examples that bots in other projects follow to build their own playtest system.
+- Workflow: in this repo's dev workflow, the Test Plan asks for a playtest session, Testing asks for a `ux-test REPEAT=2` run before handoff, and the human-testing prompt sends the owner to `make playtest` and the report. The bundled `development` template gets opt-in wording.
+- Build: Go 1.25 is now required (for chromedp).
+
+## v0.33.2 — 2026-10-08
+
+- Dispatch: Claude now starts with its briefing as the launch argument instead of a paste typed in after a fixed 3 s wait. When Claude took longer to boot, the paste was dropped and the agent sat at an empty prompt while every step reported ok. Dispatch now polls the pane and reports **Prompt delivered**, or a failed step after 20 s.
+- Web UI: a **Re-send prompt** button in the issue sidebar and the reattach banner (`POST /p/<project>/issue/<slug>/dispatch/reprompt`) pastes the current briefing into the issue's live agent session, after a confirmation.
+- API and CLI: `GET /p/<project>/issue/<slug>/dispatch-prompt` (`?format=json`) and `issue-cli dispatch-prompt <slug> [--json]` print the prompt a dispatch would send, read-only, from one shared builder.
+
 ## v0.33.1 — 2026-10-06
 
 - `make demo` works on a fresh clone. Its config, `demo/projects.yaml`, was hidden by the `projects.yaml` rule in `.gitignore` and never committed, so the board exited with `Failed to load config`. The file is now in the repo, points at the demo's own `workflow.yaml`, and uses `terminal: "none"` so ▶ prints the `tmux attach` command instead of opening i3 + alacritty. A test keeps the demo loadable.

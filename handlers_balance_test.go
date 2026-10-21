@@ -60,7 +60,7 @@ func TestHandleBalance_RendersBoard(t *testing.T) {
 
 	page := pageGet(t, ts.URL+"/p/wb/balance")
 	for _, want := range []string{
-		`href="/p/wb/balance" class="view-tab active"`,
+		`href="/p/wb/balance" data-testid="nav.tab.balance" class="view-tab active"`,
 		`<span class="wb-stat-num">2</span><span class="wb-stat-label">notes</span>`,
 		`<span class="wb-stat-num">1</span><span class="wb-stat-label">unsorted</span>`,
 		`class="balance-pass done">Pass 2 · 30 Sep · 1 note</a>`,

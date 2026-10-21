@@ -170,7 +170,7 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 	issues = filterByType(filtered, wf, typeFilter)
 	statusOrder := wf.GetBoardColumns()
 	statusDescs := wf.GetStatusDescriptions()
-	sessionMap, activeBots := sessionsByIssueSlug(issues)
+	sessionMap, activeBots := sessionsByIssueSlug(proj, issues)
 	scoring := &wf.Scoring
 
 	sortKey := strings.TrimSpace(r.URL.Query().Get("sort"))
@@ -374,7 +374,7 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request, proj *track
 		}
 	}
 
-	_, activeBots := sessionsByIssueSlug(issues)
+	_, activeBots := sessionsByIssueSlug(proj, issues)
 
 	data := GraphData{
 		Prefix:         prefix,

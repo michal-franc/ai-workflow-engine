@@ -148,7 +148,7 @@ func (s *Server) buildAgentsModel(proj *tracker.Project, prefix string) (*Agents
 	sort.Slice(issues, func(i, j int) bool { return issues[i].Slug < issues[j].Slug })
 	workDir := resolveProjectWorkDir(proj)
 	live := map[string]AgentSession{}
-	for _, sess := range listTmuxSessions() {
+	for _, sess := range projectSessions(proj) {
 		live[agentrun.BareName(sess.Name)] = sess
 	}
 	retros, _ := loadRetrospectives(proj)
@@ -265,7 +265,7 @@ type AgentsPageData struct {
 }
 
 func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
-	_, active := sessionsByIssueSlug(nil)
+	_, active := sessionsByIssueSlug(proj, nil)
 	if err := s.tmpl.ExecuteTemplate(w, "agents.html", AgentsPageData{
 		Prefix:         prefix,
 		ProjectName:    proj.Name,

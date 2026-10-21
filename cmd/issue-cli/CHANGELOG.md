@@ -16,6 +16,13 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.39.0 — 2026-10-21
+
+- Fix: agents from other projects no longer show up in this project's views. The agents canvas, the board's and list's active-agent markers, approval notifications and `issue-cli lead list` / `whoami` listed every `agent-*` / `lead-*` session on the tmux server, so another project's workers appeared as this project's (and an equal slug in two projects looked like the same agent). A project with `tmux_session` now only sees that session's windows; without one, only standalone sessions started under its root.
+- Parked status: issue-viewer's `workflow.yaml` gains a global `parked` status reachable from any status, with a required reason under `## Parked Record`, and a board column. Agents dispatched onto a parked issue stop.
+- Types of work in issue-viewer's own workflow: `feature` (default, full path), `tweak` (no design or docs) and `bugfix` (a `## Repro` section and a failing test first), via `issue-cli workflow upgrade` against the bundled `development@v0.36.0` template. Shell gates and scoring were declined.
+- `make playtest`, `ux-test` and `playtest-report` infer `ISSUE` from a dispatched worktree's `work/<slug>` branch; `ISSUE=` still overrides.
+
 ## v0.38.0 — 2026-10-21
 
 - New Decisions tab, `/p/<project>/decisions`: a generated index of every `- **D-n** · date · how: …` line under the issues' `## Decisions` sections, with how it was made, the quote, the recording issue, the issues that cite it (`<slug>#D-n`) and its state: active, deferred, replaced, or replaced · stale when open issues still cite a replaced decision. System and state chips filter it, and "copy ref" copies the ref. Nobody edits the list; it reloads when an issue changes.

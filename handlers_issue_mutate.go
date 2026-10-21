@@ -228,7 +228,7 @@ func (s *Server) handleApproveIssue(w http.ResponseWriter, r *http.Request, proj
 		Label:          approvalLabel(body.Status),
 	}
 	if humanApproval != "" {
-		sessionMap, _ := sessionsByIssueSlug([]*tracker.Issue{issue})
+		sessionMap, _ := sessionsByIssueSlug(proj, []*tracker.Issue{issue})
 		activeSessions := sessionMap[issue.Slug]
 		if len(activeSessions) == 0 {
 			resp.NotificationError = "no active agent session matched this issue"

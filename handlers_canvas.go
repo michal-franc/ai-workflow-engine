@@ -118,7 +118,7 @@ func (s *Server) handleCanvas(w http.ResponseWriter, r *http.Request, proj *trac
 	data.Prefix = prefix
 	data.ProjectName = proj.Name
 	data.SupportsGitHub = proj.SupportsGitHub
-	_, data.ActiveBots = sessionsByIssueSlug(issues)
+	_, data.ActiveBots = sessionsByIssueSlug(proj, issues)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "canvas.html", data); err != nil {

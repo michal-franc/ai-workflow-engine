@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,6 +18,9 @@ import (
 type Session struct {
 	Name      string `json:"name"`
 	StartTime string `json:"start_time"`
+	// Path is the directory a standalone session was started in; empty for
+	// shared-session windows and when tmux didn't report one.
+	Path string `json:"path,omitempty"`
 }
 
 // The exec-backed tmux calls are package vars so tests (here and in the
@@ -183,33 +187,69 @@ func defaultSendKeys(target string, lines []string) error {
 }
 
 func defaultListSessions() []Session {
-	out, err := exec.Command("tmux", "ls").Output()
+	out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}\t#{session_created}\t#{session_path}").Output()
 	if err != nil {
 		return nil
 	}
+	return append(ParseSessions(string(out)), ListSharedWindows()...)
+}
 
-	lineRE := regexp.MustCompile(`^([^:]+):.*\(created ([^)]+)\)`)
+// ParseSessions reads `tmux list-sessions -F
+// '#{session_name}\t#{session_created}\t#{session_path}'` output.
+func ParseSessions(out string) []Session {
 	var sessions []Session
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
+	for _, line := range strings.Split(out, "\n") {
+		fields := strings.Split(strings.TrimSpace(line), "\t")
+		if len(fields) < 2 || fields[0] == "" {
 			continue
 		}
-
-		matches := lineRE.FindStringSubmatch(line)
-		if len(matches) < 3 {
-			continue
+		session := Session{Name: fields[0]}
+		if secs, err := strconv.ParseInt(fields[1], 10, 64); err == nil {
+			session.StartTime = time.Unix(secs, 0).Format("2006-01-02 15:04:05")
 		}
-
-		session := Session{Name: strings.TrimSpace(matches[1])}
-		if created, err := time.Parse("Mon Jan _2 15:04:05 2006", strings.TrimSpace(matches[2])); err == nil {
-			session.StartTime = created.Format("2006-01-02 15:04:05")
-		} else {
-			session.StartTime = strings.TrimSpace(matches[2])
+		if len(fields) > 2 {
+			session.Path = fields[2]
 		}
 		sessions = append(sessions, session)
 	}
-	return append(sessions, ListSharedWindows()...)
+	return sessions
+}
+
+// ForProject keeps the listed sessions that belong to proj. Every project's
+// agents share one tmux server and the same agent-<slug> / lead-<slug> names,
+// so an unscoped list shows other projects' agents in this one (and an equal
+// slug in two projects looks like the same agent).
+//
+// With a shared tmux_session, only that session's windows belong to the
+// project. Without one, agents are standalone sessions started in the project
+// root or one of its worktrees: a session whose path is known and lies outside
+// root is dropped, and shared-session windows (other projects') are too.
+func ForProject(proj *tracker.Project, root string, sessions []Session) []Session {
+	var kept []Session
+	if shared := SharedSession(proj); shared != "" {
+		for _, s := range sessions {
+			if session, _, ok := strings.Cut(s.Name, ":"); ok && session == shared {
+				kept = append(kept, s)
+			}
+		}
+		return kept
+	}
+	for _, s := range sessions {
+		if strings.Contains(s.Name, ":") {
+			continue
+		}
+		if s.Path != "" && root != "" && !underDir(s.Path, root) {
+			continue
+		}
+		kept = append(kept, s)
+	}
+	return kept
+}
+
+// underDir reports whether path is dir or inside it.
+func underDir(path, dir string) bool {
+	path, dir = filepath.Clean(path), filepath.Clean(dir)
+	return path == dir || strings.HasPrefix(path, dir+string(filepath.Separator))
 }
 
 // ListSharedWindows reports agent and lead windows living inside shared tmux

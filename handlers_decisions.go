@@ -103,7 +103,7 @@ func (s *Server) handleDecisions(w http.ResponseWriter, r *http.Request, proj *t
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	sessionMap, activeBots := sessionsByIssueSlug(issues)
+	sessionMap, activeBots := sessionsByIssueSlug(proj, issues)
 	index := tracker.BuildDecisionIndex(issues, tracker.ClosedIssueFunc(proj))
 
 	data := DecisionsData{

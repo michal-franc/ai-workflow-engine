@@ -21,7 +21,7 @@ func (s *Server) handleGitHub(w http.ResponseWriter, r *http.Request, proj *trac
 		return
 	}
 	issues, _ := tracker.LoadIssues(proj.IssueDir)
-	_, activeBots := sessionsByIssueSlug(issues)
+	_, activeBots := sessionsByIssueSlug(proj, issues)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "github.html", GitHubPageData{

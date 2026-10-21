@@ -17,7 +17,7 @@ func init() {
 	sessionLive = func(*tracker.Project) func(string) bool {
 		return func(string) bool { return false }
 	}
-	liveSessionNames = func() map[string]bool { return nil }
+	liveSessionNames = func(*tracker.Project) map[string]bool { return nil }
 	currentTmuxNames = func() (string, string) { return "", "" }
 	workingDir = func() (string, error) { return "/home/someone/project", nil }
 	commitsBehind = func(string, string) (int, string, bool) { return 0, "", false }
@@ -89,7 +89,7 @@ func withLive(t *testing.T, names ...string) {
 	}
 	origLive, origNames := sessionLive, liveSessionNames
 	sessionLive = func(*tracker.Project) func(string) bool { return func(n string) bool { return set[n] } }
-	liveSessionNames = func() map[string]bool { return set }
+	liveSessionNames = func(*tracker.Project) map[string]bool { return set }
 	t.Cleanup(func() { sessionLive, liveSessionNames = origLive, origNames })
 }
 

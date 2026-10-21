@@ -262,15 +262,18 @@
         render();
         renderPanel();
         var n = findNode(name);
-        if (n && n.live) openSession(n);
+        if (n && n.live) openSession(n, false);
     }
 
-    function openSession(n) {
+    // openSession opens n's tmux session in a terminal. A click (force false)
+    // opens nothing when a terminal is already attached; the Open in tmux
+    // button (force true) always opens another.
+    function openSession(n, force) {
         var status = document.getElementById('panel-open-status');
         if (status) status.textContent = 'Opening ' + n.name + '…';
         fetch(prefix + '/agents/open', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session: n.name })
+            body: JSON.stringify({ session: n.name, force: !!force })
         }).then(function(r) { return r.json(); }).then(function(d) {
             var el = document.getElementById('panel-open-status');
             if (!el || selected !== n.name) return;
@@ -279,6 +282,8 @@
             var failed = steps.filter(function(s) { return s.status === 'error'; })[0];
             if (d.status === 'no-session') {
                 el.textContent = n.name + ' is not running.';
+            } else if (d.status === 'already-open') {
+                el.textContent = n.name + ' is already open in a terminal. Open in tmux opens another window.';
             } else if (failed) {
                 el.textContent = 'Could not open ' + n.name + ': ' + failed.name + (failed.detail ? ' (' + failed.detail + ')' : '');
             } else if (headless) {
@@ -334,7 +339,7 @@
         panelKey = keyOf(n);
 
         var open = document.getElementById('panel-open');
-        if (open) open.addEventListener('click', function() { openSession(n); });
+        if (open) open.addEventListener('click', function() { openSession(n, true); });
 
         var copy = document.getElementById('panel-copy');
         copy.addEventListener('click', function() {

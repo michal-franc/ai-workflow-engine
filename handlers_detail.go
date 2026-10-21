@@ -23,11 +23,14 @@ type DetailData struct {
 	SlugMap           map[string]string
 	NeedsApprovals    []string
 	OptionalApprovals []OptionalApproval
-	ActiveBots        int
-	Timeline          []TimelineEvent
-	RenderedBody      template.HTML
-	CustomActions     []tracker.CustomAction
-	WorkTypes         []WorkTypeOption
+	// ApproveThen maps a required approval to the follow-up approval that
+	// "Approve <status> and <then>" queues in one click (queued_approval).
+	ApproveThen   map[string]string
+	ActiveBots    int
+	Timeline      []TimelineEvent
+	RenderedBody  template.HTML
+	CustomActions []tracker.CustomAction
+	WorkTypes     []WorkTypeOption
 	// TypeWarning flags an undefined type: value or an off-path status.
 	TypeWarning string
 	// CanvasURL opens the issues canvas with this epic highlighted; "" when
@@ -157,6 +160,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		}
 		needsApprovals = append(needsApprovals, t.To)
 	}
+	approveThen := approveThenFor(wf, needsApprovals)
 
 	workDir := resolveProjectWorkDir(proj)
 	timeline := LoadAgentTimeline(workDir, found.Assignee, proj.Slug, found.Slug)
@@ -194,6 +198,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		SlugMap:           slugMap,
 		NeedsApprovals:    needsApprovals,
 		OptionalApprovals: optionalApprovals,
+		ApproveThen:       approveThen,
 		ActiveBots:        activeBots,
 		Timeline:          timeline,
 		RenderedBody:      template.HTML(renderedBody),
@@ -205,6 +210,26 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// approveThenFor finds, for each required approval that lands on a handoff
+// status (backlog, human-testing), the approval its own next step needs, so
+// the detail page can approve both at once ("approve backlog and in progress").
+func approveThenFor(wf *tracker.WorkflowConfig, approvals []string) map[string]string {
+	out := map[string]string{}
+	for _, status := range approvals {
+		if !tracker.IsHandoffStatus(status) {
+			continue
+		}
+		next := wf.NextRequiredStatus(status)
+		if next == "" {
+			continue
+		}
+		if then := wf.RequiredHumanApproval(status, next); then != "" {
+			out[status] = then
+		}
+	}
+	return out
 }
 
 // renderBodyWithDataTable substitutes the first <!-- data --> marker in the

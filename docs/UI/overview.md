@@ -18,6 +18,8 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/docs.html` — documentation viewer with sidebar navigation
 - `templates/_create_modal.html` — shared "New issue" modal partial included by list and board
 - `templates/_project_actions.html` — shared project-level custom action bar + dispatch modal, included by list, board, and graph
+- `templates/balance.html` — balance board (`handlers_balance.go`, board built by `tracker.BuildBalanceBoard`). Nav templates show its tab through `{{if workbenchTab "balance" .Prefix}}`, a template func the server binds to its projects
+- `templates/decisions.html` — generated decisions index (`handlers_decisions.go`, index built by `tracker.BuildDecisionIndex`)
 - `static/style.css` — all CSS (dark GitHub theme)
 - `internal/testids/testids.go` — every `data-testid` the templates carry (playtest targets)
 
@@ -33,6 +35,8 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
 | `/issue/<slug>`   | `detail.html` | Detail with edit, approve, dispatch, comments    |
 | `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
+| `/balance`        | `balance.html` | Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise the tab is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
+| `/decisions`      | `decisions.html` | Generated index of every `D-n` decision: how it was made, recording issue, citing issues, state (active / deferred / replaced / replaced · stale). System and state chips (`?system=`, `?state=`); reloads when `/hash` changes. The page renders the `/hash` value it was built from as the polling baseline, so a change made before the first 5 s poll still triggers a reload |
 
 In projects whose `workflow.yaml` defines `types:` ([Types of Work](../Workflow/types.md)), the list and board show a type badge and an "All types" filter (`?type=`), `type` joins the default board card fields, `/graph?type=<t>` draws that type's path, and the detail sidebar has a **Type** select (`POST /p/<project>/issue/<slug>/type`; a `409` with `statuses` asks the human which status on the new path to move to). Without `types:` none of these controls render.
 
@@ -113,6 +117,13 @@ The frontmatter sidebar on `/issue/<slug>` has a small toolbar at the top with t
 Both states persist independently in `localStorage` (`sidebar-locked`, `sidebar-hidden`). An early-load script in `<head>` reads them and sets `data-sidebar-locked` / `data-sidebar-hidden` on `<html>` before paint to avoid a flash. CSS targets `html[data-sidebar-locked="true"] .detail-sidebar` and `html[data-sidebar-hidden="true"] .detail-layout`.
 
 Lock defaults to on (the early-load check is `localStorage.getItem('sidebar-locked') !== 'false'`), so an explicit user opt-out is required to keep the sidebar scrolling with the body.
+
+## Approving two steps at once
+
+The sidebar's **Human Approval** section shows one **Human-approved for <status>** toggle per approval-gated next step. When that step lands on a handoff status (`backlog`, `human-testing`) whose own next step also needs an approval, a second toggle, **Approved for backlog and in progress**, approves both in one click.
+- It posts `{"status":"backlog","then":"in progress"}` to `POST /issue/<slug>/approve`, which writes `human_approval: backlog` plus `queued_approval: in progress` (see [Issue File Format](../issue-format.md#custom-fields)).
+- The agent's tmux session gets one nudge naming both statuses.
+- Clicking it again clears both. Clicking it on an issue already approved for `backlog` only adds the queued approval.
 
 ## Create issue modal
 

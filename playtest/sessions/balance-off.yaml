@@ -1,0 +1,28 @@
+session: balance-off
+issue: ui/workbench-balance-board-from-typed-balance-comments
+title: Balance board on a project without workbench.balance
+scenario: basic
+
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+  # Known bug: with the Agents, Decisions and Balance tabs the shared header
+  # no longer fits a 1440px container and scrolls sideways (as on list,
+  # board and detail). The header issue covers it; remove then.
+  layout_ignore: [header.bar]
+
+steps:
+  - id: TP12
+    title: Without workbench.balance there is no Balance tab, and /balance explains how to turn it on
+    setup:
+      - open: /p/{project}/
+    act:
+      - check: { visible: nav.tab.decisions }
+      - check: { absent: nav.tab.balance }
+      - open: /p/{project}/balance
+    checks:
+      - visible: balance.off
+      - text_contains: { target: balance.off, text: The balance board is off for this project }
+      - text_contains: { target: balance.off, text: "comment_prefix: \"balance:\"" }
+      - absent: [balance.stats, balance.passes]

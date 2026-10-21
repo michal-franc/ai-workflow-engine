@@ -1,0 +1,14 @@
+# Decisions and balance notes for the workbench pages: a direction change
+# waiting to be recorded (two decisions it replaces are still cited by open
+# issues), a deferred decision, a lead answer with also-considered options,
+# fenced and free-form lines that are never indexed; typed balance: notes in
+# three metrics (one with an earlier note), a past and a planned joint pass,
+# and free-text balance: comments that land under Unsorted notes. One issue
+# sits in design, behind the backlog and in progress approval gates, for
+# queued approvals and issue-cli ask / answer.
+title: Decisions and balance notes
+project:
+  name: Workbench Demo
+  slug: wb
+issues: tracker
+workflow: workflow.yaml

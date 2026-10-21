@@ -1,0 +1,80 @@
+session: workbench-approvals
+issue: ui/workbench-redesign-inbox-system-pages-balance-board-and-decisions-index
+title: Queued approvals and lead-relayed questions (what stays after the inbox was dropped)
+scenario: workbench
+
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+  # Known bug: with the Agents, Decisions and Balance tabs the shared header
+  # no longer fits a 1440px container and scrolls sideways (as on list,
+  # board and detail). The header issue covers it; remove then.
+  layout_ignore: [header.bar]
+
+steps:
+  - id: TP4
+    title: Approved for backlog and in progress sets both approvals; a second click clears both
+    setup:
+      - open: /p/{project}/issue/economy/shop-prices-per-stage
+    act:
+      - check: { text_contains: { target: detail.approve_then.backlog, text: Approved for backlog and in progress } }
+      - click: detail.approve_then.backlog
+      - wait_for: { selected: detail.approve_then.backlog }
+      - check: { selected: detail.approve.backlog }
+      - check: { issue: { slug: economy/shop-prices-per-stage, field: human_approval, equals: backlog } }
+      - check: { issue: { slug: economy/shop-prices-per-stage, field: queued_approval, equals: in progress } }
+      - click: detail.approve_then.backlog
+      - wait_for: { text_contains: { target: detail.toast, text: Human approval removed } }
+    checks:
+      - issue: { slug: economy/shop-prices-per-stage, field: human_approval, equals: "" }
+      - issue: { slug: economy/shop-prices-per-stage, field: queued_approval, equals: "" }
+
+  - id: TP5
+    title: With the queued approval, transition to backlog and start reach in progress without a second approval
+    setup:
+      - open: /p/{project}/issue/economy/shop-prices-per-stage
+      - click: detail.approve_then.backlog
+      - wait_for: { selected: detail.approve_then.backlog }
+    act:
+      - cli: [transition, economy/shop-prices-per-stage, --to, backlog]
+      - check: { issue: { slug: economy/shop-prices-per-stage, field: human_approval, equals: in progress } }
+      - cli: [start, economy/shop-prices-per-stage]
+    checks:
+      - issue: { slug: economy/shop-prices-per-stage, field: status, equals: in progress }
+      - issue: { slug: economy/shop-prices-per-stage, field: queued_approval, equals: "" }
+
+  - id: TP6
+    title: ask writes an open question; answer turns it into a decision the Decisions tab lists
+    setup:
+      - open: /p/{project}/decisions
+    act:
+      - cli: [ask, economy/shop-prices-per-stage, --question, "Do prices reset when a team loses a stage?", --option, "A=Reset to stage 1 prices|Simple, but losing teams catch up fast.", --option, "B=Keep the current stage's prices|Losing hurts, but stages stay readable.", --recommend, B]
+      - check: { issue: { slug: economy/shop-prices-per-stage, body_contains: "### Q-1 · open" } }
+      - check: { cli: { args: [show, economy/shop-prices-per-stage], contains: "== Open questions" } }
+      - cli: [answer, economy/shop-prices-per-stage, Q-1, --option, B, --note, "B, losing should hurt"]
+      - wait_for: { visible: decisions.row.economy/shop-prices-per-stage.d-1, ms: 12000 }
+    checks:
+      - text_contains: { target: decisions.row.economy/shop-prices-per-stage.d-1.how, text: answered in lead chat (Q-1) }
+      - text_contains: { target: decisions.row.economy/shop-prices-per-stage.d-1.text, text: "→ B. Keep the current stage's prices, \"B, losing should hurt\"" }
+      - issue: { slug: economy/shop-prices-per-stage, body_contains: "### Q-1 · answered" }
+      - cli: { args: [show, economy/shop-prices-per-stage], not_contains: "== Open questions" }
+
+  - id: TP7
+    title: The two approval buttons say clearly what each one approves
+    setup:
+      - open: /p/{project}/issue/economy/shop-prices-per-stage
+    targets:
+      - { id: detail.approve.backlog, note: Approves backlog only }
+      - { id: detail.approve_then.backlog, note: Approves backlog and queues in progress }
+    do: |
+      1. Read the Human Approval box in the sidebar and hover the second
+         button for its tooltip.
+      2. Click "Approved for backlog and in progress", then click it again.
+      3. Click "Human-approved for backlog".
+    expect: |
+      Without reading docs you can tell that the first button approves
+      backlog only and the second also lets the agent start work. Ticks
+      and toasts match what you clicked, and the two buttons never look
+      ticked at odds with each other.
+    why: ux-test checks the frontmatter each click writes; only you can say whether the wording is clear.

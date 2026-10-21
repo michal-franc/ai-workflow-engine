@@ -51,6 +51,9 @@ type StatsStore struct {
 	// transition row; both are cleared once a transition is recorded.
 	PendingWait  *PendingWait    `json:"pending_wait,omitempty"`
 	LastApproval *ApprovalRecord `json:"last_approval,omitempty"`
+	// QuestionWaits maps an open question id (Q-3) to when an agent began
+	// blocking on it with `issue-cli ask --wait`. Cleared when answered.
+	QuestionWaits map[string]time.Time `json:"question_waits,omitempty"`
 }
 
 // StatsSidecarPath returns the stats sidecar path for an issue markdown file.
@@ -151,6 +154,45 @@ func BeginWait(issuePath, to string, now time.Time) (time.Time, error) {
 		return SaveStats(issuePath, store)
 	})
 	return started, err
+}
+
+// BeginQuestionWait records that an agent started blocking on question id and
+// returns the wait's start time. An earlier start for the same question is
+// kept, so re-runs across --timeout are measured end to end.
+func BeginQuestionWait(issuePath, id string, now time.Time) (time.Time, error) {
+	var started time.Time
+	err := withIssueLock(issuePath, func() error {
+		store, err := LoadStats(issuePath)
+		if err != nil {
+			return err
+		}
+		if t, ok := store.QuestionWaits[id]; ok {
+			started = t
+			return nil
+		}
+		started = now.UTC()
+		if store.QuestionWaits == nil {
+			store.QuestionWaits = map[string]time.Time{}
+		}
+		store.QuestionWaits[id] = started
+		return SaveStats(issuePath, store)
+	})
+	return started, err
+}
+
+// EndQuestionWait drops the pending wait for question id, if any.
+func EndQuestionWait(issuePath, id string) error {
+	return withIssueLock(issuePath, func() error {
+		store, err := LoadStats(issuePath)
+		if err != nil {
+			return err
+		}
+		if _, ok := store.QuestionWaits[id]; !ok {
+			return nil
+		}
+		delete(store.QuestionWaits, id)
+		return SaveStats(issuePath, store)
+	})
 }
 
 // RecordApproval stores the viewer's approval timestamp so the transition that

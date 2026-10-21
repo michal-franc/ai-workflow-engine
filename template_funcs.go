@@ -32,6 +32,9 @@ func orderedStatusesForIssue(wf *tracker.WorkflowConfig, current string) []strin
 }
 
 var funcMap = template.FuncMap{
+	// workbenchTab is replaced per server (Server.workbenchTab) so nav
+	// templates can show workbench tabs only for projects that configure them.
+	"workbenchTab": func(kind, prefix string) bool { return false },
 	"statusColor": func(s string) string {
 		// Keys are canonicalStatusKey form: lower case, spaces as hyphens.
 		colors := map[string]string{
@@ -88,6 +91,9 @@ var funcMap = template.FuncMap{
 	// statusFragment normalises a status name into the form used by the
 	// `id="approve-<status>"` anchors on the detail page so deep links emitted
 	// by the CLI (`#approve-in-progress`) line up with the DOM.
+	"isURL": func(s string) bool {
+		return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
+	},
 	// tid turns a status or slug into one data-testid segment (see
 	// internal/testids).
 	"tid": testids.Segment,

@@ -109,7 +109,7 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 
 func hasNonStatusUpdates(u tracker.IssueUpdate) bool {
 	return u.Title != nil || u.Priority != nil || u.Version != nil || u.Assignee != nil ||
-		u.HumanApproval != nil || u.StartedAt != nil || u.DoneAt != nil ||
+		u.HumanApproval != nil || u.QueuedApproval != nil || u.StartedAt != nil || u.DoneAt != nil ||
 		u.Labels != nil || u.Body != nil || len(u.ExtraFields) > 0
 }
 
@@ -179,19 +179,38 @@ func (s *Server) handleApproveIssue(w http.ResponseWriter, r *http.Request, proj
 
 	var body struct {
 		Status string `json:"status"`
+		// Then queues a second approval that becomes active once Status is
+		// consumed ("approve and start work"). Ignored when un-approving.
+		Then string `json:"then"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Status == "" {
 		http.Error(w, `{"error":"status required"}`, http.StatusBadRequest)
 		return
 	}
 
-	// Toggle: if already human-approved for this status, clear it
+	// Toggle: if already approved exactly as asked, clear it. Asking for a
+	// follow-up on an approval that has none adds the follow-up instead.
 	var humanApproval string
-	if !strings.EqualFold(issue.HumanApproval, body.Status) {
+	alreadyApproved := strings.EqualFold(issue.HumanApproval, body.Status)
+	if alreadyApproved && body.Then != "" && issue.QueuedApproval == "" {
+		alreadyApproved = false
+	}
+	if !alreadyApproved {
 		humanApproval = body.Status
 	}
 
-	update := tracker.IssueUpdate{HumanApproval: &humanApproval}
+	// The queued approval only exists alongside the approval it follows.
+	queued := ""
+	if humanApproval != "" && body.Then != "" {
+		wf := proj.LoadWorkflowForIssue(issue)
+		if !wf.IsValidTransition(body.Status, body.Then) || wf.RequiredHumanApproval(body.Status, body.Then) == "" {
+			http.Error(w, fmt.Sprintf(`{"error":"%s → %s is not an approval-gated next step"}`, body.Status, body.Then), http.StatusBadRequest)
+			return
+		}
+		queued = wf.RequiredHumanApproval(body.Status, body.Then)
+	}
+
+	update := tracker.IssueUpdate{HumanApproval: &humanApproval, QueuedApproval: &queued}
 	if err := tracker.UpdateIssueFrontmatter(issue.FilePath, update); err != nil {
 		http.Error(w, "update failed: "+err.Error(), http.StatusInternalServerError)
 		return
@@ -203,9 +222,10 @@ func (s *Server) handleApproveIssue(w http.ResponseWriter, r *http.Request, proj
 	}
 
 	resp := approvalResponse{
-		Status:        "ok",
-		HumanApproval: humanApproval,
-		Label:         approvalLabel(body.Status),
+		Status:         "ok",
+		HumanApproval:  humanApproval,
+		QueuedApproval: queued,
+		Label:          approvalLabel(body.Status),
 	}
 	if humanApproval != "" {
 		sessionMap, _ := sessionsByIssueSlug([]*tracker.Issue{issue})
@@ -215,6 +235,9 @@ func (s *Server) handleApproveIssue(w http.ResponseWriter, r *http.Request, proj
 		} else {
 			target := activeSessions[0].Name
 			messageLines := []string{humanApprovalMessage(body.Status)}
+			if queued != "" {
+				messageLines = []string{fmt.Sprintf("Approved for %s and %s. After the %s transition, run issue-cli start %s to continue straight into %s.", body.Status, queued, body.Status, issue.Slug, queued)}
+			}
 			if err := tmuxSendKeys(target, messageLines); err != nil {
 				resp.NotificationError = err.Error()
 			} else {

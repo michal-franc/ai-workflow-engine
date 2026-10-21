@@ -15,7 +15,7 @@ import (
 
 // IDs lists every test id and pattern. Keep it grouped by page.
 var IDs = []string{
-	// Shared header and view tabs (list, board, canvas).
+	// Shared header and view tabs (list, board, canvas, decisions, balance).
 	"header.bar",
 	"nav.tab.*",
 	"header.count",
@@ -74,6 +74,7 @@ var IDs = []string{
 	"detail.priority",
 	"detail.assignee",
 	"detail.approve.*",
+	"detail.approve_then.*",
 	"detail.labels",
 	"detail.label.input",
 	"detail.label.add",
@@ -171,6 +172,53 @@ var IDs = []string{
 	"canvas.card.*.title",
 	"canvas.card.*.epic",
 	"canvas.card.*.unknown_parent",
+	// Decisions index (/p/<project>/decisions). Rows are keyed by the
+	// recording issue's slug and the decision id ("d-1").
+	"decisions.stats",
+	"decisions.stat.total",
+	"decisions.stat.active",
+	"decisions.stat.replaced",
+	"decisions.stat.stale",
+	"decisions.empty",
+	"decisions.filters",
+	"decisions.filter.system.*",
+	"decisions.filter.state.*",
+	"decisions.nomatch",
+	"decisions.nomatch.clear",
+	"decisions.table",
+	"decisions.row.*.*",
+	"decisions.row.*.*.copy",
+	"decisions.row.*.*.text",
+	"decisions.row.*.*.how",
+	"decisions.row.*.*.cited",
+	"decisions.row.*.*.state",
+	"decisions.toast",
+
+	// Balance board (/p/<project>/balance). Groups are keyed by metric,
+	// cards by metric and source slug, passes by number.
+	"balance.stats",
+	"balance.stat.notes",
+	"balance.stat.open",
+	"balance.stat.metrics",
+	"balance.stat.unsorted",
+	"balance.off",
+	"balance.passes",
+	"balance.pass.#",
+	"balance.passes.planned",
+	"balance.start",
+	"balance.filter.*",
+	"balance.empty",
+	"balance.nomatch",
+	"balance.group.*",
+	"balance.group.*.count",
+	"balance.card.*.*",
+	"balance.card.*.*.state",
+	"balance.card.*.*.foot",
+	"balance.card.*.*.history",
+	"balance.unsorted",
+	"balance.unsorted.row.#",
+	"balance.unsorted.row.#.more",
+	"balance.toast",
 }
 
 // Segment turns a free-form value (a status, a slug) into one id segment:

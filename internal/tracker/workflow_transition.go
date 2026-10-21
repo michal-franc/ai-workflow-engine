@@ -14,7 +14,10 @@ type TransitionResult struct {
 	BodyChanged     bool        `json:"body_changed"`
 	BodyAppended    bool        `json:"body_appended"`
 	ClearedApproval bool        `json:"cleared_approval"`
-	InjectedPrompts []string    `json:"injected_prompts"`
+	// PromotedApproval is the queued approval that became the standing
+	// human_approval during this transition ("" when none).
+	PromotedApproval string   `json:"promoted_approval,omitempty"`
+	InjectedPrompts  []string `json:"injected_prompts"`
 }
 
 // ErrApprovalMissing is the sentinel returned when StartIssueOnce or a
@@ -193,6 +196,16 @@ func (w *WorkflowConfig) ApplyTransitionWithFields(issue *Issue, fromStatus, toS
 	if issue.HumanApproval != "" {
 		result.Update.HumanApproval = stringPtr("")
 		result.ClearedApproval = true
+	}
+	// A queued approval ("approve and start work") becomes the standing
+	// approval once the approval it was chained to is consumed by its own
+	// transition. Any other transition drops it as stale.
+	if issue.QueuedApproval != "" {
+		result.Update.QueuedApproval = stringPtr("")
+		if strings.EqualFold(issue.HumanApproval, toStatus) {
+			result.Update.HumanApproval = stringPtr(issue.QueuedApproval)
+			result.PromotedApproval = issue.QueuedApproval
+		}
 	}
 
 	for _, action := range w.transitionActions(fromStatus, toStatus) {
@@ -596,6 +609,10 @@ func (w *WorkflowConfig) MarkIssueDoneOnce(filePath, slug string) (*Issue, error
 			if result.Update.HumanApproval != nil {
 				combined.HumanApproval = result.Update.HumanApproval
 				issue.HumanApproval = *result.Update.HumanApproval
+			}
+			if result.Update.QueuedApproval != nil {
+				combined.QueuedApproval = result.Update.QueuedApproval
+				issue.QueuedApproval = *result.Update.QueuedApproval
 			}
 			if result.Update.Priority != nil {
 				combined.Priority = result.Update.Priority

@@ -4,7 +4,7 @@ status: "idea"
 system: "Workflow"
 priority: "high"
 type: "feature"
-umbrella: "cli/adoption-make-ai-workflow-engine-easy-to-set-up-start-and-use"
+parent: "cli/adoption-make-ai-workflow-engine-easy-to-set-up-start-and-use"
 created: "2026-10-06"
 ideas: "https://claude.ai/artifact/EQ1ttCchKDkjnC8M4Mi3o1"
 ---

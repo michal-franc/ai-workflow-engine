@@ -81,6 +81,7 @@ Examples:
 - `idea -> in design` — validate body is not empty; append `Idea`, `Design`, and `Human Input`
 - `in design -> backlog` — validate those sections are complete; require human approval; append `Readiness`; clear assignee
 - `backlog -> in progress` — require human approval; require assignee; validate `Readiness`; append `Implementation` and `Test Plan`
+- `in design -> in progress` (this repo's optional shortcut past `backlog`) — the design checks of `in design -> backlog`, then the `backlog -> in progress` effects; the human approves `in progress` straight from `in design`
 - `testing -> human-testing` — validate `Testing`; require a `tests:` comment; append `Human Testing`
 - `human-testing -> documentation` — validate `Human Testing`; require a `tests:` comment; require human approval; append `Documentation`
 

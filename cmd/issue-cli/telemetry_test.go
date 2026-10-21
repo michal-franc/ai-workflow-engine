@@ -284,7 +284,7 @@ func TestClassifyError(t *testing.T) {
 		{"topic", invocation{}, errors.New("unknown topic: foo\n\nAvailable"), telemetry.ErrUnknownTopic, "foo"},
 		{"subcommand", invocation{}, errors.New("unknown data subcommand: zap\n\nValid"), telemetry.ErrUnknownSubcommand, "zap"},
 		{"usage", invocation{}, errors.New("transition requires <slug>\n\nExample"), telemetry.ErrUsage, ""},
-		{"wait timeout", invocation{}, &exitCodeError{Code: exitWaitTimeout, Msg: "Still waiting"}, telemetry.ErrWaitTimeout, ""},
+		{"removed flag", invocation{}, rejectRemovedWaitFlags([]string{"--to", "backlog", "--wait"}), telemetry.ErrUnknownFlag, "--wait"},
 		{"dry-run not ready", invocation{}, &exitCodeError{Code: 1}, telemetry.ErrValidation, ""},
 		{"other", invocation{}, errors.New("disk on fire"), telemetry.ErrOther, ""},
 	}
@@ -385,7 +385,7 @@ func TestIntrospectFlagsEveryCommandWithoutSideEffects(t *testing.T) {
 		}
 	}
 	for key, want := range map[string]string{
-		"transition":       "dry-run,field,interval,timeout,to,wait",
+		"transition":       "dry-run,field,to",
 		"process":          "system,type,workflow",
 		"data add":         "description,status,tier",
 		"telemetry report": "global,since,top",

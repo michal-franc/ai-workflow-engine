@@ -230,14 +230,17 @@ func classifyError(inv *invocation, err error) (class, unknown string) {
 	if errors.Is(err, tracker.ErrTransitionValidation) {
 		return telemetry.ErrValidation, ""
 	}
-	// --wait / --dry-run outcomes carry their own exit code: 3 means the
-	// approval wait timed out; 1 means unmet requirements were reported.
+	// --dry-run carries its own exit code: 1 means unmet requirements were
+	// reported.
 	var codeErr *exitCodeError
 	if errors.As(err, &codeErr) {
-		if codeErr.Code == exitWaitTimeout {
-			return telemetry.ErrWaitTimeout, ""
-		}
 		return telemetry.ErrValidation, ""
+	}
+	// A removed flag (e.g. --wait) is still an unknown flag; the token keeps
+	// stale callers countable.
+	var removed *removedFlagError
+	if errors.As(err, &removed) {
+		return telemetry.ErrUnknownFlag, trunc(removed.Flag)
 	}
 	var notFound *issueNotFoundError
 	if errors.As(err, &notFound) {

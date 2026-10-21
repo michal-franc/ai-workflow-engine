@@ -87,14 +87,11 @@ func setupWorkbenchProject(t *testing.T, now time.Time) workbenchFixture {
 	f.paths["unready"] = writeWorkbenchIssue(t, issueDir, "unready", "in design", "", "## Design\n- [ ] Approach documented")
 	f.paths["approved"] = writeWorkbenchIssue(t, issueDir, "approved", "in design", "human_approval: \"backlog\"\n", designDone)
 	f.paths["idle"] = writeWorkbenchIssue(t, issueDir, "idle", "backlog", "", "Waiting in backlog.")
-	f.paths["blocked"] = writeWorkbenchIssue(t, issueDir, "blocked", "backlog", "", "An agent ran start --wait.")
+	f.paths["blocked"] = writeWorkbenchIssue(t, issueDir, "blocked", "backlog", "", "An agent stopped at the gate.")
 	f.paths["asked"] = writeWorkbenchIssue(t, issueDir, "asked", "in progress", "assignee: \"agent-asked\"\n", "- [ ] still building")
 
-	// ready entered "in design" 3h ago; blocked has an agent waiting for 5h;
+	// ready entered "in design" 3h ago.
 	if err := tracker.AppendTransitionStat(f.paths["ready"], tracker.TransitionStat{From: "idea", To: "in design", TS: now.Add(-3 * time.Hour)}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := tracker.BeginWait(f.paths["blocked"], "in progress", now.Add(-5*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	return f

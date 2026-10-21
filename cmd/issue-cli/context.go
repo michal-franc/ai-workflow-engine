@@ -48,15 +48,6 @@ type Context struct {
 	// FlagSet instead of parsing — used to enumerate a command's flags
 	// without running it.
 	introspect bool
-
-	// Sleep pauses between --wait polls; nil means time.Sleep. Tests swap it
-	// to advance a fake clock or to approve the issue mid-wait.
-	Sleep func(time.Duration)
-
-	// ApprovalWaitCommand is the blocking --wait form of the command being
-	// run. transition/start set it so a missing-approval error can tell the
-	// agent exactly what to run instead of retrying.
-	ApprovalWaitCommand string
 }
 
 func (c *Context) now() time.Time {
@@ -64,14 +55,6 @@ func (c *Context) now() time.Time {
 		return c.Now()
 	}
 	return time.Now()
-}
-
-func (c *Context) sleep(d time.Duration) {
-	if c.Sleep != nil {
-		c.Sleep(d)
-		return
-	}
-	time.Sleep(d)
 }
 
 // Command is one entry in the registry. Run owns its own flag.FlagSet and

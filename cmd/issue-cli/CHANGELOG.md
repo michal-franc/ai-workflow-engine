@@ -16,6 +16,11 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.43.0 — 2026-10-21
+
+- **Breaking:** `--wait`, `--timeout` and `--interval` are removed from `issue-cli transition` and `issue-cli start`. At a human-approval gate an agent tells the human what to approve, then stops and ends its turn; the viewer's approve button nudges its tmux session to resume. Passing one of the flags fails with `--wait was removed in v0.43.0: stop and end your turn; the approval nudge resumes you`. Exit code 3 and the `wait_timeout` telemetry class are gone, `transition --dry-run` suggests stopping instead of a `--wait` command, and `transition --json` no longer has a `wait` object.
+- The stats sidecar no longer writes `pending_wait` or per-row `wait_started_at`. Older sidecars that hold them still load; the fields are dropped on the next save.
+
 ## v0.42.0 — 2026-10-21
 
 - **Breaking:** the viewer's workflow designer is removed: the **Workflow** entry in the sidebar's More group, the `/workflow-designer` page, and its `/workflow-designer/data`, `/workflow-designer/preview` and save (`POST /workflow-designer`) endpoints. Edit `workflow.yaml` as text; `issue-cli workflow upgrade` pulls in template changes and `issue-cli process schema` prints the format. The read-only `/workflow-flow` page stays, with no sidebar entry.

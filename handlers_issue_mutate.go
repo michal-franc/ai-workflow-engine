@@ -215,8 +215,8 @@ func (s *Server) handleApproveIssue(w http.ResponseWriter, r *http.Request, proj
 		http.Error(w, "update failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Timestamp the approval so the transition consuming it (and any agent
-	// blocked in `issue-cli transition --wait`) records exact gate latency.
+	// Timestamp the approval so the transition consuming it records exact
+	// gate latency.
 	if err := tracker.RecordApproval(issue.FilePath, humanApproval, time.Now()); err != nil {
 		log.Printf("approve %s: recording approval time: %v", issue.Slug, err)
 	}

@@ -13,7 +13,7 @@ import (
 )
 
 // oldDevelopmentWorkflow is a trimmed copy of the development template as it
-// shipped before stamps: no --wait prompts, no types, no actions.
+// shipped before stamps: an older approval prompt, no types, no actions.
 const oldDevelopmentWorkflow = `statuses:
   - name: "idea"
   - name: "in design"

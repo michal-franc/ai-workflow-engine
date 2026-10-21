@@ -33,8 +33,8 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 |:---------------------------------|:-----------------------------------------|
 | `issue-cli show <slug>`          | Print full issue context                 |
 | `issue-cli list`                 | List issues with filters — supports `--sort score` and emits `Score`/`ScoreBreakdown` in `--json` when scoring is enabled |
-| `issue-cli start <slug>`         | Pick up issue from any status — claim + auto-advance handoff states (announced with a banner). `--wait` blocks until the handoff approval exists |
-| `issue-cli transition <slug>`    | Attempt the next workflow transition. `--dry-run` lists every unmet requirement; `--wait` blocks until the human approval exists |
+| `issue-cli start <slug>`         | Pick up issue from any status — claim + auto-advance handoff states (announced with a banner) |
+| `issue-cli transition <slug>`    | Attempt the next workflow transition. `--dry-run` lists every unmet requirement |
 | `issue-cli comment <slug>`       | Add a comment to an issue                |
 | `issue-cli decide <slug>`        | Record a decision as a `D-n` line under `## Decisions`; `--replaces <slug>#D-n` lists the open issues still citing the old one |
 | `issue-cli balance <slug>`       | Add a typed balance note (`--metric`, `--state`, `--hypothesis`, `--change`, `--evidence`, `--verdict`, `--pass`); `balance --list` prints the current notes |
@@ -68,7 +68,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 
 From a **handoff status** (`backlog`, `human-testing`) it also *auto-advances* to the next work status when the matching approval is present — `backlog → in progress`, `human-testing → documentation`. The target is the next non-optional status in the workflow, not a hardcoded value; only the handoff set is fixed. Because crossing into implementation from a re-claim is surprising, the advance is **never silent**: it is announced with a prominent `⚠ AUTO-ADVANCED  <from> → <to>` banner that also notes the consumed approval. If the approval is missing, `start` fails without mutating assignee or status. From any non-handoff status, `start` only claims and reports `Status unchanged`.
 
-`issue-cli start <slug> --wait [--timeout <dur>]` blocks on a handoff status until the approval exists, then advances as above. It works like `transition --wait` (see [Blocking on a human approval](#blocking-on-a-human-approval---wait)), including exit code 3 on timeout. The advance is recorded in the stats sidecar like any other transition.
+When the approval is missing, the agent stops and ends its turn; the approval message from the viewer resumes it (see [At a human-approval gate](#at-a-human-approval-gate)). The advance is recorded in the stats sidecar like any other transition.
 
 ### `append`
 
@@ -218,7 +218,7 @@ issue-cli transition <slug> --to "waiting-for-team-input"
       issue-cli check cli/sample D2
   - [approval] Must be human-approved for "backlog" in the issue viewer
       → a human approves at http://localhost:8080/p/demo/issue/cli/sample#approve-backlog
-      → meanwhile block on it: issue-cli transition cli/sample --to "backlog" --wait --timeout 9m
+      → tell the human what to approve, then stop and end your turn; the approval nudge resumes you
 Nothing was changed.
 ```
 
@@ -226,30 +226,27 @@ Kinds are `order` (not a legal next step), `field` (a required `--field` answer 
 
 It is built on `WorkflowConfig.PreviewTransitionAll`. That is the engine behind the viewer's transition preview, without the stop at the first failure, so the CLI and the viewer agree on what is missing.
 
-#### Blocking on a human approval (`--wait`)
+#### At a human-approval gate
 
-`issue-cli transition <slug> --to "<status>" --wait [--timeout <dur>] [--interval <dur>]` replaces the "stop, ask, retry later" loop at approval gates:
+Agents don't block at an approval gate. They tell the human what to approve, then stop and end their turn. When the human approves in the viewer, the approve handler sends a message into the agent's tmux session (see [Human Approval Notifications](../agent-dispatch.md#human-approval-notifications)), and the agent re-runs the command.
 
-1. It checks every requirement first. If any requirement other than the approval is unmet, it prints them (like `--dry-run`) and exits 1 without waiting, because a human click will not fix them.
-2. If only the approval is missing, it prints one line to stderr with the approve link and blocks. There is no heartbeat output.
-3. It re-checks the issue file every `--interval` (default `2s`). When the approval appears, it transitions and prints the normal output plus `✓ Waited: <duration> (approved <time>)`.
-4. If the issue changes during the wait so that a machine check fails (for example a box is unticked) or the status moves, it exits 1 with that error instead of transitioning.
+`--wait`, `--timeout` and `--interval` were removed from `transition` and `start` in v0.43.0. Passing one changes nothing and fails with:
+
+```
+Error: --wait was removed in v0.43.0: stop and end your turn; the approval nudge resumes you
+```
 
 | Exit code | Meaning |
 |:--|:--|
 | 0 | Transitioned (or, with `--dry-run`, would succeed) |
 | 1 | Error or unmet requirement; nothing changed |
-| 3 | `--wait` timed out; nothing changed. Re-run the same command to keep waiting |
 
-Without `--timeout` the wait is unlimited. Agents that run issue-cli from a Bash tool with a foreground cap (Claude Code: ~10 minutes) should pass `--timeout 9m` and re-run on exit 3, or run the command in the background. A re-run keeps the original wait start time, so a gate wait spread over several calls is measured end to end. Exit 3 does not trigger the repeated-failure retry hint.
+The CLI gives this guidance itself, so it does not depend on any project's `workflow.yaml`:
 
-**Don't pipe `--wait`.** `issue-cli … --wait | head` (or `| tail`) reports the pipe's exit status, which hides exit 3. Read the `Still waiting for human approval …` line, or run the command unpiped.
-
-The CLI points agents at `--wait` itself, so the guidance does not depend on any project's `workflow.yaml`:
-
-- The `== Next ==` block from `transition` and `start` prints the `--wait` form when the next step needs a human approval. That is `start <slug> --wait --timeout 9m` from a handoff status, otherwise `transition … --wait --timeout 9m`. A one-line note follows it. It is never suggested for `done`. `--json` carries this as `next_command` / `next_command_note`.
-- A missing-approval error from `transition` or `start` ends with the exact `--wait` command to run instead of retrying.
-- When the same command fails 3+ times in a row on a missing approval, the retry hint points at that `--wait` command instead of the generic "try a different approach".
+- When the next step needs a human approval, the `== Next ==` block from `transition` and `start` prints the plain command. That is `start <slug>` from a handoff status, otherwise `transition …`. A one-line note follows it: tell the human what to approve, then stop and end your turn. It is never shown for `done`. `--json` carries this as `next_command` / `next_command_note`.
+- A missing-approval error from `transition` or `start` ends with the approve link and tells the agent to stop and end its turn, and to re-run only after the human says it is approved.
+- `--dry-run` lists the approval with the approve link and the same stop-and-end-turn fix.
+- When the same command fails 3+ times in a row on a missing approval, the retry hint says retrying cannot help and the agent should stop and end its turn, instead of the generic "try a different approach".
 
 Questions for the owner stay in chat (Claude Code or Codex; agents can message the lead with SendMessage). Only the outcome is recorded, with `decide`. `ask` and `answer` were removed in v0.40.0.
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -144,11 +145,39 @@ func Diff(a, b *Results) string {
 		if i < len(lb) {
 			y = lb[i]
 		}
-		if x != y {
+		if x != y && !sameTruncated(x, y) {
 			return fmt.Sprintf("line %d:\n  run 1: %s\n  run 2: %s", i+1, x, y)
 		}
 	}
 	return ""
+}
+
+// volatile matches what differs between two runs of the same build in a
+// check's actual text: clock times (an RFC3339 stamp in a JSON body, a tmux
+// session's start time) and the scenario's temp dir (/tmp/pt-<n>, in CLI
+// output and prompts). canonical masks them so REPEAT compares what the page
+// and the CLI said, not when or where.
+var volatile = []struct {
+	re   *regexp.Regexp
+	mask string
+}{
+	{regexp.MustCompile(`\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?`), "<time>"},
+	{regexp.MustCompile(`/pt-\d+\b`), "/pt-<n>"},
+}
+
+// sameTruncated reports whether two lines are the same text cut off at
+// different points: an actual is trimmed (ending in …) before canonical masks
+// it, so a masked part of a different length moves the cut.
+func sameTruncated(x, y string) bool {
+	const cut = "…"
+	if !strings.HasSuffix(x, cut) && !strings.HasSuffix(y, cut) {
+		return false
+	}
+	x, y = strings.TrimSuffix(strings.TrimSuffix(x, "'"), cut), strings.TrimSuffix(strings.TrimSuffix(y, "'"), cut)
+	if len(x) > len(y) {
+		x, y = y, x
+	}
+	return strings.HasPrefix(y, x)
 }
 
 func canonical(r *Results) []string {
@@ -169,7 +198,11 @@ func canonical(r *Results) []string {
 	var out []string
 	sc := bufio.NewScanner(strings.NewReader(string(b)))
 	for sc.Scan() {
-		out = append(out, sc.Text())
+		line := sc.Text()
+		for _, v := range volatile {
+			line = v.re.ReplaceAllString(line, v.mask)
+		}
+		out = append(out, line)
 	}
 	return out
 }

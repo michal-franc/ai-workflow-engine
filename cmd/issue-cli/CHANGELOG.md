@@ -16,6 +16,21 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.37.0 — 2026-10-21
+
+- Lead agents are a feature, not a convention. A project lead (`lead-<project>`, in the project checkout) supervises the project; a sub-lead (`lead-<epic-slug>`) stabilises one epic on its base branch. The depth is fixed at project lead → sub-lead → worker.
+- `issue-cli lead spawn [--epic <slug>]` starts or re-attaches to a lead without the viewer running. `--epic` creates the base branch (the epic's `base:`, else `base/<slug>`, from main) and its worktree, and records `base:` and `lead:` on the epic. Workers and sub-leads are refused with a hint.
+- `issue-cli lead whoami` shows your role, scope, lead and what you may tick. `issue-cli lead list` shows every lead, its base, main commits not yet in the base, children running, and epics with no sub-lead. `issue-cli lead message <target> "text"` pastes a signed message into a session (leads only).
+- `issue-cli approve <slug> --to <status> --quote "…"` records a gate the human approved in chat: an `approval:` comment with their words, and `human_approval` set without toggling. Workers, sub-leads outside their epic and Human Testing are refused.
+- `parent:` is the child → epic link; `umbrella:` is read as an alias, and `show`/`start` print a rename hint. Dispatching a child of an epic with `base:` branches its worktree from the base, and the epic itself reuses the base worktree.
+- Every dispatch prompt gains `## Your lead` (who the worker reports to: the epic's live sub-lead, else the project lead) and, for children of an epic, `## Base branch`. `show` and `start` print a `Lead:` line.
+- `workflow.yaml` gains an optional `leads:` block (`project:` and `epic:` briefs, with `{{project}}`, `{{lead}}`, `{{project_lead}}`, `{{epic}}`, `{{title}}`, `{{base}}`). Without it, built-in briefs apply. Each brief ends with the lead's role, authority, messaging and handoff note (`sessions/YYYY-MM-DD-lead-<scope>.md`).
+- Claude agents and leads start as `claude -n <tmux name>`, so their tmux name is also their address for Claude Code's built-in messaging (ListAgents / SendMessage). Briefs say agents may message their lead or a peer that way.
+- New agents canvas, `/p/<project>/agents`: you → project lead → one box per epic (base branch, children running, main ahead, sub-lead) → workers as working, at gate, question or stopped, plus an Unfinished jobs lane. Tree and Radial layouts, and Show issues / Group umbrellas / Show stopped toggles. Clicking a live agent opens its tmux session in a terminal, or focuses the one already open (i3, by window title). The panel has Approve gate, Spawn, Copy attach, recent comments and the branch's changed files.
+- Spawn lead in the Actions bar and on the canvas, Spawn sub-lead on epic boxes and in a new Lead section on the epic's detail page.
+- The default i3 + alacritty terminal titles its windows with the session name. An attach command names a private tmux server when the viewer runs with `TMUX_TMPDIR` set.
+- Playtest runner: scenario projects are now headless (`terminal: "none"`), so a dispatch or spawn in a scenario no longer opens a window attached to the real tmux server. `REPEAT=2` ignores timestamps and the scenario's temp dir in check output.
+
 ## v0.36.0 — 2026-10-21
 
 - Bundled workflow templates are versioned. `development`, `review` and `writing` start with `template: <name>@v0.36.0` and a `features:` record, so `workflow init` writes a stamped, recorded file. `template: custom` opts a hand-built workflow out.

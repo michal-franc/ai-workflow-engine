@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"github.com/michal-franc/issue-viewer/internal/agentrun"
 	"html/template"
 	"net/http"
 	"path/filepath"
@@ -22,10 +23,8 @@ type Server struct {
 	tmpl     *template.Template
 }
 
-type AgentSession struct {
-	Name      string `json:"name"`
-	StartTime string `json:"start_time"`
-}
+// AgentSession is one live tmux session (or shared-session window).
+type AgentSession = agentrun.Session
 
 type approvalResponse struct {
 	Status              string `json:"status"`
@@ -101,6 +100,16 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleGitHubImport(w, r, proj)
 	case rest == "stats":
 		s.handleStats(w, r, proj, prefix)
+	case rest == "agents" && r.Method == http.MethodGet:
+		s.handleAgents(w, r, proj, prefix)
+	case rest == "agents.json" && r.Method == http.MethodGet:
+		s.handleAgentsJSON(w, r, proj, prefix)
+	case rest == "agents/detail" && r.Method == http.MethodGet:
+		s.handleAgentDetail(w, r, proj, prefix)
+	case rest == "agents/open" && r.Method == http.MethodPost:
+		s.handleAgentOpen(w, r, proj, prefix)
+	case rest == "lead/spawn" && r.Method == http.MethodPost:
+		s.handleLeadSpawn(w, r, proj, prefix)
 	case rest == "retros":
 		s.handleRetros(w, r, proj, prefix)
 	case rest == "retros/review" && r.Method == http.MethodPost:
@@ -231,4 +240,3 @@ func (s *Server) handleProjectList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
-

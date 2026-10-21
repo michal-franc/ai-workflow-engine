@@ -20,6 +20,7 @@ The Workflow system covers the workflow engine, transition logic, validation rul
 - `internal/tracker/workflow_types.go` — `ForType`, `ForIssue` (base → type → system), `ResolveType`, `RetypeStatus`, `Lint` for types of work
 - `internal/tracker/workflow_schema.go` — reflection-based YAML schema docs
 - `internal/tracker/heading.go` — shared section/heading helpers used by both workflow and issue code
+- `internal/tracker/lead.go`, `lead_brief.go` — the epic link (`parent:`, `umbrella:` alias), lead session names, `LeadFor` routing, base-branch worktrees, and the `leads:` briefs
 - `cmd/issue-cli/templates/workflow/*.yaml` — bundled templates (`development`, `review`, `writing`), each stamped `template: <name>@<release>` and carrying its own `features:` record
 - `cmd/issue-cli/templates/workflow-features.yaml` — the feature catalog: every `workflow.yaml` capability, with detection probes and the text `upgrade` proposes
 - `cmd/issue-cli/workflow_features.go` — catalog loading, probe walker, `features:` record read/write, `scanWorkflowFeatures`
@@ -34,6 +35,7 @@ A workflow defines:
 - **Board config** — which columns and card fields appear on the kanban board
 - **System overlays** — per-system prompt and transition overrides
 - **Types of work** — per-type paths through the statuses, picked by the issue's `type:` ([Types of Work](types.md))
+- **Lead briefs** — `leads:` with the `project` and `epic` prompts lead agents are spawned with (see below)
 - **Template stamp and feature record** — which bundled template the file came from, and which catalog features it has installed or declined ([below](#template-stamp-and-feature-record)). The engine never acts on these; only `issue-cli workflow upgrade` and `workflow scan` read them
 
 ## Transition Validity
@@ -203,6 +205,25 @@ project_actions:
 - The session name is `agent-<project-slug>-<id>`.
 - Like issue actions, they run in the project checkout (never a worktree).
 - Because there is no issue context, prompts are templated with `{{project}}` (the project name) only. Unrecognized `{{...}}` tokens are left verbatim.
+- The bar always starts with **Spawn lead**, even when `project_actions:` is empty: it starts (or re-attaches to) the project lead, `lead-<project>`. See the next section.
+
+### Lead Briefs (`leads:`)
+
+`issue-cli lead spawn [--epic <slug>]` and the Spawn lead / Spawn sub-lead buttons start [lead agents](../patterns/lead-session.md). Their brief comes from a top-level `leads:` block:
+
+```yaml
+leads:
+  project: |
+    You are the project lead of {{project}}, running in {{lead}}.
+  epic: |
+    You are the sub-lead of {{epic}} ("{{title}}") on base branch {{base}}. Report to {{project_lead}}.
+```
+
+- Placeholders are `{{project}}`, `{{lead}}`, `{{project_lead}}`, `{{epic}}`, `{{title}}` and `{{base}}`. `issue-cli` commands get `--project` injected.
+- A missing key uses the built-in brief, so a workflow without `leads:` still gets working leads.
+- The CLI appends a fixed footer to every brief: role, who the lead reports to, what it may tick, how to message other agents, and its handoff note under `sessions/`.
+- `leads:` is project-wide: type, system and per-issue overlays keep it as is (`Clone` copies it). `issue-cli process schema` lists it.
+- Leads change no statuses or transitions. An epic runs the normal workflow (or its `types:` path); children link to it with `parent:`, and their worktrees branch from its `base:` (see Per-Issue Worktrees).
 
 ## Per-Issue Worktrees
 
@@ -218,7 +239,7 @@ Defaults to `false` when absent — projects keep their existing dispatch behavi
 
 Behavior when enabled:
 
-- Branch: `work/<issue-slug>` (created off the project workdir's current HEAD)
+- Branch: `work/<issue-slug>`, created off the project workdir's current HEAD, or off the epic's `base:` branch for a child of an epic. An epic with `base:` uses `.worktrees/<epic-slug>` on the base branch itself (see [The lead session](../patterns/lead-session.md#epics)).
 - Path: `<project.workdir>/.worktrees/<issue-slug>` (gitignored)
 - Re-dispatch on the same issue reuses the existing worktree directory rather than re-running `git worktree add`.
 - The tree is materialized with `git checkout HEAD` after sparse-checkout patterns are configured. Paths in `worktree_sparse_exclude` (default `["issues/"]`) are kept out of the worktree, so a dispatched agent sees the source but not the issue store. If an old worktree was created empty (every file shown as staged-for-deletion), recover it with `git -C .worktrees/<slug> checkout HEAD`.

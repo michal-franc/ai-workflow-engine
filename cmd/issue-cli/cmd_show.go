@@ -55,6 +55,7 @@ func runShow(ctx *Context, args []string) error {
 		fmt.Fprintf(ctx.Stdout, "Path: %s\n", typePath(wf))
 	}
 	printTypeWarnings(ctx.Stdout, wf, issue)
+	printLeadLines(ctx, issue)
 	fmt.Fprintln(ctx.Stdout)
 
 	fmt.Fprintln(ctx.Stdout, "== Body ==")

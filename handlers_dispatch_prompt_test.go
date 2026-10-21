@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/agentrun"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -105,6 +106,7 @@ func TestHandleDispatchPrompt_JSON(t *testing.T) {
 		Worktree: filepath.Join(tmpDir, ".worktrees", "bug-in-login"),
 		Branch:   "work/bug-in-login",
 		Session:  "work:agent-bug-in-login",
+		Lead:     "lead-test-project",
 	}
 	prompt := dp.Prompt
 	dp.Prompt = ""
@@ -255,10 +257,10 @@ func TestStartAgentSession_ReportsUndeliveredPromptWithoutResending(t *testing.T
 
 func TestPromptDeliveryStep_PollsUntilMarkerAppears(t *testing.T) {
 	withPromptDeliveryTimeout(t, 3*time.Second)
-	original := tmuxCapturePane
-	t.Cleanup(func() { tmuxCapturePane = original })
+	original := agentrun.CapturePane
+	t.Cleanup(func() { agentrun.CapturePane = original })
 	calls := 0
-	tmuxCapturePane = func(string) (string, error) {
+	agentrun.CapturePane = func(string) (string, error) {
 		calls++
 		if calls < 2 {
 			return "❯ \n", nil
@@ -274,9 +276,9 @@ func TestPromptDeliveryStep_PollsUntilMarkerAppears(t *testing.T) {
 }
 
 func TestPromptDeliveryStep_NoRepromptURLSuggestsManualPaste(t *testing.T) {
-	original := tmuxCapturePane
-	t.Cleanup(func() { tmuxCapturePane = original })
-	tmuxCapturePane = func(string) (string, error) { return "", nil }
+	original := agentrun.CapturePane
+	t.Cleanup(func() { agentrun.CapturePane = original })
+	agentrun.CapturePane = func(string) (string, error) { return "", nil }
 
 	var steps []DispatchStep
 	promptDeliveryStep(&steps, "t", "marker\n", "")

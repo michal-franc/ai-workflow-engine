@@ -149,6 +149,9 @@ func TestStartScenarioIsolated(t *testing.T) {
 	if strings.Contains(string(cfg), "/Work/projects.yaml") || !strings.Contains(string(cfg), sc.Proj) {
 		t.Errorf("scenario config doesn't point at the scenario project:\n%s", cfg)
 	}
+	if !strings.Contains(string(cfg), `terminal: "none"`) {
+		t.Errorf("scenario config must be headless (terminal: none), or dispatch opens a real terminal:\n%s", cfg)
+	}
 
 	if _, err := exec.LookPath("tmux"); err == nil {
 		if out, code, err := sc.Tmux(ctx, "new-session", "-d", "-s", "pt-probe"); err != nil || code != 0 {

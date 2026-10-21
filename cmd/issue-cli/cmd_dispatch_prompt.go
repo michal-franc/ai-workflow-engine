@@ -57,7 +57,7 @@ func runDispatchPrompt(ctx *Context, args []string) error {
 	}
 	// TelemetryRoot is the project's workdir, else the issues dir's parent —
 	// where the server resolves worktrees from in the usual layout.
-	dp := tracker.BuildDispatchPrompt(ctx.Project, issue, ctx.Project.LoadWorkflowForIssue(issue), ctx.Project.TelemetryRoot())
+	dp := tracker.BuildDispatchPrompt(ctx.Project, issue, ctx.Project.LoadWorkflowForIssue(issue), ctx.Project.TelemetryRoot(), sessionLive(ctx.Project))
 	if ctx.JSONOutput || *jsonOut {
 		return writeJSON(ctx.Stdout, dp)
 	}

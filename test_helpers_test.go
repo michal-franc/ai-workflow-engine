@@ -7,20 +7,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/agentrun"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
 func init() {
 	// Dispatch tests launch stand-in agents (true, echo, cat) that never show
 	// a Claude pane; don't let each one wait out the production timeout.
-	promptDeliveryTimeout = 300 * time.Millisecond
+	agentrun.PromptDeliveryTimeout = 300 * time.Millisecond
 }
 
 func withPromptDeliveryTimeout(t *testing.T, d time.Duration) {
 	t.Helper()
-	original := promptDeliveryTimeout
-	promptDeliveryTimeout = d
-	t.Cleanup(func() { promptDeliveryTimeout = original })
+	original := agentrun.PromptDeliveryTimeout
+	agentrun.PromptDeliveryTimeout = d
+	t.Cleanup(func() { agentrun.PromptDeliveryTimeout = original })
 }
 
 func setupTestProject(t *testing.T) (tracker.Project, string) {
@@ -130,10 +131,10 @@ func withMockTmuxSendKeys(t *testing.T, fn func(target string, lines []string) e
 
 func withMockTmuxHasSession(t *testing.T, fn func(session string) bool) {
 	t.Helper()
-	original := tmuxHasSession
-	tmuxHasSession = fn
+	original := agentrun.HasSession
+	agentrun.HasSession = fn
 	t.Cleanup(func() {
-		tmuxHasSession = original
+		agentrun.HasSession = original
 	})
 }
 

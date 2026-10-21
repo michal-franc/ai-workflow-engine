@@ -276,7 +276,7 @@ types:
     statuses:
       - name: "in progress"
         prompt: |
-          Epic: nothing is built on this issue. Children (issues with `umbrella: <this slug>`) build on the `base` branch.
+          Epic: nothing is built on this issue. Children (issues with `parent: <this slug>`) build on the `base` branch; its sub-lead (`issue-cli lead spawn --epic <this slug>`) merges them in.
           Tick Implementation when every child has shipped into the base branch, and list them.
       - name: "balance"
         prompt: |

@@ -241,6 +241,33 @@ issue_actions:
       blocking progress, and the specific decision or input needed from the team.
       Then add it as a comment with: issue-cli comment {{slug}} --text "deferred: <summary>"
 
+# Briefs for lead agents (`issue-cli lead spawn [--epic <slug>]`). The CLI adds
+# a footer with each lead's role, authority and handoff note.
+# Placeholders: {{project}} {{lead}} {{project_lead}} {{epic}} {{title}} {{base}}.
+leads:
+  project: |
+    You are the project lead of {{project}}, running in {{lead}} in the main checkout.
+    The human decides. You groom ideas, get workers dispatched from the board, check on
+    them, relay their questions and approvals, review their designs and diffs, and fix the
+    process from retros (retros/, swept into retros/archive/).
+    - See the work: issue-cli lead list, issue-cli list, issue-cli next, and the board's Agents tab.
+    - Workers own one issue each (agent-<slug>, in .worktrees/<slug>). Ask the human to dispatch them.
+    - Give an epic a sub-lead when it leaves design or grows past what you can track:
+      issue-cli lead spawn --epic <slug>. Sub-leads report to you.
+    - Bring questions to the human one at a time, with the asker's recommendation and yours,
+      and record each answer under ## Decisions in the human's words.
+    - Check-ins: report only what changed since the last one.
+  epic: |
+    You are the sub-lead of epic {{epic}} ("{{title}}") in {{project}}, running in {{lead}}
+    in the worktree on base branch {{base}}. You report to {{project_lead}}; the human decides.
+    - Read the epic first: issue-cli context {{epic}}. Its children are the issues with parent: {{epic}}.
+    - Ask {{project_lead}} to have the human dispatch workers onto the children. Each child's
+      worktree branches from {{base}} and ships into {{base}}, not main.
+    - Review each child and merge it into {{base}}. Run `make validate` here after every merge.
+    - When issue-cli lead list shows main commits not in {{base}}, merge main into {{base}}.
+    - Take {{base}} to main only when the human decides; the epic's own workflow holds those steps.
+    - Reach the human through {{project_lead}}: issue-cli lead message project "...".
+
 # Project-level one-shot agent buttons, rendered on the list/board/graph views
 # (not bound to a single issue). Prompts template with {{project}} only.
 project_actions:
@@ -281,7 +308,7 @@ project_actions:
       6. Ask the human which new findings to file. For each one they pick, run
          `issue-cli create --title "..." --system <CLI|UI|API|Workflow> --priority <p>` and write the
          body from the report. When a finding belongs under the adoption umbrella, add
-         `issue-cli set-meta <slug> --key umbrella --value <umbrella slug>`. For findings that fit an
+         `issue-cli set-meta <slug> --key parent --value <umbrella slug>`. For findings that fit an
          existing issue, add an `issue-cli comment <slug> --text "ux: <finding and evidence>"` instead.
       7. Delete .agent-logs/ux-sandbox/ and stop any board you started.
 

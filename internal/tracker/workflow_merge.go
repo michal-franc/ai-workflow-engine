@@ -50,6 +50,7 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 		IssueActions:   append([]CustomAction(nil), w.IssueActions...),
 		Actions:        append([]CustomAction(nil), w.Actions...),
 		ProjectActions: append([]CustomAction(nil), w.ProjectActions...),
+		Leads:          w.Leads,
 		Board:          cloneBoardConfig(w.Board),
 		Scoring:        cloneScoringConfig(w.Scoring),
 		AllowShell:     w.AllowShell,

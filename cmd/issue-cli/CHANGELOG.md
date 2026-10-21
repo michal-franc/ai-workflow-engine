@@ -16,6 +16,13 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.39.2 — 2026-10-21
+
+- Agents canvas shows the hierarchy only: You → the project lead → its workers (plus a sub-lead only while one is live). Epic boxes, the not-running sub-lead placeholders and the Group umbrellas toggle are gone; epics live on the issues canvas, and their data stays in `agents.json`. Radial is one ring around the lead.
+- Agent names on the canvas drop the `agent-` prefix and are cut to fit, with the full name as a tooltip.
+- An epic's detail page names the project lead (not a stopped sub-lead) in its Lead section.
+- At phone width the canvas no longer scrolls the page sideways: issue cards wrap under their agent.
+
 ## v0.39.1 — 2026-10-21
 
 - The **Spawn sub-lead** buttons are gone from the agents canvas (epic box and selected-agent panel) and from an epic's detail page: one lead per project for now. `issue-cli lead spawn --epic` and the endpoint still work.

@@ -114,7 +114,7 @@ worktree_sparse_exclude: ["issues/"]   # the default; [] keeps everything
 - The worktree is `<workdir>/.worktrees/<slug>` on a new branch `work/<slug>`, created from the current `HEAD` of the project's workdir. An existing worktree is reused, so re-dispatching after a restart picks up where the agent left off.
 - `issues/` is left out with sparse-checkout, so issues are only ever edited on the main checkout. The dispatch prompt tells the agent it is in a worktree and that its `issue-cli` commands already point at the main checkout.
 - `worktree_setup` runs on creation only. If it fails, the dispatch stops and reports the error.
-- Removing the worktree after the issue ships is left to you (`git worktree remove`).
+- Worktrees stay after the issue ships. Nobody has to remove them; `git worktree remove` is there if you want the space back.
 
 Epics change where a worktree starts:
 

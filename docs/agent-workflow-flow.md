@@ -61,8 +61,8 @@ The normal lifecycle is:
 2. `in design` — review docs and code, structure the solution, capture assumptions and human input. List existing features that already do something similar, and justify why this one is still needed (or shrink it). Describe how agents will discover the change, preferring hints in CLI output and errors over prompt text. When the design is complete, ask for the approval in chat, then stop and end the turn.
 3. `backlog` — ready state after design and approval. `issue-cli start` from here requires `in progress` to be approved in the issue viewer; if approval is missing the command fails without mutating state. Ask for approval in chat, then stop and end the turn instead of retrying.
 4. `in progress` — implement the approved design and keep the issue updated.
-5. `testing` — add relevant automated coverage and log test evidence.
-6. `human-testing` — prepare explicit manual verification for a human. `issue-cli start` from here advances to `documentation` once that status is approved — otherwise it errors with a clear approval-missing message.
+5. `testing` — add relevant automated coverage and log test evidence. Manual checks are written as a playtest session that must pass `make ux-test ISSUE=<slug> REPEAT=2` ([Playtest sessions](patterns/playtest/README.md)).
+6. `human-testing` — prepare explicit manual verification for a human: the owner runs `make playtest ISSUE=<slug>` for the judgement steps, then `make playtest-report ISSUE=<slug> APPLY=1`. `issue-cli start` from here advances to `documentation` once that status is approved — otherwise it errors with a clear approval-missing message.
 7. `documentation` — update the relevant docs for the affected system.
 8. `done` — no active prompt. Work is complete.
 
@@ -81,6 +81,7 @@ Examples:
 - `idea -> in design` — validate body is not empty; append `Idea`, `Design`, and `Human Input`
 - `in design -> backlog` — validate those sections are complete; require human approval; append `Readiness`; clear assignee
 - `backlog -> in progress` — require human approval; require assignee; validate `Readiness`; append `Implementation` and `Test Plan`
+- `in design -> in progress` (this repo's optional shortcut past `backlog`) — the design checks of `in design -> backlog`, then the `backlog -> in progress` effects; the human approves `in progress` straight from `in design`
 - `testing -> human-testing` — validate `Testing`; require a `tests:` comment; append `Human Testing`
 - `human-testing -> documentation` — validate `Human Testing`; require a `tests:` comment; require human approval; append `Documentation`
 

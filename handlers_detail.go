@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -29,7 +30,10 @@ type DetailData struct {
 	WorkTypes         []WorkTypeOption
 	// TypeWarning flags an undefined type: value or an off-path status.
 	TypeWarning string
-	Lead        DetailLead
+	// CanvasURL opens the issues canvas with this epic highlighted; "" when
+	// the issue is not an epic.
+	CanvasURL string
+	Lead      DetailLead
 }
 
 // DetailLead is the detail page's Lead section: who the issue reports to and,
@@ -176,6 +180,11 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 
 	renderedBody := renderBodyWithDataTable(found, prefix, projectRoot(proj), slugMap)
 
+	var canvasURL string
+	if isCanvasEpic(found, issues) {
+		canvasURL = prefix + "/canvas?hl=" + url.QueryEscape(found.Slug)
+	}
+
 	if err := s.tmpl.ExecuteTemplate(w, "detail.html", DetailData{
 		Issue:             detailView,
 		BackURL:           backURL,
@@ -191,6 +200,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		CustomActions:     wf.IssueActionList(),
 		WorkTypes:         workTypeOptions(wf),
 		TypeWarning:       strings.TrimSpace(wf.UnknownTypeWarning(found.Slug, found.Type) + " " + wf.OffPathWarning()),
+		CanvasURL:         canvasURL,
 		Lead:              detailLead(proj, found, issues),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

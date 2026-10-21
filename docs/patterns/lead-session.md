@@ -168,9 +168,11 @@ A large feature built in many pieces runs as an **epic** with **child issues**. 
 2. Spawn its sub-lead: `issue-cli lead spawn --epic <epic>`. That sets up the base branch and its worktree.
 3. Dispatch the children from the board. Each child's worktree is created from the base branch, and its prompt tells it to build on and ship into the base.
 4. The sub-lead reviews each child and merges it into the base, runs the tests after every merge, and runs the joint checks there once.
-5. `lead list` and the canvas show `N commits on main not in base`. The sub-lead merges `main` into the base at check-ins when N > 0. Nothing merges automatically.
+5. `lead list` and the agents canvas show `N commits on main not in base`. The sub-lead merges `main` into the base at check-ins when N > 0. Nothing merges automatically.
 6. The epic issue runs the workflow too, in the base worktree: its build boxes tick when every child has shipped into the base, and its final steps take the base to `main`.
 7. When the epic is done and its base is in `main`, the sub-lead writes its retro and handoff note and exits.
+
+The [issues canvas](../UI/overview.md#issues-canvas) shows epics with their children and roll-up progress per version. To show the human an epic's state, send `/p/<project>/canvas?hl=<epic slug>`.
 
 ## Worked example: Raid League
 

@@ -299,7 +299,7 @@ func TestBuildAgentPrompt_AppendsWorktreeBlockWhenSet(t *testing.T) {
 		"## Worktree",
 		"/work/proj/.worktrees/fix-foo",
 		"work/fix-foo",
-		"human handles cleanup",
+		"Leave the worktree in place",
 		"primary checkout (master)",
 	} {
 		if !strings.Contains(prompt, want) {

@@ -15,7 +15,7 @@ import (
 
 // IDs lists every test id and pattern. Keep it grouped by page.
 var IDs = []string{
-	// Shared header and view tabs (list, board).
+	// Shared header and view tabs (list, board, canvas).
 	"header.bar",
 	"nav.tab.*",
 	"header.count",
@@ -129,6 +129,48 @@ var IDs = []string{
 	"agents.spawn_modal",
 	"agents.spawn_modal.steps",
 	"agents.spawn_modal.close",
+	"detail.canvas_link",
+
+	// Issues canvas (/p/<project>/canvas). Lanes are keyed by epic slug,
+	// "no_epic" or the system; columns and cells by version ("0_1",
+	// "no_version").
+	"canvas.toolbar",
+	"canvas.count",
+	"canvas.rows",
+	"canvas.collapse_done",
+	"canvas.show_no_version",
+	"canvas.no_version_note",
+	"canvas.highlight",
+	"canvas.highlight.name",
+	"canvas.highlight.clear",
+	"canvas.zoom.out",
+	"canvas.zoom.label",
+	"canvas.zoom.in",
+	"canvas.zoom.fit",
+	"canvas.viewport",
+	"canvas.world",
+	"canvas.column.*",
+	"canvas.column.*.progress",
+	"canvas.column.*.extra",
+	"canvas.lane.*",
+	"canvas.lane.*.kind",
+	"canvas.lane.*.status",
+	"canvas.lane.*.parent",
+	"canvas.lane.*.title",
+	"canvas.lane.*.base",
+	"canvas.lane.*.summary",
+	"canvas.lane.*.highlight",
+	"canvas.lane.*.note",
+	"canvas.lane.*.show_no_version",
+	"canvas.cell.*.*",
+	"canvas.cell.*.*.closed",
+	"canvas.cell.*.*.empty",
+	"canvas.card.*",
+	"canvas.card.*.status",
+	"canvas.card.*.type",
+	"canvas.card.*.title",
+	"canvas.card.*.epic",
+	"canvas.card.*.unknown_parent",
 }
 
 // Segment turns a free-form value (a status, a slug) into one id segment:

@@ -33,11 +33,12 @@ func orderedStatusesForIssue(wf *tracker.WorkflowConfig, current string) []strin
 
 var funcMap = template.FuncMap{
 	"statusColor": func(s string) string {
+		// Keys are canonicalStatusKey form: lower case, spaces as hyphens.
 		colors := map[string]string{
 			"idea":          "#8b5cf6",
-			"in design":     "#3b82f6",
+			"in-design":     "#3b82f6",
 			"backlog":       "#64748b",
-			"in progress":   "#eab308",
+			"in-progress":   "#eab308",
 			"testing":       "#f97316",
 			"human-testing": "#ec4899",
 			"documentation": "#14b8a6",
@@ -50,7 +51,7 @@ var funcMap = template.FuncMap{
 		return "#6b7280"
 	},
 	"statusTextColor": func(s string) string {
-		dark := map[string]bool{"in progress": true, "testing": true, "human-testing": true}
+		dark := map[string]bool{"in-progress": true, "testing": true, "human-testing": true}
 		if dark[canonicalStatusKey(s)] {
 			return "#000000"
 		}

@@ -26,7 +26,7 @@ Releases ship Linux and macOS only. Agent dispatch also needs `tmux`, `git` and 
 
 ### Build from source
 
-Needs Go 1.23 or newer.
+Needs Go 1.25 or newer.
 
 ```bash
 make build        # issue-viewer

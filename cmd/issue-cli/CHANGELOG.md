@@ -16,6 +16,40 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.36.0 — 2026-10-21
+
+- Bundled workflow templates are versioned. `development`, `review` and `writing` start with `template: <name>@v0.36.0` and a `features:` record, so `workflow init` writes a stamped, recorded file. `template: custom` opts a hand-built workflow out.
+- The refreshed templates add: approval gates that hand off to the lead (the agent says what it needs and ends its turn; no waiting or polling), design overlap and discoverability checks, throwaway-sandbox manual tests, a rule for documenting unrelated test failures, types of work (`feature`, `tweak`, `bugfix`) in `development`, and a sample project action.
+- New feature catalog (bundled `templates/workflow-features.yaml`): 35 entries, one per `workflow.yaml` capability (statuses, gates, automation, actions, board, worktrees, template conventions such as the v0.34.0 playtest-session wording). Each has what/why/where, a YAML snippet, the question to ask the human, and structural detection probes over the parsed YAML.
+- `issue-cli workflow scan` detects which catalog features a `workflow.yaml` has and writes its `features:` record (installed `<id>@<version>`, declined `<id>`). It rewrites only that block. `--dry-run` previews; `--installed`, `--declined` and `--forget` record what an upgrade picked, declined or re-opened.
+- `issue-cli workflow upgrade` (alias `issue-cli upgrade`) is read-only. It proposes the features a project lacks, item by item, using the `features:` record first and the probes as a fallback, lists declined features, proposes updates for older installed versions, and prints the upgrade steps. `--all` lists the whole catalog, and `--json` gives agents a plan.
+- `start` and `process workflow` print a one-line hint when upgrade has proposals: tell the operator, and upgrade only if they ask.
+- `process schema` lists `template` and `features`, and the web designer's save keeps both.
+- `issue-cli workflow init` works in an empty directory without a `projects.yaml`.
+
+## v0.35.0 — 2026-10-21
+
+- **Issues canvas.** A new **Canvas** tab (`/p/<project>/canvas`) shows what each epic holds and what each version plans, on one pannable, zoomable map.
+  - Columns are versions, sorted as dotted numbers (0.2 before 0.10). Each header shows done/total, side-status counts and a status bar.
+  - Rows are epics by default. An epic is an issue with `type: epic` (EPIC), or one that another issue's `parent:` or legacy `umbrella:` points at (UMBRELLA). Each row shows the epic's base branch and a roll-up of its children; sub-epics are indented, and "No epic" comes last. `?rows=system` switches to one row per system, with an epic badge on each card.
+  - Issues without a version are hidden unless `?nover=1` (always shown when no issue has a version). Done and obsolete cards are dimmed, and `?done=collapse` folds them into a count per cell.
+  - Highlight one epic (`?hl=<slug>`) from its row, a card's badge, or **View on canvas** on the epic's detail page.
+  - Pan by dragging or with the wheel, zoom with Ctrl+wheel, or use −/+/Fit. Nothing is saved; the layout is always computed.
+- Web UI: "in progress" and "in design" now get their status colours (yellow, blue) everywhere. They rendered gray because the colour map's keys didn't match `canonicalStatusKey`.
+- Playtest: `canvas-basics` and `canvas-phone` sessions on a new `canvas` scenario; the canvas carries `canvas.*` test ids.
+
+## v0.34.0 — 2026-10-21
+
+- **Playtest sessions.** An issue's manual checks can now be a YAML session in `playtest/sessions/`, each step's id one of the issue's checkbox ids.
+  - `make ux-test ISSUE=<slug> [REPEAT=2]` runs the machine checks in headless Chrome (chromedp), at desktop and phone width, against a throwaway scenario board. Each step gets its own git project, config, HOME, private tmux server and branch-built binaries. The run checks layout rules and console errors and takes screenshots.
+  - `make playtest ISSUE=<slug>` shows the owner only the judgement steps, in an overlay the runner injects into a Chrome window it drives: highlighted targets, DO / EXPECT / WHY, live checks, Pass / Fail / Skip / Replay, and Alt+N opinions.
+  - `make playtest-report ISSUE=<slug> APPLY=1` ticks the boxes that passed and posts failures and opinions as `playtest:` comments.
+  - `make playtest-check` validates every session and is part of `make validate`.
+- Web UI: the list, board and detail pages carry `data-testid` labels. They are all listed in `internal/testids`, and a test keeps the two in step.
+- CLI: `issue-cli process playtest` prints the shared playtest contract. `process playtest web` and `process playtest game` print worked examples that bots in other projects follow to build their own playtest system.
+- Workflow: in this repo's dev workflow, the Test Plan asks for a playtest session, Testing asks for a `ux-test REPEAT=2` run before handoff, and the human-testing prompt sends the owner to `make playtest` and the report. The bundled `development` template gets opt-in wording.
+- Build: Go 1.25 is now required (for chromedp).
+
 ## v0.33.2 — 2026-10-08
 
 - Dispatch: Claude now starts with its briefing as the launch argument instead of a paste typed in after a fixed 3 s wait. When Claude took longer to boot, the paste was dropped and the agent sat at an empty prompt while every step reported ok. Dispatch now polls the pane and reports **Prompt delivered**, or a failed step after 20 s.

@@ -165,7 +165,7 @@ func BuildAgentPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, worktreeP
 You are already in an isolated git worktree at %s on branch %s.
 - Do your code work and make commits here on %s. Do not switch this checkout to another branch.
 - Issue management is NOT code work. The issues/ tree is excluded from this worktree on purpose — it lives on the primary checkout (master). Run every issue-cli command exactly as written: --project already points it at the primary checkout, so it manages the issue on master regardless of your worktree branch. Do not cd into the primary checkout, and do not try to create or edit issue files inside this worktree.
-- The human handles cleanup (running git worktree remove) after the issue is shipped — you do not need to remove the worktree yourself.
+- Leave the worktree in place after the issue ships: do not remove it, and nobody has to clean it up.
 `, worktreePath, worktreeBranch, worktreeBranch)
 	}
 	return prompt

@@ -115,6 +115,7 @@ func runStart(ctx *Context, args []string) error {
 
 	printWorkflowNextSteps(ctx.Stdout, wf, issue)
 	printStartWorkflowReminder(ctx.Stdout, wf)
+	printWorkflowUpgradeHint(ctx)
 	return nil
 }
 

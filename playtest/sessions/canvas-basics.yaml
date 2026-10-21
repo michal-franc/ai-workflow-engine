@@ -1,0 +1,157 @@
+session: canvas-basics
+issue: ui/issues-canvas-epics-umbrellas-and-versions-on-one-map
+title: Issues canvas - epic and system rows, version columns, highlight, zoom
+scenario: canvas
+
+# Desktop only: the canvas is a pan surface, so at phone width most of the
+# map is off screen by design. canvas-phone checks the phone layout.
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: Epic rows - version columns, epic and umbrella lanes, sub-epic, no-version hidden
+    setup:
+      - open: /p/{project}/canvas
+    checks:
+      - selected: nav.tab.canvas
+      - text_equals: { target: canvas.count, text: 8 of 16 issues }
+      - text_equals: { target: canvas.no_version_note, text: 8 issues without a version hidden }
+      - count: { pattern: canvas.column.*, equals: 3 }
+      - visible: [canvas.column.0_1, canvas.column.0_2, canvas.column.0_10]
+      - absent: canvas.column.no_version
+      - text_equals: { target: canvas.column.0_1.progress, text: 2/2 done }
+      - text_equals: { target: canvas.column.0_1.extra, text: 3 issues · 1 obsolete }
+      - text_equals: { target: canvas.column.0_2.progress, text: 0/4 done }
+      - count: { pattern: canvas.lane.*, equals: 5 }
+      - text_equals: { target: canvas.lane.core/search-everywhere.kind, text: EPIC }
+      - text_equals: { target: canvas.lane.core/search-everywhere.base, text: ⎇ base/search-everywhere }
+      - text_equals: { target: canvas.lane.core/search-everywhere.summary, text: 3 children · 1/3 done · 1 without a version }
+      - text_equals: { target: canvas.lane.core/saved-searches.parent, text: ↳ in Search everywhere }
+      - text_equals: { target: canvas.lane.core/faster-startup.kind, text: UMBRELLA }
+      - text_equals: { target: canvas.lane.no_epic.summary, text: 4 shown of 5 · 1/3 done · 1 obsolete }
+      # The legacy umbrella: link counts like parent:.
+      - count: { pattern: canvas.card.ui/search-box-in-the-header, within: canvas.cell.core/search-everywhere.0_2, equals: 1 }
+      - count: { pattern: canvas.card.ui/name-a-saved-search, within: canvas.cell.core/saved-searches.0_2, equals: 1 }
+      - count: { pattern: canvas.card.core/cache-the-workflow-file, within: canvas.cell.core/faster-startup.0_10, equals: 1 }
+      - visible: canvas.cell.no_epic.0_10.empty
+      - text_equals: { target: canvas.lane.core/plugin-system.note, text: All 2 children have no version. Show no version }
+
+  - id: TP5
+    title: Collapse done folds closed cards into a chip; the chip turns it off again
+    setup:
+      - open: /p/{project}/canvas
+    act:
+      - check: { count: { pattern: canvas.card.*, within: canvas.cell.no_epic.0_1, equals: 2 } }
+      - click: canvas.collapse_done
+      - wait_for: { url: { contains: done=collapse } }
+      - check: { count: { pattern: canvas.card.*, within: canvas.cell.no_epic.0_1, equals: 0 } }
+      - check: { text_equals: { target: canvas.cell.no_epic.0_1.closed, text: ✓ 1 done · 1 obsolete } }
+      - check: { text_equals: { target: canvas.cell.core/search-everywhere.0_1.closed, text: ✓ 1 done } }
+      - click: canvas.cell.no_epic.0_1.closed
+    checks:
+      - absent: canvas.cell.no_epic.0_1.closed
+      - count: { pattern: canvas.card.*, within: canvas.cell.no_epic.0_1, equals: 2 }
+      - url: { matches: "^/p/[^/]+/canvas\\?rows=epic&hl=$" }
+
+  - id: TP6
+    title: Show no version adds the column and fills an epic whose children have no version
+    setup:
+      - open: /p/{project}/canvas
+    act:
+      - click: canvas.lane.core/plugin-system.show_no_version
+      - wait_for: { url: { contains: nover=1 } }
+    checks:
+      - visible: canvas.column.no_version
+      - text_equals: { target: canvas.column.no_version.progress, text: 1/4 done }
+      - absent: [canvas.lane.core/plugin-system.note, canvas.no_version_note]
+      - count: { pattern: canvas.card.*, within: canvas.cell.core/plugin-system.no_version, equals: 2 }
+      - count: { pattern: canvas.card.core/fuzzy-matching, within: canvas.cell.core/search-everywhere.no_version, equals: 1 }
+      - text_equals: { target: canvas.count, text: 16 of 16 issues }
+
+  - id: TP7
+    title: System rows - an epic badge highlights the epic across systems and survives a reload
+    setup:
+      - open: /p/{project}/canvas?rows=system
+    act:
+      - check: { hidden: canvas.highlight }
+      - click: canvas.card.ui/search-box-in-the-header.epic
+      - wait_for: canvas.highlight
+      - check: { url: { contains: hl=core%2Fsearch-everywhere } }
+      - reload: true
+    checks:
+      - visible: [canvas.lane.ui, canvas.lane.core, canvas.lane.cli]
+      - text_equals: { target: canvas.highlight.name, text: Search everywhere }
+      - selected: [canvas.card.ui/search-box-in-the-header.epic, canvas.card.core/index-issue-bodies.epic]
+      - text_equals: { target: canvas.card.ui/name-a-saved-search.epic, text: ⧉ Saved searches }
+
+  - id: TP8
+    title: The × on the chip clears the highlight and drops hl from the URL
+    setup:
+      - open: /p/{project}/canvas?rows=system&hl=core/search-everywhere
+    act:
+      - check: { visible: canvas.highlight }
+      - click: canvas.highlight.clear
+    checks:
+      - hidden: canvas.highlight
+      - url: { matches: "^/p/[^/]+/canvas\\?rows=system$" }
+
+  - id: TP9
+    title: Zoom buttons step by 10% and Fit returns to the width that fits
+    setup:
+      - open: /p/{project}/canvas
+    act:
+      - click: canvas.zoom.out
+      - click: canvas.zoom.out
+      - check: { text_equals: { target: canvas.zoom.label, text: 80% } }
+      - click: canvas.zoom.in
+      - check: { text_equals: { target: canvas.zoom.label, text: 90% } }
+      - click: canvas.zoom.fit
+    checks:
+      - text_equals: { target: canvas.zoom.label, text: 100% }
+
+  - id: TP10
+    title: A parent that matches no issue leaves the card under No epic with a marker
+    setup:
+      - open: /p/{project}/canvas
+    checks:
+      - count: { pattern: canvas.card.ui/orphan-task, within: canvas.cell.no_epic.0_2, equals: 1 }
+      - text_equals: { target: canvas.card.ui/orphan-task.unknown_parent, text: "⚠ unknown parent: core/does-not-exist" }
+
+  - id: TP11
+    title: An epic's detail page links to the canvas with the epic highlighted
+    setup:
+      - open: /p/{project}/issue/core/index-issue-bodies
+    act:
+      - check: { absent: detail.canvas_link }
+      - open: /p/{project}/issue/core/search-everywhere
+      - click: detail.canvas_link
+      - wait_for: { url: { contains: "/canvas?hl=" } }
+    checks:
+      - text_equals: { target: canvas.highlight.name, text: Search everywhere }
+      - selected: canvas.lane.core/search-everywhere.highlight
+      - text_equals: { target: canvas.lane.core/search-everywhere.highlight, text: Highlighted }
+
+  - id: TP13
+    title: The map reads well, pans and highlights clearly
+    setup:
+      - open: /p/{project}/canvas
+    targets:
+      - { id: canvas.world, note: Drag empty background here to pan }
+      - { id: canvas.lane.core/search-everywhere.highlight, note: Highlight this epic }
+      - { id: canvas.zoom.fit, note: Zoom controls }
+    do: |
+      1. Drag on empty background to pan the map. Scroll the mouse wheel to
+         pan, and hold Ctrl while scrolling to zoom around the pointer.
+      2. Click Highlight on "Search everywhere", then switch Rows to System.
+         The highlight carries over; its cards now sit in several systems.
+      3. Switch the theme (Dark, Dracula, Light) in the header.
+    expect: |
+      Epics, their children and the version columns read at a glance. Done
+      and obsolete cards are clearly dimmed; highlighted cards stand out
+      and the rest fade. Panning and zooming feel smooth, and drags that
+      start on a card title or button don't pan. Every theme stays readable,
+      and "in progress" dots are yellow, "idea" purple.
+    why: ux-test checks counts, placement and the controls; only you can say whether the map reads well and pans comfortably.

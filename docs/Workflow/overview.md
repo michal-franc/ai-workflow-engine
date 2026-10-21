@@ -21,6 +21,10 @@ The Workflow system covers the workflow engine, transition logic, validation rul
 - `internal/tracker/workflow_schema.go` — reflection-based YAML schema docs
 - `internal/tracker/heading.go` — shared section/heading helpers used by both workflow and issue code
 - `internal/tracker/lead.go`, `lead_brief.go` — the epic link (`parent:`, `umbrella:` alias), lead session names, `LeadFor` routing, base-branch worktrees, and the `leads:` briefs
+- `cmd/issue-cli/templates/workflow/*.yaml` — bundled templates (`development`, `review`, `writing`), each stamped `template: <name>@<release>` and carrying its own `features:` record
+- `cmd/issue-cli/templates/workflow-features.yaml` — the feature catalog: every `workflow.yaml` capability, with detection probes and the text `upgrade` proposes
+- `cmd/issue-cli/workflow_features.go` — catalog loading, probe walker, `features:` record read/write, `scanWorkflowFeatures`
+- `cmd/issue-cli/workflow_upgrade.go` — stamp parsing, `buildUpgradePlan`, the `start`/`process workflow` upgrade hint
 
 ## Workflow Structure
 
@@ -32,6 +36,7 @@ A workflow defines:
 - **System overlays** — per-system prompt and transition overrides
 - **Types of work** — per-type paths through the statuses, picked by the issue's `type:` ([Types of Work](types.md))
 - **Lead briefs** — `leads:` with the `project` and `epic` prompts lead agents are spawned with (see below)
+- **Template stamp and feature record** — which bundled template the file came from, and which catalog features it has installed or declined ([below](#template-stamp-and-feature-record)). The engine never acts on these; only `issue-cli workflow upgrade` and `workflow scan` read them
 
 ## Transition Validity
 
@@ -239,7 +244,7 @@ Behavior when enabled:
 - Re-dispatch on the same issue reuses the existing worktree directory rather than re-running `git worktree add`.
 - The tree is materialized with `git checkout HEAD` after sparse-checkout patterns are configured. Paths in `worktree_sparse_exclude` (default `["issues/"]`) are kept out of the worktree, so a dispatched agent sees the source but not the issue store. If an old worktree was created empty (every file shown as staged-for-deletion), recover it with `git -C .worktrees/<slug> checkout HEAD`.
 - The dispatched tmux session opens with `cwd` set to the worktree path, and the agent's prompt includes a worktree-aware section pointing at the path and branch.
-- Cleanup is the human's responsibility: the `shipping` checklist contains a reminder to merge `work/<slug>` and run `git worktree remove .worktrees/<slug>`. Agents do not remove worktrees themselves — that would risk discarding uncommitted state.
+- Worktrees are not cleaned up: they stay after the issue ships, and no checklist asks anyone to remove them. Agents never remove a worktree themselves, since that would risk discarding uncommitted state.
 
 If `git worktree add` fails (dirty tree, branch already exists outside the worktrees dir, etc.), the dispatch surfaces an error step and aborts rather than silently falling back to the primary checkout.
 
@@ -262,6 +267,51 @@ systems:
 Overlays can only add guidance and actions; they cannot drop a status or a gate. For a different path per kind of
 work (tweak, bugfix, epic), use `types:` — see [Types of Work](types.md). Resolution is base → type → system.
 
+## Template Stamp and Feature Record
+
+Two optional top-level keys tie a project's `workflow.yaml` to the templates and the feature catalog bundled in `issue-cli`:
+
+```yaml
+template: development@v0.36.0     # bundled template + the release that last changed it; "custom" opts out
+features:
+  installed:                      # catalog features this file has, as <id>@<version>
+    - types-of-work@v0.36.0
+    - lead-handoff-prompts@v0.36.0
+  declined:                       # features the human said no to; upgrade stops proposing them
+    - scoring
+```
+
+- `template:` is `WorkflowConfig.Template` and `features:` is `WorkflowConfig.Features` (`FeatureRecord{Installed, Declined}`). Both are declared on the struct so the web designer's marshal round trip keeps them, and `process schema` lists them. The engine never acts on either.
+- `template: custom` marks a hand-built workflow: no upgrade hint, no proposals. A file with no `template:` is **unstamped**; `upgrade` compares it with `development` (or `--template <name>`).
+- "Latest" is the stamp of the template bundled in the running binary, not `issue-cli version`. Releases that don't change a template don't make projects look behind, and `dev` builds work.
+- Older binaries ignore both keys (yaml.v3 decoding is not strict).
+
+### Feature catalog
+
+`cmd/issue-cli/templates/workflow-features.yaml` (embedded) lists every capability a `workflow.yaml` can use, grouped by category: lifecycle (status prompts, optional and parked statuses, wildcard transitions, transition fields, types, system overlays), gates (one entry per validator family), automation (`append_section`, `inject_prompt`, `set_fields`), actions, board, dispatch (worktrees), and conventions (template wording such as `lead-handoff-prompts`, which tells agents to say what they need at a gate and end their turn). Each entry has `id`, `version`, `category`, `propose`, `templates`, `title`, `what`, `why`, `where`, `snippet`, `question` and `detect`.
+
+- `propose: true` entries are the ones `upgrade` offers to projects that lack them. `propose: false` entries are catalog-only: scanned and recorded, and listed only by `upgrade --all`.
+- `detect` is a list of **structural probes** over the parsed YAML; the feature is present when any probe matches. A probe has a `path` (`key`, `key[]` for each list item, `*` for each map value) and at most one condition: none (the value is set: not empty, `false`, `0` or null), `equals`, `one_of`, `rule_in` (the rule name before `:`), or `contains` (case-insensitive, inside that one field only). A path that starts with `statuses[]` or `transitions[]` also searches every `types.<t>` and `systems.<s>` overlay. For example, a parked status is `statuses[].global equals true`, so `optional: true` on its own doesn't count.
+- The data store, stats, retros and comments are not catalogued: they are not `workflow.yaml` configuration.
+
+**Copy model.** Installing a feature means an agent copies its snippet, adapted to the project's statuses and sections, into `workflow.yaml`. Nothing from the catalog is merged in at load time, so features that reshape the workflow (types of work) are installed the same way as one-line ones.
+
+### Upgrading workflow.yaml
+
+1. `start` and `process workflow` print a one-line hint when `upgrade` has at least one proposal. Agents tell the operator and carry on; they upgrade only when asked.
+2. `issue-cli workflow upgrade` (read-only) lists the proposals: catalog entries newer than the stamp (all of them if unstamped), for the project's template, that the file doesn't have. What the file has comes from its `features:` record, or from the probes if there is no record. Declined features are listed with the re-open command, and an installed feature with a newer catalog version is proposed as an update.
+3. The agent proposes the items one at a time, backs the file up to `workflow.oldN.yaml`, writes the picked snippets, and sets `template: <name>@<latest>`.
+4. `issue-cli workflow scan --installed <picked> --declined <declined>` records the result. Scan rewrites only the `features:` block.
+5. `issue-cli process workflow` validates the result. Existing issues keep the checklist sections they already have.
+
+Command details: [CLI overview](../CLI/overview.md#workflow-upgrade).
+
+### Adding or changing a catalog entry
+
+1. Add or edit the entry in `workflow-features.yaml` with `version:` set to the release in `cmd/issue-cli/CHANGELOG.md`. Write probes against parsed paths, not raw text; use `contains` only for wording conventions, scoped to the field that carries the text.
+2. If a bundled template gains the feature, bump its `template: <name>@<version>` stamp and re-run `issue-cli workflow scan` on the template file so its `features:` record matches.
+3. `go test ./cmd/issue-cli/` checks that every field is filled, ids are unique, snippets parse, each probe has at most one condition and its path resolves in the `WorkflowConfig` structs, every stamp version has an entry, no entry is newer than its template's stamp, and each template's record equals what scan detects in it.
+
 ## Validation Rules
 
 Validators come in two flavors:
@@ -281,6 +331,18 @@ The `validations` package is a leaf — it does not import `tracker`. This is wh
 
 `linked_issue_in_status` and `command_succeeds` need runtime context (an issue lookup and the project's working directory); both are populated automatically by `Project.LoadWorkflow` via `attachRuntime`. `command_succeeds` is gated by the top-level `allow_shell: true` flag in `workflow.yaml`.
 
+## Playtest Sessions in the Dev Workflow
+
+This repo's `workflow.yaml` asks for manual checks to be written as playtest sessions. The shared contract is [docs/patterns/playtest/README.md](../patterns/playtest/README.md) (`issue-cli process playtest`), and this repo's runner is described in [web-app.md](../patterns/playtest/web-app.md).
+
+- **`backlog → in progress`:** the Test Plan's `### Manual` boxes ask for a session in `playtest/sessions/<name>.yaml` (step id = checkbox id) that passes `make playtest-check`. Checks that no session can drive (real Claude behaviour, terminal-only flows) stay written steps, each with a `.agent-logs/<name>-sandbox/`.
+- **`in progress → testing`:** the `## Testing` section adds a box for `make ux-test ISSUE=<slug> REPEAT=2`, run once before handoff.
+- **The `human-testing` prompt:** sends the owner to `make playtest ISSUE=<slug>` (judgement steps in an overlay) and `make playtest-report ISSUE=<slug> APPLY=1`. The report ticks the boxes that passed and posts each failure and opinion as a `playtest:` comment.
+- **The UI overlay's `in design` prompt:** asks for the test ids the session will point at.
+- **The bundled `development` template:** has opt-in wording, "if the project has a playtest system", so other projects aren't forced to adopt one.
+
+Issues that already have the old boxes ("Throwaway sandbox scenario prepared") keep them; only new transitions append the new wording.
+
 ## Design Considerations
 
 When working on workflow changes:
@@ -288,4 +350,5 @@ When working on workflow changes:
 - State which statuses, rules, templates, or overlays will change
 - Consider whether existing issues need migration or compatibility handling
 - For new validators, follow the steps in *Validation Rules* above
+- For any new `workflow.yaml` capability (a field, action type or validator), add a feature catalog entry; see *Adding or changing a catalog entry* above
 - Test with `go test ./internal/tracker/...` (engine) and `go test ./internal/tracker/validations/...` (per-validator suite)

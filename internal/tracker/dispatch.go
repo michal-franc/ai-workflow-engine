@@ -97,7 +97,6 @@ If you hit friction, ambiguity, or missing guardrails while using issue-cli or t
 
 ## Commands that require user approval — DO NOT run without asking
 
-  issue-cli transition <slug> --to "done"       # only humans close issues
   Any transition backwards                       # ask first
   Creating or deleting issues                    # ask first
 

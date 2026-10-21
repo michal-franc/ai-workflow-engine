@@ -107,8 +107,9 @@ func LeadBrief(wf *WorkflowConfig, in LeadBriefInput) string {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	fmt.Fprintf(&b, "- Before you exit, or before the human takes a long break, write %s: what is live, what waits on whom, and the decisions made.", filepath.Join(notesDir, HandoffNoteName(now, lead)))
+	fmt.Fprintf(&b, "- Before you exit, or before the human takes a long break, write %s: what is live, what waits on whom, the decisions made, and a ## Next section with the ordered next steps.", filepath.Join(notesDir, HandoffNoteName(now, lead)))
 	if in.Epic == nil {
+		b.WriteString(" The viewer's Status page shows that ## Next list; its text form, /p/<project>/status.md, is a ready-made stand-up.")
 		b.WriteString(" List your live sub-leads, so a restart can re-spawn them with issue-cli lead spawn --epic <slug>.")
 	} else {
 		b.WriteString(" When the epic is done and its base branch is in main, write your retro (issue-cli retrospective), then this note, then exit.")

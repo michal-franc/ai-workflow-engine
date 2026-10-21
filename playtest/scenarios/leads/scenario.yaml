@@ -1,0 +1,13 @@
+# Lead agents: a project (lead-crew) with one epic, ui/epic, and its two
+# children (ui/child on parent:, ui/legacy on the legacy umbrella: key), plus
+# cli/loner with no epic. All are in progress, so with no live agent they are
+# unfinished jobs. Worktrees are on and in progress → testing needs the
+# human, so a live ui/child sits at a gate. Sessions fake live agents with
+# `tmux: [new-session, -d, -s, <name>, cat]` on the private server, so a
+# spawn or dispatch takes the re-attach path and never starts a real agent.
+title: One epic with a sub-lead, two children, a loner
+project:
+  name: Crew
+  slug: crew
+issues: tracker
+workflow: workflow.yaml

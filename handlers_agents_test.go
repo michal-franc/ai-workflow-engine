@@ -227,7 +227,7 @@ func TestDetailShowsLeadSection(t *testing.T) {
 		t.Errorf("epic page lacks its sub-lead and the Spawn sub-lead button")
 	}
 	_, html = getResp(t, ts.URL+"/p/agents/issue/ui/child")
-	if !strings.Contains(html, `<div class="active-session-name">lead-agents</div>`) || strings.Contains(html, "spawnSubLead('") {
+	if !strings.Contains(html, `<div class="active-session-name" data-testid="detail.lead.name">lead-agents</div>`) || strings.Contains(html, "spawnSubLead('") {
 		t.Errorf("child page should name the project lead (sub-lead not live) and offer no spawn")
 	}
 }

@@ -78,6 +78,7 @@ var WorkflowValidationRules = []SchemaNamedDoc{
 func WorkflowSchemaSections() []SchemaSection {
 	return []SchemaSection{
 		{Path: "(top level)", Title: "WorkflowConfig", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowConfig{}))},
+		{Path: "features", Title: "FeatureRecord", Fields: schemaFieldsOf(reflect.TypeOf(FeatureRecord{}))},
 		{Path: "statuses[]", Title: "WorkflowStatus", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowStatus{}))},
 		{Path: "transitions[]", Title: "WorkflowTransition", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowTransition{}))},
 		{Path: "transitions[].actions[]", Title: "WorkflowAction", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowAction{}))},

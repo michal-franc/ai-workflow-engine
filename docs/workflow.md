@@ -285,3 +285,14 @@ System-specific documentation lives in `docs/<System>/` and agents should refere
 - [CLI Overview](CLI/overview)
 - [UI Overview](UI/overview)
 - [Workflow Overview](Workflow/overview)
+
+## Keeping workflow.yaml up to date
+
+Projects edit their `workflow.yaml` heavily, so a newer issue-cli never overwrites it. Instead:
+
+- `workflow.yaml` carries a `template: <name>@<release>` stamp and a `features:` record (installed `<id>@<version>`, declined `<id>`). `issue-cli workflow init` writes both.
+- `issue-cli workflow scan` detects which catalog features the file already has and writes the record. Use `--dry-run` to preview.
+- `issue-cli workflow upgrade` lists the features the project could adopt, each with what it does, why, a snippet and a question for you. An agent proposes them one at a time and copies in only the ones you pick. Declined ones stay declined until you re-open them with `issue-cli workflow scan --forget <id>`.
+- When there is something to propose, `start` and `process workflow` print a one-line hint. Agents mention it and upgrade only when you ask.
+
+Details: [Workflow Overview](Workflow/overview) (stamp, record, catalog) and [CLI Overview](CLI/overview) (`workflow upgrade`, `workflow scan`).

@@ -1,3 +1,26 @@
+# Bundled template stamp: which template this file came from and the
+# issue-cli release that last changed it. `issue-cli workflow upgrade` compares
+# it with the template bundled in the binary and proposes newer features.
+# Set it to `custom` if this workflow is no longer based on a template.
+template: review@v0.36.0
+
+# Feature record: catalog features this file has (<id>@<version>) and the
+# ones the human declined. Written by `issue-cli workflow scan`, read by
+# `issue-cli workflow upgrade`.
+features:
+  installed:
+    - status-prompts@v0.36.0
+    - human-approval-gates@v0.36.0
+    - checklist-gates@v0.36.0
+    - assignee-gate@v0.36.0
+    - comment-evidence-gates@v0.36.0
+    - body-structure-gates@v0.36.0
+    - checklist-sections@v0.36.0
+    - project-actions@v0.36.0
+    - board-columns@v0.36.0
+    - board-card-fields@v0.36.0
+    - lead-handoff-prompts@v0.36.0
+
 board:
   columns:
     - inbox
@@ -27,6 +50,7 @@ statuses:
     prompt: |
       Read the item carefully and write your review notes directly into the issue body.
       Decide on one of two outcomes: approved (ready to land) or needs-changes (sender must revise).
+      To approve, say in chat that it needs `approved` approval in the issue viewer, then end your turn. Don't wait or poll: the lead (or the human) relays the request and resumes you once it is approved.
   - name: "needs-changes"
     description: "Sent back to the author for revisions"
     prompt: |
@@ -36,6 +60,7 @@ statuses:
     description: "Review complete and approved"
     prompt: |
       Approval is recorded. The item is ready to be archived once any follow-up actions are taken.
+      Say in chat that it needs `archived` approval in the issue viewer, then end your turn. Don't wait or poll: the lead (or the human) relays the request and resumes you once it is approved.
   - name: "archived"
     description: "Closed out, no further action"
 
@@ -90,3 +115,16 @@ transitions:
     actions:
       - type: "require_human_approval"
         status: "archived"
+
+# One-shot agent buttons on the project views (list/board/graph). Each opens an
+# agent session briefed with the prompt; no validation, no status change.
+# issue_actions: does the same on the issue detail view ({{slug}}, {{title}}, …).
+project_actions:
+  - id: "triage-inbox"
+    label: "Triage inbox"
+    agent: "claude"
+    prompt: |
+      Read every item in the {{project}} inbox. For each, say whether it has enough
+      context to triage, suggest labels and a priority, and flag anything that needs
+      more from the submitter. Post each note with:
+      issue-cli comment <slug> --text "triage: <note>"

@@ -287,14 +287,14 @@ func TestHandleCanvas_Renders(t *testing.T) {
 		t.Fatalf("status = %d", code)
 	}
 	for _, want := range []string{
-		`href="/p/test-project/canvas" class="view-tab active"`,
+		`href="/p/test-project/canvas" data-testid="nav.tab.canvas" class="view-tab active"`,
 		`id="canvas-world"`,
 		`>1.0</b>`,
 		`>2.0</b>`,
 		`UMBRELLA`,
 		`⎇ base/umbrella`,
-		`class="canvas-card lit" data-epic="big-umbrella-the-plan"`,
-		`id="canvas-hl-name">Big umbrella</span>`,
+		`class="canvas-card lit" data-testid="canvas.card.child" data-epic="big-umbrella-the-plan"`,
+		`data-testid="canvas.highlight.name">Big umbrella</span>`,
 		`2 issues without a version hidden`,
 		`function initPanZoom(`,
 	} {
@@ -331,7 +331,7 @@ func TestDetail_EpicLinksToCanvas(t *testing.T) {
 	defer ts.Close()
 
 	_, html := getBody(t, ts.URL+"/p/test-project/issue/umbrella")
-	if !strings.Contains(html, `href="/p/test-project/canvas?hl=umbrella">View on canvas</a>`) {
+	if !strings.Contains(html, `href="/p/test-project/canvas?hl=umbrella" data-testid="detail.canvas_link">View on canvas</a>`) {
 		t.Error("epic detail page has no View on canvas link")
 	}
 	_, html = getBody(t, ts.URL+"/p/test-project/issue/child")

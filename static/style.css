@@ -2701,7 +2701,8 @@ body.canvas-page {
 .canvas-viewport.dragging { cursor: grabbing; }
 
 .canvas-world {
-    --colw: 280px;
+    /* One 240px card plus the cell's padding; four versions fit at 1440px. */
+    --colw: 260px;
     display: grid;
     grid-template-columns: 240px repeat(var(--cols), minmax(var(--colw), 1fr));
     gap: 12px;

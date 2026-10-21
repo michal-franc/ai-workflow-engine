@@ -58,6 +58,7 @@ type CanvasSegment struct {
 // CanvasLane is one row: an epic, "No epic", or a system.
 type CanvasLane struct {
 	Kind        string // EPIC, UMBRELLA, NO EPIC, SYSTEM
+	Key         string // test id segment: epic slug, "no epic", or the system
 	Slug        string // epic slug ("" for other lanes)
 	Title       string
 	ShortTitle  string // epic name on the Highlight chip
@@ -78,6 +79,7 @@ type CanvasLane struct {
 
 // CanvasCell is the cards of one lane in one version column.
 type CanvasCell struct {
+	Column string // the column's name, for test ids
 	Cards  []CanvasCard
 	Closed string // "17 done · 20 obsolete" when closed cards are collapsed
 	Empty  bool
@@ -485,7 +487,11 @@ func buildCanvas(issues []*tracker.Issue, wf *tracker.WorkflowConfig, opts Canva
 			}
 			sortCards(here, true)
 
-			cell := CanvasCell{Empty: len(here) == 0}
+			column := v
+			if column == "" {
+				column = "no version"
+			}
+			cell := CanvasCell{Column: column, Empty: len(here) == 0}
 			var closed []*tracker.Issue
 			for _, it := range here {
 				if cs.closed(it.Status) {
@@ -539,6 +545,7 @@ func buildCanvas(issues []*tracker.Issue, wf *tracker.WorkflowConfig, opts Canva
 		}
 		data.Lanes = append(data.Lanes, CanvasLane{
 			Kind:    "NO EPIC",
+			Key:     "no epic",
 			Title:   "No epic",
 			Summary: joinParts(count, cs.progress(shown), cs.sideCounts(shown)),
 			Bar:     cs.bar(shown),
@@ -581,6 +588,7 @@ func buildCanvas(issues []*tracker.Issue, wf *tracker.WorkflowConfig, opts Canva
 			}
 			data.Lanes = append(data.Lanes, CanvasLane{
 				Kind:    "SYSTEM",
+				Key:     title,
 				Title:   title,
 				Summary: joinParts(plural(len(items), "issue", "issues"), cs.progress(items), cs.sideCounts(items)),
 				Bar:     cs.bar(items),
@@ -721,6 +729,7 @@ func epicLane(e *tracker.Issue, depth int, idx *epicIndex, cs *canvasStatuses, h
 
 	lane := CanvasLane{
 		Kind:       kind,
+		Key:        e.Slug,
 		Slug:       e.Slug,
 		Title:      e.Title,
 		ShortTitle: epicShortName(e.Title),

@@ -20,7 +20,7 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 - `handlers_issue_mutate.go` — update/create/delete/approve/upload, edit-in-nvim full-file editor goroutine (writes the entire markdown file to a temp, parse-validates on save, calls `tracker.RewriteIssueFile`)
 - `handlers_data.go` — `/data` endpoints (`extractDataSlugAndID` + add/set-status/set-comment/remove)
 - `handlers_comments.go` — comment add/get/toggle/delete
-- `handlers_workflow.go` — workflow-flow view, retros, bug status, docs pages
+- `handlers_workflow.go` — retros, bug status, docs pages
 - `handlers_dispatch.go` — agent dispatch, `startAgentSession`, `buildAgentPrompt`, `buildRetrosReviewPrompt`
 - `handlers_github.go` — github page, fetch, import
 - `handlers_agents.go` — agents canvas (`buildAgentsModel`, `AgentsModel`), agent detail, `handleAgentOpen` (open a session in a terminal), `handleLeadSpawn`

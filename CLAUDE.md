@@ -48,7 +48,7 @@ handlers_detail.go          — detail page, transition preview, data-table rend
 handlers_issue_mutate.go    — update/create/delete/approve/upload, body editor
 handlers_data.go            — /data sidecar endpoints
 handlers_comments.go        — comment add/get/toggle/delete
-handlers_workflow.go        — workflow-flow view, retros, bug status, docs handlers
+handlers_workflow.go        — retros, bug status, docs handlers
 handlers_dispatch.go        — agent dispatch + prompt builders
 handlers_github.go          — github page, fetch, import
 handlers_stats.go           — /stats workflow token-cost view

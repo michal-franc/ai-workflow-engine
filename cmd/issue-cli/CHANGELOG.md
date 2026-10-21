@@ -16,6 +16,13 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.41.0 — 2026-10-21
+
+- The viewer's top bar is replaced by a left sidebar on every project page. It shows the project name and version, New issue, the main views (Board, List, Balance when configured, Decisions, Docs), and a **More** group (Graph, Canvas, Agents, Retros, Workflow, Stats, GitHub) that opens on its own views and remembers whether you left it open. Below those come the running-agents count, Spawn lead with the project's actions, and the theme swatches. On the Board the sidebar also lists systems with open counts; each one filters the board.
+- New default dark theme from the workbench mockups: condensed bold page titles, monospace slugs, rounded cards and chips in four tones. Dracula and light are restyled to match. The fonts (Archivo, JetBrains Mono) ship with the viewer, so it makes no external font requests.
+- Below 900px the sidebar stacks above the page, and no page scrolls sideways.
+- For views and playtests: views are listed once, in `navViews` (`nav.go`). Every project template renders `{{template "sidebar" (sidebar .Prefix "<key>")}}`. The new test ids are `nav.sidebar`, `nav.more`, `nav.create`, `nav.panel.system.*` and `nav.theme.*`. `header.bar`, `header.create` and `actions.bar` are gone, and `nav.tab.*` is kept.
+
 ## v0.40.0 — 2026-10-21
 
 - **Breaking:** `issue-cli ask` and `issue-cli answer` are removed, with the `## Questions` / `Q-n` format, the open-questions block in `show` and `checklist`, and question-wait stats. Questions stay in chat (Claude Code or Codex; workers can message their lead with SendMessage). Only the outcome is recorded, with `issue-cli decide`. Existing "answered in lead chat (Q-n)" decision lines still parse and still show on the Decisions tab.

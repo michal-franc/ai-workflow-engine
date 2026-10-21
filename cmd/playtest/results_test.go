@@ -15,6 +15,11 @@ func TestDiffIgnoresPathsAndTimes(t *testing.T) {
 	if d := Diff(a, b); d != "" {
 		t.Errorf("runs that only differ in paths and times differ:\n%s", d)
 	}
+	a.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "http /x.json", Pass: true, Actual: `200 {"listed_at":"2026-10-21T12:47:43Z","start_time":"2026-10-21 12:47:43"} in /tmp/pt-1844542027/proj`}}
+	b.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "http /x.json", Pass: true, Actual: `200 {"listed_at":"2026-10-21T12:47:58Z","start_time":"2026-10-21 12:47:58"} in /tmp/pt-3864846610/proj`}}
+	if d := Diff(a, b); d != "" {
+		t.Errorf("runs that only differ in timestamps and the scenario dir inside a check's actual differ:\n%s", d)
+	}
 	b.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "visible x", Pass: false, Actual: "hidden"}}
 	if d := Diff(a, b); !strings.Contains(d, "run 2:") {
 		t.Errorf("a different check result was not reported: %q", d)

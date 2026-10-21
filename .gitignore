@@ -31,3 +31,6 @@ projects-*.yaml
 # (tracked screenshots in .images/ stay tracked; add new ones with git add -f)
 /.images/
 /site/
+
+# Playtest runs: results, logs, screenshots, built binaries
+/.playtest/

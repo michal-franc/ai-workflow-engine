@@ -63,7 +63,7 @@ Behavior:
 - In the web UI, optional board columns show an `optional` badge and italic title; on the graph view the node uses a dashed border and the incoming arrow is dashed.
 - The default `== Next ==` hint printed by `issue-cli transition` and `issue-cli start` points at the first non-optional status after the current one, with any intervening optional statuses listed under an `Optional side-paths:` block. This keeps agents on the required path by default while still surfacing the sidesteps.
 - Below the transition command line, the hint also prints the next transition's contract: a `Requires:` sub-block listing every validation rule and approval gate that blocks the transition, and a `Will:` sub-block listing every side-effect (appended sections, frontmatter changes, prompt injection). Wording matches `issue-cli process transitions` exactly (both come from `tracker.DescribeAction`). Either bucket is omitted when empty so transitions with no rules render unchanged. Agents should read the contract before attempting the transition rather than discover requirements via validation errors. The `transition --json` output carries the same data as `next_requires` / `next_side_effects` (omitempty).
-- When the next step requires a human approval (other than `done`), the command line in the hint is the blocking `--wait --timeout 9m` form, followed by a one-line note. From a handoff status that is `issue-cli start <slug> --wait`, otherwise `issue-cli transition … --wait`. JSON carries it as `next_command` / `next_command_note`. Because the CLI generates this hint, agents learn about `--wait` even in projects whose `workflow.yaml` prompts never mention it.
+- When the next step requires a human approval (other than `done`), the hint shows the plain command (`issue-cli start <slug>` from a handoff status, otherwise `issue-cli transition …`) followed by a one-line note: tell the human what to approve, then stop and end the turn. JSON carries it as `next_command` / `next_command_note`. Agents don't block on `--wait` or poll; the approval notification resumes them.
 
 `WorkflowConfig.DefaultNextStatus(current)` returns `(required, optionals)` — the first non-optional status after `current`, plus the optional statuses skipped to get there. If every remaining status is optional, `required` is empty and `optionals` holds all of them so callers render alternatives rather than silently picking one. The JSON shape from `issue-cli transition --json` carries these as `next_status` (required) and `optional_next_statuses` (skipped optionals).
 
@@ -259,6 +259,18 @@ To add a new structured validator:
 The `validations` package is a leaf — it does not import `tracker`. This is what makes the per-validator-per-file split possible without import cycles.
 
 `linked_issue_in_status` and `command_succeeds` need runtime context (an issue lookup and the project's working directory); both are populated automatically by `Project.LoadWorkflow` via `attachRuntime`. `command_succeeds` is gated by the top-level `allow_shell: true` flag in `workflow.yaml`.
+
+## Playtest Sessions in the Dev Workflow
+
+This repo's `workflow.yaml` asks for manual checks to be written as playtest sessions. The shared contract is [docs/patterns/playtest/README.md](../patterns/playtest/README.md) (`issue-cli process playtest`), and this repo's runner is described in [web-app.md](../patterns/playtest/web-app.md).
+
+- **`backlog → in progress`:** the Test Plan's `### Manual` boxes ask for a session in `playtest/sessions/<name>.yaml` (step id = checkbox id) that passes `make playtest-check`. Checks that no session can drive (real Claude behaviour, terminal-only flows) stay written steps, each with a `.agent-logs/<name>-sandbox/`.
+- **`in progress → testing`:** the `## Testing` section adds a box for `make ux-test ISSUE=<slug> REPEAT=2`, run once before handoff.
+- **The `human-testing` prompt:** sends the owner to `make playtest ISSUE=<slug>` (judgement steps in an overlay) and `make playtest-report ISSUE=<slug> APPLY=1`. The report ticks the boxes that passed and posts each failure and opinion as a `playtest:` comment.
+- **The UI overlay's `in design` prompt:** asks for the test ids the session will point at.
+- **The bundled `development` template:** has opt-in wording, "if the project has a playtest system", so other projects aren't forced to adopt one.
+
+Issues that already have the old boxes ("Throwaway sandbox scenario prepared") keep them; only new transitions append the new wording.
 
 ## Design Considerations
 

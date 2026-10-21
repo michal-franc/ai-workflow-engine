@@ -77,9 +77,9 @@ func BuildAgentPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, worktreeP
 	statusReminder := ""
 	switch issue.Status {
 	case "in design":
-		statusReminder = fmt.Sprintf("When the design is complete, tell the human in chat that it needs backlog approval in the issue viewer, then run `issue-cli transition %s --to \"backlog\" --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).", issue.Slug)
+		statusReminder = "When the design is complete, tell the human in chat which approval it needs in the issue viewer (see the status guidance), then stop and end your turn. Continue when the human messages you that it is approved."
 	case "backlog":
-		statusReminder = fmt.Sprintf("Tell the human in chat that this needs `in progress` approval in the issue viewer, then run `issue-cli start %s --wait --timeout 9m` to block until it is approved (re-run it on exit code 3).", issue.Slug)
+		statusReminder = "Tell the human in chat that this needs `in progress` approval in the issue viewer, then stop and end your turn. Continue when the human messages you that it is approved."
 	}
 
 	// Typed issues get a Type line under Status in the metadata block, so the

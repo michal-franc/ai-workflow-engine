@@ -1,0 +1,190 @@
+---
+title: "Playtest: a web app (chromedp)"
+order: 21
+---
+
+# Playtest example: a web app driven by headless Chrome
+
+This is how issue-viewer playtests its own board. Copy the parts your web app
+needs. The shared shape is in `issue-cli process playtest`.
+
+## Layout
+
+```
+internal/testids/testids.go     every data-testid id and pattern, one list
+templates/*.html                data-testid="board.card.{{tid .Slug}}" on what steps point at
+testids_test.go                 fails when templates and the list drift apart
+playtest/sessions/<name>.yaml   sessions (step id = checkbox id)
+playtest/scenarios/<name>/      scenario.yaml, workflow.yaml, tracker/<System>/*.md fixtures
+cmd/playtest/                   the runner: check | ux-test | playtest | report
+cmd/playtest/assets/checks.js   DOM checks, layout rules, action helpers (both modes)
+cmd/playtest/assets/overlay.js  the owner's overlay (injected; the board has none)
+.playtest/runs/                 gitignored: results.yaml, logs/, shots/
+```
+
+The make targets:
+
+- `make playtest-check`, which is part of `make validate`
+- `make ux-test [ISSUE=…] [S=…] [STEP=TP2,TP3] [REPEAT=2]`
+- `make playtest [ISSUE=…]`
+- `make playtest-report ISSUE=… [APPLY=1]`
+
+## Test ids
+
+- An id is `page.area.element`, lower snake case with dots between levels.
+  In the list, `*` stands for any one segment (a status, a slug) and `#` for
+  an index.
+- Templates build dynamic segments with `tid`, which lower-cases and turns
+  spaces and dots into `_`:
+  `data-testid="board.column.{{tid .Status}}"` gives
+  `board.column.in_progress`.
+- Ids set from JS take two forms that the test can read:
+  - `el.dataset.testid = 'detail.body.checkbox.' + i`
+  - a literal `data-testid="detail.comment.eye.' + idx + '"` inside an HTML
+    string.
+- Every id goes in `internal/testids/testids.go`. `TestTemplateTestIDs`
+  fails on an unlisted template id or an unused entry. `playtest check`
+  rejects a session target that matches no entry, and suggests the closest.
+- Label containers too (`header.bar`, `board.filters`). A `layout_ignore`
+  on a container waives everything inside it.
+
+## Scenarios: isolation lives in the runner
+
+Each step at each viewport starts a fresh scenario:
+
+- **Its own project:** a temp dir under `/tmp/pt-…`, with a marker file in
+  it. The fixtures are copied into `proj/issues/` and committed to a new git
+  repo. Fixtures live under `tracker/`, never under `issues/`, because the
+  sparse-checkout rule `!issues/` would hide them in dispatched worktrees.
+- **Its own config:** a `projects.yaml` that points only at that project.
+- **Fresh binaries:** `issue-viewer` and `issue-cli` built from the
+  checkout, once per run, and put first on `PATH`.
+- **Its own board:** on a free port.
+- **Its own environment:**
+  - `HOME` and the XDG dirs point into the temp dir.
+  - `ISSUE_VIEWER_CONFIG` is the scenario's config.
+  - `TMUX` is unset, and `TMUX_TMPDIR` is a private dir that also holds a
+    marker. tmux calls refuse to run without the marker, and teardown's
+    `kill-server` only runs when it is there.
+  - Agent variables (`CLAUDECODE`, `AGENT_NAME`, …) are dropped.
+- **A pinned order:** the board sorts issues by file mtime, so each fixture's
+  mtime is set from its `created:` date.
+
+Slugs come from the issue title (`card-titles-overflow-on-a-phone`), with
+the system folder lower-cased (`ui/…`), not from the file name.
+
+## The runner (cmd/playtest)
+
+- **Browser:** chromedp. It drives the installed Chrome; set
+  `PLAYTEST_CHROME` for another. ux-test runs headless, with a new browser
+  context per step and viewport, so storage and cookies start empty.
+- **Injected scripts:** `checks.js` is added to every document with
+  `Page.addScriptToEvaluateOnNewDocument`. A second script turns off CSS
+  animations and transitions.
+- **Waiting:**
+  - Actions wait up to 5s for their target to exist and be visible,
+    enabled and uncovered (the runner hit-tests the target's centre).
+  - Checks settle: they are evaluated again until they pass or
+    `settle_ms` runs out (default 3000).
+  - So a navigation or a fetch never needs a sleep.
+- **Viewports:** `session_checks.viewports`, by default `1440x900` and
+  `390x844`.
+- **What fails a step:**
+  - **Console:** an error or exception in the console, unless
+    `console_ignore` matches it.
+  - **Layout rules:**
+    - `inside_viewport`: no sideways page scroll. When the page does scroll
+      sideways, the error names the element that causes it.
+    - `no_clipping`: text fits its box.
+    - `no_overlap`: sibling ids don't overlap.
+    - `no_zero_size_text`: no text in a 0-wide or 0-high box.
+- **On failure:** the log holds the actions, the processes' output, and
+  every test id on the page with its rect, visible and enabled state and
+  text.
+- **Determinism:** `REPEAT=2` compares statuses, check results, layout and
+  console output across runs (not pixels) and prints the first difference.
+
+### Actions
+
+| Action | Example |
+|:--|:--|
+| `open` | `open: /p/{project}/board` (`{project}`, `{base}`, `{dir}` expand) |
+| `reload` | `reload: true` |
+| `click` / `hover` | `click: board.transition_modal.confirm`. A real mouse event at the centre; refused when the target is hidden, disabled or covered. |
+| `type` | `type: { target: list.search, text: csv, enter: true }` (clears first unless `clear: false`) |
+| `select` | `select: { target: list.filter.status, value: backlog }` |
+| `key` | `key: Escape` |
+| `drag` | `drag: { target: board.card.ui/x, to: board.column.backlog.cards }`. A real mouse drag (native HTML5 drag and drop) when both ends are on screen, else synthetic drag events. |
+| `wait_for` | `wait_for: board.toast`, `wait_for: { hidden: board.transition_modal, ms: 8000 }`, `wait_for: { url: { contains: status=backlog } }` |
+| `wait` | `wait: 500` (ms; prefer `wait_for`) |
+| `post` | `post: { path: /p/{project}/issue/x/approve, json: {status: done}, status: 200 }` |
+| `cli` | `cli: [transition, cli/x, --to, backlog]` or `{ args: […], exit: 1 }`. Runs the scenario's issue-cli. |
+| `tmux` | `tmux: [new-session, -d, -s, lead]`. Runs on the private server. |
+| `snapshot` | `snapshot: { name: before, target: board.column.backlog.count }` |
+| `check` | `check: { count: { pattern: list.row.*, equals: 2 } }`. An inline check that must pass now. |
+
+### Checks
+
+| Check | Passes when |
+|:--|:--|
+| `exists` / `absent` | in the DOM / missing or hidden |
+| `visible` / `hidden` | shown with a size / present but not shown |
+| `enabled` / `disabled` | shown and not disabled / disabled |
+| `selected` | checked, selected, aria-selected/pressed, or class `active`/`selected`/`approved` |
+| `text_equals` / `text_contains` | `{ target, text }` on whitespace-normalised text (an input's value) |
+| `value_equals` | `{ target, value }` on a form control |
+| `count` | `{ pattern, within?, equals\|min\|max }` visible matches |
+| `url` | `{ equals\|contains\|matches }` on path and query |
+| `changed` / `unchanged` | `{ target, since: <snapshot> }` |
+| `issue` | `{ slug, field, equals }`, `{ slug, checkbox: P1, checked: true }`, `{ slug, comment_contains }`, `{ slug, body_contains }`. Reads the scenario's issue file. |
+| `cli` | `{ args, exit?, contains?, not_contains? }` |
+| `tmux` | `{ session, present }` or `{ pane, contains }` on the private server |
+| `http` | `{ path, status?, contains?, json: { "a.0.b": value } }` |
+
+A list such as `visible: [a, b]` becomes one check per item.
+
+## The overlay (make playtest)
+
+- **Window:** the runner opens a visible Chrome window that it drives.
+- **Bridge:** `chromedp.ExposeFunc` adds `window.__ptSend`, the overlay's
+  line to the runner (`{type:'hello'}` returns the state). The overlay
+  script is injected like `checks.js`, so the board has no playtest code.
+- **Each judgement step:**
+  1. The runner starts a fresh scenario and replays `from` and `setup` in
+     the window. A badge shows meanwhile; it doesn't take clicks.
+  2. The dock shows DO / EXPECT / WHY, the step list (YOU or AUTO, each with
+     its last ux-test result), and the DOM checks evaluated live. Runner
+     checks (`issue`, `cli`, …) run when the owner passes the step.
+  3. Targets pulse, with numbered chips. Arrows point at targets off screen.
+     Hovering a target shows its note, EXPECT and WHY.
+- **Keys:**
+  - Alt+P passes the step.
+  - Alt+F fails it. It asks for a note and saves a screenshot without the
+    overlay.
+  - Alt+S skips, and Alt+R replays from a fresh scenario.
+  - Alt+N records an opinion on the element under the mouse.
+  - F10 hides the dock, and Alt+Q quits.
+- **Results:** the playtest reuses the last ux-test of the same build, or
+  runs one first. It writes a `-judge` run.
+
+## Report
+
+- `make playtest-report ISSUE=…` lists the runs it read and their builds.
+  It warns about runs from an older build, then prints the boxes to tick,
+  the comments to post, and the steps with no result.
+- `APPLY=1` calls `issue-cli --project issue-viewer check …` and
+  `comment … --text "playtest: …"`. It records posted comments in the run's
+  `reported.yaml`, so a second APPLY doesn't repeat them.
+
+## Gotchas found while building it
+
+- HTML5 drag and drop doesn't start from plain CDP mouse events. Use
+  `chromedp.DragAndDropXY` (it intercepts the drag) or synthetic
+  `DragEvent`s.
+- Elements that only show on hover (the comment eye) need a `hover` on their
+  block first.
+- A popover that closes after submit can't be checked by its text. Check the
+  state it leaves behind (a count, the file).
+- At phone width the header and filter bar don't wrap. They are waived with
+  `layout_ignore` and a comment naming the bug; remove the waiver when it
+  is fixed.

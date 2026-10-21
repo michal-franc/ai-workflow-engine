@@ -275,8 +275,8 @@ func main() {
 func printRetryHint(w io.Writer, attempts int, err error) {
 	fmt.Fprintf(w, "\nhint: this same command has failed %d times in a row from this session.\n", attempts)
 	if errors.Is(err, tracker.ErrApprovalMissing) {
-		fmt.Fprintln(w, "hint: retrying cannot help until a human approves — run the --wait command above")
-		fmt.Fprintln(w, "      to block until the approval lands instead of polling by hand.")
+		fmt.Fprintln(w, "hint: retrying cannot help until a human approves — tell the human what to approve,")
+		fmt.Fprintln(w, "      then stop and end your turn instead of polling.")
 		return
 	}
 	fmt.Fprintln(w, "hint: try a different approach — run 'issue-cli process' to review the workflow,")
@@ -388,9 +388,7 @@ func decorateApprovalError(err error, ctx *Context) error {
 		return err
 	}
 	hint := approvalHint(ctx.Project, approvalErr.Slug, approvalErr.Required)
-	if ctx.ApprovalWaitCommand != "" {
-		hint += fmt.Sprintf("\n\nTo block until it is approved instead of retrying:\n  %s\n  (exit 3 = still waiting, nothing changed; re-run it)", ctx.ApprovalWaitCommand)
-	}
+	hint += "\n\nTell the human what needs approving, then stop and end your turn.\nDo not wait or poll: re-run this command only after the human says it is approved."
 	return fmt.Errorf("%w\n\n%s", err, hint)
 }
 

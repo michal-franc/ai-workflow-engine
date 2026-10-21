@@ -1,0 +1,59 @@
+session: playtest-self
+issue: workflow/playtest-sessions-an-issues-manual-checks-as-a-runnable-yaml-session-on-a-sandbox-scenario
+title: The owner's look at the board, and the overlay itself
+scenario: basic
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+  # Known bug: at phone width the header and the filter bar don't wrap
+  # (see board-basics).
+  layout_ignore: [header.bar, board.filters]
+
+steps:
+  - id: TP11
+    title: The board reads well at desktop and phone width
+    setup:
+      - open: /p/{project}/board
+    targets:
+      - { id: board.column.backlog, note: Two cards wait here }
+      - { id: board.filters, note: "Known bug: does not wrap at phone width" }
+    checks:
+      - visible: board.column.backlog
+      - count: { pattern: board.card.*, within: board.column.backlog.cards, equals: 2 }
+    do: |
+      Look over the board at this window size. Then make the window narrow
+      (about phone width, or DevTools device mode at 390px) and look again.
+    expect: |
+      Columns, cards and counts are easy to read and nothing you need is cut
+      off. The header and filter bar not wrapping on a phone is a known bug:
+      leave an Alt+N opinion on it if it matters to you.
+    why: ux-test checks the layout rules; only you can say whether it reads well.
+
+  - id: TP12
+    title: The overlay works on a live board
+    setup:
+      - open: /p/{project}/board
+    targets:
+      - { id: board.card.ui/dark-mode-toggle, note: Drag this card to Backlog }
+      - { id: board.column.backlog.cards, note: Drop it here }
+    # ux-test does the drag; in the playtest the owner does it, following do:.
+    act:
+      - drag: { target: board.card.ui/dark-mode-toggle, to: board.column.backlog.cards }
+    checks:
+      - count: { pattern: board.card.ui/dark-mode-toggle, within: board.column.backlog.cards, equals: 1 }
+      - issue: { slug: ui/dark-mode-toggle, field: status, equals: backlog }
+    do: |
+      1. Hover the highlighted card: a card shows its note, EXPECT and WHY.
+      2. Drag it into Backlog and watch the CHECKS list in the dock.
+      3. Press Alt+R: the step starts again on a fresh board.
+      4. Drag it again, press Alt+N over any element, write a short opinion
+         and save it with Ctrl+Enter.
+      5. Press Alt+P.
+    expect: |
+      Highlights sit on their targets and follow scrolling, the hover card
+      shows, the live check turns ✓ after the drop, Replay resets the card to
+      Idea, and the opinion is saved. Nothing in the overlay gets in the way
+      of using the board.
+    why: The overlay is how judgement steps stay short; it has to work before other issues rely on it.

@@ -118,7 +118,7 @@ This mode can't set dispatch options such as `terminal`, so use a `projects.yaml
 | `-port`    | `8080`     | HTTP port                                 |
 | `-version` | `false`    | Print the version and exit                |
 
-Open `http://localhost:8080` and pick a project. The sidebar on the left leads to the board, the list, decisions and the docs; **More** holds the workflow graph, the canvas, agents, retros, the workflow designer and stats. The swatches at the bottom switch between the dark, Dracula and light themes.
+Open `http://localhost:8080` and pick a project. The sidebar on the left leads to the board, the list, decisions and the docs; **More** holds the workflow graph, the canvas, agents, retros and stats. The swatches at the bottom switch between the dark, Dracula and light themes.
 
 ## Docs pages
 

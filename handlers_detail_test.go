@@ -597,3 +597,41 @@ trailing text
 		t.Errorf("data marker should be replaced, not preserved literally")
 	}
 }
+
+// approvals.json offers the same approvals as the detail page's Human Approval
+// box, and reflects a toggle made through the page's approve endpoint.
+func TestApprovalsJSON(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	withMockTmuxSessions(t, nil)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+	url := ts.URL + "/p/test-project/issue/add-dark-mode/approvals.json"
+
+	read := func() ApprovalsJSON {
+		t.Helper()
+		resp, body := getResp(t, url)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status %d: %s", resp.StatusCode, body)
+		}
+		var a ApprovalsJSON
+		if err := json.Unmarshal([]byte(body), &a); err != nil {
+			t.Fatalf("%v: %s", err, body)
+		}
+		return a
+	}
+	a := read()
+	if a.Status != "backlog" || len(a.Approvals) != 1 || a.Approvals[0].Status != "in progress" || a.Approvals[0].Approved {
+		t.Fatalf("before approving: %+v", a)
+	}
+	resp, err := http.Post(ts.URL+"/p/test-project/issue/add-dark-mode/approve", "application/json", strings.NewReader(`{"status":"in progress"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if a := read(); a.HumanApproval != "in progress" || !a.Approvals[0].Approved {
+		t.Fatalf("after approving: %+v", a)
+	}
+	if resp, _ := getResp(t, ts.URL+"/p/test-project/issue/no-such-issue/approvals.json"); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("unknown issue: status %d, want 404", resp.StatusCode)
+	}
+}

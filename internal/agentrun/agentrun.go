@@ -210,6 +210,9 @@ func Start(proj *tracker.Project, spec Spec) Response {
 	if spec.ViewerURL != "" {
 		exportEnv("Viewer URL env", "ISSUE_VIEWER_URL", spec.ViewerURL)
 	}
+	if proj != nil && proj.Slug != "" {
+		exportEnv("Project env", "ISSUE_VIEWER_PROJECT", proj.Slug)
+	}
 	// Propagate the config path the viewer was launched with so the CLI can
 	// resolve `--project <slug>` against it without the bot having to know
 	// the file name (e.g. projects-mfranc.yaml vs the default projects.yaml).

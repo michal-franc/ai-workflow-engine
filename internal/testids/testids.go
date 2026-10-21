@@ -24,9 +24,29 @@ var IDs = []string{
 	"nav.agents_running",
 	"nav.panel",
 	"nav.panel.system.*",
+	"nav.panel.legend",
 	"nav.actions",
 	"nav.theme.*",
 	"header.count",
+
+	// Workboard (/p/<project>/workboard): the board with card markers.
+	"workboard.page",
+	"workboard.group.*",
+	"workboard.filter.version",
+	"workboard.filter.system",
+	"workboard.filter.waiting",
+	"workboard.search",
+	"workboard.empty",
+	"workboard.column.*",
+	"workboard.column.*.count",
+	"workboard.column.*.more",
+	"workboard.card.*",
+	"workboard.card.*.age",
+	"workboard.card.*.epic",
+	"workboard.card.*.markers",
+	"workboard.card.*.agent",
+	// Card marker chips (templates/_markers.html), on any view showing cards.
+	"marker.*",
 
 	// Board (/p/<project>/board).
 	"board.filters",
@@ -119,6 +139,7 @@ var IDs = []string{
 	"agents.panel",
 	"agents.panel.title",
 	"agents.panel.issue",
+	"agents.panel.last_call",
 	"agents.panel.approve",
 	"agents.panel.spawn",
 	"agents.panel.open",

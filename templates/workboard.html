@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — Board</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='1' y='1' width='4' height='14' rx='1' fill='%23f0b866'/><rect x='6' y='1' width='4' height='10' rx='1' fill='%238b949e'/><rect x='11' y='1' width='4' height='12' rx='1' fill='%238b949e'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="app">
+{{template "sidebar" (sidebar .Prefix "workboard")}}
+<div class="app-main workboard" data-testid="workboard.page">
+    <header class="page-head page-head-wide workboard-head">
+        <div>
+            <h1 class="page-title">Board</h1>
+            <p class="page-sub">What waits on you, what is blocked, how long each card has sat, and which agent is on it.</p>
+        </div>
+        <div class="workboard-controls">
+            <span class="label">Group by</span>
+            <a href="{{.GroupHref "status"}}" class="chip workboard-toggle{{if eq .Group "status"}} active{{end}}" data-testid="workboard.group.status"{{if eq .Group "status"}} aria-current="true"{{end}}>Status</a>
+            <a href="{{.GroupHref "system"}}" class="chip workboard-toggle{{if eq .Group "system"}} active{{end}}" data-testid="workboard.group.system"{{if eq .Group "system"}} aria-current="true"{{end}}>System</a>
+            <a href="{{.GroupHref "epic"}}" class="chip workboard-toggle{{if eq .Group "epic"}} active{{end}}" data-testid="workboard.group.epic"{{if eq .Group "epic"}} aria-current="true"{{end}}>Epic</a>
+            {{if .Versions}}
+            <form method="GET" action="{{.Prefix}}/workboard" class="workboard-version">
+                {{if ne .Group "status"}}<input type="hidden" name="group" value="{{.Group}}">{{end}}
+                {{if .System}}<input type="hidden" name="system" value="{{.System}}">{{end}}
+                {{if .WaitingOnly}}<input type="hidden" name="waiting" value="1">{{end}}
+                <label class="label" for="workboard-version">Version</label>
+                <select id="workboard-version" name="version" data-testid="workboard.filter.version" onchange="this.form.submit()">
+                    <option value="">All</option>
+                    {{range .Versions}}<option value="{{.}}"{{if eq . $.Version}} selected{{end}}>{{.}}</option>{{end}}
+                </select>
+            </form>
+            {{end}}
+            {{if .System}}<a href="{{.Prefix}}/workboard{{if ne .Group "status"}}?group={{.Group}}{{end}}" class="chip workboard-toggle active" data-testid="workboard.filter.system" title="Clear the system filter">{{.System}} ×</a>{{end}}
+            <a href="{{.WaitingHref}}" class="chip chip-amber workboard-toggle{{if .WaitingOnly}} active{{end}}" data-testid="workboard.filter.waiting"{{if .WaitingOnly}} aria-current="true"{{end}}>Waiting on you · {{.WaitingCount}}</a>
+            <input type="search" class="workboard-search" data-testid="workboard.search" aria-label="Filter cards" placeholder="Filter cards…" oninput="filterWorkboard(this.value)">
+        </div>
+    </header>
+
+    <div class="workboard-scroll">
+        <div class="workboard-columns">
+            {{range .Columns}}
+            <section class="workboard-column" data-testid="workboard.column.{{.Key}}" aria-label="{{.Name}}">
+                <div class="workboard-column-head">
+                    <div class="workboard-column-title">
+                        {{if .Href}}<a href="{{.Href}}">{{.Name}}</a>{{else}}<span>{{.Name}}</span>{{end}}
+                        <span class="workboard-column-count" data-testid="workboard.column.{{.Key}}.count">{{.Count}}</span>
+                    </div>
+                    {{if .Progress}}<span class="workboard-column-note">{{.Note}}</span>{{template "epic-progress" .Progress}}{{end}}
+                </div>
+                {{if .Folded}}
+                {{if .Count}}<a href="{{.FoldHref}}" class="workboard-fold" data-testid="workboard.column.{{.Key}}.more">{{.Count}} in the list view</a>{{end}}
+                {{else}}
+                {{$group := $.Group}}
+                {{range $i, $c := .Cards}}
+                <article class="card workboard-card{{if ge $i $.Cap}} workboard-extra{{end}}" data-testid="workboard.card.{{tid $c.Slug}}" data-search="{{$c.Search}}"{{if ge $i $.Cap}} hidden{{end}}>
+                    <div class="workboard-card-head">
+                        <div class="workboard-card-chips">
+                            {{if ne $group "status"}}<span class="chip workboard-status"><span class="workboard-status-dot" style="background: {{$c.StatusColor}}"></span>{{$c.Status}}</span>{{end}}
+                            {{if ne $group "system"}}<span class="chip">{{if $c.System}}{{$c.System}}{{else}}no system{{end}}</span>{{end}}
+                            {{if $c.Epic}}<span class="chip chip-blue">epic</span>{{end}}
+                        </div>
+                        <span class="card-age{{if $c.AgeOld}} old{{end}}" data-testid="workboard.card.{{tid $c.Slug}}.age" title="{{$c.AgeTitle}}">{{$c.Age}}</span>
+                    </div>
+                    <a href="{{$.Prefix}}/issue/{{$c.Slug}}?from=workboard" class="workboard-card-title">{{$c.Title}}</a>
+                    {{if and $c.Progress (or $c.Progress.Own (ne $group "epic"))}}<div data-testid="workboard.card.{{tid $c.Slug}}.epic">{{template "epic-progress" $c.Progress}}</div>{{end}}
+                    {{if $c.Markers}}<div data-testid="workboard.card.{{tid $c.Slug}}.markers">{{template "markers" $c.Markers}}</div>{{end}}
+                    {{if $c.Agent}}<div class="workboard-card-foot" data-testid="workboard.card.{{tid $c.Slug}}.agent">{{template "agent-footer" $c.Agent}}</div>{{end}}
+                </article>
+                {{end}}
+                {{if .Hidden}}<button type="button" class="workboard-more" data-testid="workboard.column.{{.Key}}.more" onclick="showAllCards(this)">{{.Hidden}} more</button>{{end}}
+                {{end}}
+            </section>
+            {{end}}
+        </div>
+        {{if not .Total}}<p class="workboard-empty" data-testid="workboard.empty">{{if .WaitingOnly}}Nothing is waiting on you.{{else}}No issues match.{{end}}</p>{{end}}
+    </div>
+
+    <script>
+    // "N more" reveals the rest of its column in place.
+    function showAllCards(btn) {
+        btn.closest('.workboard-column').querySelectorAll('.workboard-extra').forEach(function(c) { c.hidden = false; c.classList.remove('workboard-extra'); });
+        btn.remove();
+    }
+    // Search filters cards in place (all of them, past the column cap too).
+    function filterWorkboard(text) {
+        var q = text.trim().toLowerCase();
+        document.querySelectorAll('.workboard-card').forEach(function(c) {
+            if (!q) { c.hidden = c.classList.contains('workboard-extra'); return; }
+            c.hidden = c.getAttribute('data-search').indexOf(q) < 0;
+        });
+    }
+    // Read-only generated view: reload when any issue file or agent session
+    // changes. The baseline is the hash at render time.
+    (function() {
+        var prefix = {{.Prefix}};
+        var last = {{.Hash}} || null;
+        setInterval(function() {
+            if (document.querySelector('.workboard-search').value) return;
+            fetch(prefix + '/hash').then(function(r) { return r.json(); }).then(function(d) {
+                if (last !== null && d.hash !== last) location.reload();
+                last = d.hash;
+            }).catch(function() {});
+        }, 5000);
+    })();
+    </script>
+</div>
+</div>
+</body>
+</html>

@@ -21,6 +21,7 @@ func TestProjectPagesRenderSidebar(t *testing.T) {
 	pages := map[string]string{
 		"/":                     "list",
 		"/board":                "board",
+		"/workboard":            "workboard",
 		"/graph":                "graph",
 		"/canvas":               "canvas",
 		"/agents":               "agents",
@@ -93,10 +94,10 @@ func TestSidebarNav(t *testing.T) {
 		}
 		return strings.Join(k, ",")
 	}
-	if got := keys(nav.Main); got != "board,list,decisions,docs" {
+	if got := keys(nav.Main); got != "workboard,list,decisions,docs" {
 		t.Errorf("main = %s (Balance needs workbench.balance)", got)
 	}
-	if got := keys(nav.More); got != "graph,canvas,agents,retros,stats" {
+	if got := keys(nav.More); got != "board,graph,canvas,agents,retros,stats" {
 		t.Errorf("more = %s (GitHub needs supports_github)", got)
 	}
 	if !nav.MoreActive {
@@ -112,8 +113,8 @@ func TestSidebarNav(t *testing.T) {
 	}
 
 	board := srv.sidebarNav("/p/test-project", "board")
-	if board.MoreActive || !board.CreateInPage {
-		t.Error("board: More closed, create modal in page")
+	if !board.MoreActive || !board.CreateInPage || board.Legend {
+		t.Error("classic board: under an open More, create modal in page, no legend")
 	}
 	var systems []string
 	for _, s := range board.Systems {
@@ -121,6 +122,14 @@ func TestSidebarNav(t *testing.T) {
 	}
 	if got := strings.Join(systems, " "); got != "Auth=/p/test-project/board?system=Auth UI=/p/test-project/board?system=UI" {
 		t.Errorf("board systems = %s", got)
+	}
+
+	wb := srv.sidebarNav("/p/test-project", "workboard")
+	if wb.MoreActive || wb.CreateInPage || !wb.Legend {
+		t.Error("workboard: More closed, New issue links to the list, card legend shown")
+	}
+	if len(wb.Systems) == 0 || wb.Systems[0].Href != "/p/test-project/workboard?system=Auth" {
+		t.Errorf("workboard systems link the workboard: %+v", wb.Systems)
 	}
 
 	if got := srv.sidebarNav("/p/missing", "list"); got.ProjectName != "" || got.Main != nil {

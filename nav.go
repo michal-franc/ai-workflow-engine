@@ -23,13 +23,15 @@ type navView struct {
 // navViews in display order. Status and Systems (D-2) join the main group when
 // their pages exist; until then they are not listed (D-7).
 var navViews = []navView{
-	{Key: "board", Label: "Board", Path: "/board"},
+	{Key: "workboard", Label: "Board", Path: "/workboard"},
 	{Key: "list", Label: "List", Path: "/"},
 	{Key: "balance", Label: "Balance", Path: "/balance", Show: func(s *Server, p *tracker.Project) bool {
 		return p.LoadWorkflow().Workbench.HasBalance()
 	}},
 	{Key: "decisions", Label: "Decisions", Path: "/decisions"},
 	{Key: "docs", Label: "Docs", Path: "/docs"},
+	// The classic board keeps drag-and-drop until the retire child removes it.
+	{Key: "board", Label: "Classic board", Path: "/board", More: true},
 	{Key: "graph", Label: "Graph", Path: "/graph", More: true},
 	{Key: "canvas", Label: "Canvas", Path: "/canvas", More: true},
 	{Key: "agents", Label: "Agents", Path: "/agents", More: true},
@@ -70,6 +72,7 @@ type Nav struct {
 	CreateInPage   bool // the page has the create modal; elsewhere New issue links to the list
 	ProjectActions []tracker.CustomAction
 	Systems        []NavCount // the Board's screen panel
+	Legend         bool       // the workboard's card legend panel
 }
 
 // sidebarNav builds the sidebar for the project behind prefix, with active
@@ -127,21 +130,25 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 		}
 	}
 
-	if active == "board" {
-		nav.Systems = systemCounts(prefix, bySystem)
+	switch active {
+	case "board":
+		nav.Systems = systemCounts(prefix+"/board", bySystem)
+	case "workboard":
+		nav.Systems = systemCounts(prefix+"/workboard", bySystem)
+		nav.Legend = true
 	}
 	return nav
 }
 
 // systemCounts lists systems by open count (most first), with issues that
-// have no system last as "No system".
-func systemCounts(prefix string, bySystem map[string]int) []NavCount {
+// have no system last as "No system". Each links base?system=<name>.
+func systemCounts(base string, bySystem map[string]int) []NavCount {
 	var out []NavCount
 	for name, n := range bySystem {
 		if name == "" {
 			continue
 		}
-		out = append(out, NavCount{Name: name, Count: n, Href: prefix + "/board?system=" + name})
+		out = append(out, NavCount{Name: name, Count: n, Href: base + "?system=" + name})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Count != out[j].Count {

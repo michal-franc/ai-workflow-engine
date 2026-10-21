@@ -3391,3 +3391,67 @@ body.canvas-page { overflow: hidden; }
 
 .canvas-world.has-highlight .canvas-card:not(.lit) { opacity: 0.3; }
 .canvas-world.has-highlight .canvas-lane-head:not(.lit) { opacity: 0.45; }
+
+/* Workboard (/workboard): board cards with markers, epic progress and the
+   agent footer. Chips come from .chip; tones from the workbench tokens. */
+.workboard-head { justify-content: space-between; align-items: flex-end; }
+.workboard-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.workboard-controls > .label { margin-left: 6px; }
+.workboard-toggle { font-size: 12px; padding: 4px 10px; text-decoration: none; }
+.workboard-toggle:hover { text-decoration: none; background: var(--bg-tertiary); }
+.workboard-toggle.active { background: var(--bg-active); color: var(--text); }
+.workboard-toggle.chip-amber.active { background: var(--amber-bg); color: var(--amber); border-color: var(--amber); }
+.workboard-version { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; }
+.workboard-version select, .workboard-search {
+    font: inherit; font-size: 13px; color: var(--text);
+    background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 6px; padding: 5px 9px;
+}
+.workboard-search { width: 170px; }
+.workboard-scroll { overflow-x: auto; padding: 0 16px 24px; }
+.workboard-columns { display: grid; grid-auto-flow: column; grid-auto-columns: 248px; gap: 14px; align-items: start; }
+.workboard-column { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.workboard-column-head { display: flex; flex-direction: column; gap: 6px; padding: 0 2px 4px; }
+.workboard-column-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-weight: 700; font-size: 14px; }
+.workboard-column-title a { color: var(--text); }
+.workboard-column-count, .workboard-column-note { color: var(--text-secondary); font-size: 12px; font-weight: 400; }
+.workboard-card { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.workboard-card[hidden] { display: none; }
+.workboard-card-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.workboard-card-chips { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.workboard-status-dot { width: 7px; height: 7px; border-radius: 50%; }
+.workboard-card-title { font-weight: 600; font-size: 14px; line-height: 1.3; color: var(--text); overflow-wrap: anywhere; }
+.workboard-card-foot { border-top: 1px solid var(--border); padding-top: 8px; }
+.workboard-more, .workboard-fold {
+    font: inherit; font-size: 13px; color: var(--text-link); background: none; border: 0; padding: 0 2px; text-align: left; cursor: pointer;
+}
+.workboard-empty { color: var(--text-secondary); padding: 24px 2px; }
+
+.card-age { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.card-age.old { color: var(--amber); }
+
+.markers { display: flex; flex-wrap: wrap; gap: 4px; }
+.marker { max-width: 100%; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
+a.marker:hover { text-decoration: underline; }
+.marker-amber { color: var(--amber); background: var(--amber-bg); border-color: var(--amber-border); }
+.marker-red { color: var(--red); background: var(--red-bg); border-color: var(--red-border); }
+.marker-green { color: var(--green); background: var(--green-bg); border-color: var(--green-border); }
+.marker-grey { color: var(--text-secondary); }
+.marker-struck { text-decoration: line-through; }
+
+.epic-progress { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-secondary); }
+.epic-progress a { color: var(--text-secondary); }
+.epic-progress-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.epic-progress-bar { height: 4px; border-radius: 2px; background: var(--border); }
+.epic-progress-bar div { height: 4px; border-radius: 2px; background: var(--green); }
+
+.agent-footer { display: flex; gap: 6px; align-items: baseline; font-size: 12px; color: var(--text-secondary); text-decoration: none; }
+.agent-footer:hover { color: var(--text); text-decoration: none; }
+.agent-footer-dot { flex: none; }
+.agent-footer-green .agent-footer-dot { color: var(--green); }
+.agent-footer-amber .agent-footer-dot { color: var(--amber); }
+.agent-footer-amber { color: var(--amber); }
+.agent-footer-grey .agent-footer-dot, .agent-footer-stopped .agent-footer-dot { color: var(--text-secondary); }
+
+.card-legend p { margin: 0 0 8px; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+.card-legend .chip { font-size: 11px; padding: 1px 7px; }
+.card-legend-agents { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--text-secondary); }

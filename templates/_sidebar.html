@@ -31,6 +31,7 @@ A page with a screen panel renders "sidebar-open", its panel, then
         </details>
     </nav>
     <a href="{{.Prefix}}/agents" class="sidebar-agents" id="project-active-bots" data-testid="nav.agents_running" data-count="{{.ActiveBots}}"{{if not .ActiveBots}} hidden{{end}}><span class="sidebar-agents-dot" aria-hidden="true">●</span><span class="sidebar-agents-text">{{.ActiveBots}} agent{{if ne .ActiveBots 1}}s{{end}} running</span></a>
+    {{if .Legend}}{{template "card-legend"}}{{end}}
     {{if .Systems}}
     <section class="sidebar-panel" data-testid="nav.panel" aria-label="Systems">
         <span class="label">Systems</span>

@@ -17,8 +17,19 @@ Flags:
 ## Validation
 
 `make validate` runs `go vet ./...`, the full test suite, and a coverage gate on
-`cmd/issue-cli` (floor: `CLI_COVERAGE_FLOOR`, default 70). Use it before
-proposing a change that touches `cmd/issue-cli/`.
+`cmd/issue-cli` (floor: `CLI_COVERAGE_FLOOR`, default 70), then
+`make playtest-check`. Use it before proposing a change that touches
+`cmd/issue-cli/`.
+
+UI checks run as playtest sessions:
+
+- `make ux-test [ISSUE=<slug>] [S=<session>] [REPEAT=2]` runs them in headless
+  Chrome against a throwaway scenario board.
+- `make playtest ISSUE=<slug>` shows the owner the judgement steps in an
+  overlay.
+- `make playtest-report ISSUE=<slug> [APPLY=1]` ticks the boxes that passed.
+
+See [docs/patterns/playtest/web-app.md](docs/patterns/playtest/web-app.md).
 
 ## Project Structure
 
@@ -42,6 +53,10 @@ handlers_stats.go           — /stats workflow token-cost view
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
 templates/                  — Go HTML templates (list.html, board.html, detail.html, docs.html)
+internal/testids/           — every data-testid the templates carry; TestTemplateTestIDs keeps them in step
+cmd/playtest/               — playtest runner: check | ux-test | playtest (overlay) | report (chromedp)
+playtest/sessions/          — playtest sessions (step id = issue checkbox id)
+playtest/scenarios/         — scenario fixtures (issues under tracker/, never issues/)
 static/style.css            — all CSS (dark GitHub theme)
 sync-issues.sh              — downloads issues from GitHub Project into ./issues/<System>/
 ```
@@ -134,6 +149,7 @@ Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI
 - [Per-issue Data Store](docs/data-store.md) — sidecar JSON, `<!-- data -->` marker, `issue-cli data` commands
 - [Workflow Stats](docs/workflow-stats.md) — `/stats` tab, per-issue stats sidecar, token-cost estimation
 - [The Lead Session](docs/patterns/lead-session.md) — pattern: one lead agent supervising dispatched workers, umbrella features
+- [Playtest Sessions](docs/patterns/playtest/README.md) — an issue's manual checks as YAML sessions: shared contract, [web app example](docs/patterns/playtest/web-app.md) (this repo, chromedp), [game example](docs/patterns/playtest/game.md); `issue-cli process playtest`
 
 Per-system docs:
 

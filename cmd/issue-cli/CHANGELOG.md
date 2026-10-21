@@ -16,6 +16,18 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.34.0 — 2026-10-21
+
+- **Playtest sessions.** An issue's manual checks can now be a YAML session in `playtest/sessions/`, each step's id one of the issue's checkbox ids.
+  - `make ux-test ISSUE=<slug> [REPEAT=2]` runs the machine checks in headless Chrome (chromedp), at desktop and phone width, against a throwaway scenario board. Each step gets its own git project, config, HOME, private tmux server and branch-built binaries. The run checks layout rules and console errors and takes screenshots.
+  - `make playtest ISSUE=<slug>` shows the owner only the judgement steps, in an overlay the runner injects into a Chrome window it drives: highlighted targets, DO / EXPECT / WHY, live checks, Pass / Fail / Skip / Replay, and Alt+N opinions.
+  - `make playtest-report ISSUE=<slug> APPLY=1` ticks the boxes that passed and posts failures and opinions as `playtest:` comments.
+  - `make playtest-check` validates every session and is part of `make validate`.
+- Web UI: the list, board and detail pages carry `data-testid` labels. They are all listed in `internal/testids`, and a test keeps the two in step.
+- CLI: `issue-cli process playtest` prints the shared playtest contract. `process playtest web` and `process playtest game` print worked examples that bots in other projects follow to build their own playtest system.
+- Workflow: in this repo's dev workflow, the Test Plan asks for a playtest session, Testing asks for a `ux-test REPEAT=2` run before handoff, and the human-testing prompt sends the owner to `make playtest` and the report. The bundled `development` template gets opt-in wording.
+- Build: Go 1.25 is now required (for chromedp).
+
 ## v0.33.2 — 2026-10-08
 
 - Dispatch: Claude now starts with its briefing as the launch argument instead of a paste typed in after a fixed 3 s wait. When Claude took longer to boot, the paste was dropped and the agent sat at an empty prompt while every step reported ok. Dispatch now polls the pane and reports **Prompt delivered**, or a failed step after 20 s.

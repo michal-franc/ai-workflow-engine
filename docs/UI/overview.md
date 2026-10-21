@@ -17,6 +17,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/_create_modal.html` — shared "New issue" modal partial included by list and board
 - `templates/_project_actions.html` — shared project-level custom action bar + dispatch modal, included by list, board, and graph
 - `static/style.css` — all CSS (dark GitHub theme)
+- `internal/testids/testids.go` — every `data-testid` the templates carry (playtest targets)
 
 ## Views
 
@@ -59,6 +60,18 @@ UI issues get mockups before the written design. The UI overlay in `workflow.yam
 Issues with no visible change write why under `## Mockups` and tick the boxes.
 
 Images saved on an agent's worktree branch don't show on the board until that branch is merged, because the viewer reads `issues/attachments/` from the main checkout. Example: `ui/workbench-redesign-inbox-system-pages-balance-board-and-decisions-index`.
+
+## Test ids and playtest sessions
+
+A UI issue's manual checks are written as a playtest session (`playtest/sessions/<name>.yaml`). `make ux-test` runs the session in headless Chrome against a throwaway scenario board, and `make playtest` shows the owner the steps that need their judgement in an overlay. The full guide is [docs/patterns/playtest/web-app.md](../patterns/playtest/web-app.md).
+
+- **Labelling elements:** an element a step points at gets a `data-testid`:
+  - The id is `page.area.element`, lower snake case.
+  - Dynamic segments use the `tid` template func: `data-testid="board.column.{{tid .Status}}"`.
+  - From JS, set it as `el.dataset.testid = 'detail.body.checkbox.' + i`.
+- **The id list:** every id or pattern (`*` any one segment, `#` an index) goes in `internal/testids/testids.go`. `TestTemplateTestIDs` fails when templates and that list drift apart, and `make playtest-check` rejects session targets that aren't listed.
+- **Containers:** label containers too (`header.bar`, `board.filters`). A session's `layout_ignore` on a container waives a known layout bug inside it.
+- **Known bug:** at phone width (390px) the page headers and the board filter bar don't wrap. Sessions waive them with `layout_ignore`.
 
 ## Detail Sidebar Toggles
 

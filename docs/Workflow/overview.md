@@ -260,6 +260,18 @@ The `validations` package is a leaf — it does not import `tracker`. This is wh
 
 `linked_issue_in_status` and `command_succeeds` need runtime context (an issue lookup and the project's working directory); both are populated automatically by `Project.LoadWorkflow` via `attachRuntime`. `command_succeeds` is gated by the top-level `allow_shell: true` flag in `workflow.yaml`.
 
+## Playtest Sessions in the Dev Workflow
+
+This repo's `workflow.yaml` asks for manual checks to be written as playtest sessions. The shared contract is [docs/patterns/playtest/README.md](../patterns/playtest/README.md) (`issue-cli process playtest`), and this repo's runner is described in [web-app.md](../patterns/playtest/web-app.md).
+
+- **`backlog → in progress`:** the Test Plan's `### Manual` boxes ask for a session in `playtest/sessions/<name>.yaml` (step id = checkbox id) that passes `make playtest-check`. Checks that no session can drive (real Claude behaviour, terminal-only flows) stay written steps, each with a `.agent-logs/<name>-sandbox/`.
+- **`in progress → testing`:** the `## Testing` section adds a box for `make ux-test ISSUE=<slug> REPEAT=2`, run once before handoff.
+- **The `human-testing` prompt:** sends the owner to `make playtest ISSUE=<slug>` (judgement steps in an overlay) and `make playtest-report ISSUE=<slug> APPLY=1`. The report ticks the boxes that passed and posts each failure and opinion as a `playtest:` comment.
+- **The UI overlay's `in design` prompt:** asks for the test ids the session will point at.
+- **The bundled `development` template:** has opt-in wording, "if the project has a playtest system", so other projects aren't forced to adopt one.
+
+Issues that already have the old boxes ("Throwaway sandbox scenario prepared") keep them; only new transitions append the new wording.
+
 ## Design Considerations
 
 When working on workflow changes:

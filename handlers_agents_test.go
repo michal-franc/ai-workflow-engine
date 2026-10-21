@@ -250,8 +250,12 @@ func TestDetailShowsLeadSection(t *testing.T) {
 	defer ts.Close()
 
 	_, html := getResp(t, ts.URL+"/p/agents/issue/ui/epic")
-	if !strings.Contains(html, "lead-ui-epic") || !strings.Contains(html, "spawnSubLead(") {
-		t.Errorf("epic page lacks its sub-lead and the Spawn sub-lead button")
+	if !strings.Contains(html, "lead-ui-epic") {
+		t.Errorf("epic page lacks its sub-lead")
+	}
+	// One lead per project for now (workbench umbrella D-13): no sub-lead button.
+	if strings.Contains(html, "Spawn sub-lead") || strings.Contains(html, "spawnSubLead(") {
+		t.Errorf("epic page still offers Spawn sub-lead")
 	}
 	_, html = getResp(t, ts.URL+"/p/agents/issue/ui/child")
 	if !strings.Contains(html, `<div class="active-session-name" data-testid="detail.lead.name">lead-agents</div>`) || strings.Contains(html, "spawnSubLead('") {

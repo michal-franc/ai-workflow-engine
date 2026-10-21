@@ -128,9 +128,6 @@
         html += g.children_running + ' of ' + g.children_total + ' children running';
         if (g.main_ahead_known && g.main_ahead > 0) html += ' · <span class="agents-warn">main is ' + g.main_ahead + ' ahead</span>';
         html += '</span>';
-        if (!g.sub_lead.live) {
-            html += '<button type="button" class="dispatch-btn" data-testid="agents.epic.' + tid(g.issue.slug) + '.spawn" onclick="spawnLead(' + esc(JSON.stringify(g.issue.slug)) + ')">Spawn sub-lead</button>';
-        }
         html += '</header><div class="agents-children">' + nodeHTML(g.sub_lead) + '<div class="agents-level">';
         workers.forEach(function(w) { html += nodeHTML(w); });
         stopped.forEach(function(w) { html += nodeHTML(w); });
@@ -328,9 +325,6 @@
         if (!n.live && n.kind === 'project-lead') {
             html += '<button type="button" class="dispatch-btn" data-testid="agents.panel.spawn" onclick="spawnLead(\'\')">Spawn lead</button>';
         }
-        if (!n.live && n.kind === 'sub-lead' && n.epic) {
-            html += '<button type="button" class="dispatch-btn" data-testid="agents.panel.spawn" onclick="spawnLead(' + esc(JSON.stringify(n.epic)) + ')">Spawn sub-lead</button>';
-        }
         if (n.live) {
             html += '<button type="button" class="btn" id="panel-open" data-testid="agents.panel.open">Open in tmux</button>';
         }
@@ -383,7 +377,7 @@
     window.spawnLead = function(epic) {
         var modal = document.getElementById('lead-spawn-modal');
         var steps = document.getElementById('lead-spawn-steps');
-        document.getElementById('lead-spawn-title').textContent = epic ? 'Spawn sub-lead for ' + epic : 'Spawn project lead';
+        document.getElementById('lead-spawn-title').textContent = 'Spawn project lead';
         document.getElementById('lead-spawn-session').textContent = '';
         steps.innerHTML = '<div class="dispatch-step pending">Spawning…</div>';
         modal.style.display = '';

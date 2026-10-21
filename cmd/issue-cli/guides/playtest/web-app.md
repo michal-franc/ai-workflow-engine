@@ -29,6 +29,8 @@ The make targets:
 - `make playtest [ISSUE=…]`
 - `make playtest-report ISSUE=… [APPLY=1]`
 
+In a dispatched worktree (branch `work/<slug>`) `ISSUE` defaults to `<slug>`, so a plain `make playtest` or `make playtest-report APPLY=1` works on that issue. On any other branch it stays empty, and passing `ISSUE=` runs every session.
+
 ## Test ids
 
 - An id is `page.area.element`, lower snake case with dots between levels.

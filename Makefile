@@ -46,6 +46,9 @@ validate: vet test cover-cli playtest-check
 #                                             machine checks, headless, desktop + phone
 #   make playtest [ISSUE=slug] [S=session]    the owner's judgement steps, in an overlay
 #   make playtest-report ISSUE=slug [APPLY=1] tick passed boxes, comment failures
+# In a dispatched worktree (branch work/<slug>) ISSUE defaults to <slug>, so a
+# plain `make playtest` runs that issue's sessions. Pass ISSUE= to run them all.
+ISSUE ?= $(patsubst work/%,%,$(filter work/%,$(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)))
 PLAYTEST = go run ./cmd/playtest
 PLAYTEST_SEL = $(if $(ISSUE),-issue $(ISSUE)) $(if $(S),-s $(S))
 

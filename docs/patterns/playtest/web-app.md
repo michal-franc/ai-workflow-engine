@@ -47,7 +47,7 @@ In a dispatched worktree (branch `work/<slug>`) `ISSUE` defaults to `<slug>`, so
 - Every id goes in `internal/testids/testids.go`. `TestTemplateTestIDs`
   fails on an unlisted template id or an unused entry. `playtest check`
   rejects a session target that matches no entry, and suggests the closest.
-- Label containers too (`header.bar`, `board.filters`). A `layout_ignore`
+- Label containers too (`nav.sidebar`, `board.filters`). A `layout_ignore`
   on a container waives everything inside it.
 
 ## Scenarios: isolation lives in the runner

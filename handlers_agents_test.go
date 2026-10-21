@@ -135,7 +135,7 @@ func TestAgentsPageRenders(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Fatalf("status %d: %s", resp.StatusCode, html)
 	}
-	for _, want := range []string{`class="view-tab active">Agents`, `data-layout="radial"`, `id="opt-stopped"`, `Spawn lead`, `"/p/agents"`} {
+	for _, want := range []string{`class="nav-item active" data-testid="nav.tab.agents" aria-current="page">Agents`, `data-layout="radial"`, `id="opt-stopped"`, `Spawn lead`, `"/p/agents"`} {
 		if !strings.Contains(html, want) {
 			t.Errorf("page missing %q", want)
 		}

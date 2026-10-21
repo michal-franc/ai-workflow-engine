@@ -44,7 +44,6 @@ type IssueTotalRow struct {
 type StatsData struct {
 	Prefix              string
 	ProjectName         string
-	SupportsGitHub      bool
 	DispatchPromptCost  int
 	StaticReference     []StaticTransitionRow
 	RecordedTransitions []RecordedTransitionRow
@@ -134,7 +133,6 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *track
 	if err := s.tmpl.ExecuteTemplate(w, "stats.html", StatsData{
 		Prefix:              prefix,
 		ProjectName:         proj.Name,
-		SupportsGitHub:      proj.SupportsGitHub,
 		DispatchPromptCost:  tracker.AgentDispatchPromptStaticCost(),
 		StaticReference:     staticRows,
 		RecordedTransitions: recorded,

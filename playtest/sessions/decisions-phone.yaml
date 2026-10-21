@@ -7,9 +7,6 @@ session_checks:
   viewports: [390x844]
   layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
   console: no_errors
-  # Known bug: at phone width the shared header doesn't wrap (see
-  # board-basics).
-  layout_ignore: [header.bar]
 
 steps:
   - id: TP10

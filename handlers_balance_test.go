@@ -60,7 +60,7 @@ func TestHandleBalance_RendersBoard(t *testing.T) {
 
 	page := pageGet(t, ts.URL+"/p/wb/balance")
 	for _, want := range []string{
-		`href="/p/wb/balance" data-testid="nav.tab.balance" class="view-tab active"`,
+		`href="/p/wb/balance" class="nav-item active" data-testid="nav.tab.balance" aria-current="page"`,
 		`<span class="wb-stat-num">2</span><span class="wb-stat-label">notes</span>`,
 		`<span class="wb-stat-num">1</span><span class="wb-stat-label">unsorted</span>`,
 		`class="balance-pass done">Pass 2 · 30 Sep · 1 note</a>`,
@@ -134,8 +134,8 @@ func TestNavLinksToBalance(t *testing.T) {
 		page := pageGet(t, ts.URL+"/p/wb"+path)
 		decisions := strings.Index(page, `href="/p/wb/decisions"`)
 		balance := strings.Index(page, `href="/p/wb/balance"`)
-		if balance < 0 || balance < decisions {
-			t.Errorf("%s: Balance nav link missing or not after Decisions", path)
+		if balance < 0 || balance > decisions {
+			t.Errorf("%s: Balance nav link missing or not before Decisions", path)
 		}
 	}
 }

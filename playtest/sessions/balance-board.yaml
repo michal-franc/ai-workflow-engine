@@ -10,10 +10,6 @@ session_checks:
   viewports: [1440x900]
   layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
   console: no_errors
-  # Known bug: with the Agents, Decisions and Balance tabs the shared header
-  # no longer fits a 1440px container and scrolls sideways (as on list,
-  # board and detail). The header issue covers it; remove then.
-  layout_ignore: [header.bar]
 
 steps:
   - id: TP4
@@ -145,7 +141,7 @@ steps:
       1. Read the passes bar, then each metric group and its cards.
       2. Open "1 earlier note" on the scouting card and "more" on the long
          unsorted note.
-      3. Switch the theme (Dark, Dracula, Light) in the header.
+      3. Switch the theme (Dark, Dracula, Light) in the sidebar.
     expect: |
       You can tell at a glance which metrics still have open notes and
       which pass is next. Each card reads as hypothesis, change, evidence

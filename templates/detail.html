@@ -19,22 +19,9 @@
     </script>
 </head>
 <body>
-    <div class="header" data-testid="header.bar">
-        <div class="container header-inner">
-            <div style="display:flex;align-items:center;">
-                <a href="/" class="project-back-link">Projects</a>
-                <span class="header-sep">/</span>
-                <h1>{{.ProjectName}}</h1>
-            </div>
-            <div class="theme-picker">
-                <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
-                <button class="theme-btn" data-theme="dark" title="Dark"></button>
-                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
-                <button class="theme-btn" data-theme="light" title="Light"></button>
-            </div>
-        </div>
-    </div>
-
+<div class="app">
+{{template "sidebar" (sidebar .Prefix "")}}
+<div class="app-main">
     <div class="container">
         <a href="{{.BackURL}}" class="detail-back" data-testid="detail.back">← Back</a>
 
@@ -1049,5 +1036,7 @@
     window.addEventListener('hashchange', revealApprovalFromHash);
     </script>
     <script src="/static/auto-refresh.js"></script>
+</div>
+</div>
 </body>
 </html>

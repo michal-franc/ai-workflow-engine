@@ -33,7 +33,7 @@ The name is the identity, the same rule as `agent-<slug>` for workers. Slashes, 
 
 | Lead | CLI | UI |
 |---|---|---|
-| Project lead | `issue-cli lead spawn` | **Spawn lead** in the project's Actions bar, or on the [agents canvas](../UI/overview.md) |
+| Project lead | `issue-cli lead spawn` | **Spawn lead** in the sidebar's Actions, or on the [agents canvas](../UI/overview.md) |
 | Sub-lead | `issue-cli lead spawn --epic <slug>` | none. One lead per project for now (workbench umbrella D-13), so the UI has no sub-lead button |
 
 The CLI and the buttons start the same session; the CLI doesn't need the viewer running.

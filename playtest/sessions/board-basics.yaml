@@ -1,0 +1,59 @@
+session: board-basics
+issue: workflow/playtest-sessions-an-issues-manual-checks-as-a-runnable-yaml-session-on-a-sandbox-scenario
+title: Board columns, search, and drag to transition
+scenario: basic
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+  # Known bug: at phone width the header and the filter bar don't wrap, so
+  # the board page scrolls sideways (playtest board-basics, 2026-10-21).
+  # Remove once the phone-width header issue is fixed.
+  layout_ignore: [header.bar, board.filters]
+
+steps:
+  - id: TP2
+    title: Every workflow status is a column with its cards and count
+    setup:
+      - open: /p/{project}/board
+    checks:
+      - visible: [board.column.idea, board.column.backlog, board.column.in_progress, board.column.testing, board.column.done]
+      - count: { pattern: board.card.*, within: board.column.backlog.cards, equals: 2 }
+      - text_equals: { target: board.column.backlog.count, text: "2" }
+      - text_equals: { target: board.column.testing.count, text: "0" }
+      - text_equals: { target: board.card.ui/card-titles-overflow-on-a-phone.title, text: Card titles overflow on a phone }
+
+  - id: TP3
+    title: Typing in search hides the cards that don't match
+    setup:
+      - open: /p/{project}/board
+    act:
+      - type: { target: board.search, text: csv }
+    checks:
+      - visible: board.card.cli/export-issues-as-csv
+      - absent: [board.card.ui/card-titles-overflow-on-a-phone, board.card.ui/dark-mode-toggle]
+
+  - id: TP4
+    title: Dragging a card past an approval gate asks first; cancel puts it back
+    setup:
+      - open: /p/{project}/board
+    act:
+      - drag: { target: board.card.cli/export-issues-as-csv, to: board.column.in_progress.cards }
+      - wait_for: board.transition_modal.confirm
+      - click: board.transition_modal.cancel
+    checks:
+      - hidden: board.transition_modal
+      - count: { pattern: board.card.cli/export-issues-as-csv, within: board.column.backlog.cards, equals: 1 }
+      - issue: { slug: cli/export-issues-as-csv, field: status, equals: backlog }
+
+  - id: TP5
+    title: Dragging an idea to backlog moves the card and writes the status
+    setup:
+      - open: /p/{project}/board
+    act:
+      - drag: { target: board.card.ui/dark-mode-toggle, to: board.column.backlog.cards }
+    checks:
+      - count: { pattern: board.card.ui/dark-mode-toggle, within: board.column.backlog.cards, equals: 1 }
+      - text_equals: { target: board.column.backlog.count, text: "3" }
+      - issue: { slug: ui/dark-mode-toggle, field: status, equals: backlog }

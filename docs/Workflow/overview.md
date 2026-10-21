@@ -218,7 +218,7 @@ Behavior when enabled:
 - Re-dispatch on the same issue reuses the existing worktree directory rather than re-running `git worktree add`.
 - The tree is materialized with `git checkout HEAD` after sparse-checkout patterns are configured. Paths in `worktree_sparse_exclude` (default `["issues/"]`) are kept out of the worktree, so a dispatched agent sees the source but not the issue store. If an old worktree was created empty (every file shown as staged-for-deletion), recover it with `git -C .worktrees/<slug> checkout HEAD`.
 - The dispatched tmux session opens with `cwd` set to the worktree path, and the agent's prompt includes a worktree-aware section pointing at the path and branch.
-- Cleanup is the human's responsibility: the `shipping` checklist contains a reminder to merge `work/<slug>` and run `git worktree remove .worktrees/<slug>`. Agents do not remove worktrees themselves — that would risk discarding uncommitted state.
+- Worktrees are not cleaned up: they stay after the issue ships, and no checklist asks anyone to remove them. Agents never remove a worktree themselves, since that would risk discarding uncommitted state.
 
 If `git worktree add` fails (dirty tree, branch already exists outside the worktrees dir, etc.), the dispatch surfaces an error step and aborts rather than silently falling back to the primary checkout.
 

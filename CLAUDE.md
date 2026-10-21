@@ -42,6 +42,7 @@ images.go                   — relative image src rewrite, /files/ image route
 tmux.go                     — agent session listing/matching/notification
 handlers_list.go            — list view, filters, /hash, /issues.json
 handlers_board.go           — board + graph views
+handlers_canvas.go          — issues canvas (/canvas): version columns × epic or system rows
 handlers_detail.go          — detail page, transition preview, data-table render
 handlers_issue_mutate.go    — update/create/delete/approve/upload, body editor
 handlers_data.go            — /data sidecar endpoints
@@ -159,6 +160,10 @@ Per-system docs:
 - [UI](docs/UI/overview.md) — templates, views, client-side behavior
 - [Workflow](docs/Workflow/overview.md) — workflow engine, transitions, overlays
 - [Types of Work](docs/Workflow/types.md) — per-type paths (feature/tweak/bugfix/epic) as overlays with `path:`, `set-type`, lint
+
+## Sessions
+
+`sessions/` holds lead-session handoff notes, one file per handoff (`YYYY-MM-DD-lead-session.md`). Each note records running agents, issue and branch state, owner decisions and rules, and how to resume after a restart. When resuming lead work, read the newest file first. Before a shutdown or a long break, write a new one.
 
 ## Adding New Statuses
 

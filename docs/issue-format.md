@@ -21,6 +21,14 @@ Every issue is a markdown file with YAML frontmatter.
 | `assignee` | No       | Free text; dispatched agents use `agent-<slug>`    |
 | `type`     | No       | Type of work (`feature`, `tweak`, …) when `workflow.yaml` defines `types:`; picks the issue's path. Unset = `default_type`. Change with `issue-cli set-type` (see [Types of Work](Workflow/types.md)). In projects without types it is a plain custom field. |
 
+Epic links are custom fields that the [issues canvas](UI/overview.md#issues-canvas) reads:
+
+| Field      | Description |
+|:-----------|:------------|
+| `parent`   | Slug of the epic or umbrella this issue belongs to, e.g. `core/search-everywhere`. Slugs come from the title, with the system folder lower-cased, not from the file name. |
+| `umbrella` | Legacy spelling of `parent`; read when `parent` is unset. |
+| `base`     | An epic's staging branch (children branch from it and ship into it). Shown on the epic's canvas row. |
+
 `score_boost` and `due` take part in scoring when it's enabled (see [Scoring Fields](#scoring-fields)).
 
 ## Status Values

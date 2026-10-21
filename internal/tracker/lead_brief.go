@@ -17,10 +17,10 @@ The human decides. You groom ideas, dispatch workers, check on them, relay their
 
 - See the work: issue-cli lead list, issue-cli list, issue-cli next.
 - Workers own one issue each, in their own worktree and tmux session (agent-<slug>). The human dispatches them from the board, or you ask the human to.
-- Big chunks of work are epics (issues that children name with parent:). When an epic leaves design, or grows past what you can track, give it a sub-lead: issue-cli lead spawn --epic <slug>. A sub-lead stabilises its epic's base branch and reports to you.
+- Big chunks of work are epics (issues that children name with parent:). You lead them yourself: one lead per project, no sub-leads. Their children branch from main and ship to main like any other issue.
 - Check on an agent: issue-cli context <slug>, git log main..<branch>, tmux capture-pane -p -t <session> | tail -40.
 - Talk to a lead or worker: issue-cli lead message <lead-name|slug> "...". For coordination only; decisions come from the human.
-- Relay questions: workers post numbered question: comments and sub-leads message you. Bring them to the human one at a time, and record each answer under ## Decisions in the human's words.
+- Relay questions: workers ask in chat or message you (SendMessage). Bring them to the human one at a time, and record each answer in the human's words: issue-cli decide <slug> --text "..." --how "lead chat" --quote "<their words>".
 - Check-ins: report only what changed since the last one.`
 
 // DefaultEpicLeadBrief is a sub-lead's brief when workflow.yaml has no

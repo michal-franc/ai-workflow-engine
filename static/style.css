@@ -2952,7 +2952,12 @@ a.balance-pass:hover { text-decoration: none; border-color: var(--text-secondary
 .agents-layout-btn.active { background: var(--bg-tertiary); color: var(--text); }
 .agents-live { margin-left: auto; font-variant-numeric: tabular-nums; }
 .agents-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
-@media (max-width: 900px) { .agents-body { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .agents-body { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) {
+    .agent-row { flex-wrap: wrap; row-gap: 4px; }
+    .agent-link { display: none; }
+    .agent-issue-card { max-width: 100%; margin-left: 18px; }
+}
 .agents-canvas { min-width: 0; overflow-x: auto; }
 .agents-level { margin-left: 22px; padding-left: 14px; border-left: 1px solid var(--border); }
 .agent-row { display: flex; align-items: center; gap: 0; margin: 6px 0; min-width: 0; }
@@ -3007,11 +3012,6 @@ a.balance-pass:hover { text-decoration: none; border-color: var(--text-secondary
     font-size: 11px;
     line-height: 18px;
 }
-.agents-epic { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
-.agents-epic header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 13px; }
-.agents-epic header a { color: var(--text); font-weight: 600; text-decoration: none; }
-.agents-epic-meta { color: var(--text-secondary); }
-.agents-epic .agents-children { margin-top: 4px; }
 .agents-warn { color: #d29922; }
 .agents-none { color: var(--text-secondary); font-size: 13px; margin: 4px 0; }
 .agents-sub { color: var(--text-secondary); font-size: 12px; }

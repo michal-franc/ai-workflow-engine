@@ -199,15 +199,15 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 
 `/p/<project>/agents` (the **Agents** tab) shows who is working on what, built from `tmux ls`, the issues' `parent:` links and git. The page polls `GET /p/<project>/agents.json` (the `AgentsModel` in `handlers_agents.go`) every 5 seconds; the toolbar shows `live · tmux ls Ns ago`, or `offline` when a poll fails.
 
-- **Tree:** You → the project lead (`lead-<project>`) → one box per open epic, then workers with no epic. Each epic box shows its title, base branch, `N of M children running`, `main is N ahead` when `main` has commits the base lacks, its sub-lead node (`lead-<epic>`) and the workers on its children.
+- **Tree:** the hierarchy only: You → the project lead (`lead-<project>`) → its workers, plus any live sub-lead (`lead-<epic>`, started from the CLI). Epics are not drawn here; the [issues canvas](#issues-canvas) shows them. Nodes show the session name without `agent-`, cut at 32 characters; the full name is the tooltip. The epic data (base branch, children running, `main` ahead) stays in `agents.json`.
 - **Worker states:**
   - *working*: live session, nothing pending;
   - *at gate*: the next transition needs a human approval not yet given (the gate's status is shown);
   - *question*: the issue's newest comment starts with `question:`;
   - *stopped*: no live session, but a worktree or an active status (`in progress` up to, not including, `done`). "retro not swept" is added when a retro for the issue is not yet processed or archived.
-- **Unfinished jobs:** the stopped workers. With Group umbrellas on, an epic's stopped children appear in its box and the lane shows the rest.
+- **Unfinished jobs:** every stopped worker.
 - **Issue cards:** each worker links to its issue card with a dashed line in the status color.
-- **Toolbar:** Tree / Radial layout (radial puts the project lead in the middle, sub-leads on an inner ring and workers outside), and the Show issues, Group umbrellas and Show stopped toggles. **Spawn lead** shows while the project lead is not running.
+- **Toolbar:** Tree / Radial layout (radial puts the project lead in the middle with one ring of agents around it), and the Show issues and Show stopped toggles. **Spawn lead** shows while the project lead is not running.
 - **Clicking a live agent** (lead, sub-lead or worker) opens its tmux session in a terminal: `POST /p/<project>/agents/open` `{"session"}` runs the same attach as a dispatch re-attach (the project's `terminal`, or in `tmux_session` mode a `select-window` plus a terminal only when no client is attached). A session that already has a terminal attached never gets a second window: on i3 the window titled with the session name is focused (`focused`; the default i3 + alacritty terminal titles its windows that way), otherwise the panel says it is already open (`already-open`). With `terminal: none` the panel shows the attach command instead (prefixed `TMUX_TMPDIR=…` when the board runs on a private tmux server). The page never shows the pane and has no message box (D-12); you watch and type in tmux.
 - **Selected-agent panel** (shown for the clicked node): kind, state, tmux location, the issue, then:
   - **Approve gate** (at-gate workers) calls the issue's existing `/approve` endpoint, a direct human action;

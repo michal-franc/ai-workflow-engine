@@ -131,7 +131,7 @@ While workers run, the lead checks in on a schedule (Raid League uses :07, :27 a
 
 ### Relaying questions
 
-Workers that need a decision write it with `issue-cli ask` (options and a recommendation, stored under `## Questions` in the issue), say they're waiting, and stop. A sub-lead sends its own questions and its workers' to the project lead with `lead message project "..."`. The project lead brings them to you **one at a time**, with the worker's recommendation and its own. It records your answer in your words with `issue-cli answer <slug> Q-n --option B --note "…"`, which writes the `D-n` line under `## Decisions` and closes the question, then messages the asker.
+Workers that need a decision ask in chat: they message the lead (Claude Code's SendMessage, addressed by tmux name) with the options and their recommendation, say they're waiting, and stop. The lead brings questions to you **one at a time**, with the worker's recommendation and its own. It records your answer in your words with `issue-cli decide <slug> --text "…" --how "lead chat" --quote "…"`, which writes the `D-n` line under `## Decisions`, then messages the asker.
 
 ### Worker rules
 

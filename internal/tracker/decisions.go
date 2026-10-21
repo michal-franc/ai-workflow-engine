@@ -9,10 +9,16 @@ import (
 	"time"
 )
 
+// DecisionsSection is the issue section holding the D-n decision lines.
+const DecisionsSection = "Decisions"
+
+var decisionIDRe = regexp.MustCompile(`\*\*D-(\d+)\*\*`)
+
+
 // Decisions are numbered lines under an issue's `## Decisions` section.
-// `issue-cli answer` writes them when a question is answered and
-// `issue-cli decide` writes them for decisions made elsewhere. The project-wide decisions index is
-// generated from these lines; nobody edits it by hand.
+// `issue-cli decide` writes them. The project-wide decisions index is
+// generated from these lines; nobody edits it by hand. Older lines written by
+// the removed `issue-cli answer` ("answered in lead chat (Q-n)") still parse.
 //
 //	- **D-<n>** · <YYYY-MM-DD>[ · deferred] · <how>: <text>[, "<quote>"][ (also considered: …)][ (replaces <ref>[, <ref>])]
 //
@@ -395,4 +401,57 @@ func ClosedIssueFunc(proj *Project) func(*Issue) bool {
 		}
 		return idx >= done
 	}
+}
+
+// appendToSectionTight appends content at the end of the first level-2
+// section titled title, creating it at the end of the body when missing.
+// With blankLine, blocks are separated by a blank line; otherwise list items
+// (decisions) are kept as a tight list.
+func appendToSectionTight(body, title, content string, blankLine bool) string {
+	var sec *headingMatch
+	for _, m := range findHeadingMatches(body, title) {
+		if m.Level == 2 {
+			m := m
+			sec = &m
+			break
+		}
+	}
+	if sec == nil {
+		body = strings.TrimRight(body, "\n")
+		if body != "" {
+			body += "\n\n"
+		}
+		return body + "## " + title + "\n\n" + content + "\n"
+	}
+	lines := strings.Split(body, "\n")
+	end := sec.EndLine
+	for end > sec.StartLine+1 && strings.TrimSpace(lines[end-1]) == "" {
+		end--
+	}
+	sep := []string{}
+	if end == sec.StartLine+1 || blankLine {
+		sep = []string{""}
+	}
+	out := append([]string(nil), lines[:end]...)
+	out = append(out, sep...)
+	out = append(out, strings.Split(content, "\n")...)
+	if sec.EndLine < len(lines) {
+		out = append(out, "")
+	}
+	out = append(out, lines[sec.EndLine:]...)
+	return strings.TrimRight(strings.Join(out, "\n"), "\n") + "\n"
+}
+
+func nextNumber(re *regexp.Regexp, body string) int {
+	max := 0
+	for _, m := range re.FindAllStringSubmatch(body, -1) {
+		if n, err := strconv.Atoi(m[1]); err == nil && n > max {
+			max = n
+		}
+	}
+	return max + 1
+}
+
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }

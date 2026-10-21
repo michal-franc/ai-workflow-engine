@@ -20,7 +20,6 @@
                 <button type="button" class="agents-layout-btn" data-layout="radial" data-testid="agents.layout.radial">Radial</button>
             </div>
             <label><input type="checkbox" id="opt-issues" data-testid="agents.opt.issues" checked> Show issues</label>
-            <label><input type="checkbox" id="opt-group" data-testid="agents.opt.group" checked> Group umbrellas</label>
             <label><input type="checkbox" id="opt-stopped" data-testid="agents.opt.stopped" checked> Show stopped</label>
             <span class="agents-live" id="agents-live" data-testid="agents.live">loading…</span>
             <button type="button" class="dispatch-btn" id="spawn-project-lead" data-testid="agents.spawn_lead" onclick="spawnLead('')">Spawn lead</button>
@@ -54,7 +53,7 @@
     var listedAt = null;
     var selected = null;
     var layout = 'tree';
-    var opts = { issues: true, group: true, stopped: true };
+    var opts = { issues: true, stopped: true };
 
     function esc(s) {
         return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
@@ -68,6 +67,13 @@
         return String(s == null ? '' : s).trim().toLowerCase().replace(/[ .]/g, '_');
     }
 
+    // shortName is the label a node shows: the session name without its
+    // agent- prefix, cut at max characters. The full name is the tooltip.
+    function shortName(name, max) {
+        var s = String(name || '').replace(/^agent-/, '');
+        return s.length > max ? s.slice(0, max - 1) + '…' : s;
+    }
+
     var stateLabel = {
         'working': 'working', 'at-gate': 'at gate', 'question': 'question',
         'stopped': 'stopped', 'live': 'live', 'not-running': 'not running'
@@ -79,8 +85,8 @@
         if (n.gate) meta += ' · ' + esc(n.gate);
         if (n.retro_not_swept) meta += ' · retro not swept';
         var html = '<div class="agent-row">'
-            + '<button type="button" class="' + cls + '" data-name="' + esc(n.name) + '" data-testid="agents.node.' + tid(n.name) + '">'
-            + '<span class="agent-dot"></span><span class="agent-name">' + esc(n.name) + '</span>'
+            + '<button type="button" class="' + cls + '" data-name="' + esc(n.name) + '" title="' + esc(n.name) + '" data-testid="agents.node.' + tid(n.name) + '">'
+            + '<span class="agent-dot"></span><span class="agent-name">' + esc(shortName(n.name, 32)) + '</span>'
             + '<span class="agent-state" data-testid="agents.node.' + tid(n.name) + '.state">' + meta + '</span></button>';
         if (opts.issues && n.issue && n.kind !== 'sub-lead') {
             html += '<span class="agent-link" style="border-color:' + esc(n.issue.color) + '"></span>'
@@ -91,53 +97,28 @@
         return html + '</div>';
     }
 
-    function epicBoxHTML(g, workers, stopped) {
-        var html = '<section class="agents-epic" data-testid="agents.epic.' + tid(g.issue.slug) + '">'
-            + '<header><a href="' + esc(g.issue.url) + '">' + esc(g.issue.title) + '</a>'
-            + '<span class="agents-epic-meta" data-testid="agents.epic.' + tid(g.issue.slug) + '.meta">';
-        if (g.base) html += 'base <code>' + esc(g.base) + '</code> · ';
-        html += g.children_running + ' of ' + g.children_total + ' children running';
-        if (g.main_ahead_known && g.main_ahead > 0) html += ' · <span class="agents-warn">main is ' + g.main_ahead + ' ahead</span>';
-        html += '</span>';
-        html += '</header><div class="agents-children">' + nodeHTML(g.sub_lead) + '<div class="agents-level">';
-        workers.forEach(function(w) { html += nodeHTML(w); });
-        stopped.forEach(function(w) { html += nodeHTML(w); });
-        if (!workers.length && !stopped.length) html += '<p class="agents-none">No agents on this epic.</p>';
-        return html + '</div></div></section>';
+    // liveSubLeads lists sub-leads that are running. The view shows the
+    // hierarchy, not epics: one lead per project for now, so these only
+    // appear when one was started from the CLI.
+    function liveSubLeads() {
+        return (model.epics || []).filter(function(g) { return g.sub_lead.live; }).map(function(g) { return g.sub_lead; });
     }
 
     function renderTree() {
         var html = '<div class="agents-tree" data-testid="agents.tree"><div class="agent-row"><span class="agent-node agent-human" data-testid="agents.you">You</span></div>'
             + '<div class="agents-level">' + nodeHTML(model.project_lead) + '<div class="agents-level">';
-        var byEpic = {};
-        var loose = [];
-        var looseStopped = [];
-        if (opts.group) {
-            (model.epics || []).forEach(function(g) { byEpic[g.issue.slug] = { workers: [], stopped: [] }; });
-        }
-        (model.workers || []).forEach(function(w) {
-            if (opts.group && w.epic && byEpic[w.epic]) byEpic[w.epic].workers.push(w); else loose.push(w);
-        });
-        if (opts.stopped) {
-            (model.unfinished || []).forEach(function(w) {
-                if (opts.group && w.epic && byEpic[w.epic]) byEpic[w.epic].stopped.push(w); else looseStopped.push(w);
-            });
-        }
-        (model.epics || []).forEach(function(g) {
-            if (opts.group) {
-                html += epicBoxHTML(g, byEpic[g.issue.slug].workers, byEpic[g.issue.slug].stopped);
-            } else if (g.has_sub_lead) {
-                html += nodeHTML(g.sub_lead);
-            }
-        });
-        loose.forEach(function(w) { html += nodeHTML(w); });
+        liveSubLeads().forEach(function(n) { html += nodeHTML(n); });
+        (model.workers || []).forEach(function(w) { html += nodeHTML(w); });
         (model.others || []).forEach(function(w) { html += nodeHTML(w); });
+        if (!(model.workers || []).length && !(model.others || []).length && !liveSubLeads().length) {
+            html += '<p class="agents-none">No agents running.</p>';
+        }
         html += '</div></div></div>';
         if (opts.stopped) {
             html += '<section class="agents-unfinished" data-testid="agents.unfinished"><h2>Unfinished jobs</h2>'
                 + '<p class="agents-sub">A worktree or an active status, and no live agent.</p>';
-            var lane = opts.group ? looseStopped : (model.unfinished || []);
-            if (!lane.length) html += '<p class="agents-none">' + (opts.group && (model.unfinished || []).length ? 'All unfinished jobs are shown in their epic.' : 'None.') + '</p>';
+            var lane = model.unfinished || [];
+            if (!lane.length) html += '<p class="agents-none">None.</p>';
             lane.forEach(function(w) { html += nodeHTML(w); });
             html += '</section>';
         }
@@ -150,31 +131,19 @@
         var W = 900, H = 640, cx = W / 2, cy = H / 2;
         nodes.push({ id: 'you', label: 'You', x: cx, y: 40, kind: 'human' });
         var lead = model.project_lead;
-        nodes.push({ id: lead.name, label: lead.name, x: cx, y: cy, kind: 'project-lead', state: lead.state });
+        nodes.push({ id: lead.name, label: shortName(lead.name, 24), full: lead.name, x: cx, y: cy, kind: 'project-lead', state: lead.state });
         edges.push({ from: 'you', to: lead.name });
-        var groups = [];
-        (model.epics || []).forEach(function(g) {
-            if (g.has_sub_lead) groups.push({ hub: g.sub_lead, epic: g.issue.slug, members: [] });
-        });
-        var loose = { hub: null, members: [] };
-        var all = (model.workers || []).concat(opts.stopped ? (model.unfinished || []) : []).concat(model.others || []);
-        all.forEach(function(w) {
-            var g = opts.group && groups.filter(function(x) { return x.epic === w.epic; })[0];
-            (g || loose).members.push(w);
-        });
-        var sectors = groups.concat(loose.members.length ? [loose] : []);
+        // One ring around the lead: live sub-leads, workers, and (when shown)
+        // unfinished jobs. No epic grouping in this view.
+        var all = liveSubLeads().concat(model.workers || [], opts.stopped ? (model.unfinished || []) : [], model.others || []);
+        var sectors = all.length ? [{ hub: null, members: all }] : [];
         sectors.forEach(function(s, i) {
             var a = (2 * Math.PI * i) / Math.max(sectors.length, 1) - Math.PI / 2;
             var hubId = lead.name;
-            if (s.hub) {
-                hubId = s.hub.name;
-                nodes.push({ id: hubId, label: s.hub.name, x: cx + 150 * Math.cos(a), y: cy + 150 * Math.sin(a), kind: 'sub-lead', state: s.hub.state });
-                edges.push({ from: lead.name, to: hubId });
-            }
             var span = (2 * Math.PI) / Math.max(sectors.length, 1);
             s.members.forEach(function(w, j) {
                 var b = a - span / 2 + span * (j + 0.5) / s.members.length;
-                var p = { id: w.name, label: w.name, x: cx + 260 * Math.cos(b), y: cy + 260 * Math.sin(b), kind: w.kind, state: w.state };
+                var p = { id: w.name, label: shortName(w.name, 22), full: w.name, x: cx + 260 * Math.cos(b), y: cy + 260 * Math.sin(b), kind: w.kind, state: w.state };
                 nodes.push(p);
                 edges.push({ from: hubId, to: w.name, dashed: w.state === 'stopped' });
                 if (opts.issues && w.issue) {
@@ -199,7 +168,7 @@
                 return;
             }
             svg += '<g class="radial-node agent-' + esc(n.kind) + ' state-' + esc(n.state || '') + (selected === n.id ? ' selected' : '') + '" data-name="' + esc(n.id) + '">'
-                + '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + (n.kind === 'project-lead' ? 16 : 11) + '"/>'
+                + '<title>' + esc(n.full || n.label) + '</title><circle cx="' + n.x + '" cy="' + n.y + '" r="' + (n.kind === 'project-lead' ? 16 : 11) + '"/>'
                 + '<text x="' + n.x + '" y="' + (n.y + 28) + '" text-anchor="middle">' + esc(n.label) + '</text></g>';
         });
         return svg + '</svg>';
@@ -218,7 +187,7 @@
     function allNodes() {
         if (!model) return [];
         var list = [model.project_lead];
-        (model.epics || []).forEach(function(g) { list.push(g.sub_lead); });
+        list = list.concat(liveSubLeads());
         return list.concat(model.workers || [], model.unfinished || [], model.others || []);
     }
 
@@ -389,7 +358,7 @@
             render();
         });
     });
-    [['opt-issues', 'issues'], ['opt-group', 'group'], ['opt-stopped', 'stopped']].forEach(function(p) {
+    [['opt-issues', 'issues'], ['opt-stopped', 'stopped']].forEach(function(p) {
         document.getElementById(p[0]).addEventListener('change', function(ev) { opts[p[1]] = ev.target.checked; render(); });
     });
 

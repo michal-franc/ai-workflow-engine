@@ -53,9 +53,5 @@ func runChecklist(ctx *Context, args []string) error {
 	fmt.Fprintf(ctx.Stdout, "== Checklist (%d/%d) ==\n", checked, total)
 	printCheckboxes(ctx.Stdout, issue.BodyRaw)
 	printTickHint(ctx.Stdout, issue.Slug, issue.BodyRaw)
-	if len(tracker.OpenQuestions(issue.BodyRaw)) > 0 {
-		fmt.Fprintln(ctx.Stdout)
-		printOpenQuestions(ctx, issue)
-	}
 	return nil
 }

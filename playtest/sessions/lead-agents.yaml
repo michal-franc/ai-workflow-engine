@@ -93,7 +93,7 @@ steps:
       - http: { path: "/p/{project}/agents/detail?session=agent-ui-child&issue=ui/child", json: { "branch": work/ui/child, "against": base/ui/epic } }
 
   - id: TP8
-    title: The canvas shows You → lead → the epic box with its sub-lead and workers, their states, and the unfinished jobs
+    title: The canvas shows the hierarchy You → lead → the live sub-lead and workers, their states, and the unfinished jobs
     setup:
       - tmux: [new-session, -d, -s, lead-crew, cat]
       - tmux: [new-session, -d, -s, lead-ui-epic, cat]
@@ -102,10 +102,9 @@ steps:
       - tmux: [new-session, -d, -s, agent-ui-legacy, cat]
       - open: /p/{project}/agents
     checks:
-      - visible: [agents.you, agents.node.lead-crew, agents.epic.ui/epic, agents.node.lead-ui-epic]
-      - text_contains: { target: agents.epic.ui/epic.meta, text: "base base/ui/epic" }
-      - text_contains: { target: agents.epic.ui/epic.meta, text: "2 of 2 children running" }
-      - count: { pattern: agents.node.agent-ui-child, within: agents.epic.ui/epic, equals: 1 }
+      - visible: [agents.you, agents.node.lead-crew, agents.node.lead-ui-epic]
+      - count: { pattern: agents.node.agent-ui-child, within: agents.tree, equals: 1 }
+      - http: { path: "/p/{project}/agents.json", json: { "epics.0.base": base/ui/epic, "epics.0.children_running": 2, "epics.0.children_total": 2 } }
       - text_contains: { target: agents.node.agent-ui-child.state, text: "at gate · testing" }
       - text_contains: { target: agents.node.agent-ui-legacy.state, text: question }
       - visible: agents.node.agent-ui-child.issue
@@ -115,13 +114,11 @@ steps:
       - hidden: agents.spawn_lead
 
   - id: TP9
-    title: Show stopped, Group umbrellas and the Radial layout re-render the canvas
+    title: Show stopped and the Radial layout re-render the canvas
     from: TP8
     act:
       - click: agents.opt.stopped
       - check: { absent: agents.unfinished }
-      - click: agents.opt.group
-      - check: { absent: agents.epic.ui/epic }
       - click: agents.layout.radial
     checks:
       - visible: agents.radial
@@ -177,11 +174,11 @@ steps:
     title: The canvas reads well at desktop and phone width, in Tree and Radial
     from: TP8
     targets:
-      - { id: agents.epic.ui/epic, note: "The epic box: base branch, 2 of 2 running, the sub-lead and its workers" }
+      - { id: agents.tree, note: "The hierarchy: you, the project lead, the live sub-lead and the workers (no epic boxes)" }
       - { id: agents.unfinished, note: "Issues with work in flight and no live agent" }
       - { id: agents.layout.radial, note: "Switch layouts here" }
     checks:
-      - visible: [agents.node.lead-crew, agents.epic.ui/epic]
+      - visible: [agents.node.lead-crew, agents.tree]
     do: |
       1. Look over the Tree at this window size: who leads whom, each worker's
          state, the dashed links to issue cards, the Unfinished jobs lane.
@@ -192,8 +189,7 @@ steps:
       4. Make the window narrow (about phone width, or DevTools at 390px) and
          look again.
     expect: |
-      The hierarchy (you → lead-crew → the epic's sub-lead → its workers) is
+      The hierarchy (you → lead-crew → the live sub-lead and the workers) is
       clear at a glance, states and issue cards are readable, the panel is easy
-      to use, and nothing you need is cut off at phone width. The shared header
-      not wrapping on a phone is a known bug.
+      to use, and nothing you need is cut off at phone width.
     why: ux-test checks the structure and layout rules; only you can say whether the canvas reads well.

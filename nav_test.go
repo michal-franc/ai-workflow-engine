@@ -94,8 +94,8 @@ func TestSidebarNav(t *testing.T) {
 		}
 		return strings.Join(k, ",")
 	}
-	if got := keys(nav.Main); got != "board,list,decisions,docs" {
-		t.Errorf("main = %s (Balance needs workbench.balance)", got)
+	if got := keys(nav.Main); got != "status,board,list,decisions,docs" {
+		t.Errorf("main = %s (Status first; Balance needs workbench.balance)", got)
 	}
 	if got := keys(nav.More); got != "graph,canvas,agents,retros,workflow_designer,stats" {
 		t.Errorf("more = %s (GitHub needs supports_github)", got)

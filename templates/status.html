@@ -112,7 +112,7 @@
                     <div class="status-card-head">
                         <h2 id="status-next-h">What's next</h2>
                         <span class="status-meta{{if and .Next.Found .Next.Age.Level}} status-old{{end}}" data-testid="status.next.source">
-                            {{if .Next.Found}}From <span class="mono">{{.Next.File}}</span> · ## Next · {{.Next.Age.Text}} old{{else}}Backlog by priority{{end}}
+                            {{if .Next.Found}}From <span class="mono">{{.Next.File}}</span> · ## Next · {{if eq .Next.Age.Text "now"}}just now{{else}}{{.Next.Age.Text}} ago{{end}}{{else}}Backlog by priority{{end}}
                         </span>
                     </div>
                     {{if .Next.Found}}

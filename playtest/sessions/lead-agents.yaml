@@ -16,9 +16,6 @@ session_checks:
   viewports: [1440x900, 390x844]
   layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
   console: no_errors
-  # Known bug: at phone width the shared header doesn't wrap, so the page
-  # scrolls sideways (see board-basics). Remove once it is fixed.
-  layout_ignore: [header.bar]
 
 steps:
   - id: TP2
@@ -194,6 +191,5 @@ steps:
     expect: |
       The hierarchy (you → lead-crew → the live sub-lead and the workers) is
       clear at a glance, states and issue cards are readable, the panel is easy
-      to use, and nothing you need is cut off at phone width. The shared header
-      not wrapping on a phone is a known bug.
+      to use, and nothing you need is cut off at phone width.
     why: ux-test checks the structure and layout rules; only you can say whether the canvas reads well.

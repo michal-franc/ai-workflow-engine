@@ -1,39 +1,21 @@
 {{define "stats.html"}}
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.ProjectName}} — Workflow Stats</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
 </head>
 <body>
-    <div class="page-header">
-        <div class="header-row">
-            <div class="page-title-row">
-                <a href="/" class="project-back-link">Projects</a>
-                <span class="header-sep">/</span>
-                <h1>{{.ProjectName}}</h1>
-            </div>
-            <nav class="view-tabs">
-                <a href="{{.Prefix}}/" class="view-tab">List</a>
-                <a href="{{.Prefix}}/board" class="view-tab">Board</a>
-                <a href="{{.Prefix}}/graph" class="view-tab">Graph</a>
-                <a href="{{.Prefix}}/canvas" class="view-tab">Canvas</a>
-                <a href="{{.Prefix}}/agents" class="view-tab">Agents</a>
-                <a href="{{.Prefix}}/docs" class="view-tab">Docs</a>
-                <a href="{{.Prefix}}/retros" class="view-tab">Retros</a>
-                <a href="{{.Prefix}}/workflow-designer" class="view-tab">Workflow</a>
-                <a href="{{.Prefix}}/stats" class="view-tab active">Stats</a>
-                {{if .SupportsGitHub}}
-                <a href="{{.Prefix}}/github" class="view-tab">GitHub</a>
-                {{end}}
-                <a href="{{.Prefix}}/decisions" data-testid="nav.tab.decisions" class="view-tab">Decisions</a>
-                {{if workbenchTab "balance" .Prefix}}<a href="{{.Prefix}}/balance" data-testid="nav.tab.balance" class="view-tab">Balance</a>{{end}}
-            </nav>
-        </div>
-    </div>
-
+<div class="app">
+{{template "sidebar" (sidebar .Prefix "stats")}}
+<div class="app-main">
     <div class="container">
+        <header class="page-head">
+            <h1 class="page-title">Workflow stats</h1>
+        </header>
         <p class="stats-intro">
             Approximate token cost of workflow steps. <strong>Static</strong> is the workflow scaffolding the bot reads on transition (validations, prompts, appended sections, entry guidance). <strong>Dynamic</strong> adds the issue body and comments at the moment of transition. Token counts use a <code>len(s)/4</code> approximation — useful for relative comparison, not exact for any specific model.
         </p>
@@ -179,6 +161,8 @@
         {{end}}
         {{end}}
     </div>
+</div>
+</div>
 </body>
 </html>
 {{end}}

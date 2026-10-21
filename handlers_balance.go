@@ -47,11 +47,9 @@ type BalanceStateChip struct {
 }
 
 type BalanceData struct {
-	Prefix         string
-	ProjectName    string
-	ActiveBots     int
-	SupportsGitHub bool
-	Hash           string // /hash at render time, the auto-reload baseline
+	Prefix      string
+	ProjectName string
+	Hash        string // /hash at render time, the auto-reload baseline
 
 	Enabled       bool
 	CommentPrefix string
@@ -88,14 +86,12 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request, proj *tra
 	sessionMap, activeBots := sessionsByIssueSlug(proj, issues)
 	wb := proj.LoadWorkflow().Workbench
 	data := BalanceData{
-		Prefix:         prefix,
-		ProjectName:    proj.Name,
-		ActiveBots:     activeBots,
-		SupportsGitHub: proj.SupportsGitHub,
-		Hash:           issuesHash(issues, sessionMap, activeBots),
-		Enabled:        wb.HasBalance(),
-		CommentPrefix:  wb.Balance.CommentPrefix,
-		State:          tracker.NormalizeBalanceState(r.URL.Query().Get("state")),
+		Prefix:        prefix,
+		ProjectName:   proj.Name,
+		Hash:          issuesHash(issues, sessionMap, activeBots),
+		Enabled:       wb.HasBalance(),
+		CommentPrefix: wb.Balance.CommentPrefix,
+		State:         tracker.NormalizeBalanceState(r.URL.Query().Get("state")),
 	}
 	if data.CommentPrefix == "" {
 		data.CommentPrefix = tracker.DefaultBalancePrefix

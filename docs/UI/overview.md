@@ -16,12 +16,62 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/agents.html` — agents canvas: lead/worker tree, unfinished jobs, selected-agent panel (handlers in `handlers_agents.go`)
 - `templates/canvas.html` — issues canvas: version columns × epic or system rows, pan and zoom (`handlers_canvas.go` builds it)
 - `templates/docs.html` — documentation viewer with sidebar navigation
+- `templates/_sidebar.html` — the project sidebar on every project page (see [Navigation and theme](#navigation-and-theme)); `nav.go` lists the views
 - `templates/_create_modal.html` — shared "New issue" modal partial included by list and board
-- `templates/_project_actions.html` — shared project-level custom action bar + dispatch modal, included by list, board, and graph
-- `templates/balance.html` — balance board (`handlers_balance.go`, board built by `tracker.BuildBalanceBoard`). Nav templates show its tab through `{{if workbenchTab "balance" .Prefix}}`, a template func the server binds to its projects
+- `templates/_project_actions.html` — the project-action dispatch modal, included by the sidebar
+- `templates/balance.html` — balance board (`handlers_balance.go`, board built by `tracker.BuildBalanceBoard`). Its sidebar entry shows only when `workbench.balance` is set
 - `templates/decisions.html` — generated decisions index (`handlers_decisions.go`, index built by `tracker.BuildDecisionIndex`)
-- `static/style.css` — all CSS (dark GitHub theme)
+- `static/style.css` — all CSS: theme tokens for dark, Dracula and light, then the shared pieces and each view
+- `static/fonts/` — Archivo and JetBrains Mono (woff2, OFL), served by the viewer itself
 - `internal/testids/testids.go` — every `data-testid` the templates carry (playtest targets)
+
+## Navigation and theme
+
+Every project page has the left sidebar from `templates/_sidebar.html`:
+
+- **All projects** link and the **project block**: name, version (projects.yaml `version`) and open-issue count.
+- **New issue**. On list and board it opens the create modal; elsewhere it links to `/?new=1`, which opens the modal on the list.
+- **Views**: Board, List, Balance (when `workbench.balance` is set), Decisions and Docs, then a **More** group with Graph, Canvas, Agents, Retros, Workflow, Stats and GitHub (when `supports_github` is set).
+  - The current view has `aria-current="page"`.
+  - More opens on load when the current view is in it; otherwise the browser remembers it open or closed (`localStorage` key `nav.more`).
+- **N agents running**, linking to Agents. It is hidden at 0, and `auto-refresh.js` updates it.
+- A **screen panel**. The Board shows a Systems list here (open counts, each a `?system=` filter).
+- **Actions** (Spawn lead and the `project_actions:` buttons) and the **theme swatches**, at the bottom.
+
+Below 900px the sidebar stacks above the page. There is no phone menu yet.
+
+**Adding a view.** Add one entry to `navViews` in `nav.go` (key, label, path, `More`, optional `Show`), then start the template with:
+
+```html
+<body>
+<div class="app">
+{{template "sidebar" (sidebar .Prefix "<key>")}}
+<div class="app-main">
+  …the page…
+</div>
+</div>
+</body>
+```
+
+The `sidebar` template func builds the `Nav` for the page's project, so page data only needs `Prefix`. A page with its own screen panel renders `sidebar-open`, the panel, then `sidebar-close`. `TestProjectPagesRenderSidebar` fails for a project page without the sidebar.
+
+**Theme tokens.** `static/style.css` starts with the tokens. The dark default is the workbench look; Dracula and light set the same names under `[data-theme]`:
+
+- surfaces: `--bg`, `--bg-sidebar`, `--bg-secondary` (cards), `--bg-tertiary` (hover), `--bg-active`
+- lines: `--border`, `--border-subtle`
+- text: `--text`, `--text-nav`, `--text-secondary`, `--text-link`, `--accent`
+- four tones for chips and state: `--amber`, `--blue`, `--green`, `--red`, each with `-bg` and `-border`
+- fonts: `--font-sans` (Archivo), `--font-mono` (JetBrains Mono)
+
+Use the shared classes rather than new colours:
+
+- `.page-head`, with `.page-title` and `.page-sub`
+- `.label`
+- `.chip`, plus `.chip-amber`, `.chip-blue`, `.chip-green` or `.chip-red`
+- `.card`
+- `.btn` and `.btn-primary`
+
+Status colours stay per status (`statusColor`). A status chip tints its colour with `.status-chip` and `--c`.
 
 ## Views
 
@@ -35,14 +85,14 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
 | `/issue/<slug>`   | `detail.html` | Detail with edit, approve, dispatch, comments    |
 | `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
-| `/balance`        | `balance.html` | Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise the tab is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
+| `/balance`        | `balance.html` | Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise its sidebar entry is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
 | `/decisions`      | `decisions.html` | Generated index of every `D-n` decision: how it was made, recording issue, citing issues, state (active / deferred / replaced / replaced · stale). System and state chips (`?system=`, `?state=`); reloads when `/hash` changes. The page renders the `/hash` value it was built from as the polling baseline, so a change made before the first 5 s poll still triggers a reload |
 
 In projects whose `workflow.yaml` defines `types:` ([Types of Work](../Workflow/types.md)), the list and board show a type badge and an "All types" filter (`?type=`), `type` joins the default board card fields, `/graph?type=<t>` draws that type's path, and the detail sidebar has a **Type** select (`POST /p/<project>/issue/<slug>/type`; a `409` with `statuses` asks the human which status on the new path to move to). Without `types:` none of these controls render.
 
 ## Issues canvas
 
-`/p/<project>/canvas` (the **Canvas** tab, after Graph) is a read-only map of what each epic holds and what each version plans. `buildCanvas` in `handlers_canvas.go` holds every rule and is unit-tested without HTTP. The template only renders the view model.
+`/p/<project>/canvas` (**Canvas** under More in the sidebar, after Graph) is a read-only map of what each epic holds and what each version plans. `buildCanvas` in `handlers_canvas.go` holds every rule and is unit-tested without HTTP. The template only renders the view model.
 
 - **Columns** are the distinct `version:` values, sorted as dotted numbers (0.2 before 0.10). Each header shows "done/total", side-status counts and a status-coloured bar.
 - **The "no version" column** is hidden unless `?nover=1`, and the toolbar says how many issues it hides. When no issue has a version, the column is the only one and the toggle is disabled.
@@ -104,7 +154,7 @@ A UI issue's manual checks are written as a playtest session (`playtest/sessions
   - Dynamic segments use the `tid` template func: `data-testid="board.column.{{tid .Status}}"`.
   - From JS, set it as `el.dataset.testid = 'detail.body.checkbox.' + i`.
 - **The id list:** every id or pattern (`*` any one segment, `#` an index) goes in `internal/testids/testids.go`. `TestTemplateTestIDs` fails when templates and that list drift apart, and `make playtest-check` rejects session targets that aren't listed.
-- **Containers:** label containers too (`header.bar`, `board.filters`). A session's `layout_ignore` on a container waives a known layout bug inside it.
+- **Containers:** label containers too (`nav.sidebar`, `board.filters`). A session's `layout_ignore` on a container waives a known layout bug inside it.
 - **Known bug:** at phone width (390px) the page headers and the board filter bar don't wrap. Sessions waive them with `layout_ignore`.
 
 ## Detail Sidebar Toggles
@@ -127,7 +177,7 @@ The sidebar's **Human Approval** section shows one **Human-approved for <status>
 
 ## Create issue modal
 
-Both `list.html` and `board.html` show a **+ New issue** button in the header (next to the theme picker) that opens a shared modal defined in `templates/_create_modal.html`. The modal posts to `POST /p/<project>/issues/create` (handler `handleCreateIssue` in `handlers_issue_mutate.go`) and on `201` navigates the browser to the new issue's detail page.
+The sidebar's **New issue** button opens a shared modal defined in `templates/_create_modal.html`, included by `list.html` and `board.html`. On other pages the button links to `/?new=1`, and the list opens the modal on load. The modal posts to `POST /p/<project>/issues/create` (handler `handleCreateIssue` in `handlers_issue_mutate.go`) and on `201` navigates the browser to the new issue's detail page.
 
 Form fields:
 
@@ -139,7 +189,7 @@ Form fields:
 - **Labels** (optional, comma-separated)
 - **Type** (only in projects with `types:`; defaults to `default_type`). A status the type's path skips — for example the board's `+` on a column a tweak never visits — starts the issue at the type's first status.
 
-The board's per-column `+` buttons keep working and pass their column status as a preset to `openCreateModal(status)`; the header button calls `openCreateModal('')` for the default.
+The board's per-column `+` buttons keep working and pass their column status as a preset to `openCreateModal(status)`; the sidebar button calls `openCreateModal('')` for the default.
 
 Server-side wiring: both `ListData` and `BoardData` carry `CreatableStatuses []string` and `BodyTemplates map[string]string`. The templates JSON is embedded into the page via the `toJSON` template helper (`template_funcs.go`) which returns `template.JS` to bypass HTML escaping.
 
@@ -147,7 +197,7 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 
 ## Agents canvas
 
-`/p/<project>/agents` (the **Agents** tab) shows who is working on what, built from `tmux ls`, the issues' `parent:` links and git. The page polls `GET /p/<project>/agents.json` (the `AgentsModel` in `handlers_agents.go`) every 5 seconds; the toolbar shows `live · tmux ls Ns ago`, or `offline` when a poll fails.
+`/p/<project>/agents` (**Agents** under More in the sidebar) shows who is working on what, built from `tmux ls`, the issues' `parent:` links and git. The page polls `GET /p/<project>/agents.json` (the `AgentsModel` in `handlers_agents.go`) every 5 seconds; the toolbar shows `live · tmux ls Ns ago`, or `offline` when a poll fails.
 
 - **Tree:** the hierarchy only: You → the project lead (`lead-<project>`) → its workers, plus any live sub-lead (`lead-<epic>`, started from the CLI). Epics are not drawn here; the [issues canvas](#issues-canvas) shows them. Nodes show the session name without `agent-`, cut at 32 characters; the full name is the tooltip. The epic data (base branch, children running, `main` ahead) stays in `agents.json`.
 - **Worker states:**
@@ -170,6 +220,6 @@ Spawn buttons POST `{}` to `/p/<project>/lead/spawn` and show the launch steps i
 
 The detail page's sidebar has a **Lead** section: on an epic, its sub-lead, whether it is live and its base branch; on any other issue, the lead it reports to and its epic.
 
-## Project action bar
+## Project actions
 
-The list, board, and graph views show an **Actions** bar below the header (rendered by `templates/_project_actions.html`, included via `{{template "project-actions-bar" .}}`). It always has **Spawn lead** (`POST /p/<project>/lead/spawn`), followed by one button per `project_actions:` entry. Each button POSTs to `POST /p/<project>/action/<id>` (handler `handleProjectAction` in `handlers_dispatch.go`), which dispatches a one-shot agent with no issue context — prompts template with `{{project}}` only. The shared dispatch result modal is defined in the same partial (`project-actions-modal`). This mirrors the per-issue custom action buttons on `detail.html`, which come from `issue_actions:` (legacy alias: `actions:`). `ListData`, `BoardData`, and `GraphData` each carry `ProjectActions []tracker.CustomAction`.
+The sidebar's **Actions** group has **Spawn lead** (`POST /p/<project>/lead/spawn`) on every project page, followed by one button per `project_actions:` entry. Each button POSTs to `POST /p/<project>/action/<id>` (handler `handleProjectAction` in `handlers_dispatch.go`), which dispatches a one-shot agent with no issue context — prompts template with `{{project}}` only. The dispatch result modal is `project-actions-modal` in `templates/_project_actions.html`. This mirrors the per-issue custom action buttons on `detail.html`, which come from `issue_actions:` (legacy alias: `actions:`). The sidebar reads the actions from the project's workflow (`Nav.ProjectActions`).

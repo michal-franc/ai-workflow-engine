@@ -73,7 +73,9 @@
         });
 
         summary.dataset.count = String(count);
-        summary.textContent = count + ' active bot' + (count === 1 ? '' : 's');
+        summary.hidden = count === 0;
+        var text = summary.querySelector('.sidebar-agents-text');
+        if (text) text.textContent = count + ' agent' + (count === 1 ? '' : 's') + ' running';
     }
 
     function renderActiveChip(container, className, sessions) {
@@ -214,8 +216,7 @@
             var badge = row.querySelector('.badge');
             if (badge) {
                 badge.textContent = iss.status;
-                badge.style.background = statusColor(iss.status);
-                badge.style.color = statusTextColor(iss.status);
+                badge.style.setProperty('--c', statusColor(iss.status));
             }
 
             // Update priority

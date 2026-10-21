@@ -47,7 +47,7 @@ In a dispatched worktree (branch `work/<slug>`) `ISSUE` defaults to `<slug>`, so
 - Every id goes in `internal/testids/testids.go`. `TestTemplateTestIDs`
   fails on an unlisted template id or an unused entry. `playtest check`
   rejects a session target that matches no entry, and suggests the closest.
-- Label containers too (`header.bar`, `board.filters`). A `layout_ignore`
+- Label containers too (`nav.sidebar`, `board.filters`). A `layout_ignore`
   on a container waives everything inside it.
 
 ## Scenarios: isolation lives in the runner
@@ -187,6 +187,6 @@ A list such as `visible: [a, b]` becomes one check per item.
   block first.
 - A popover that closes after submit can't be checked by its text. Check the
   state it leaves behind (a count, the file).
-- At phone width the header and filter bar don't wrap. They are waived with
-  `layout_ignore` and a comment naming the bug; remove the waiver when it
-  is fixed.
+- Waive a known layout bug with `layout_ignore` on its container and a
+  comment naming the bug; remove the waiver when it is fixed. A pan surface
+  (`canvas.world`) is waived for good: it is meant to run past the screen.

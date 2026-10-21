@@ -15,11 +15,18 @@ import (
 
 // IDs lists every test id and pattern. Keep it grouped by page.
 var IDs = []string{
-	// Shared header and view tabs (list, board, canvas, decisions, balance).
-	"header.bar",
+	// Project sidebar (templates/_sidebar.html), on every project page.
+	"nav.sidebar",
+	"nav.project",
+	"nav.create",
 	"nav.tab.*",
+	"nav.more",
+	"nav.agents_running",
+	"nav.panel",
+	"nav.panel.system.*",
+	"nav.actions",
+	"nav.theme.*",
 	"header.count",
-	"header.create",
 
 	// Board (/p/<project>/board).
 	"board.filters",
@@ -88,7 +95,6 @@ var IDs = []string{
 	"detail.lead.state",
 
 	// Project actions bar and its dispatch modal (list, board, graph).
-	"actions.bar",
 	"actions.spawn_lead",
 	"actions.modal",
 	"actions.modal.steps",

@@ -93,3 +93,55 @@ func TestWorkflowSchemaSections_IncludeWorkbench(t *testing.T) {
 		}
 	}
 }
+
+func TestWorkbenchFamilies_ParseLookupValidateClone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workflow.yaml")
+	yaml := `statuses:
+  - name: idea
+workbench:
+  systems:
+    AI:
+      metrics: [dominant-plays]
+      knobs: ["PlayCalls.*"]
+      families:
+        Play calls:
+          summary: "Calls per stage"
+          umbrella: ai/play-calls
+          design_doc: docs/ai/play-calls.md
+          metrics: [call-spread]
+        Heroes:
+          design_doc: ../outside.md
+`
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+	wf, err := LoadWorkflow(path)
+	if err != nil {
+		t.Fatalf("LoadWorkflow: %v", err)
+	}
+	key, sys, ok := wf.Workbench.SystemConfig("ai")
+	if !ok || key != "AI" || sys.Metrics[0] != "dominant-plays" || sys.Knobs[0] != "PlayCalls.*" {
+		t.Fatalf("SystemConfig(ai) = %q %+v %v", key, sys, ok)
+	}
+	if got := sys.FamilyNames(); len(got) != 2 || got[0] != "Heroes" || got[1] != "Play calls" {
+		t.Fatalf("FamilyNames = %v", got)
+	}
+	fkey, fam, ok := sys.Family("play CALLS")
+	if !ok || fkey != "Play calls" || fam.Umbrella != "ai/play-calls" || fam.Metrics[0] != "call-spread" {
+		t.Fatalf("Family = %q %+v %v", fkey, fam, ok)
+	}
+
+	problems := strings.Join(wf.Workbench.Validate(), "\n")
+	for _, want := range []string{"families[Heroes]: umbrella is required", "families[Heroes].design_doc", "outside the project root"} {
+		if !strings.Contains(problems, want) {
+			t.Errorf("Validate() missing %q in:\n%s", want, problems)
+		}
+	}
+
+	clone := wf.Clone()
+	clone.Workbench.Systems["AI"].Families["Play calls"] = WorkbenchFamily{}
+	clone.Workbench.Systems["AI"].Metrics[0] = "changed"
+	if wf.Workbench.Systems["AI"].Families["Play calls"].Umbrella != "ai/play-calls" || wf.Workbench.Systems["AI"].Metrics[0] != "dominant-plays" {
+		t.Fatal("Clone shares families or metrics with the original")
+	}
+}

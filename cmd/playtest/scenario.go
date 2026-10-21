@@ -126,10 +126,11 @@ type Scenario struct {
 	Port int
 	Base string // http://127.0.0.1:<port>
 
-	bins  *Binaries
-	board *exec.Cmd
-	log   io.Writer
-	env   []string
+	bins    *Binaries
+	board   *exec.Cmd
+	commits int // scenario commits made so far (pins their dates)
+	log     io.Writer
+	env     []string
 }
 
 // StartScenario copies the fixtures from scenarioDir/<name> into a fresh
@@ -199,7 +200,9 @@ func StartScenario(scenarioDir, name string, bins *Binaries, log io.Writer) (*Sc
 		{"add", "-A"},
 		{"commit", "-q", "-m", "scenario " + name},
 	} {
-		if out, err := s.command("git", args...).CombinedOutput(); err != nil {
+		cmd := s.command("git", args...)
+		cmd.Env = append(cmd.Env, s.nextCommitDate()...)
+		if out, err := cmd.CombinedOutput(); err != nil {
 			return fail(fmt.Errorf("git %s: %v: %s", args[0], err, out))
 		}
 	}
@@ -223,6 +226,9 @@ func (s *Scenario) buildHistory(src string) error {
 	gitIn := func(dir string, args ...string) error {
 		cmd := s.command("git", args...)
 		cmd.Dir = dir
+		if args[0] == "commit" {
+			cmd.Env = append(cmd.Env, s.nextCommitDate()...)
+		}
 		if out, err := cmd.CombinedOutput(); err != nil {
 			return fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, out)
 		}
@@ -283,6 +289,15 @@ func (s *Scenario) buildHistory(src string) error {
 		}
 	}
 	return nil
+}
+
+// nextCommitDate pins a scenario commit's author and committer dates (an
+// hour apart from 2026-10-01 12:00 UTC), so commit shas and the dates views
+// show are the same on every run.
+func (s *Scenario) nextCommitDate() []string {
+	d := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC).Add(time.Duration(s.commits) * time.Hour).Format(time.RFC3339)
+	s.commits++
+	return []string{"GIT_AUTHOR_DATE=" + d, "GIT_COMMITTER_DATE=" + d}
 }
 
 // ConfigPath is the scenario's projects.yaml.

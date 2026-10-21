@@ -81,13 +81,30 @@ func IsLive(proj *tracker.Project, name string) bool {
 }
 
 // AttachCmd is the command a human runs to reach the agent when the project
-// is headless (terminal: none).
+// is headless (terminal: none). When this process talks to a private tmux
+// server (TMUX_TMPDIR set, as in a sandbox or playtest scenario), the command
+// names it, so pasting it into any shell reaches the same server.
 func AttachCmd(proj *tracker.Project, name string) string {
 	if shared := SharedSession(proj); shared != "" {
-		return fmt.Sprintf("tmux attach -t %s \\; select-window -t %s", shared, name)
+		return fmt.Sprintf("%stmux attach -t %s \\; select-window -t %s", tmuxEnvPrefix(), shared, name)
 	}
-	return fmt.Sprintf("tmux attach -t %s", name)
+	return fmt.Sprintf("%stmux attach -t %s", tmuxEnvPrefix(), name)
 }
+
+// tmuxEnvPrefix is "TMUX_TMPDIR=<dir> " when this process uses a private tmux
+// server, else "". A dir that isn't safe to type unquoted is single-quoted.
+func tmuxEnvPrefix() string {
+	dir := os.Getenv("TMUX_TMPDIR")
+	if dir == "" {
+		return ""
+	}
+	if !safeShellWord.MatchString(dir) {
+		dir = "'" + strings.ReplaceAll(dir, "'", `'\''`) + "'"
+	}
+	return "TMUX_TMPDIR=" + dir + " "
+}
+
+var safeShellWord = regexp.MustCompile(`^[A-Za-z0-9._/:-]+$`)
 
 // CreateTmux creates the tmux home for the agent called name: its own
 // session by default, or a new window in the project's shared session
@@ -274,8 +291,14 @@ func OpenTerminalStep(proj *tracker.Project, session string, steps *[]Step) bool
 			return false
 		}
 	}
+	// i3 starts the terminal with its own environment, so a private
+	// TMUX_TMPDIR has to be passed on explicitly.
+	envFlag := ""
+	if p := tmuxEnvPrefix(); p != "" {
+		envFlag = "env " + p
+	}
 	return RunStep(steps, "Open alacritty",
-		exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -e tmux attach -t %s", session)))
+		exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -e %stmux attach -t %s", envFlag, session)))
 }
 
 // AttachStep makes the agent visible to the human. By default it opens a

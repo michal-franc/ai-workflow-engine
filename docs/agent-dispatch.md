@@ -80,6 +80,8 @@ The handler substitutes `{{session}}` with the tmux session name and runs the co
 
 If `terminal` is unset, defaults to i3 + alacritty. Set to `none` to only create the tmux session (the response includes the `attach_cmd`).
 
+When the viewer itself runs with `TMUX_TMPDIR` set (a sandbox or playtest scenario on a private tmux server), `attach_cmd` starts with `TMUX_TMPDIR=<dir>`, so it reaches that server from any shell. A `terminal` command inherits the variable through `sh -c`; the i3 default passes it on with `env`. The board waits for the `terminal` command to exit, so use one that returns at once (`i3-msg exec …`, or `setsid -f alacritty -e … >/dev/null 2>&1`).
+
 ## Shared tmux Session
 
 By default every dispatch gets its own tmux session (`agent-<slug>`) and its own terminal window. Set `tmux_session` on a project to run all its agents as **windows inside one shared session** instead:

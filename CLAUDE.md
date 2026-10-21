@@ -53,6 +53,8 @@ handlers_dispatch.go        — agent dispatch + prompt builders
 handlers_github.go          — github page, fetch, import
 handlers_stats.go           — /stats workflow token-cost view
 handlers_agents.go          — /agents canvas, agents.json, agent detail, open-in-tmux and lead spawn endpoints
+handlers_systems.go         — /systems index and system / family pages (model in systems.go, design-doc panel in docsections.go)
+attention.go                — what waits on the owner (gates ready, open questions, playtests to run), shared by workbench pages
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
 internal/agentrun/          — shared tmux/worktree launcher used by the server and issue-cli (leads, dispatch)

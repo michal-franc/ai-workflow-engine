@@ -1,0 +1,11 @@
+# System pages: AI is configured in workbench.systems (summary, design doc,
+# the Play calls family) and Sim is not. The design doc's "Shouts and tempo"
+# section cites a decision that a later one replaced, so it shows as stale.
+# An AI issue belongs to Sim's siege epic, so Sim's epic spans two systems.
+title: System pages
+project:
+  name: Raid League
+  slug: rl
+issues: tracker
+workflow: workflow.yaml
+docs: docs

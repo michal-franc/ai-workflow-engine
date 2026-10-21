@@ -85,7 +85,7 @@ func (s *Server) docPanel(proj *tracker.Project, issues []*tracker.Issue, prefix
 		}
 		return p
 	}
-	body := string(raw)
+	body := stripFrontmatter(string(raw))
 	sections := tracker.SplitSections(body)
 	anchors := tracker.SectionAnchors(body)
 	byTitle := map[string]int{}
@@ -271,4 +271,17 @@ func listDocBranches(root, doc string, issues []*tracker.Issue) ([]docBranch, bo
 		out = append(out, docBranch{Name: b.Name, IssueSlug: b.IssueSlug, MergeBase: b.MergeBase, Head: b.Head, Ahead: b.Ahead})
 	}
 	return out, err == nil
+}
+
+// stripFrontmatter drops a leading `---` YAML block, which goldmark would
+// otherwise read as a setext heading and shift the section anchors.
+func stripFrontmatter(body string) string {
+	rest, ok := strings.CutPrefix(body, "---\n")
+	if !ok {
+		return body
+	}
+	if i := strings.Index(rest, "\n---\n"); i >= 0 {
+		return rest[i+len("\n---\n"):]
+	}
+	return body
 }

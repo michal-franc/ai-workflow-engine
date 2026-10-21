@@ -74,7 +74,7 @@ func setupSystemsProject(t *testing.T) systemsFixture {
 	if err := os.MkdirAll(filepath.Join(docs, "ai"), 0755); err != nil {
 		t.Fatal(err)
 	}
-	doc := "# Play calls\n\n## Rules\n\nCards per map.\n\n## Shouts and tempo\n\nAs decided in ai/shouts#D-1.\n\n## The AI caller\n\nFit vs read.\n"
+	doc := "---\ntitle: \"Play calls\"\n---\n\n# Play calls\n\n## Rules\n\nCards per map.\n\n## Shouts and tempo\n\nAs decided in ai/shouts#D-1.\n\n## The AI caller\n\nFit vs read.\n"
 	if err := os.WriteFile(filepath.Join(docs, "ai", "play-calls.md"), []byte(doc), 0644); err != nil {
 		t.Fatal(err)
 	}

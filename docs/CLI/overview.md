@@ -36,8 +36,6 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli start <slug>`         | Pick up issue from any status — claim + auto-advance handoff states (announced with a banner). `--wait` blocks until the handoff approval exists |
 | `issue-cli transition <slug>`    | Attempt the next workflow transition. `--dry-run` lists every unmet requirement; `--wait` blocks until the human approval exists |
 | `issue-cli comment <slug>`       | Add a comment to an issue                |
-| `issue-cli ask <slug>`           | Write a structured question (`--question`, `--option ID=Label\|Tradeoff`, `--recommend`) under `## Questions`; the lead relays it and records the answer |
-| `issue-cli answer <slug> <Q-n>`  | Record the answer to an open question (`--option`, `--note`, `--how`) as a `D-n` line under `## Decisions` |
 | `issue-cli decide <slug>`        | Record a decision as a `D-n` line under `## Decisions`; `--replaces <slug>#D-n` lists the open issues still citing the old one |
 | `issue-cli balance <slug>`       | Add a typed balance note (`--metric`, `--state`, `--hypothesis`, `--change`, `--evidence`, `--verdict`, `--pass`); `balance --list` prints the current notes |
 | `issue-cli decisions`            | List the project's decisions (active, deferred, replaced, stale) with `--system`, `--state`, `--issue`, `--json` |
@@ -253,34 +251,7 @@ The CLI points agents at `--wait` itself, so the guidance does not depend on any
 - A missing-approval error from `transition` or `start` ends with the exact `--wait` command to run instead of retrying.
 - When the same command fails 3+ times in a row on a missing approval, the retry hint points at that `--wait` command instead of the generic "try a different approach".
 
-### `ask` and `answer`
-
-A worker that needs the owner's call writes it down instead of asking in prose:
-
-```
-issue-cli ask <slug> --question "Does unspent gold carry over between stages?" \
-  --context "At PROBE_N=200 teams bank ~140 gold at a stage lock." \
-  --option "A=Reset to the stage's starting gold|Simplest" \
-  --option "B=Carry over, capped at 300|Rewards saving without snowballing" \
-  --recommend B --link docs/economy.md
-```
-
-- It needs at least two options with one-letter IDs, and `--recommend` must name one of them. Bad input leaves the file untouched.
-- The question goes under `## Questions` as `### Q-n · open` (format: [Issue File Format](../issue-format.md#questions)). Questions never gate transitions.
-- The output's `Next:` line tells the worker to say in chat that the question is waiting and to end its turn. The lead agent relays the question to the owner. `--json` returns `answer_command`.
-- `show` and `checklist` print an `== Open questions ==` block, so the next session sees what is still unanswered.
-
-The lead records the owner's answer:
-
-```
-issue-cli answer <slug> Q-3 --option B --note "B, but revisit after the economy pass"
-```
-
-- In one write, the question collapses to `### Q-3 · answered <date> → B · D-n` and a `D-n` line (`answered in lead chat (Q-3): …`) is appended to `## Decisions`.
-- `--how` overrides "lead chat" (no `:`). A question that is not open, or an unknown option, is an error and nothing is written.
-- `--json` returns `{slug, question, answer, decision, decision_ref, decision_line}`.
-
-`ask --wait` / `ask --wait-for Q-n` still block until a question is answered (`--timeout` exits 3, like `transition --wait`), for scripts. Dispatched workers end their turn instead.
+Questions for the owner stay in chat (Claude Code or Codex; agents can message the lead with SendMessage). Only the outcome is recorded, with `decide`. `ask` and `answer` were removed in v0.40.0.
 
 ### `decide` and `decisions`
 

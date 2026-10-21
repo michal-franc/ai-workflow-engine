@@ -11,8 +11,9 @@ var decideCommand = &Command{
 	Name:      "decide",
 	ShortHelp: "Record a decision as a D-n line under ## Decisions",
 	LongHelp: `Record a decision as a dated D-n line under the issue's ## Decisions
-section: one made in chat, by a project rule or after a playtest. (Answers to
-issue-cli ask questions are recorded with issue-cli answer.) The viewer's
+section: one made in chat, by a project rule or after a playtest. Questions
+themselves stay in chat (Claude Code / Codex); only the outcome is recorded
+here. The viewer's
 Decisions tab (/p/<project>/decisions) is generated from these lines.
 
 Other issues cite a decision as <slug>#D-n anywhere in their body.
@@ -228,7 +229,7 @@ func runDecisions(ctx *Context, args []string) error {
 	}
 	if len(rows) == 0 {
 		if len(index.Entries) == 0 {
-			fmt.Fprintln(ctx.Stdout, "No decisions recorded yet. Record one with: issue-cli decide <slug> --text \"...\" (issue-cli answer records answers to questions).")
+			fmt.Fprintln(ctx.Stdout, "No decisions recorded yet. Record one with: issue-cli decide <slug> --text \"...\"")
 		} else {
 			fmt.Fprintln(ctx.Stdout, "No decisions match these filters.")
 		}

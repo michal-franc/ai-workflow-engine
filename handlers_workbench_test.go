@@ -91,25 +91,10 @@ func setupWorkbenchProject(t *testing.T, now time.Time) workbenchFixture {
 	f.paths["asked"] = writeWorkbenchIssue(t, issueDir, "asked", "in progress", "assignee: \"agent-asked\"\n", "- [ ] still building")
 
 	// ready entered "in design" 3h ago; blocked has an agent waiting for 5h;
-	// asked has an open question.
 	if err := tracker.AppendTransitionStat(f.paths["ready"], tracker.TransitionStat{From: "idea", To: "in design", TS: now.Add(-3 * time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := tracker.BeginWait(f.paths["blocked"], "in progress", now.Add(-5*time.Hour)); err != nil {
-		t.Fatal(err)
-	}
-	q := tracker.NewQuestion{
-		Text: "Does unspent gold carry over?",
-		Options: []tracker.QuestionOption{
-			{ID: "A", Label: "Reset", Tradeoff: "Simplest"},
-			{ID: "B", Label: "Carry over, capped at 300", Recommended: true},
-		},
-		Links: []string{"docs/economy.md", "https://example.com/diff"},
-	}
-	if _, err := tracker.AddQuestion(f.paths["asked"], q, now.Add(-41*time.Minute)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := tracker.BeginQuestionWait(f.paths["asked"], "Q-1", now.Add(-40*time.Minute)); err != nil {
 		t.Fatal(err)
 	}
 	return f

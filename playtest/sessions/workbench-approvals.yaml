@@ -45,20 +45,16 @@ steps:
       - issue: { slug: economy/shop-prices-per-stage, field: queued_approval, equals: "" }
 
   - id: TP6
-    title: ask writes an open question; answer turns it into a decision the Decisions tab lists
+    title: decide records a decision that the Decisions tab lists
     setup:
       - open: /p/{project}/decisions
     act:
-      - cli: [ask, economy/shop-prices-per-stage, --question, "Do prices reset when a team loses a stage?", --option, "A=Reset to stage 1 prices|Simple, but losing teams catch up fast.", --option, "B=Keep the current stage's prices|Losing hurts, but stages stay readable.", --recommend, B]
-      - check: { issue: { slug: economy/shop-prices-per-stage, body_contains: "### Q-1 · open" } }
-      - check: { cli: { args: [show, economy/shop-prices-per-stage], contains: "== Open questions" } }
-      - cli: [answer, economy/shop-prices-per-stage, Q-1, --option, B, --note, "B, losing should hurt"]
+      - cli: [decide, economy/shop-prices-per-stage, --text, "Prices stay at the current stage's level when a team loses a stage", --how, lead chat, --quote, "losing should hurt"]
       - wait_for: { visible: decisions.row.economy/shop-prices-per-stage.d-1, ms: 12000 }
     checks:
-      - text_contains: { target: decisions.row.economy/shop-prices-per-stage.d-1.how, text: answered in lead chat (Q-1) }
-      - text_contains: { target: decisions.row.economy/shop-prices-per-stage.d-1.text, text: "→ B. Keep the current stage's prices, \"B, losing should hurt\"" }
-      - issue: { slug: economy/shop-prices-per-stage, body_contains: "### Q-1 · answered" }
-      - cli: { args: [show, economy/shop-prices-per-stage], not_contains: "== Open questions" }
+      - text_contains: { target: decisions.row.economy/shop-prices-per-stage.d-1.how, text: lead chat }
+      - text_contains: { target: decisions.row.economy/shop-prices-per-stage.d-1.text, text: "Prices stay at the current stage's level" }
+      - issue: { slug: economy/shop-prices-per-stage, body_contains: "**D-1**" }
 
   - id: TP7
     title: The two approval buttons say clearly what each one approves

@@ -16,6 +16,11 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.43.0 — 2026-10-21
+
+- Approve from the agent's terminal: the `issue-approve` Claude Code mod (`claude-mods/issue-approve/`, installed once at user scope from that folder as a local marketplace) shows the issue's approvals above a dispatched agent's prompt as buttons that do what the detail page's checkboxes do. New `GET /p/<project>/issue/<slug>/approvals.json` (the same list as the Human Approval box) and `GET /project-for?cwd=<path>`; dispatch exports `ISSUE_VIEWER_PROJECT`.
+- Fix: dispatched worktrees no longer hide `demo/issues/`. Sparse-checkout excludes are anchored at the repo root (`!/issues/`), so `TestDemoConfig` passes in new worktrees.
+
 ## v0.42.0 — 2026-10-21
 
 - **Breaking:** the viewer's workflow designer is removed: the **Workflow** entry in the sidebar's More group, the `/workflow-designer` page, and its `/workflow-designer/data`, `/workflow-designer/preview` and save (`POST /workflow-designer`) endpoints. Edit `workflow.yaml` as text; `issue-cli workflow upgrade` pulls in template changes and `issue-cli process schema` prints the format. The read-only `/workflow-flow` page stays, with no sidebar entry.

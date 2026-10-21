@@ -27,7 +27,7 @@ var RunGitWorktreeAdd = func(workdir, branch, wtPath, startPoint string) ([]byte
 
 // RunGitSparseCheckout configures sparse-checkout in the new worktree to
 // exclude the given paths. Patterns are built from the excludes ('/*' to
-// include everything, then '!<path>' per exclude) and passed to
+// include everything, then '!/<path>' per exclude, anchored at the repo root) and passed to
 // `sparse-checkout set --no-cone`, which writes the pattern file. Over a
 // --no-checkout tree this does NOT materialize files — the caller must run a
 // follow-up `git checkout HEAD` to lay down the included paths. Non-cone mode
@@ -36,7 +36,9 @@ var RunGitWorktreeAdd = func(workdir, branch, wtPath, startPoint string) ([]byte
 var RunGitSparseCheckout = func(wtPath string, excludes []string) ([]byte, error) {
 	args := []string{"-C", wtPath, "sparse-checkout", "set", "--no-cone", "/*"}
 	for _, p := range excludes {
-		args = append(args, "!"+p)
+		// Anchored at the repo root: an unanchored "!issues/" also hides
+		// nested folders such as demo/issues/.
+		args = append(args, "!/"+strings.TrimPrefix(p, "/"))
 	}
 	return exec.Command("git", args...).CombinedOutput()
 }

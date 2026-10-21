@@ -1,0 +1,35 @@
+# Metric, knob and branch files for the Metrics view: a master probe run
+# (ok, near, off, one row without a band, one target that is not measured),
+# a targets file whose bands win, a knob export over Sim/Tuning.cs with two
+# changes on main, and three open branches: two worktrees (one with its own
+# uncommitted run that changes a band, adds a metric and drops one) and one
+# branch without a worktree whose committed run differs. Targets.json is
+# changed on all three (hot), Tuning.cs and data/cases.json on two.
+title: Metrics, knobs and branch overlap
+project:
+  name: Siege Demo
+  slug: sd
+issues: tracker
+workflow: workflow.yaml
+files: files
+commits:
+  - files: commits/pass1
+    message: "Play calls balance pass 1: CallNoise 0.4 -> 0.6"
+  - files: commits/pass2
+    message: "Play calls balance pass 2: OpeningPrep 30 -> 20"
+branches:
+  - name: work/sim/keep-redesign
+    worktree: true
+    commits:
+      - files: branches/keep
+        message: "Keep: outer ring, a lower call noise"
+    uncommitted: branches/keep-run
+  - name: work/sim/bugfix-sweep
+    worktree: true
+    commits:
+      - files: branches/bugfix
+        message: "Bugfix sweep"
+  - name: work/economy/shop-prices
+    commits:
+      - files: branches/shop
+        message: "Shop prices: a committed probe run"

@@ -1,0 +1,51 @@
+{
+  "metrics": [
+    {
+      "id": "full-holds",
+      "name": "Full holds, first halves",
+      "group": "Headline",
+      "band": {
+        "max": 20,
+        "unit": "pct"
+      },
+      "source": "et-core \u00a712"
+    },
+    {
+      "id": "stage-share",
+      "name": "Longest stage, share of a completed attack",
+      "group": "Headline",
+      "band": {
+        "max": 50,
+        "unit": "pct"
+      }
+    },
+    {
+      "id": "stuck",
+      "name": "Stuck fighters in the run",
+      "group": "Headline",
+      "band": {
+        "max": 0,
+        "unit": "count"
+      }
+    },
+    {
+      "id": "tier2-wait",
+      "name": "First tier-2 buy (stage 2)",
+      "group": "Slice",
+      "band": {
+        "max": 90,
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "gold-later",
+      "name": "Gold banked at a stage lock",
+      "group": "Slice",
+      "band": {
+        "min": 100,
+        "max": 200,
+        "unit": "count"
+      }
+    }
+  ]
+}

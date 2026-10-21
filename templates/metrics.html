@@ -168,9 +168,9 @@
                 <thead><tr><th>Knob</th><th>Value</th><th>Comment</th><th>Last change</th><th>System</th></tr></thead>
                 <tbody>
                 {{range $k := .Knobs}}
-                <tr class="knob-row" data-testid="knobs.row.{{tid $k.Name}}">
+                <tr class="knob-row" data-testid="knobs.row.{{tid $k.Name}}" onclick="toggleKnob(this, event)">
                     <td>
-                        <button type="button" class="knob-toggle" aria-expanded="false" aria-controls="knob-{{tid $k.Name}}" onclick="toggleKnob(this)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><span class="mono knob-name">{{$k.Name}}</span></button>
+                        <button type="button" class="knob-toggle" aria-expanded="false" aria-controls="knob-{{tid $k.Name}}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><span class="mono knob-name">{{$k.Name}}</span></button>
                         {{if $k.Line}}<div class="mono muted knob-line">line {{$k.Line}}</div>{{end}}
                     </td>
                     <td class="mono knob-value">{{$k.Value}}</td>
@@ -269,12 +269,16 @@
 </div>
 </div>
 <script>
-function toggleKnob(btn) {
+// A click anywhere on a knob row (the chevron button included) opens it;
+// links inside the row keep their own click.
+function toggleKnob(tr, ev) {
+    if (ev && ev.target.closest('a')) return;
+    var btn = tr.querySelector('.knob-toggle');
     var row = document.getElementById(btn.getAttribute('aria-controls'));
     var open = btn.getAttribute('aria-expanded') !== 'true';
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     row.hidden = !open;
-    btn.closest('tr').classList.toggle('open', open);
+    tr.classList.toggle('open', open);
 }
 (function() {
     var prefix = {{.Prefix}};

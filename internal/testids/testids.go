@@ -196,6 +196,7 @@ var IDs = []string{
 	"decisions.toast",
 
 	// Metrics view (templates/metrics.html): guard metrics, knobs, branches.
+	"balance.group.*.guard",
 	"metrics.page",
 	"metrics.counts",
 	"metrics.tab.metrics",

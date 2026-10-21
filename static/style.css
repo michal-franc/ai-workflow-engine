@@ -3449,6 +3449,7 @@ a.chip { text-decoration: none; }
 .metric-branch-note { display: block; font-size: 11px; color: var(--text-secondary); }
 .verdict { font-variant-numeric: tabular-nums; }
 .knob-file-head { padding: 10px 14px; background: var(--bg-sidebar); border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; }
+.knob-row { cursor: pointer; }
 .knob-toggle { all: unset; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
 .knob-toggle:focus-visible { outline: 2px solid var(--text-link); outline-offset: 2px; border-radius: 4px; }
 .knob-toggle svg { color: var(--text-secondary); transition: transform 0.15s; }
@@ -3498,3 +3499,4 @@ a.chip { text-decoration: none; }
 .wb-panel-knob-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .wb-panel-knob-top .mono.muted { font-size: 11px; }
 .wb-panel-foot { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; font-size: 13px; border-top: 1px solid var(--border-subtle); }
+.balance-guard { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-secondary); flex-wrap: wrap; }

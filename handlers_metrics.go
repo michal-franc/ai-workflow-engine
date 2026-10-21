@@ -97,13 +97,13 @@ type KnobGroupView struct {
 // BranchView is one row of the Branches tab.
 type BranchView struct {
 	tracker.OpenBranch
-	Title  string           `json:"title,omitempty"`
-	Status string           `json:"status,omitempty"`
-	Files  int              `json:"files"`
+	Title  string             `json:"title,omitempty"`
+	Status string             `json:"status,omitempty"`
+	Files  int                `json:"files"`
 	Deps   []tracker.IssueDep `json:"deps,omitempty"`
-	Shares string           `json:"-"`
-	BaseOf int              `json:"base_of,omitempty"` // open branches built on this one
-	Hints  []BranchHint     `json:"hints,omitempty"`
+	Shares string             `json:"-"`
+	BaseOf int                `json:"base_of,omitempty"` // open branches built on this one
+	Hints  []BranchHint       `json:"hints,omitempty"`
 }
 
 // BranchHint is a note on a branch row, with an optional command to fix it.

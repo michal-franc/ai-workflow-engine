@@ -72,7 +72,6 @@ type statusUpdateResponse struct {
 	Status string `json:"status"`
 }
 
-
 func (s *Server) handleWorkflowDesigner(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
 	wf := proj.LoadWorkflow()
 	workflowJSON, err := json.MarshalIndent(wf, "", "  ")
@@ -180,7 +179,7 @@ func (s *Server) handleRetros(w http.ResponseWriter, r *http.Request, proj *trac
 		bugs = filterBugsByStatus(bugs, bugStatus)
 	}
 
-	_, activeBots := sessionsByIssueSlug(issues)
+	_, activeBots := sessionsByIssueSlug(proj, issues)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "retros.html", RetrosData{

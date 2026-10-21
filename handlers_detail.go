@@ -120,7 +120,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		slugMap[filepath.Base(issue.Slug)] = issue.Slug
 	}
 
-	sessionMap, activeBots := sessionsByIssueSlug(issues)
+	sessionMap, activeBots := sessionsByIssueSlug(proj, issues)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	wf := proj.LoadWorkflowForIssue(found)

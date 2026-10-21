@@ -60,13 +60,19 @@ func stubAgentsGit(t *testing.T) {
 
 func TestAgentsModel(t *testing.T) {
 	proj := setupAgentsProject(t)
+	proj.TmuxSession = "work"
 	stubAgentsGit(t)
 	withMockTmuxSessions(t, []AgentSession{
-		{Name: "lead-ui-epic"},
-		{Name: "agent-ui-child"},
+		{Name: "work:lead-ui-epic"},
+		{Name: "work:agent-ui-child"},
 		{Name: "work:agent-ui-asker"},
-		{Name: "agent-agents-ux-review"},
+		{Name: "work:agent-agents-ux-review"},
 		{Name: "zsh"},
+		// Another project's agents on the same tmux server, one with a
+		// colliding name: none of them may show up here.
+		{Name: "roguetech:agent-ui-idle"},
+		{Name: "roguetech:agent-combat-remove-the-2d-view"},
+		{Name: "agent-standalone-elsewhere", Path: "/elsewhere"},
 	})
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()

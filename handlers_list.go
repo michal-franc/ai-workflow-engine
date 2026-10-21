@@ -85,7 +85,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracke
 
 	wf := proj.LoadWorkflow()
 	filtered := filterByType(filterIssues(issues, filter), wf, filter.Type)
-	sessionMap, activeBots := sessionsByIssueSlug(issues)
+	sessionMap, activeBots := sessionsByIssueSlug(proj, issues)
 
 	views := issueViews(filtered, sessionMap)
 	attachWorkTypes(views, wf)
@@ -132,7 +132,7 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracke
 
 func (s *Server) handleHash(w http.ResponseWriter, r *http.Request, proj *tracker.Project) {
 	issues, _ := tracker.LoadIssues(proj.IssueDir)
-	sessionMap, activeBots := sessionsByIssueSlug(issues)
+	sessionMap, activeBots := sessionsByIssueSlug(proj, issues)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"hash": issuesHash(issues, sessionMap, activeBots)})
 }
@@ -169,7 +169,7 @@ type issueJSON struct {
 
 func (s *Server) handleIssuesJSON(w http.ResponseWriter, r *http.Request, proj *tracker.Project) {
 	issues, _ := tracker.LoadIssues(proj.IssueDir)
-	sessionMap, _ := sessionsByIssueSlug(issues)
+	sessionMap, _ := sessionsByIssueSlug(proj, issues)
 	wf := proj.LoadWorkflow()
 	result := make([]issueJSON, len(issues))
 	for i, issue := range issues {

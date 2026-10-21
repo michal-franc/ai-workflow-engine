@@ -1,3 +1,41 @@
+template: development@v0.36.0
+
+# Feature record: catalog features this file has (<id>@<version>) and the
+# ones the human declined. Written by `issue-cli workflow scan`, read by
+# `issue-cli workflow upgrade`.
+features:
+  installed:
+    - status-prompts@v0.36.0
+    - optional-statuses@v0.36.0
+    - parked-status@v0.36.0
+    - wildcard-transitions@v0.36.0
+    - transition-fields@v0.36.0
+    - types-of-work@v0.36.0
+    - system-overlays@v0.36.0
+    - human-approval-gates@v0.36.0
+    - checklist-gates@v0.36.0
+    - assignee-gate@v0.36.0
+    - test-plan-gate@v0.36.0
+    - comment-evidence-gates@v0.36.0
+    - body-structure-gates@v0.36.0
+    - failure-hints@v0.36.0
+    - checklist-sections@v0.36.0
+    - transition-prompts@v0.36.0
+    - set-fields@v0.36.0
+    - issue-actions@v0.36.0
+    - project-actions@v0.36.0
+    - board-columns@v0.36.0
+    - board-card-fields@v0.36.0
+    - worktree@v0.36.0
+    - lead-handoff-prompts@v0.36.0
+    - design-overlap-discoverability@v0.36.0
+    - sandbox-manual-tests@v0.36.0
+    - playtest-sessions@v0.36.0
+    - testing-unrelated-failures@v0.36.0
+  declined:
+    - shell-gate
+    - scoring
+
 # Issue-viewer dispatches concurrent agents on different issues, so each
 # session needs its own working tree to avoid stomping on uncommitted state.
 worktree: true
@@ -13,6 +51,7 @@ board:
     - documentation
     - shipping
     - done
+    - parked
   card_fields:
     - system
     - labels
@@ -66,6 +105,7 @@ statuses:
     description: "Committing and pushing changes"
     prompt: |
       Ship straight to main. There are no pull requests: never open one.
+      You reach shipping only after the owner has run your playtest and approved documentation, so pushing to main is part of your job here: do it without asking first.
       1. Add a `## vX.Y.Z — YYYY-MM-DD` entry to `cmd/issue-cli/CHANGELOG.md` with the user-facing change summary. The release-marker GitHub Action reads the version from this entry and creates the tag + GitHub Release when your commit lands on main; do not create or push tags yourself.
       2. Commit on your branch with a message referencing the issue.
       3. `git fetch origin && git merge origin/main`, resolve any conflicts, and run `make validate`. If main already has your version in the CHANGELOG, bump yours above it.
@@ -77,6 +117,12 @@ statuses:
       Once your commit is on main and the Shipping boxes are ticked, move the issue to `done` yourself (`issue-cli transition <slug> --to "done"`); it needs no human approval. Polishing the GitHub release description is the human's responsibility. Leave the worktree as it is: nobody has to remove it.
   - name: "done"
     description: "Completed"
+  - name: "parked"
+    description: "Blocked, deferred or won't do, with a recorded reason"
+    optional: true
+    global: true
+    prompt: |
+      This issue is parked. Don't work on it. If you were dispatched onto it, tell the human it is parked (the reason is under ## Parked Record) and end your turn.
 
 transitions:
   - from: "idea"
@@ -225,6 +271,15 @@ transitions:
     actions:
       - type: "validate"
         rule: "section_checkboxes_checked: Shipping"
+  # Park from anywhere (blocked, deferred, or won't do); leave to any status.
+  - from: "*"
+    to: "parked"
+    fields:
+      - name: "parked_reason"
+        prompt: "Why is it parked? (blocked on…, deferred until…, or won't do because…)"
+        target: "section:Parked Record"
+        type: "multiline"
+        required: true
 
 # Custom one-shot agent buttons, rendered on the issue detail view below the
 # built-in Claude/Codex dispatch buttons. Each opens a tmux agent session
@@ -405,3 +460,98 @@ systems:
           Reference docs/Workflow/overview.md for the current workflow documentation structure.
     transitions:
       []
+
+# Types of work (docs/Workflow/types.md): an issue's `type:` picks its path.
+# Unset or unknown types get default_type, so existing issues keep the full path.
+default_type: feature
+
+types:
+  feature:
+    description: "New behaviour: the full path through design, testing and docs"
+    # no path: every base status and edge
+
+  tweak:
+    description: "A small change the human already decided (their words in the body); no design, no new behaviour"
+    path: [idea, in progress, testing, shipping, done, parked]
+    statuses:
+      - name: "in progress"
+        prompt: |
+          Tweak: build exactly what the body says the human decided, nothing more. No design doc.
+          If it turns out to need new behaviour or a design decision, say in chat that the type should change to feature (in the issue viewer) and end your turn.
+    transitions:
+      - from: "idea"
+        to: "in progress"
+        actions:
+          - type: "validate"
+            rule: "body_not_empty"
+          - type: "require_human_approval"
+            status: "in progress"
+          - type: "validate"
+            rule: "has_assignee"
+          - type: "append_section"
+            title: "Implementation"
+            body: |
+              - [ ] Change made as decided, nothing more
+              - [ ] Automated tests added or updated where practical
+          - type: "append_section"
+            title: "Test Plan"
+            body: |
+              ### Automated
+              - [ ] Automated verification recorded
+
+              ### Manual
+              - [ ] Manual check listed if the change is visible (a playtest session when it shows on the board)
+      - from: "testing"
+        to: "shipping"
+        actions:
+          - type: "validate"
+            rule: "section_checkboxes_checked: Testing"
+          - type: "validate"
+            rule: "has_comment_prefix: tests:"
+          - type: "require_human_approval"
+            status: "shipping"
+          - type: "append_section"
+            title: "Shipping"
+            body: |
+              - [ ] Changes committed with a message referencing the issue
+              - [ ] `cmd/issue-cli/CHANGELOG.md` updated with `## vX.Y.Z — YYYY-MM-DD` entry (release-marker reads version from this)
+              - [ ] `origin/main` merged into the branch and `make validate` green after the merge
+              - [ ] Pushed straight to main (`git push origin HEAD:main`, no pull request)
+
+  bugfix:
+    description: "Something that worked is broken: a repro and a failing test first, then the fix"
+    path: [idea, in progress, testing, human-testing, documentation, shipping, done, parked]
+    statuses:
+      - name: "idea"
+        prompt: |
+          A bug: write a `## Repro` section with the exact steps or test, what happens, what should happen, and since when if known.
+          Then say in chat that it needs `in progress` approval in the issue viewer, and end your turn; the lead (or the human) resumes you once it is approved.
+      - name: "in progress"
+        prompt: |
+          Bugfix: first write a test that fails on the bug, then fix it. No design doc.
+          If the fix changes behaviour the design decided, say in chat that the type should change to feature (in the issue viewer) and end your turn.
+    transitions:
+      - from: "idea"
+        to: "in progress"
+        actions:
+          - type: "validate"
+            rule: "has_section"
+            section: "Repro"
+            hint: "issue-cli append {{slug}} --body \"## Repro\\n<steps>, what happens, what should happen\""
+          - type: "require_human_approval"
+            status: "in progress"
+          - type: "validate"
+            rule: "has_assignee"
+          - type: "append_section"
+            title: "Implementation"
+            body: |
+              - [ ] Failing test written first
+              - [ ] Fix makes it pass; no other behaviour changes
+          - type: "append_section"
+            title: "Test Plan"
+            body: |
+              ### Automated
+              - [ ] Automated verification recorded
+
+              ### Manual
+              - [ ] Repro steps re-run and the bug is gone (a playtest session when it shows on the board)

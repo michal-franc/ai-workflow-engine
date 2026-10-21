@@ -85,7 +85,7 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request, proj *tra
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	sessionMap, activeBots := sessionsByIssueSlug(issues)
+	sessionMap, activeBots := sessionsByIssueSlug(proj, issues)
 	wb := proj.LoadWorkflow().Workbench
 	data := BalanceData{
 		Prefix:         prefix,

@@ -16,11 +16,12 @@ var sessionLive = func(proj *tracker.Project) func(string) bool {
 	return func(name string) bool { return agentrun.IsLive(proj, name) }
 }
 
-// liveSessionNames lists the bare names (agent-x, lead-y) of every live tmux
-// session and shared-session window. A var for tests.
-var liveSessionNames = func() map[string]bool {
+// liveSessionNames lists the bare names (agent-x, lead-y) of proj's live tmux
+// sessions and shared-session windows; other projects' agents on the same
+// tmux server are left out. A var for tests.
+var liveSessionNames = func(proj *tracker.Project) map[string]bool {
 	names := map[string]bool{}
-	for _, s := range agentrun.ListSessions() {
+	for _, s := range agentrun.ForProject(proj, projectRoot(proj), agentrun.ListSessions()) {
 		names[agentrun.BareName(s.Name)] = true
 	}
 	return names

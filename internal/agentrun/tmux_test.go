@@ -1,6 +1,7 @@
 package agentrun
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
@@ -26,5 +27,45 @@ func TestAttachCmdNamesPrivateServer(t *testing.T) {
 	t.Setenv("TMUX_TMPDIR", "/tmp/my dir")
 	if got := AttachCmd(proj, "lead-p"); got != "TMUX_TMPDIR='/tmp/my dir' tmux attach -t lead-p" {
 		t.Errorf("quoted dir: %q", got)
+	}
+}
+
+// Every project's agents share one tmux server and the agent-<slug> naming,
+// so listings are scoped: a shared-session project keeps its own session's
+// windows, a per-agent-session project keeps standalone sessions started under
+// its root.
+func TestForProject(t *testing.T) {
+	sessions := []Session{
+		{Name: "work:agent-a"},
+		{Name: "work:lead-p"},
+		{Name: "other:agent-a"},
+		{Name: "agent-b", Path: "/proj/.worktrees/b"},
+		{Name: "agent-c", Path: "/proj"},
+		{Name: "agent-d", Path: "/projector"},
+		{Name: "agent-e", Path: "/elsewhere"},
+		{Name: "agent-f"},
+	}
+	names := func(ss []Session) []string {
+		var out []string
+		for _, s := range ss {
+			out = append(out, s.Name)
+		}
+		return out
+	}
+
+	shared := &tracker.Project{Slug: "p", TmuxSession: "work"}
+	if got := names(ForProject(shared, "/proj", sessions)); strings.Join(got, ",") != "work:agent-a,work:lead-p" {
+		t.Errorf("shared session: %v", got)
+	}
+	perAgent := &tracker.Project{Slug: "p"}
+	if got := names(ForProject(perAgent, "/proj", sessions)); strings.Join(got, ",") != "agent-b,agent-c,agent-f" {
+		t.Errorf("per-agent sessions: %v", got)
+	}
+}
+
+func TestParseSessions(t *testing.T) {
+	got := ParseSessions("issue-viewer\t1792610000\t/home/u/Work\nbad\n\nagent-x\t1792610100\t/p/.worktrees/x\n")
+	if len(got) != 2 || got[0].Name != "issue-viewer" || got[0].Path != "/home/u/Work" || got[1].Path != "/p/.worktrees/x" || got[0].StartTime == "" {
+		t.Errorf("ParseSessions = %+v", got)
 	}
 }

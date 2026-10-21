@@ -41,8 +41,14 @@ func listSharedAgentWindows() []AgentSession { return agentrun.ListSharedWindows
 
 func parseSharedAgentWindows(out string) []AgentSession { return agentrun.ParseSharedWindows(out) }
 
-func sessionsByIssueSlug(issues []*tracker.Issue) (map[string][]AgentSession, int) {
-	sessions := listTmuxSessions()
+// projectSessions lists the live tmux sessions and shared-session windows
+// that belong to proj, never another project's agents on the same server.
+func projectSessions(proj *tracker.Project) []AgentSession {
+	return agentrun.ForProject(proj, projectRoot(proj), listTmuxSessions())
+}
+
+func sessionsByIssueSlug(proj *tracker.Project, issues []*tracker.Issue) (map[string][]AgentSession, int) {
+	sessions := projectSessions(proj)
 	result := make(map[string][]AgentSession, len(issues))
 	matchedSessionNames := map[string]bool{}
 	for _, issue := range issues {

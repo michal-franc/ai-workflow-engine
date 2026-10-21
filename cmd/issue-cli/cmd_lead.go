@@ -313,7 +313,7 @@ func runLeadList(ctx *Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("cannot load issues: %w", err)
 	}
-	rows := leadRows(proj, issues, liveSessionNames(), projectRoot(proj))
+	rows := leadRows(proj, issues, liveSessionNames(proj), projectRoot(proj))
 	if ctx.JSONOutput {
 		return writeJSON(ctx.Stdout, rows)
 	}

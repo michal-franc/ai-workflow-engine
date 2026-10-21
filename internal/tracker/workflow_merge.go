@@ -53,6 +53,7 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 		Leads:          w.Leads,
 		Board:          cloneBoardConfig(w.Board),
 		Scoring:        cloneScoringConfig(w.Scoring),
+		Workbench:      cloneWorkbench(w.Workbench),
 		AllowShell:     w.AllowShell,
 		Worktree:       w.Worktree,
 		WorktreeSetup:  w.WorktreeSetup,

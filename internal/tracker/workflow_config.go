@@ -188,6 +188,9 @@ type WorkflowConfig struct {
 	Leads   LeadsConfig         `yaml:"leads,omitempty" desc:"Briefs for lead agents: project (the project lead) and epic (a sub-lead); prompts template with {{project}}/{{lead}}/{{project_lead}}/{{epic}}/{{title}}/{{base}}"`
 	Board   WorkflowBoardConfig `yaml:"board" desc:"Board display configuration"`
 	Scoring ScoringConfig       `yaml:"scoring,omitempty" desc:"Ticket scoring policy (opt-in)"`
+	// Workbench points the workbench views at the project's own files. It is
+	// project-wide: system overlays cannot override it.
+	Workbench WorkbenchConfig `yaml:"workbench,omitempty" desc:"Optional workbench views config: systems, metric sources, tuning files, balance (paths relative to the project root)"`
 	// AllowShell opts in to the command_succeeds validator. When false, any
 	// transition with a command_succeeds rule fails at validate time.
 	AllowShell bool `yaml:"allow_shell,omitempty" desc:"Permit command_succeeds validators to run shell commands (default false)"`

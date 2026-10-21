@@ -1,0 +1,35 @@
+statuses:
+  - name: "idea"
+    description: "Raw idea"
+  - name: "in design"
+    description: "Being designed"
+  - name: "backlog"
+    description: "Ready to work on"
+  - name: "in progress"
+    description: "Being built"
+  - name: "testing"
+    description: "Being checked"
+  - name: "done"
+    description: "Finished"
+
+transitions:
+  - from: "idea"
+    to: "in design"
+  - from: "in design"
+    to: "backlog"
+    actions:
+      - type: "require_human_approval"
+        status: "backlog"
+  - from: "backlog"
+    to: "in progress"
+    actions:
+      - type: "require_human_approval"
+        status: "in progress"
+  - from: "in progress"
+    to: "testing"
+  - from: "testing"
+    to: "done"
+
+workbench:
+  balance:
+    comment_prefix: "balance:"

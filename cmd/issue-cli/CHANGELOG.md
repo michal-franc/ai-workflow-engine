@@ -16,6 +16,16 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.38.0 — 2026-10-21
+
+- New Decisions tab, `/p/<project>/decisions`: a generated index of every `- **D-n** · date · how: …` line under the issues' `## Decisions` sections, with how it was made, the quote, the recording issue, the issues that cite it (`<slug>#D-n`) and its state: active, deferred, replaced, or replaced · stale when open issues still cite a replaced decision. System and state chips filter it, and "copy ref" copies the ref. Nobody edits the list; it reloads when an issue changes.
+- `issue-cli decide <slug> --text "…" [--how ..] [--quote ..] [--deferred] [--replaces <slug>#D-n]` records a decision. With `--replaces` it lists the open issues that still cite the old one. `issue-cli decisions [--system] [--state] [--issue] [--json]` prints the same index, and `show` prints a `== Cites replaced decisions ==` block on a citing issue.
+- Structured questions: `issue-cli ask <slug> --question .. --option "A=Label|Tradeoff" … --recommend B` writes a `### Q-n · open` entry under `## Questions`; the worker says so in chat and stops, and the lead relays it. `issue-cli answer <slug> Q-n --option B [--note ..]` collapses the question to an answered pointer and appends an "answered in lead chat (Q-n)" decision. `show` and `checklist` print open questions. `ask --wait` / `--wait-for Q-n` block until answered (`--timeout` exits 3), for scripts.
+- New Balance tab, `/p/<project>/balance`, opt-in with a `workbench.balance` block in `workflow.yaml`: typed `balance:` notes grouped by metric (state, hypothesis, change, evidence, verdict, pass, earlier notes), joint passes from `balance_pass:` issues with a Start pass button, and free-text `balance:` comments under Unsorted. `issue-cli balance <slug> --metric .. --state ..` writes a typed note (a later note with the same metric and change updates it), and `balance --list` prints the current notes. Without the block the tab is hidden.
+- Queued approvals: the detail page's "Approved for backlog and in progress" sets `human_approval: backlog` and `queued_approval: in progress`, so an agent goes design → backlog → in progress with one click. A second click clears both.
+- `workflow.yaml` accepts an optional, project-wide `workbench:` block (systems, metrics, tuning, balance). Paths must be relative and stay inside the project root; `process schema` lists it.
+- Playtest: a `workbench` scenario and sessions for the Decisions tab, the Balance tab and queued approvals / ask / answer, with `data-testid` labels on both pages.
+
 ## v0.37.0 — 2026-10-21
 
 - Lead agents are a feature, not a convention. A project lead (`lead-<project>`, in the project checkout) supervises the project; a sub-lead (`lead-<epic-slug>`) stabilises one epic on its base branch. The depth is fixed at project lead → sub-lead → worker.

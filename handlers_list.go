@@ -133,6 +133,15 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request, proj *tracke
 func (s *Server) handleHash(w http.ResponseWriter, r *http.Request, proj *tracker.Project) {
 	issues, _ := tracker.LoadIssues(proj.IssueDir)
 	sessionMap, activeBots := sessionsByIssueSlug(issues)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"hash": issuesHash(issues, sessionMap, activeBots)})
+}
+
+// issuesHash is the /hash value: it changes when any issue file, status,
+// assignee or matching agent session changes. Generated views render it
+// into the page so the first poll already detects a change made after the
+// render.
+func issuesHash(issues []*tracker.Issue, sessionMap map[string][]AgentSession, activeBots int) string {
 	h := sha256.New()
 	for _, issue := range issues {
 		fmt.Fprintf(h, "%s:%s:%s:%d\n", issue.Slug, issue.Status, issue.Assignee, issue.ModTime.UnixNano())
@@ -141,8 +150,7 @@ func (s *Server) handleHash(w http.ResponseWriter, r *http.Request, proj *tracke
 		}
 	}
 	fmt.Fprintf(h, "active-bots:%d\n", activeBots)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"hash": fmt.Sprintf("%x", h.Sum(nil))})
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 type issueJSON struct {

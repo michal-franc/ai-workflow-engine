@@ -715,6 +715,13 @@ Description in markdown. Supports checkboxes and #<slug> references.
 
 == Optional ==
   status, system, version, assignee, priority, labels, created
+
+== Decisions ==
+  Numbered lines under ## Decisions (written by 'issue-cli answer' and
+  'issue-cli decide'; listed on the viewer's Decisions tab):
+  - **D-3** · 2026-10-06 · chat: Only the main keep heals (replaces sim/x#D-1)
+  Cite one from another issue as <slug>#D-n. A replaced decision that open
+  issues still cite is "stale". See: issue-cli help decide
 `
 
 const processTestingText = `== Test Plan Convention ==

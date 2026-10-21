@@ -27,6 +27,8 @@
                 {{if .SupportsGitHub}}
                 <a href="{{.Prefix}}/github" class="view-tab">GitHub</a>
                 {{end}}
+                <a href="{{.Prefix}}/decisions" data-testid="nav.tab.decisions" class="view-tab">Decisions</a>
+                {{if workbenchTab "balance" .Prefix}}<a href="{{.Prefix}}/balance" data-testid="nav.tab.balance" class="view-tab">Balance</a>{{end}}
             </nav>
         </div>
     </div>

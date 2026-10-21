@@ -197,12 +197,22 @@
                 <div class="sidebar-section">
                     <h3>Human Approval</h3>
                     {{range .NeedsApprovals}}
+                    {{$status := .}}
                     <div class="sidebar-value">
                         <button id="approve-{{statusFragment .}}" data-testid="detail.approve.{{tid .}}" class="approve-btn {{if eq $.Issue.HumanApproval .}}approved{{end}}" data-status="{{.}}" onclick="toggleApproval('{{.}}')">
                             <span class="approve-check">{{if eq $.Issue.HumanApproval .}}&#10003;{{else}}&#9744;{{end}}</span>
                             Human-approved for {{.}}
                         </button>
                     </div>
+                    {{with index $.ApproveThen .}}
+                    {{$both := and (eq $.Issue.HumanApproval $status) (eq $.Issue.QueuedApproval .)}}
+                    <div class="sidebar-value">
+                        <button id="approve-then-{{statusFragment $status}}" data-testid="detail.approve_then.{{tid $status}}" class="approve-btn approve-then-btn {{if $both}}approved{{end}}" data-then-status="{{$status}}" data-then="{{.}}" onclick="toggleApproval('{{$status}}', '{{.}}')" title="Approves {{$status}} now and queues {{.}}, so the agent's start continues into {{.}} without a second approval">
+                            <span class="approve-check">{{if $both}}&#10003;{{else}}&#9744;{{end}}</span>
+                            Approved for {{$status}} and {{.}}
+                        </button>
+                    </div>
+                    {{end}}
                     {{end}}
                     {{range .OptionalApprovals}}
                     {{$open := eq $.Issue.HumanApproval .Status}}
@@ -923,30 +933,33 @@
         document.getElementById('type-status-pick').style.display = 'none';
     }
 
-    function toggleApproval(status) {
+    function toggleApproval(status, then) {
+        const payload = { status: status };
+        if (then) payload.then = then;
         fetch(issueURL + '/approve', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: status })
+            body: JSON.stringify(payload)
         }).then(res => res.json()).then(data => {
-            document.querySelectorAll('.approve-btn[data-status]').forEach(btn => {
-                const btnStatus = btn.dataset.status;
+            const mark = (btn, on) => {
                 const check = btn.querySelector('.approve-check');
-                if (data.human_approval === btnStatus) {
-                    btn.classList.add('approved');
-                    if (check) check.innerHTML = '&#10003;';
-                } else {
-                    btn.classList.remove('approved');
-                    if (check) check.innerHTML = '&#9744;';
-                }
+                btn.classList.toggle('approved', on);
+                if (check) check.innerHTML = on ? '&#10003;' : '&#9744;';
+            };
+            document.querySelectorAll('.approve-btn[data-status]').forEach(btn => {
+                mark(btn, data.human_approval === btn.dataset.status);
+            });
+            document.querySelectorAll('.approve-btn[data-then-status]').forEach(btn => {
+                mark(btn, data.human_approval === btn.dataset.thenStatus && data.queued_approval === btn.dataset.then);
             });
             if (data.human_approval) {
+                const what = data.queued_approval ? 'Approved for ' + data.human_approval + ' and ' + data.queued_approval : 'Human approval set';
                 if (data.notified_session) {
-                    showToast('Human approval set and sent to bot session ' + data.notified_session);
+                    showToast(what + ' and sent to bot session ' + data.notified_session);
                 } else if (data.notification_error) {
-                    showToast('Human approval set, but bot notification was not delivered: ' + data.notification_error);
+                    showToast(what + ', but bot notification was not delivered: ' + data.notification_error);
                 } else {
-                    showToast('Human approval set');
+                    showToast(what);
                 }
             } else {
                 showToast('Human approval removed');

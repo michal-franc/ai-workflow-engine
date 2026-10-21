@@ -29,6 +29,7 @@ type AgentSession = agentrun.Session
 type approvalResponse struct {
 	Status              string `json:"status"`
 	HumanApproval       string `json:"human_approval"`
+	QueuedApproval      string `json:"queued_approval,omitempty"`
 	NotifiedSession     string `json:"notified_session,omitempty"`
 	NotificationMessage string `json:"notification_message,omitempty"`
 	NotificationError   string `json:"notification_error,omitempty"`
@@ -41,10 +42,29 @@ func NewServer(projects []tracker.Project) (*Server, error) {
 		return nil, err
 	}
 
-	return &Server{
+	s := &Server{
 		projects: projects,
 		tmpl:     tmpl,
-	}, nil
+	}
+	tmpl.Funcs(template.FuncMap{"workbenchTab": s.workbenchTab})
+	return s, nil
+}
+
+// workbenchTab reports whether the project behind a /p/<slug> prefix has the
+// workbench view kind ("balance", "systems") configured in workflow.yaml.
+func (s *Server) workbenchTab(kind, prefix string) bool {
+	proj := s.findProject(strings.TrimPrefix(prefix, "/p/"))
+	if proj == nil {
+		return false
+	}
+	wb := proj.LoadWorkflow().Workbench
+	switch kind {
+	case "balance":
+		return wb.HasBalance()
+	case "systems":
+		return wb.HasSystems()
+	}
+	return false
 }
 
 func (s *Server) findProject(slug string) *tracker.Project {
@@ -128,6 +148,10 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleWorkflowDesignerPreview(w, r, proj)
 	case rest == "workflow-designer" && r.Method == http.MethodPost:
 		s.handleSaveWorkflowDesigner(w, r, proj)
+	case rest == "decisions" && r.Method == http.MethodGet:
+		s.handleDecisions(w, r, proj, prefix)
+	case rest == "balance" && r.Method == http.MethodGet:
+		s.handleBalance(w, r, proj, prefix)
 	case rest == "hash":
 		s.handleHash(w, r, proj)
 	case rest == "issues.json":

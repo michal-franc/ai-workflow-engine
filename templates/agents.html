@@ -30,6 +30,8 @@
                 {{if .SupportsGitHub}}
                 <a href="{{.Prefix}}/github" class="view-tab">GitHub</a>
                 {{end}}
+                <a href="{{.Prefix}}/decisions" class="view-tab">Decisions</a>
+                {{if workbenchTab "balance" .Prefix}}<a href="{{.Prefix}}/balance" class="view-tab">Balance</a>{{end}}
             </nav>
             <div class="theme-picker">
                 <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>

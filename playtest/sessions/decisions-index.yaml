@@ -1,0 +1,128 @@
+session: decisions-index
+issue: ui/workbench-decisions-index-generated-from-decisions
+title: Decisions index - recorded decisions, a direction change, stale citations, filters
+scenario: workbench
+
+# Desktop: decisions-phone checks the phone layout.
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+  # Known bug: with the Agents, Decisions and Balance tabs the shared header
+  # no longer fits a 1440px container and scrolls sideways (as on list,
+  # board and detail). The header issue covers it; remove then.
+  layout_ignore: [header.bar]
+
+steps:
+  - id: TP4
+    title: Every project page has a Decisions tab; the List landing page is unchanged
+    setup:
+      - open: /p/{project}/
+    act:
+      - check: { selected: nav.tab.list }
+      - check: { visible: [nav.tab.board, nav.tab.graph, nav.tab.canvas, nav.tab.docs, nav.tab.decisions] }
+      - open: /p/{project}/board
+      - check: { visible: nav.tab.decisions }
+      - open: /p/{project}/canvas
+      - check: { visible: nav.tab.decisions }
+      - open: /p/{project}/docs
+      - click: nav.tab.decisions
+      - wait_for: { url: { contains: /decisions } }
+    checks:
+      - selected: nav.tab.decisions
+      - visible: [nav.tab.list, nav.tab.board, nav.tab.canvas]
+
+  - id: TP5
+    title: The index lists the 5 recorded decisions; fenced and free-form lines are not listed
+    setup:
+      - open: /p/{project}/decisions
+    checks:
+      - count: { pattern: decisions.row.*.*, equals: 5 }
+      - text_equals: { target: decisions.stat.total, text: 5 DECISIONS }
+      - text_equals: { target: decisions.stat.active, text: 4 ACTIVE }
+      - text_equals: { target: decisions.stat.stale, text: 0 STALE CITATIONS }
+      - text_contains: { target: decisions.row.economy/gold-and-items-shop.d-1.text, text: "→ B. Carry over, capped at 300, \"B, but revisit after the economy pass\"" }
+      - text_contains: { target: decisions.row.economy/gold-and-items-shop.d-1.how, text: "answered in lead chat (Q-1) · also considered: A Reset to the stage's starting gold; C Carry over in full" }
+      - text_equals: { target: decisions.row.economy/gold-and-items-shop.d-1.cited, text: none yet }
+      - text_contains: { target: decisions.row.sim/lane-formations-morale-waves-and-mixing.d-5.how, text: · deferred }
+      - text_equals: { target: decisions.row.sim/lane-formations-morale-waves-and-mixing.d-5.state, text: deferred }
+      - text_equals: { target: decisions.row.ui/company-lineup-panel.d-2.cited, text: 1 issue }
+      - text_equals: { target: decisions.row.sim/gdd-match-phases.d-1.state, text: active }
+      - absent: decisions.row.ui/company-lineup-panel.d-9
+
+  - id: TP6
+    title: A direction change recorded with decide --replaces reloads the page and marks the old decisions stale
+    setup:
+      - open: /p/{project}/decisions
+    act:
+      - cli: [decide, sim/et-style-objective-format-6v6, --text, "The continuous raid becomes an ET-style objective format, 6v6.", --how, chat, --quote, "The old continuous raid had no readable tension.", --replaces, "sim/gdd-match-phases#D-1", --replaces, "sim/gdd-match-format-and-length#D-1"]
+      - wait_for: { visible: decisions.row.sim/et-style-objective-format-6v6.d-1, ms: 12000 }
+    checks:
+      - count: { pattern: decisions.row.*.*, equals: 6 }
+      - text_equals: { target: decisions.stat.active, text: 3 ACTIVE }
+      - text_equals: { target: decisions.stat.replaced, text: 2 REPLACED }
+      - text_equals: { target: decisions.stat.stale, text: 2 STALE CITATIONS }
+      - text_equals: { target: decisions.row.sim/gdd-match-phases.d-1.state, text: replaced · stale }
+      - text_equals: { target: decisions.row.sim/gdd-match-format-and-length.d-1.state, text: replaced · stale }
+      - text_contains: { target: decisions.row.sim/gdd-match-phases.d-1.cited, text: 2 open issues still cite it }
+      - text_contains: { target: decisions.row.sim/gdd-match-phases.d-1.cited, text: sim/neutral-pve-creeps-and-camps }
+      - text_contains: { target: decisions.row.sim/gdd-match-phases.d-1.cited, text: + 1 closed issue }
+      - text_contains: { target: decisions.row.sim/gdd-match-format-and-length.d-1.cited, text: 1 open issue still cites it }
+      - text_contains: { target: decisions.row.sim/gdd-match-phases.d-1.how, text: replaced by sim/et-style-objective-format-6v6#D-1 }
+      - text_contains: { target: decisions.row.sim/et-style-objective-format-6v6.d-1.how, text: "replaces sim/gdd-match-phases#D-1, sim/gdd-match-format-and-length#D-1" }
+      - issue: { slug: sim/et-style-objective-format-6v6, body_contains: "- **D-1** ·" }
+
+  - id: TP7
+    title: Stale and system chips combine in the URL; no match shows Clear filters
+    from: TP6
+    act:
+      - click: decisions.filter.state.stale
+      - wait_for: { url: { contains: state=stale } }
+      - click: decisions.filter.system.sim
+      - wait_for: { url: { contains: system=Sim } }
+      - check: { url: { contains: state=stale } }
+      - check: { count: { pattern: decisions.row.*.*, equals: 2 } }
+      - click: decisions.filter.system.economy
+      - wait_for: decisions.nomatch
+      - click: decisions.nomatch.clear
+    checks:
+      - count: { pattern: decisions.row.*.*, equals: 6 }
+      - url: { matches: "^/p/[^/]+/decisions$" }
+
+  - id: TP8
+    title: copy ref shows the decision's ref in a toast
+    setup:
+      - open: /p/{project}/decisions
+    act:
+      - click: decisions.row.ui/company-lineup-panel.d-2.copy
+    checks:
+      - text_contains: { target: decisions.toast, text: "ui/company-lineup-panel#D-2" }
+
+  - id: TP9
+    title: show on a citing issue and decisions --state stale name the replaced decisions
+    from: TP6
+    checks:
+      - cli: { args: [show, sim/events-during-the-match], contains: "== Cites replaced decisions (2) ==" }
+      - cli: { args: [show, sim/events-during-the-match], contains: "replaced by sim/et-style-objective-format-6v6#D-1" }
+      - cli: { args: [decisions, --state, stale], contains: "still cited by" }
+      - cli: { args: [decisions, --state, stale], contains: "sim/gdd-match-format-and-length#D-1" }
+
+  - id: TP11
+    title: The index reads well and replaced and stale rows stand out in every theme
+    from: TP6
+    targets:
+      - { id: decisions.row.sim/gdd-match-phases.d-1, note: A replaced decision that open issues still cite }
+      - { id: decisions.row.sim/et-style-objective-format-6v6.d-1, note: The direction change that replaced it }
+      - { id: decisions.filters, note: Filter chips }
+    do: |
+      1. Read down the table: the direction change on top, the two dimmed
+         GDD rows it replaced, and the deferred and answered decisions.
+      2. Open and close a "Cited by" list.
+      3. Switch the theme (Dark, Dracula, Light) in the header.
+    expect: |
+      Each decision reads as one line you can quote. Replaced rows are
+      clearly dimmed, and the red "replaced · stale" chip and the open
+      citers catch the eye. The state chips stay green (active), blue
+      (deferred), grey (replaced) and red (stale) in every theme, and all
+      text stays readable.
+    why: ux-test checks counts, states and filters; only you can say whether the index reads well at a glance.

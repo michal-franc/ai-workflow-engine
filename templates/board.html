@@ -60,6 +60,16 @@
                     GitHub
                 </a>
                 {{end}}
+                <a href="{{.Prefix}}/decisions" data-testid="nav.tab.decisions" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.5 3H14v2H2V4h4.5L8 1zM3 7h2v6H3V7zm4 0h2v6H7V7zm4 0h2v6h-2V7zM1 14h14v1.5H1V14z"/></svg>
+                    Decisions
+                </a>
+{{if workbenchTab "balance" .Prefix}}
+                <a href="{{.Prefix}}/balance" data-testid="nav.tab.balance" class="view-tab">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M7.25 1h1.5v2.1l4.6 1.15-.36 1.46-.79-.2L14 10.5c0 1.1-1.12 2-2.5 2S9 11.6 9 10.5l1.9-4.55-2.15-.54V13.5H12V15H4v-1.5h3.25V5.41l-2.15.54L7 10.5C7 11.6 5.88 12.5 4.5 12.5S2 11.6 2 10.5l1.79-4.29-.79.2-.36-1.46 4.61-1.15V1zM4.5 7.6 3.6 9.75h1.8L4.5 7.6zm7 0-.9 2.15h1.8l-.9-2.15z"/></svg>
+                    Balance
+                </a>
+                {{end}}
             </nav>
             <div class="theme-picker">
                 <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>

@@ -123,8 +123,6 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleUpdateRetroStatus(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "retros/bug/") && strings.HasSuffix(rest, "/status") && r.Method == http.MethodPost:
 		s.handleUpdateBugStatus(w, r, proj, prefix)
-	case rest == "workflow-flow":
-		s.handleWorkflowFlow(w, r, proj, prefix)
 	case rest == "decisions" && r.Method == http.MethodGet:
 		s.handleDecisions(w, r, proj, prefix)
 	case rest == "balance" && r.Method == http.MethodGet:

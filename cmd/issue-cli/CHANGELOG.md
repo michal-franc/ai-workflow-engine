@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.44.0 — 2026-10-21
+
+- **Breaking:** the read-only `/workflow-flow` page ("Agent Execution Flow") is removed. It was hand-written, not built from `workflow.yaml`, out of date, and unlinked since the designer went. [docs/agent-workflow-flow.md](../../docs/agent-workflow-flow.md) is the current description of the agent flow.
+
 ## v0.43.0 — 2026-10-21
 
 - Approve from the agent's terminal: the `issue-approve` Claude Code mod (`claude-mods/issue-approve/`, installed once at user scope from that folder as a local marketplace) shows the issue's approvals above a dispatched agent's prompt as buttons that do what the detail page's checkboxes do. New `GET /p/<project>/issue/<slug>/approvals.json` (the same list as the Human Approval box) and `GET /project-for?cwd=<path>`; dispatch exports `ISSUE_VIEWER_PROJECT`.

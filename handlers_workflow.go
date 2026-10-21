@@ -13,11 +13,6 @@ import (
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
-type WorkflowFlowData struct {
-	Prefix      string
-	ProjectName string
-}
-
 type RetroEntry struct {
 	FileName     string
 	FilePath     string
@@ -55,16 +50,6 @@ type RetrosData struct {
 
 type statusUpdateResponse struct {
 	Status string `json:"status"`
-}
-
-func (s *Server) handleWorkflowFlow(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, "workflow-flow.html", WorkflowFlowData{
-		Prefix:      prefix,
-		ProjectName: proj.Name,
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }
 
 func (s *Server) handleRetros(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {

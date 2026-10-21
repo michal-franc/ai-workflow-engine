@@ -36,6 +36,10 @@ type DetailData struct {
 	// the issue is not an epic.
 	CanvasURL string
 	Lead      DetailLead
+	// Deps are the depends-on / depended-on-by / decided-by links; Shared
+	// is the issue branch's overlap with other open branches (nil: none).
+	Deps   []tracker.IssueDep
+	Shared *tracker.SharedFiles
 }
 
 // DetailLead is the detail page's Lead section: who the issue reports to and,
@@ -183,6 +187,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 
 	renderedBody := renderBodyWithDataTable(found, prefix, projectRoot(proj), slugMap)
 
+	closed := tracker.ClosedIssueFunc(proj)
 	var canvasURL string
 	if isCanvasEpic(found, issues) {
 		canvasURL = prefix + "/canvas?hl=" + url.QueryEscape(found.Slug)
@@ -205,6 +210,8 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		TypeWarning:       strings.TrimSpace(wf.UnknownTypeWarning(found.Slug, found.Type) + " " + wf.OffPathWarning()),
 		CanvasURL:         canvasURL,
 		Lead:              detailLead(proj, found, issues),
+		Deps:              tracker.IssueDeps(found, issues, tracker.BuildDecisionIndex(issues, closed), closed),
+		Shared:            tracker.IssueSharedFiles(projectRoot(proj), found, issues),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

@@ -13,8 +13,8 @@ import (
 // and read-only: the files stay the source of truth.
 type WorkbenchConfig struct {
 	Systems map[string]WorkbenchSystem `yaml:"systems,omitempty" desc:"Per-system page config keyed by the issue 'system' value; enables the Systems view"`
-	Metrics WorkbenchMetrics           `yaml:"metrics,omitempty" desc:"Read-only metric sources (target bands, probe results)"`
-	Tuning  []string                   `yaml:"tuning,omitempty" desc:"Files holding tuning knobs, relative to the project root"`
+	Metrics WorkbenchMetrics           `yaml:"metrics,omitempty" desc:"Read-only metric files (JSON, see docs/workbench-files.md): probe results and optional targets"`
+	Tuning  []string                   `yaml:"tuning,omitempty" desc:"Knob export files (JSON, see docs/workbench-files.md), relative to the project root"`
 	Balance WorkbenchBalance           `yaml:"balance,omitempty" desc:"Balance board config; enables the Balance view"`
 }
 
@@ -78,8 +78,8 @@ func (s WorkbenchSystem) Family(name string) (key string, fam WorkbenchFamily, o
 
 // WorkbenchMetrics points at the project's metric target and probe files.
 type WorkbenchMetrics struct {
-	Targets      string `yaml:"targets,omitempty" desc:"Metric targets file, relative to the project root"`
-	ProbeResults string `yaml:"probe_results,omitempty" desc:"Probe result files (glob allowed), relative to the project root"`
+	Targets      string `yaml:"targets,omitempty" desc:"Metric targets JSON (id, name, group, band), relative to the project root; wins over bands in the results"`
+	ProbeResults string `yaml:"probe_results,omitempty" desc:"Probe result JSON files (glob allowed; the newest run.date is the master run), relative to the project root"`
 }
 
 // WorkbenchBalance configures the balance board.

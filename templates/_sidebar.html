@@ -43,6 +43,26 @@ A page with a screen panel renders "sidebar-open", its panel, then
         {{end}}
     </section>
     {{end}}
+    {{with .Panel}}
+    <section class="sidebar-panel" data-testid="nav.panel" aria-label="{{.Label}}">
+        <span class="label">{{.Label}}</span>
+        {{range .Rows}}
+        {{if .Detail}}
+        <span class="sidebar-panel-source"><span class="sidebar-panel-key">{{.Name}}</span><span class="mono">{{.Detail}}</span></span>
+        {{else if .Href}}
+        <a href="{{.Href}}" class="sidebar-panel-row" data-testid="nav.panel.row.{{tid .Name}}"><span class="mono">{{.Name}}</span> <span>{{.Count}}</span></a>
+        {{else}}
+        <span class="sidebar-panel-row muted">{{.Name}} <span>{{.Count}}</span></span>
+        {{end}}
+        {{end}}
+        {{if .Legend}}
+        <span class="sidebar-legend"><span class="chip chip-amber">hot</span> 3 or more branches</span>
+        <span class="sidebar-legend"><span class="chip chip-blue">2</span> two branches</span>
+        <span class="sidebar-legend"><span class="chip">shared</span> same commits, or the base</span>
+        {{end}}
+        {{if .Note}}<span class="sidebar-panel-note">{{.Note}}</span>{{end}}
+    </section>
+    {{end}}
 {{end}}
 
 {{define "sidebar-close"}}
@@ -81,4 +101,4 @@ A page with a screen panel renders "sidebar-open", its panel, then
 </script>
 {{end}}
 
-{{define "sidebar-item"}}<a href="{{.Href}}" class="nav-item{{if .Active}} active{{end}}" data-testid="nav.tab.{{.Key}}"{{if .Active}} aria-current="page"{{end}}>{{.Label}}{{if .Note}} <span class="nav-note{{if .Live}} live{{end}}">{{.Note}}</span>{{end}}</a>{{end}}
+{{define "sidebar-item"}}<a href="{{.Href}}" class="nav-item{{if .Active}} active{{end}}" data-testid="nav.tab.{{.Key}}"{{if .Active}} aria-current="page"{{end}}>{{.Label}}{{if .Note}} <span class="nav-note{{if .Live}} live{{end}}{{if .Alert}} alert{{end}}">{{.Note}}</span>{{end}}</a>{{end}}

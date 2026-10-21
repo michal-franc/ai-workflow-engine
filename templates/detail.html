@@ -279,8 +279,32 @@
                 </div>
                 {{end}}
 
+                {{range $kind := (list "depends on" "depended on by" "decided by")}}
+                {{$rows := depsOfKind $.Deps $kind}}
+                {{if $rows}}
+                <div class="sidebar-section" data-testid="detail.field.{{tid $kind}}">
+                    <h3>{{title $kind}}</h3>
+                    <div class="sidebar-value dep-list">
+                        {{range $rows}}
+                        <span class="dep-row">{{if .Slug}}<a href="{{$.Prefix}}/issue/{{.Slug}}" class="mono dep-target">{{.Target}}</a>{{else}}<span class="mono dep-target">{{.Target}}</span>{{end}} <span class="chip {{depChipClass .}}">{{.State}}</span></span>
+                        {{end}}
+                    </div>
+                </div>
+                {{end}}
+                {{end}}
+
+                {{with .Shared}}
+                <div class="sidebar-section" data-testid="detail.field.shared_files">
+                    <h3>Shared files</h3>
+                    <div class="sidebar-value dep-list">
+                        <span>{{len .Files}} hot file{{if ne (len .Files) 1}}s{{end}} with {{.Others}} other branch{{if ne .Others 1}}es{{end}}</span>
+                        <a href="{{$.Prefix}}/metrics?tab=branches">See on Metrics › Branches</a>
+                    </div>
+                </div>
+                {{end}}
+
                 {{range .Issue.ExtraFields}}
-                {{if not (and $.WorkTypes (eq .Key "type"))}}
+                {{if and (not (and $.WorkTypes (eq .Key "type"))) (ne .Key "depends_on")}}
                 <div class="sidebar-section">
                     <h3>{{.Label}}</h3>
                     <div class="sidebar-value">

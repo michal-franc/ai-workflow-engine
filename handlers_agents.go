@@ -258,19 +258,14 @@ func (s *Server) buildAgentsModel(proj *tracker.Project, prefix string) (*Agents
 }
 
 type AgentsPageData struct {
-	Prefix         string
-	ProjectName    string
-	SupportsGitHub bool
-	ActiveBots     int
+	Prefix      string
+	ProjectName string
 }
 
 func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
-	_, active := sessionsByIssueSlug(proj, nil)
 	if err := s.tmpl.ExecuteTemplate(w, "agents.html", AgentsPageData{
-		Prefix:         prefix,
-		ProjectName:    proj.Name,
-		SupportsGitHub: proj.SupportsGitHub,
-		ActiveBots:     active,
+		Prefix:      prefix,
+		ProjectName: proj.Name,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

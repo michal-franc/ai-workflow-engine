@@ -9,6 +9,9 @@ session_checks:
   viewports: [1440x900]
   layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
   console: no_errors
+  # canvas.world is the pan surface: beside the project sidebar a fifth
+  # column runs past the screen and is reached with drag and zoom.
+  layout_ignore: [canvas.world]
 
 steps:
   - id: TP4
@@ -147,7 +150,7 @@ steps:
          pan, and hold Ctrl while scrolling to zoom around the pointer.
       2. Click Highlight on "Search everywhere", then switch Rows to System.
          The highlight carries over; its cards now sit in several systems.
-      3. Switch the theme (Dark, Dracula, Light) in the header.
+      3. Switch the theme (Dark, Dracula, Light) in the sidebar.
     expect: |
       Epics, their children and the version columns read at a glance. Done
       and obsolete cards are clearly dimmed; highlighted cards stand out

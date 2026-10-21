@@ -47,7 +47,7 @@ func TestHandleList_IncludesCreateModal(t *testing.T) {
 
 	html := string(body)
 	for _, marker := range []string{
-		`class="header-create-btn"`,
+		`data-testid="nav.create" onclick="openCreateModal('')"`,
 		`id="create-modal"`,
 		`var bodyTemplates =`,
 		`id="create-status"`,
@@ -133,7 +133,7 @@ func TestHandleList_ShowsActiveBotSummaryAndIssueChip(t *testing.T) {
 		t.Fatal(err)
 	}
 	html := string(body)
-	for _, want := range []string{"1 active bot", "1 agent active"} {
+	for _, want := range []string{"1 agent running", "1 agent active"} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("expected list view to contain %q\n%s", want, html)
 		}

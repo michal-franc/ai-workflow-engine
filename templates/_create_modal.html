@@ -150,6 +150,15 @@
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && window.__createModalOpen) closeCreateModal();
     });
+
+    // The sidebar's New issue on pages without this modal links to ?new=1.
+    var params = new URLSearchParams(location.search);
+    if (params.get('new') === '1') {
+        params.delete('new');
+        var rest = params.toString();
+        history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+        openCreateModal('');
+    }
 })();
 </script>
 {{end}}

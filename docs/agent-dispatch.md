@@ -125,7 +125,7 @@ See [The lead session](patterns/lead-session.md#epics).
 
 ## Lead Sessions
 
-Lead agents run in tmux like workers, under fixed names: `lead-<project>` for the project lead (in the project checkout) and `lead-<epic-slug>` for an epic's sub-lead (in the epic's base-branch worktree). Start them with `issue-cli lead spawn [--epic <slug>]`, the **Spawn lead** button in the Actions bar, or **Spawn sub-lead** on the agents canvas or the epic's detail page (`POST /p/<project>/lead/spawn`, body `{"epic": "<slug>"}` or `{}`). A live lead is re-attached, never started twice.
+Lead agents run in tmux like workers, under fixed names: `lead-<project>` for the project lead (in the project checkout) and `lead-<epic-slug>` for an epic's sub-lead (in the epic's base-branch worktree). Start them with `issue-cli lead spawn [--epic <slug>]`, the **Spawn lead** button in the sidebar's Actions, or **Spawn sub-lead** on the agents canvas or the epic's detail page (`POST /p/<project>/lead/spawn`, body `{"epic": "<slug>"}` or `{}`). A live lead is re-attached, never started twice.
 
 - Leads use the same launcher, terminal, `tmux_session` and `agent_model_source` settings as dispatched workers.
 - Their brief comes from `leads:` in `workflow.yaml`, or the built-in defaults.

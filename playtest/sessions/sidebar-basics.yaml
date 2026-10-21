@@ -1,0 +1,91 @@
+session: sidebar-basics
+issue: ui/workbench-sidebar-navigation-and-a-new-theme-across-all-views
+title: Project sidebar, More group, theme picker and the board's systems panel
+scenario: basic
+
+session_checks:
+  viewports: [1440x900, 1280x800]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: The sidebar lists the main views with the current one active, the rest under a closed More
+    setup:
+      - open: /p/{project}/board
+    checks:
+      - visible: [nav.sidebar, nav.project, nav.create, nav.tab.board, nav.tab.list, nav.tab.decisions, nav.tab.docs, nav.more, nav.actions, actions.spawn_lead]
+      - selected: nav.tab.board
+      - text_contains: { target: nav.project, text: Playtest Demo }
+      - text_contains: { target: nav.tab.list, text: "4" }
+      # No workbench.balance in this scenario, and More starts closed.
+      - absent: [nav.tab.balance, nav.tab.graph, nav.tab.stats]
+
+  - id: TP5
+    title: More opens to the secondary views, and a view inside it opens More on load
+    setup:
+      - open: /p/{project}/
+    act:
+      - click: nav.more
+      - check: { visible: [nav.tab.graph, nav.tab.canvas, nav.tab.agents, nav.tab.retros, nav.tab.workflow_designer, nav.tab.stats] }
+      - click: nav.tab.graph
+      - wait_for: { url: { contains: /graph } }
+    checks:
+      - selected: nav.tab.graph
+      - visible: [nav.tab.canvas, nav.tab.stats]
+
+  - id: TP6
+    title: More stays open across a reload once opened
+    setup:
+      - open: /p/{project}/decisions
+    act:
+      - click: nav.more
+      - reload: true
+    checks:
+      - selected: nav.tab.decisions
+      - visible: nav.tab.stats
+
+  - id: TP7
+    title: A theme swatch restyles the page and the choice survives a reload
+    setup:
+      - open: /p/{project}/
+    act:
+      - click: nav.theme.light
+      - check: { selected: nav.theme.light }
+      - open: /p/{project}/board
+    checks:
+      - selected: nav.theme.light
+
+  - id: TP8
+    title: The board's systems panel counts open issues per system and filters the board
+    setup:
+      - open: /p/{project}/board
+    act:
+      - check: { text_contains: { target: nav.panel.system.cli, text: "2" } }
+      - check: { text_contains: { target: nav.panel.system.ui, text: "2" } }
+      - click: nav.panel.system.ui
+      - wait_for: { url: { contains: system=UI } }
+    checks:
+      - visible: board.card.ui/dark-mode-toggle
+      - absent: board.card.cli/export-issues-as-csv
+
+  - id: TP9
+    title: The pages match the workbench mockups in all three themes
+    from: TP4
+    targets:
+      - { id: nav.sidebar, note: The project sidebar }
+      - { id: nav.more, note: More group }
+      - { id: nav.theme.dark, note: Theme swatches }
+    do: |
+      1. Compare the board and the list with the mockups
+         (issues/attachments/workbench-sidebar-navigation-and-a-new-theme-across-all-views/).
+      2. Open More, then open an issue.
+      3. Switch the theme to Dracula, then Light, and look at the board,
+         the list, an issue and Decisions in each.
+    expect: |
+      The sidebar reads like the mockups: project block, amber New issue,
+      the views with the current one highlighted, More, the agents line,
+      actions and theme swatches at the bottom. Page titles are condensed
+      and bold, slugs are monospace, chips and cards are rounded. Every
+      theme keeps all text readable and nothing looks out of place.
+    why: ux-test checks the structure and the switch; only you can say whether it is the look you meant.

@@ -1,0 +1,84 @@
+{{/*
+Project sidebar, shared by every project page. Data is a Nav from the
+`sidebar` template func (nav.go): {{template "sidebar" (sidebar .Prefix "board")}}.
+A page with a screen panel renders "sidebar-open", its panel, then
+"sidebar-close" instead.
+*/}}
+{{define "sidebar"}}{{template "sidebar-open" .}}{{template "sidebar-close" .}}{{end}}
+
+{{define "sidebar-open"}}
+<aside class="sidebar" data-testid="nav.sidebar" aria-label="Project navigation">
+    <a href="/" class="sidebar-back"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>All projects</a>
+    <div class="sidebar-project" data-testid="nav.project">
+        <span class="label">Project</span>
+        <a href="{{.Prefix}}/" class="sidebar-project-name">{{.ProjectName}}</a>
+        <span class="sidebar-project-meta">{{if .Version}}{{.Version}} · {{end}}{{.Open}} open</span>
+    </div>
+    {{if .CreateInPage}}
+    <button type="button" class="btn btn-primary sidebar-create" data-testid="nav.create" onclick="openCreateModal('')">
+    {{else}}
+    <a href="{{.Prefix}}/?new=1" class="btn btn-primary sidebar-create" data-testid="nav.create">
+    {{end}}
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 2v12M2 8h12"/></svg>New issue
+    {{if .CreateInPage}}</button>{{else}}</a>{{end}}
+    <nav class="sidebar-nav" aria-label="Views">
+        {{range .Main}}{{template "sidebar-item" .}}{{end}}
+        <details class="sidebar-more" data-testid="nav.more"{{if .MoreActive}} open data-pinned{{end}}>
+            <summary class="nav-item">More <svg class="sidebar-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary>
+            <div class="sidebar-more-list">
+                {{range .More}}{{template "sidebar-item" .}}{{end}}
+            </div>
+        </details>
+    </nav>
+    <a href="{{.Prefix}}/agents" class="sidebar-agents" id="project-active-bots" data-testid="nav.agents_running" data-count="{{.ActiveBots}}"{{if not .ActiveBots}} hidden{{end}}><span class="sidebar-agents-dot" aria-hidden="true">●</span><span class="sidebar-agents-text">{{.ActiveBots}} agent{{if ne .ActiveBots 1}}s{{end}} running</span></a>
+    {{if .Systems}}
+    <section class="sidebar-panel" data-testid="nav.panel" aria-label="Systems">
+        <span class="label">Systems</span>
+        {{range .Systems}}
+        {{if .Href}}
+        <a href="{{.Href}}" class="sidebar-panel-row" data-testid="nav.panel.system.{{tid .Name}}">{{.Name}} <span>{{.Count}}</span></a>
+        {{else}}
+        <span class="sidebar-panel-row muted">{{.Name}} <span>{{.Count}}</span></span>
+        {{end}}
+        {{end}}
+    </section>
+    {{end}}
+{{end}}
+
+{{define "sidebar-close"}}
+    <div class="sidebar-foot">
+        <div class="sidebar-group" data-testid="nav.actions">
+            <span class="label">Actions</span>
+            <button type="button" class="btn" data-testid="actions.spawn_lead" title="Start (or re-attach) the project lead agent, lead-&lt;project&gt;" onclick="spawnProjectLead('{{.Prefix}}')">Spawn lead</button>
+            {{range .ProjectActions}}
+            <button type="button" class="btn" onclick="dispatchProjectAction('{{$.Prefix}}', '{{.ID}}', '{{.Label}}')">{{.Label}}</button>
+            {{end}}
+        </div>
+        <div class="sidebar-group">
+            <span class="label">Theme</span>
+            <div class="theme-picker">
+                <button type="button" class="theme-btn" data-theme="dark" data-testid="nav.theme.dark" title="Dark" aria-label="Dark theme"></button>
+                <button type="button" class="theme-btn" data-theme="dracula" data-testid="nav.theme.dracula" title="Dracula" aria-label="Dracula theme"></button>
+                <button type="button" class="theme-btn" data-theme="light" data-testid="nav.theme.light" title="Light" aria-label="Light theme"></button>
+            </div>
+        </div>
+    </div>
+</aside>
+{{template "project-actions-modal" .}}
+<script>
+// The More group starts open on a view inside it (data-pinned); elsewhere it
+// keeps the open/closed state this browser last left it in.
+(function() {
+    var more = document.querySelector('.sidebar-more');
+    if (!more || more.hasAttribute('data-pinned')) return;
+    try { if (localStorage.getItem('nav.more') === 'open') more.open = true; } catch (e) {}
+    // Saved on the summary's click (it fires before the toggle), so a
+    // reload right after still sees the new state.
+    more.querySelector('summary').addEventListener('click', function() {
+        try { localStorage.setItem('nav.more', more.open ? 'closed' : 'open'); } catch (e) {}
+    });
+})();
+</script>
+{{end}}
+
+{{define "sidebar-item"}}<a href="{{.Href}}" class="nav-item{{if .Active}} active{{end}}" data-testid="nav.tab.{{.Key}}"{{if .Active}} aria-current="page"{{end}}>{{.Label}}{{if .Note}} <span class="nav-note{{if .Live}} live{{end}}">{{.Note}}</span>{{end}}</a>{{end}}

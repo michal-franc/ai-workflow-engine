@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -287,7 +286,7 @@ func TestHandleCanvas_Renders(t *testing.T) {
 		t.Fatalf("status = %d", code)
 	}
 	for _, want := range []string{
-		`href="/p/test-project/canvas" data-testid="nav.tab.canvas" class="view-tab active"`,
+		`href="/p/test-project/canvas" class="nav-item active" data-testid="nav.tab.canvas" aria-current="page"`,
 		`id="canvas-world"`,
 		`>1.0</b>`,
 		`>2.0</b>`,
@@ -337,35 +336,6 @@ func TestDetail_EpicLinksToCanvas(t *testing.T) {
 	_, html = getBody(t, ts.URL+"/p/test-project/issue/child")
 	if strings.Contains(html, "View on canvas") {
 		t.Error("non-epic detail page links to the canvas")
-	}
-}
-
-func TestViewTabs_IncludeCanvas(t *testing.T) {
-	files, err := fs.Glob(templateFS, "templates/*.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	checked := 0
-	for _, f := range files {
-		b, err := fs.ReadFile(templateFS, f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		src := string(b)
-		if !strings.Contains(src, `class="view-tabs"`) {
-			continue
-		}
-		checked++
-		graph := strings.Index(src, `{{.Prefix}}/graph"`)
-		canvas := strings.Index(src, `{{.Prefix}}/canvas"`)
-		if canvas < 0 {
-			t.Errorf("%s: view tabs have no Canvas tab", f)
-		} else if graph < 0 || canvas < graph {
-			t.Errorf("%s: Canvas tab should come after Graph", f)
-		}
-	}
-	if checked < 9 {
-		t.Errorf("checked %d templates with view tabs, want at least 9", checked)
 	}
 }
 

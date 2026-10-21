@@ -22,10 +22,8 @@ type CanvasOptions struct {
 // CanvasData is the issues canvas view model: version columns × epic or
 // system lanes.
 type CanvasData struct {
-	Prefix         string
-	ProjectName    string
-	ActiveBots     int
-	SupportsGitHub bool
+	Prefix      string
+	ProjectName string
 
 	TotalIssues int
 	ShownIssues int
@@ -117,8 +115,6 @@ func (s *Server) handleCanvas(w http.ResponseWriter, r *http.Request, proj *trac
 	data := buildCanvas(issues, proj.LoadWorkflow(), opts)
 	data.Prefix = prefix
 	data.ProjectName = proj.Name
-	data.SupportsGitHub = proj.SupportsGitHub
-	_, data.ActiveBots = sessionsByIssueSlug(proj, issues)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "canvas.html", data); err != nil {

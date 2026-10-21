@@ -7,10 +7,6 @@ session_checks:
   viewports: [1440x900]
   layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
   console: no_errors
-  # Known bug: with the Agents, Decisions and Balance tabs the shared header
-  # no longer fits a 1440px container and scrolls sideways (as on list,
-  # board and detail). The header issue covers it; remove then.
-  layout_ignore: [header.bar]
 
 steps:
   - id: TP4

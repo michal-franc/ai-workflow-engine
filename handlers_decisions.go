@@ -62,11 +62,9 @@ type DecisionChip struct {
 }
 
 type DecisionsData struct {
-	Prefix         string
-	ProjectName    string
-	ActiveBots     int
-	SupportsGitHub bool
-	Hash           string // /hash at render time, the auto-reload baseline
+	Prefix      string
+	ProjectName string
+	Hash        string // /hash at render time, the auto-reload baseline
 
 	Rows    []DecisionView
 	System  string // filter
@@ -107,14 +105,12 @@ func (s *Server) handleDecisions(w http.ResponseWriter, r *http.Request, proj *t
 	index := tracker.BuildDecisionIndex(issues, tracker.ClosedIssueFunc(proj))
 
 	data := DecisionsData{
-		Prefix:         prefix,
-		ProjectName:    proj.Name,
-		ActiveBots:     activeBots,
-		SupportsGitHub: proj.SupportsGitHub,
-		Hash:           issuesHash(issues, sessionMap, activeBots),
-		System:         r.URL.Query().Get("system"),
-		State:          strings.ToLower(r.URL.Query().Get("state")),
-		Total:          len(index.Entries),
+		Prefix:      prefix,
+		ProjectName: proj.Name,
+		Hash:        issuesHash(issues, sessionMap, activeBots),
+		System:      r.URL.Query().Get("system"),
+		State:       strings.ToLower(r.URL.Query().Get("state")),
+		Total:       len(index.Entries),
 	}
 	systems := map[string]int{}
 	now := time.Now()

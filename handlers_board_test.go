@@ -46,7 +46,7 @@ func TestHandleBoard_IncludesCreateModal(t *testing.T) {
 
 	html := string(body)
 	for _, marker := range []string{
-		`class="header-create-btn"`,
+		`data-testid="nav.create" onclick="openCreateModal('')"`,
 		`id="create-modal"`,
 		`var bodyTemplates =`,
 		`window.openCreateModal`,
@@ -108,7 +108,7 @@ func TestHandleBoard_ShowsActiveBotSummaryAndIssueChip(t *testing.T) {
 		t.Fatal(err)
 	}
 	html := string(body)
-	for _, want := range []string{"1 active bot", "board-card-agent-active"} {
+	for _, want := range []string{"1 agent running", "board-card-agent-active"} {
 		if !strings.Contains(html, want) {
 			t.Fatalf("expected board view to contain %q\n%s", want, html)
 		}

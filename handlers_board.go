@@ -37,15 +37,12 @@ type BoardData struct {
 	Labels            []string
 	Prefix            string
 	ProjectName       string
-	ActiveBots        int
 	CardFields        []string
-	SupportsGitHub    bool
 	ScoringEnabled    bool
 	Sort              string
 	HideEmpty         bool
 	CreatableStatuses []string
 	BodyTemplates     map[string]string
-	ProjectActions    []tracker.CustomAction
 	WorkTypes         []WorkTypeOption
 	WorkType          string
 }
@@ -70,19 +67,16 @@ type GraphIssueNode struct {
 }
 
 type GraphData struct {
-	Prefix         string
-	ProjectName    string
-	ActiveBots     int
-	StatusNodes    []*GraphStatusNode
-	Systems        []string
-	System         string
-	ShowDone       bool
-	HideEmpty      bool
-	TotalIssues    int
-	SupportsGitHub bool
-	ProjectActions []tracker.CustomAction
-	WorkTypes      []WorkTypeOption
-	WorkType       string
+	Prefix      string
+	ProjectName string
+	StatusNodes []*GraphStatusNode
+	Systems     []string
+	System      string
+	ShowDone    bool
+	HideEmpty   bool
+	TotalIssues int
+	WorkTypes   []WorkTypeOption
+	WorkType    string
 }
 
 func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
@@ -170,7 +164,7 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 	issues = filterByType(filtered, wf, typeFilter)
 	statusOrder := wf.GetBoardColumns()
 	statusDescs := wf.GetStatusDescriptions()
-	sessionMap, activeBots := sessionsByIssueSlug(proj, issues)
+	sessionMap, _ := sessionsByIssueSlug(proj, issues)
 	scoring := &wf.Scoring
 
 	sortKey := strings.TrimSpace(r.URL.Query().Get("sort"))
@@ -246,15 +240,12 @@ func (s *Server) handleBoard(w http.ResponseWriter, r *http.Request, proj *track
 		Labels:            labels,
 		Prefix:            prefix,
 		ProjectName:       proj.Name,
-		ActiveBots:        activeBots,
 		CardFields:        wf.GetBoardCardFields(),
-		SupportsGitHub:    proj.SupportsGitHub,
 		ScoringEnabled:    scoring.Enabled,
 		Sort:              sortKey,
 		HideEmpty:         hideEmpty,
 		CreatableStatuses: creatable,
 		BodyTemplates:     templates,
-		ProjectActions:    wf.ProjectActions,
 		WorkTypes:         workTypeOptions(wf),
 		WorkType:          typeFilter,
 	}
@@ -374,22 +365,17 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request, proj *track
 		}
 	}
 
-	_, activeBots := sessionsByIssueSlug(proj, issues)
-
 	data := GraphData{
-		Prefix:         prefix,
-		ProjectName:    proj.Name,
-		ActiveBots:     activeBots,
-		StatusNodes:    nodes,
-		Systems:        systems,
-		System:         systemFilter,
-		ShowDone:       showDone,
-		HideEmpty:      hideEmpty,
-		TotalIssues:    totalIssues,
-		SupportsGitHub: proj.SupportsGitHub,
-		ProjectActions: wf.ProjectActions,
-		WorkTypes:      workTypeOptions(base),
-		WorkType:       typeFilter,
+		Prefix:      prefix,
+		ProjectName: proj.Name,
+		StatusNodes: nodes,
+		Systems:     systems,
+		System:      systemFilter,
+		ShowDone:    showDone,
+		HideEmpty:   hideEmpty,
+		TotalIssues: totalIssues,
+		WorkTypes:   workTypeOptions(base),
+		WorkType:    typeFilter,
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

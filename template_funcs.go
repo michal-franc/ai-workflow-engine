@@ -32,9 +32,9 @@ func orderedStatusesForIssue(wf *tracker.WorkflowConfig, current string) []strin
 }
 
 var funcMap = template.FuncMap{
-	// workbenchTab is replaced per server (Server.workbenchTab) so nav
-	// templates can show workbench tabs only for projects that configure them.
-	"workbenchTab": func(kind, prefix string) bool { return false },
+	// sidebar is replaced per server (Server.sidebarNav): the Nav the shared
+	// sidebar partial renders for a project page.
+	"sidebar": func(prefix, active string) Nav { return Nav{Prefix: prefix} },
 	"statusColor": func(s string) string {
 		// Keys are canonicalStatusKey form: lower case, spaces as hyphens.
 		colors := map[string]string{

@@ -22,13 +22,11 @@ type WorkflowDesignerData struct {
 	WorkflowIssues string
 	WorkflowSource string
 	WorkflowTarget string
-	SupportsGitHub bool
 }
 
 type WorkflowFlowData struct {
-	Prefix         string
-	ProjectName    string
-	SupportsGitHub bool
+	Prefix      string
+	ProjectName string
 }
 
 type RetroEntry struct {
@@ -56,16 +54,14 @@ type ToolBugReportView struct {
 }
 
 type RetrosData struct {
-	Retros         []*RetroEntry
-	Bugs           []*ToolBugReportView
-	RetroStatus    string
-	BugStatus      string
-	RetroCounts    map[string]int
-	BugCounts      map[string]int
-	Prefix         string
-	ProjectName    string
-	ActiveBots     int
-	SupportsGitHub bool
+	Retros      []*RetroEntry
+	Bugs        []*ToolBugReportView
+	RetroStatus string
+	BugStatus   string
+	RetroCounts map[string]int
+	BugCounts   map[string]int
+	Prefix      string
+	ProjectName string
 }
 
 type statusUpdateResponse struct {
@@ -130,7 +126,6 @@ func (s *Server) handleWorkflowDesigner(w http.ResponseWriter, r *http.Request, 
 		WorkflowIssues: string(issuesJSON),
 		WorkflowSource: source,
 		WorkflowTarget: target,
-		SupportsGitHub: proj.SupportsGitHub,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -139,9 +134,8 @@ func (s *Server) handleWorkflowDesigner(w http.ResponseWriter, r *http.Request, 
 func (s *Server) handleWorkflowFlow(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "workflow-flow.html", WorkflowFlowData{
-		Prefix:         prefix,
-		ProjectName:    proj.Name,
-		SupportsGitHub: proj.SupportsGitHub,
+		Prefix:      prefix,
+		ProjectName: proj.Name,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -179,20 +173,16 @@ func (s *Server) handleRetros(w http.ResponseWriter, r *http.Request, proj *trac
 		bugs = filterBugsByStatus(bugs, bugStatus)
 	}
 
-	_, activeBots := sessionsByIssueSlug(proj, issues)
-
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "retros.html", RetrosData{
-		Retros:         retros,
-		Bugs:           bugs,
-		RetroStatus:    retroStatus,
-		BugStatus:      bugStatus,
-		RetroCounts:    retroCounts,
-		BugCounts:      bugCounts,
-		Prefix:         prefix,
-		ProjectName:    proj.Name,
-		ActiveBots:     activeBots,
-		SupportsGitHub: proj.SupportsGitHub,
+		Retros:      retros,
+		Bugs:        bugs,
+		RetroStatus: retroStatus,
+		BugStatus:   bugStatus,
+		RetroCounts: retroCounts,
+		BugCounts:   bugCounts,
+		Prefix:      prefix,
+		ProjectName: proj.Name,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -722,12 +712,11 @@ func (s *Server) handleSaveWorkflowDesigner(w http.ResponseWriter, r *http.Reque
 // --- Docs ---
 
 type DocsData struct {
-	Page           *tracker.DocPage
-	Pages          []*tracker.DocPage
-	Sections       []tracker.DocSection
-	Prefix         string
-	ProjectName    string
-	SupportsGitHub bool
+	Page        *tracker.DocPage
+	Pages       []*tracker.DocPage
+	Sections    []tracker.DocSection
+	Prefix      string
+	ProjectName string
 }
 
 func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
@@ -744,7 +733,7 @@ func (s *Server) handleDocs(w http.ResponseWriter, r *http.Request, proj *tracke
 
 	sections := tracker.GroupDocSections(pages)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, "docs.html", DocsData{Pages: pages, Sections: sections, Prefix: prefix, ProjectName: proj.Name, SupportsGitHub: proj.SupportsGitHub}); err != nil {
+	if err := s.tmpl.ExecuteTemplate(w, "docs.html", DocsData{Pages: pages, Sections: sections, Prefix: prefix, ProjectName: proj.Name}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -779,7 +768,7 @@ func (s *Server) handleDocPage(w http.ResponseWriter, r *http.Request, proj *tra
 
 	sections := tracker.GroupDocSections(pages)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, "docs.html", DocsData{Page: found, Pages: pages, Sections: sections, Prefix: prefix, ProjectName: proj.Name, SupportsGitHub: proj.SupportsGitHub}); err != nil {
+	if err := s.tmpl.ExecuteTemplate(w, "docs.html", DocsData{Page: found, Pages: pages, Sections: sections, Prefix: prefix, ProjectName: proj.Name}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

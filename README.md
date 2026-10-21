@@ -59,7 +59,7 @@ issue-viewer -config projects.yaml
 
 Hover the card, press ▶ and pick **Claude**. The agent starts in a tmux session (`tmux attach -t agent-<slug>`), reads the workflow with `issue-cli process`, works the issue, and stops at the first gate for you. [check]
 
-Just looking? Clone the repo and run `make demo` (Go 1.23+) to open a sample project. Other install options (a pinned version, manual download, building from source) are in [docs/getting-started.md](docs/getting-started.md).
+Just looking? Clone the repo and run `make demo` (Go 1.25+) to open a sample project. Other install options (a pinned version, manual download, building from source) are in [docs/getting-started.md](docs/getting-started.md).
 
 ## How it works
 

@@ -16,6 +16,42 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.38.0 — 2026-10-21
+
+- New Decisions tab, `/p/<project>/decisions`: a generated index of every `- **D-n** · date · how: …` line under the issues' `## Decisions` sections, with how it was made, the quote, the recording issue, the issues that cite it (`<slug>#D-n`) and its state: active, deferred, replaced, or replaced · stale when open issues still cite a replaced decision. System and state chips filter it, and "copy ref" copies the ref. Nobody edits the list; it reloads when an issue changes.
+- `issue-cli decide <slug> --text "…" [--how ..] [--quote ..] [--deferred] [--replaces <slug>#D-n]` records a decision. With `--replaces` it lists the open issues that still cite the old one. `issue-cli decisions [--system] [--state] [--issue] [--json]` prints the same index, and `show` prints a `== Cites replaced decisions ==` block on a citing issue.
+- Structured questions: `issue-cli ask <slug> --question .. --option "A=Label|Tradeoff" … --recommend B` writes a `### Q-n · open` entry under `## Questions`; the worker says so in chat and stops, and the lead relays it. `issue-cli answer <slug> Q-n --option B [--note ..]` collapses the question to an answered pointer and appends an "answered in lead chat (Q-n)" decision. `show` and `checklist` print open questions. `ask --wait` / `--wait-for Q-n` block until answered (`--timeout` exits 3), for scripts.
+- New Balance tab, `/p/<project>/balance`, opt-in with a `workbench.balance` block in `workflow.yaml`: typed `balance:` notes grouped by metric (state, hypothesis, change, evidence, verdict, pass, earlier notes), joint passes from `balance_pass:` issues with a Start pass button, and free-text `balance:` comments under Unsorted. `issue-cli balance <slug> --metric .. --state ..` writes a typed note (a later note with the same metric and change updates it), and `balance --list` prints the current notes. Without the block the tab is hidden.
+- Queued approvals: the detail page's "Approved for backlog and in progress" sets `human_approval: backlog` and `queued_approval: in progress`, so an agent goes design → backlog → in progress with one click. A second click clears both.
+- `workflow.yaml` accepts an optional, project-wide `workbench:` block (systems, metrics, tuning, balance). Paths must be relative and stay inside the project root; `process schema` lists it.
+- Playtest: a `workbench` scenario and sessions for the Decisions tab, the Balance tab and queued approvals / ask / answer, with `data-testid` labels on both pages.
+
+## v0.37.0 — 2026-10-21
+
+- Lead agents are a feature, not a convention. A project lead (`lead-<project>`, in the project checkout) supervises the project; a sub-lead (`lead-<epic-slug>`) stabilises one epic on its base branch. The depth is fixed at project lead → sub-lead → worker.
+- `issue-cli lead spawn [--epic <slug>]` starts or re-attaches to a lead without the viewer running. `--epic` creates the base branch (the epic's `base:`, else `base/<slug>`, from main) and its worktree, and records `base:` and `lead:` on the epic. Workers and sub-leads are refused with a hint.
+- `issue-cli lead whoami` shows your role, scope, lead and what you may tick. `issue-cli lead list` shows every lead, its base, main commits not yet in the base, children running, and epics with no sub-lead. `issue-cli lead message <target> "text"` pastes a signed message into a session (leads only).
+- `issue-cli approve <slug> --to <status> --quote "…"` records a gate the human approved in chat: an `approval:` comment with their words, and `human_approval` set without toggling. Workers, sub-leads outside their epic and Human Testing are refused.
+- `parent:` is the child → epic link; `umbrella:` is read as an alias, and `show`/`start` print a rename hint. Dispatching a child of an epic with `base:` branches its worktree from the base, and the epic itself reuses the base worktree.
+- Every dispatch prompt gains `## Your lead` (who the worker reports to: the epic's live sub-lead, else the project lead) and, for children of an epic, `## Base branch`. `show` and `start` print a `Lead:` line.
+- `workflow.yaml` gains an optional `leads:` block (`project:` and `epic:` briefs, with `{{project}}`, `{{lead}}`, `{{project_lead}}`, `{{epic}}`, `{{title}}`, `{{base}}`). Without it, built-in briefs apply. Each brief ends with the lead's role, authority, messaging and handoff note (`sessions/YYYY-MM-DD-lead-<scope>.md`).
+- Claude agents and leads start as `claude -n <tmux name>`, so their tmux name is also their address for Claude Code's built-in messaging (ListAgents / SendMessage). Briefs say agents may message their lead or a peer that way.
+- New agents canvas, `/p/<project>/agents`: you → project lead → one box per epic (base branch, children running, main ahead, sub-lead) → workers as working, at gate, question or stopped, plus an Unfinished jobs lane. Tree and Radial layouts, and Show issues / Group umbrellas / Show stopped toggles. Clicking a live agent opens its tmux session in a terminal, or focuses the one already open (i3, by window title). The panel has Approve gate, Spawn, Copy attach, recent comments and the branch's changed files.
+- Spawn lead in the Actions bar and on the canvas, Spawn sub-lead on epic boxes and in a new Lead section on the epic's detail page.
+- The default i3 + alacritty terminal titles its windows with the session name. An attach command names a private tmux server when the viewer runs with `TMUX_TMPDIR` set.
+- Playtest runner: scenario projects are now headless (`terminal: "none"`), so a dispatch or spawn in a scenario no longer opens a window attached to the real tmux server. `REPEAT=2` ignores timestamps and the scenario's temp dir in check output.
+
+## v0.36.0 — 2026-10-21
+
+- Bundled workflow templates are versioned. `development`, `review` and `writing` start with `template: <name>@v0.36.0` and a `features:` record, so `workflow init` writes a stamped, recorded file. `template: custom` opts a hand-built workflow out.
+- The refreshed templates add: approval gates that hand off to the lead (the agent says what it needs and ends its turn; no waiting or polling), design overlap and discoverability checks, throwaway-sandbox manual tests, a rule for documenting unrelated test failures, types of work (`feature`, `tweak`, `bugfix`) in `development`, and a sample project action.
+- New feature catalog (bundled `templates/workflow-features.yaml`): 35 entries, one per `workflow.yaml` capability (statuses, gates, automation, actions, board, worktrees, template conventions such as the v0.34.0 playtest-session wording). Each has what/why/where, a YAML snippet, the question to ask the human, and structural detection probes over the parsed YAML.
+- `issue-cli workflow scan` detects which catalog features a `workflow.yaml` has and writes its `features:` record (installed `<id>@<version>`, declined `<id>`). It rewrites only that block. `--dry-run` previews; `--installed`, `--declined` and `--forget` record what an upgrade picked, declined or re-opened.
+- `issue-cli workflow upgrade` (alias `issue-cli upgrade`) is read-only. It proposes the features a project lacks, item by item, using the `features:` record first and the probes as a fallback, lists declined features, proposes updates for older installed versions, and prints the upgrade steps. `--all` lists the whole catalog, and `--json` gives agents a plan.
+- `start` and `process workflow` print a one-line hint when upgrade has proposals: tell the operator, and upgrade only if they ask.
+- `process schema` lists `template` and `features`, and the web designer's save keeps both.
+- `issue-cli workflow init` works in an empty directory without a `projects.yaml`.
+
 ## v0.35.0 — 2026-10-21
 
 - **Issues canvas.** A new **Canvas** tab (`/p/<project>/canvas`) shows what each epic holds and what each version plans, on one pannable, zoomable map.

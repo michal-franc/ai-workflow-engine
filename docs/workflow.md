@@ -96,6 +96,26 @@ In practice:
 
 For the full end-to-end agent flow from dispatch through approvals, retrospectives, and bug reporting, see [Agent Workflow Flow](agent-workflow-flow).
 
+### Lead briefs (`leads:`)
+
+A top-level `leads:` block sets the brief each kind of [lead agent](patterns/lead-session.md) is spawned with by `issue-cli lead spawn`:
+
+```yaml
+leads:
+  project: |
+    You are the project lead of {{project}}, running in {{lead}}.
+    Dispatch workers from the board and relay their questions to the human one at a time.
+  epic: |
+    You are the sub-lead of {{epic}} ("{{title}}") on base branch {{base}}.
+    Merge each child into {{base}} and keep it green. Report to {{project_lead}}.
+```
+
+- `project` is the project lead's brief; `epic` is a sub-lead's.
+- Placeholders: `{{project}}`, `{{lead}}` (this lead's tmux name), `{{project_lead}}`, `{{epic}}`, `{{title}}` (the epic's title) and `{{base}}` (its base branch). `issue-cli` commands get `--project` injected.
+- A missing or empty key uses the built-in default brief, so a workflow without `leads:` still gets working leads.
+- The CLI always appends a footer: role, who the lead reports to, what it may tick, and its handoff note under `sessions/`.
+- `leads:` is project-wide: type, system and per-issue overlays keep it as it is.
+
 ## Side-Effects
 
 Statuses support a `side_effects` field — actions that run automatically after entering a status:
@@ -285,3 +305,14 @@ System-specific documentation lives in `docs/<System>/` and agents should refere
 - [CLI Overview](CLI/overview)
 - [UI Overview](UI/overview)
 - [Workflow Overview](Workflow/overview)
+
+## Keeping workflow.yaml up to date
+
+Projects edit their `workflow.yaml` heavily, so a newer issue-cli never overwrites it. Instead:
+
+- `workflow.yaml` carries a `template: <name>@<release>` stamp and a `features:` record (installed `<id>@<version>`, declined `<id>`). `issue-cli workflow init` writes both.
+- `issue-cli workflow scan` detects which catalog features the file already has and writes the record. Use `--dry-run` to preview.
+- `issue-cli workflow upgrade` lists the features the project could adopt, each with what it does, why, a snippet and a question for you. An agent proposes them one at a time and copies in only the ones you pick. Declined ones stay declined until you re-open them with `issue-cli workflow scan --forget <id>`.
+- When there is something to propose, `start` and `process workflow` print a one-line hint. Agents mention it and upgrade only when you ask.
+
+Details: [Workflow Overview](Workflow/overview) (stamp, record, catalog) and [CLI Overview](CLI/overview) (`workflow upgrade`, `workflow scan`).

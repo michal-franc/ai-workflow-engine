@@ -1,0 +1,438 @@
+{{define "agents.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — Agents</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='3' r='2' fill='%238b949e'/><circle cx='3' cy='12' r='2' fill='%238b949e'/><circle cx='13' cy='12' r='2' fill='%238b949e'/><path d='M8 5v3M8 8L3.6 10.4M8 8l4.4 2.4' stroke='%238b949e' stroke-width='1.3' fill='none'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+    <div class="header" data-testid="header.bar">
+        <div class="container header-inner">
+            <div style="display:flex;align-items:center;">
+                <a href="/" class="project-back-link">Projects</a>
+                <span class="header-sep">/</span>
+                <h1>{{.ProjectName}}</h1>
+            </div>
+            <nav class="view-tabs">
+                <a href="{{.Prefix}}/" class="view-tab">List</a>
+                <a href="{{.Prefix}}/board" class="view-tab">Board</a>
+                <a href="{{.Prefix}}/graph" class="view-tab">Graph</a>
+                <a href="{{.Prefix}}/canvas" class="view-tab">Canvas</a>
+                <a href="{{.Prefix}}/agents" class="view-tab active">Agents</a>
+                <a href="{{.Prefix}}/docs" class="view-tab">Docs</a>
+                <a href="{{.Prefix}}/retros" class="view-tab">Retros</a>
+                <a href="{{.Prefix}}/workflow-designer" class="view-tab">Workflow</a>
+                <a href="{{.Prefix}}/stats" class="view-tab">Stats</a>
+                {{if .SupportsGitHub}}
+                <a href="{{.Prefix}}/github" class="view-tab">GitHub</a>
+                {{end}}
+                <a href="{{.Prefix}}/decisions" class="view-tab">Decisions</a>
+                {{if workbenchTab "balance" .Prefix}}<a href="{{.Prefix}}/balance" class="view-tab">Balance</a>{{end}}
+            </nav>
+            <div class="theme-picker">
+                <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
+                <button class="theme-btn" data-theme="dark" title="Dark"></button>
+                <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
+                <button class="theme-btn" data-theme="light" title="Light"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container agents-page">
+        <div class="agents-toolbar" data-testid="agents.toolbar">
+            <div class="agents-layouts" role="group" aria-label="Layout">
+                <button type="button" class="agents-layout-btn active" data-layout="tree" data-testid="agents.layout.tree">Tree</button>
+                <button type="button" class="agents-layout-btn" data-layout="radial" data-testid="agents.layout.radial">Radial</button>
+            </div>
+            <label><input type="checkbox" id="opt-issues" data-testid="agents.opt.issues" checked> Show issues</label>
+            <label><input type="checkbox" id="opt-group" data-testid="agents.opt.group" checked> Group umbrellas</label>
+            <label><input type="checkbox" id="opt-stopped" data-testid="agents.opt.stopped" checked> Show stopped</label>
+            <span class="agents-live" id="agents-live" data-testid="agents.live">loading…</span>
+            <button type="button" class="dispatch-btn" id="spawn-project-lead" data-testid="agents.spawn_lead" onclick="spawnLead('')">Spawn lead</button>
+        </div>
+
+        <div class="agents-body">
+            <div class="agents-canvas" id="agents-canvas" data-testid="agents.canvas"></div>
+            <aside class="agents-panel" id="agents-panel" data-testid="agents.panel">
+                <p class="agents-panel-empty">Click an agent to open its tmux session and see its issue and branch.</p>
+            </aside>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="lead-spawn-modal" data-testid="agents.spawn_modal" style="display:none">
+        <div class="modal" style="max-width:640px">
+            <div class="modal-title" id="lead-spawn-title">Spawn lead</div>
+            <div class="modal-body">
+                <div id="lead-spawn-steps" class="dispatch-steps" data-testid="agents.spawn_modal.steps"></div>
+                <div id="lead-spawn-session" class="dispatch-session"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" data-testid="agents.spawn_modal.close" onclick="document.getElementById('lead-spawn-modal').style.display='none'">Close</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+(function() {
+    var prefix = {{.Prefix}};
+    var model = null;
+    var listedAt = null;
+    var selected = null;
+    var layout = 'tree';
+    var opts = { issues: true, group: true, stopped: true };
+
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    // tid turns a name or slug into one data-testid segment, like the
+    // templates' tid: lower case, spaces and dots to _.
+    function tid(s) {
+        return String(s == null ? '' : s).trim().toLowerCase().replace(/[ .]/g, '_');
+    }
+
+    var stateLabel = {
+        'working': 'working', 'at-gate': 'at gate', 'question': 'question',
+        'stopped': 'stopped', 'live': 'live', 'not-running': 'not running'
+    };
+
+    function nodeHTML(n, extraClass) {
+        var cls = 'agent-node agent-' + n.kind + ' state-' + n.state + (extraClass ? ' ' + extraClass : '') + (selected === n.name ? ' selected' : '');
+        var meta = esc(stateLabel[n.state] || n.state);
+        if (n.gate) meta += ' · ' + esc(n.gate);
+        if (n.retro_not_swept) meta += ' · retro not swept';
+        var html = '<div class="agent-row">'
+            + '<button type="button" class="' + cls + '" data-name="' + esc(n.name) + '" data-testid="agents.node.' + tid(n.name) + '">'
+            + '<span class="agent-dot"></span><span class="agent-name">' + esc(n.name) + '</span>'
+            + '<span class="agent-state" data-testid="agents.node.' + tid(n.name) + '.state">' + meta + '</span></button>';
+        if (opts.issues && n.issue && n.kind !== 'sub-lead') {
+            html += '<span class="agent-link" style="border-color:' + esc(n.issue.color) + '"></span>'
+                + '<a class="agent-issue-card" data-testid="agents.node.' + tid(n.name) + '.issue" href="' + esc(n.issue.url) + '" style="border-left-color:' + esc(n.issue.color) + '">'
+                + '<span class="agent-issue-status" style="background:' + esc(n.issue.color) + '">' + esc(n.issue.status) + '</span>'
+                + esc(n.issue.title) + '</a>';
+        }
+        return html + '</div>';
+    }
+
+    function epicBoxHTML(g, workers, stopped) {
+        var html = '<section class="agents-epic" data-testid="agents.epic.' + tid(g.issue.slug) + '">'
+            + '<header><a href="' + esc(g.issue.url) + '">' + esc(g.issue.title) + '</a>'
+            + '<span class="agents-epic-meta" data-testid="agents.epic.' + tid(g.issue.slug) + '.meta">';
+        if (g.base) html += 'base <code>' + esc(g.base) + '</code> · ';
+        html += g.children_running + ' of ' + g.children_total + ' children running';
+        if (g.main_ahead_known && g.main_ahead > 0) html += ' · <span class="agents-warn">main is ' + g.main_ahead + ' ahead</span>';
+        html += '</span>';
+        if (!g.sub_lead.live) {
+            html += '<button type="button" class="dispatch-btn" data-testid="agents.epic.' + tid(g.issue.slug) + '.spawn" onclick="spawnLead(' + esc(JSON.stringify(g.issue.slug)) + ')">Spawn sub-lead</button>';
+        }
+        html += '</header><div class="agents-children">' + nodeHTML(g.sub_lead) + '<div class="agents-level">';
+        workers.forEach(function(w) { html += nodeHTML(w); });
+        stopped.forEach(function(w) { html += nodeHTML(w); });
+        if (!workers.length && !stopped.length) html += '<p class="agents-none">No agents on this epic.</p>';
+        return html + '</div></div></section>';
+    }
+
+    function renderTree() {
+        var html = '<div class="agents-tree" data-testid="agents.tree"><div class="agent-row"><span class="agent-node agent-human" data-testid="agents.you">You</span></div>'
+            + '<div class="agents-level">' + nodeHTML(model.project_lead) + '<div class="agents-level">';
+        var byEpic = {};
+        var loose = [];
+        var looseStopped = [];
+        if (opts.group) {
+            (model.epics || []).forEach(function(g) { byEpic[g.issue.slug] = { workers: [], stopped: [] }; });
+        }
+        (model.workers || []).forEach(function(w) {
+            if (opts.group && w.epic && byEpic[w.epic]) byEpic[w.epic].workers.push(w); else loose.push(w);
+        });
+        if (opts.stopped) {
+            (model.unfinished || []).forEach(function(w) {
+                if (opts.group && w.epic && byEpic[w.epic]) byEpic[w.epic].stopped.push(w); else looseStopped.push(w);
+            });
+        }
+        (model.epics || []).forEach(function(g) {
+            if (opts.group) {
+                html += epicBoxHTML(g, byEpic[g.issue.slug].workers, byEpic[g.issue.slug].stopped);
+            } else if (g.has_sub_lead) {
+                html += nodeHTML(g.sub_lead);
+            }
+        });
+        loose.forEach(function(w) { html += nodeHTML(w); });
+        (model.others || []).forEach(function(w) { html += nodeHTML(w); });
+        html += '</div></div></div>';
+        if (opts.stopped) {
+            html += '<section class="agents-unfinished" data-testid="agents.unfinished"><h2>Unfinished jobs</h2>'
+                + '<p class="agents-sub">A worktree or an active status, and no live agent.</p>';
+            var lane = opts.group ? looseStopped : (model.unfinished || []);
+            if (!lane.length) html += '<p class="agents-none">' + (opts.group && (model.unfinished || []).length ? 'All unfinished jobs are shown in their epic.' : 'None.') + '</p>';
+            lane.forEach(function(w) { html += nodeHTML(w); });
+            html += '</section>';
+        }
+        return html;
+    }
+
+    function renderRadial() {
+        var nodes = [];
+        var edges = [];
+        var W = 900, H = 640, cx = W / 2, cy = H / 2;
+        nodes.push({ id: 'you', label: 'You', x: cx, y: 40, kind: 'human' });
+        var lead = model.project_lead;
+        nodes.push({ id: lead.name, label: lead.name, x: cx, y: cy, kind: 'project-lead', state: lead.state });
+        edges.push({ from: 'you', to: lead.name });
+        var groups = [];
+        (model.epics || []).forEach(function(g) {
+            if (g.has_sub_lead) groups.push({ hub: g.sub_lead, epic: g.issue.slug, members: [] });
+        });
+        var loose = { hub: null, members: [] };
+        var all = (model.workers || []).concat(opts.stopped ? (model.unfinished || []) : []).concat(model.others || []);
+        all.forEach(function(w) {
+            var g = opts.group && groups.filter(function(x) { return x.epic === w.epic; })[0];
+            (g || loose).members.push(w);
+        });
+        var sectors = groups.concat(loose.members.length ? [loose] : []);
+        sectors.forEach(function(s, i) {
+            var a = (2 * Math.PI * i) / Math.max(sectors.length, 1) - Math.PI / 2;
+            var hubId = lead.name;
+            if (s.hub) {
+                hubId = s.hub.name;
+                nodes.push({ id: hubId, label: s.hub.name, x: cx + 150 * Math.cos(a), y: cy + 150 * Math.sin(a), kind: 'sub-lead', state: s.hub.state });
+                edges.push({ from: lead.name, to: hubId });
+            }
+            var span = (2 * Math.PI) / Math.max(sectors.length, 1);
+            s.members.forEach(function(w, j) {
+                var b = a - span / 2 + span * (j + 0.5) / s.members.length;
+                var p = { id: w.name, label: w.name, x: cx + 260 * Math.cos(b), y: cy + 260 * Math.sin(b), kind: w.kind, state: w.state };
+                nodes.push(p);
+                edges.push({ from: hubId, to: w.name, dashed: w.state === 'stopped' });
+                if (opts.issues && w.issue) {
+                    var q = { id: 'issue:' + w.name, label: w.issue.status, x: cx + 320 * Math.cos(b), y: cy + 320 * Math.sin(b), kind: 'issue', color: w.issue.color, url: w.issue.url, title: w.issue.title };
+                    nodes.push(q);
+                    edges.push({ from: w.name, to: q.id, dashed: true, color: w.issue.color });
+                }
+            });
+        });
+        var pos = {};
+        nodes.forEach(function(n) { pos[n.id] = n; });
+        var svg = '<svg class="agents-radial" data-testid="agents.radial" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Agents, radial layout">';
+        edges.forEach(function(e) {
+            var a = pos[e.from], b = pos[e.to];
+            if (!a || !b) return;
+            svg += '<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '" class="radial-edge"'
+                + (e.dashed ? ' stroke-dasharray="4 4"' : '') + (e.color ? ' style="stroke:' + esc(e.color) + '"' : '') + '/>';
+        });
+        nodes.forEach(function(n) {
+            if (n.kind === 'issue') {
+                svg += '<a href="' + esc(n.url) + '"><title>' + esc(n.title) + '</title><circle cx="' + n.x + '" cy="' + n.y + '" r="7" style="fill:' + esc(n.color) + '"/></a>';
+                return;
+            }
+            svg += '<g class="radial-node agent-' + esc(n.kind) + ' state-' + esc(n.state || '') + (selected === n.id ? ' selected' : '') + '" data-name="' + esc(n.id) + '">'
+                + '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + (n.kind === 'project-lead' ? 16 : 11) + '"/>'
+                + '<text x="' + n.x + '" y="' + (n.y + 28) + '" text-anchor="middle">' + esc(n.label) + '</text></g>';
+        });
+        return svg + '</svg>';
+    }
+
+    function render() {
+        if (!model) return;
+        var canvas = document.getElementById('agents-canvas');
+        canvas.innerHTML = layout === 'tree' ? renderTree() : renderRadial();
+        document.getElementById('spawn-project-lead').style.display = model.project_lead.live ? 'none' : '';
+        canvas.querySelectorAll('[data-name]').forEach(function(el) {
+            el.addEventListener('click', function() { select(el.getAttribute('data-name')); });
+        });
+    }
+
+    function allNodes() {
+        if (!model) return [];
+        var list = [model.project_lead];
+        (model.epics || []).forEach(function(g) { list.push(g.sub_lead); });
+        return list.concat(model.workers || [], model.unfinished || [], model.others || []);
+    }
+
+    function findNode(name) {
+        return allNodes().filter(function(n) { return n.name === name; })[0];
+    }
+
+    // select shows the agent in the panel and, when it is live, opens its tmux
+    // session in a terminal: the pane is watched there, not in the page.
+    function select(name) {
+        selected = name;
+        render();
+        renderPanel();
+        var n = findNode(name);
+        if (n && n.live) openSession(n);
+    }
+
+    // openSession opens n's tmux session in a terminal, or brings the one
+    // already open to the front; it never opens a second window.
+    function openSession(n) {
+        var status = document.getElementById('panel-open-status');
+        if (status) status.textContent = 'Opening ' + n.name + '…';
+        fetch(prefix + '/agents/open', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session: n.name })
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            var el = document.getElementById('panel-open-status');
+            if (!el || selected !== n.name) return;
+            var steps = d.steps || [];
+            var headless = steps.some(function(s) { return s.name.indexOf('Terminal: headless') === 0; });
+            var failed = steps.filter(function(s) { return s.status === 'error'; })[0];
+            if (d.status === 'no-session') {
+                el.textContent = n.name + ' is not running.';
+            } else if (d.status === 'focused') {
+                el.textContent = 'Switched to the open terminal for ' + n.name + '.';
+            } else if (d.status === 'already-open') {
+                el.textContent = n.name + ' is already open in a terminal, but its window could not be brought to the front (it needs i3 and a window titled ' + n.name + ').';
+            } else if (failed) {
+                el.textContent = 'Could not open ' + n.name + ': ' + failed.name + (failed.detail ? ' (' + failed.detail + ')' : '');
+            } else if (headless) {
+                el.textContent = 'No terminal configured (terminal: none). Attach with: ' + d.attach_cmd;
+            } else {
+                el.textContent = 'Opened ' + n.name + ' in a terminal.';
+            }
+        }).catch(function(e) {
+            var el = document.getElementById('panel-open-status');
+            if (el) el.textContent = 'Could not open: ' + e.message;
+        });
+    }
+
+    // panelKey changes when what the panel shows for the selected agent does,
+    // so a poll re-renders it only then (keeping the open status line).
+    var panelKey = '';
+    function keyOf(n) {
+        return n ? [n.name, n.live, n.state, n.gate || ''].join('|') : '';
+    }
+
+    function renderPanel() {
+        var panel = document.getElementById('agents-panel');
+        var n = selected && findNode(selected);
+        if (!n) {
+            panel.innerHTML = '<p class="agents-panel-empty">Click an agent to open its tmux session and see its issue and branch.</p>';
+            return;
+        }
+        var html = '<h2 data-testid="agents.panel.title">' + esc(n.name) + '</h2><p class="agents-sub">' + esc(n.kind.replace('-', ' ')) + ' · ' + esc(stateLabel[n.state] || n.state)
+            + (n.display !== n.name ? ' · tmux ' + esc(n.display) : '') + '</p>';
+        if (n.issue) {
+            html += '<p><a data-testid="agents.panel.issue" href="' + esc(n.issue.url) + '">' + esc(n.issue.title) + '</a> '
+                + '<span class="agent-issue-status" style="background:' + esc(n.issue.color) + '">' + esc(n.issue.status) + '</span></p>';
+        }
+        html += '<div class="agents-actions">';
+        if (n.gate && n.issue) {
+            html += '<button type="button" class="dispatch-btn" id="panel-approve" data-testid="agents.panel.approve">Approve gate: ' + esc(n.gate) + '</button>';
+        }
+        if (!n.live && n.kind === 'project-lead') {
+            html += '<button type="button" class="dispatch-btn" data-testid="agents.panel.spawn" onclick="spawnLead(\'\')">Spawn lead</button>';
+        }
+        if (!n.live && n.kind === 'sub-lead' && n.epic) {
+            html += '<button type="button" class="dispatch-btn" data-testid="agents.panel.spawn" onclick="spawnLead(' + esc(JSON.stringify(n.epic)) + ')">Spawn sub-lead</button>';
+        }
+        if (n.live) {
+            html += '<button type="button" class="btn" id="panel-open" data-testid="agents.panel.open">Open in tmux</button>';
+        }
+        html += '<button type="button" class="btn" id="panel-copy" data-testid="agents.panel.copy">Copy attach</button></div>';
+        if (n.live) {
+            html += '<p class="agents-sub" id="panel-open-status" data-testid="agents.panel.open_status"></p>';
+        }
+        html += '<div id="panel-detail"><p class="agents-sub">Loading branch…</p></div>';
+        panel.innerHTML = html;
+        panelKey = keyOf(n);
+
+        var open = document.getElementById('panel-open');
+        if (open) open.addEventListener('click', function() { openSession(n); });
+
+        var copy = document.getElementById('panel-copy');
+        copy.addEventListener('click', function() {
+            navigator.clipboard.writeText(n.attach_cmd).then(function() { copy.textContent = 'Copied'; },
+                function() { copy.textContent = n.attach_cmd; });
+        });
+        var approve = document.getElementById('panel-approve');
+        if (approve) approve.addEventListener('click', function() {
+            approve.disabled = true;
+            fetch(prefix + '/issue/' + n.issue.slug + '/approve', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: n.gate })
+            }).then(function(r) { return r.json(); }).then(function() { approve.textContent = 'Approved'; load(); })
+              .catch(function(e) { approve.textContent = 'Failed: ' + e.message; approve.disabled = false; });
+        });
+        var url = prefix + '/agents/detail?session=' + encodeURIComponent(n.name)
+            + (n.issue ? '&issue=' + encodeURIComponent(n.issue.slug) : '');
+        fetch(url).then(function(r) { return r.json(); }).then(function(d) {
+            if (selected !== n.name) return;
+            var out = '';
+            out += '<h3>Recent activity</h3>';
+            if (d.comments && d.comments.length) {
+                out += '<ul class="agents-activity" data-testid="agents.panel.activity">';
+                d.comments.slice().reverse().forEach(function(c) { out += '<li><span class="agents-sub">' + esc(c.date) + '</span> ' + esc(c.text) + '</li>'; });
+                out += '</ul>';
+            } else {
+                out += '<p class="agents-none">No comments.</p>';
+            }
+            if (d.branch) {
+                out += '<h3>Branch</h3><p data-testid="agents.panel.branch"><code>' + esc(d.branch) + '</code>' + (d.against ? ' vs <code>' + esc(d.against) + '</code>' : '') + '</p>'
+                    + '<pre class="agents-pane" data-testid="agents.panel.diff">' + (d.diff_stat ? esc(d.diff_stat) : '(no changes, or branch not created yet)') + '</pre>';
+            }
+            document.getElementById('panel-detail').innerHTML = out;
+        });
+    }
+
+    window.spawnLead = function(epic) {
+        var modal = document.getElementById('lead-spawn-modal');
+        var steps = document.getElementById('lead-spawn-steps');
+        document.getElementById('lead-spawn-title').textContent = epic ? 'Spawn sub-lead for ' + epic : 'Spawn project lead';
+        document.getElementById('lead-spawn-session').textContent = '';
+        steps.innerHTML = '<div class="dispatch-step pending">Spawning…</div>';
+        modal.style.display = '';
+        fetch(prefix + '/lead/spawn', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ epic: epic })
+        }).then(function(r) { return r.json(); }).then(function(d) {
+            if (d.session) document.getElementById('lead-spawn-session').textContent = 'tmux: ' + d.session;
+            steps.innerHTML = (d.steps || []).map(function(s) {
+                var cls = s.status === 'ok' ? 'ok' : (s.status === 'reattached' ? 'reattached' : 'error');
+                return '<div class="dispatch-step ' + cls + '">' + esc(s.name) + (s.detail ? ' <span class="dispatch-step-detail">(' + esc(s.detail) + ')</span>' : '') + '</div>';
+            }).join('');
+            load();
+        }).catch(function(e) { steps.innerHTML = '<div class="dispatch-step error">Failed: ' + esc(e.message) + '</div>'; });
+    };
+
+    function load() {
+        return fetch(prefix + '/agents.json').then(function(r) { return r.json(); }).then(function(m) {
+            model = m;
+            listedAt = new Date();
+            render();
+            if (selected && keyOf(findNode(selected)) !== panelKey) renderPanel();
+        }).catch(function() {
+            document.getElementById('agents-live').textContent = 'offline';
+        });
+    }
+
+    function tick() {
+        if (!listedAt) return;
+        var s = Math.round((Date.now() - listedAt.getTime()) / 1000);
+        document.getElementById('agents-live').textContent = 'live · tmux ls ' + s + 's ago';
+    }
+
+    document.querySelectorAll('.agents-layout-btn').forEach(function(b) {
+        b.addEventListener('click', function() {
+            layout = b.getAttribute('data-layout');
+            document.querySelectorAll('.agents-layout-btn').forEach(function(x) { x.classList.toggle('active', x === b); });
+            render();
+        });
+    });
+    [['opt-issues', 'issues'], ['opt-group', 'group'], ['opt-stopped', 'stopped']].forEach(function(p) {
+        document.getElementById(p[0]).addEventListener('change', function(ev) { opts[p[1]] = ev.target.checked; render(); });
+    });
+
+    load();
+    setInterval(load, 5000);
+    setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
+{{end}}

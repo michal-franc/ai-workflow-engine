@@ -41,6 +41,19 @@
 #     concurrent agents on different issues; safe to leave off for small or
 #     single-file projects. Cleanup is the human's responsibility — agents
 #     do not remove worktrees.
+#
+#   leads:
+#     Briefs for lead agents, spawned with `issue-cli lead spawn [--epic <slug>]`.
+#     `project` briefs the project lead (tmux lead-<project>); `epic` briefs an
+#     epic's sub-lead (tmux lead-<epic-slug>, on the epic's base branch).
+#     Placeholders: {{project}} {{lead}} {{project_lead}} {{epic}} {{title}} {{base}}.
+#     Either key may be left out to use the built-in default brief.
+#     leads:
+#       project: |
+#         You are the project lead of {{project}}, running in {{lead}}.
+#       epic: |
+#         You are the sub-lead of {{epic}} ("{{title}}") on base branch {{base}}.
+#         Merge each child into {{base}}, keep it green, report to {{project_lead}}.
 
 statuses:
   - name: "idea"

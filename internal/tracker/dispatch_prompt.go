@@ -16,23 +16,72 @@ type DispatchPrompt struct {
 	Status   string `json:"status"`
 	Worktree string `json:"worktree,omitempty"`
 	Branch   string `json:"branch,omitempty"`
-	Session  string `json:"session"`
+	// Base is the epic base branch the worktree is created from and the
+	// agent ships into ("" outside an epic with a base branch).
+	Base    string `json:"base,omitempty"`
+	Session string `json:"session"`
+	// Lead is the session the agent reports to.
+	Lead string `json:"lead,omitempty"`
 }
 
 // BuildDispatchPrompt composes the prompt a dispatch would send right now for
 // issue, without creating the worktree or tmux session. workDir is the
-// project's working directory the worktree path is resolved against. The
-// server and issue-cli both call this so their output is byte-identical.
-func BuildDispatchPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, workDir string) DispatchPrompt {
-	wtPath, wtBranch, _ := ResolveWorktree(workDir, issue.Slug, wf)
+// project's working directory the worktree path is resolved against. live
+// reports whether a lead session is running (nil: none is); it decides which
+// lead the prompt names. The server and issue-cli both call this so their
+// output is byte-identical.
+func BuildDispatchPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, workDir string, live func(name string) bool) DispatchPrompt {
+	var issues []*Issue
+	if proj != nil && proj.IssueDir != "" {
+		issues, _ = LoadIssues(proj.IssueDir)
+	}
+	wt := IssueWorktree(workDir, issue, issues, wf)
+	route := LeadFor(proj, issue, issues, live)
+	base := ChildBase(issue, issues)
+	prompt := BuildAgentPrompt(proj, issue, wf, wt.Path, wt.Branch)
+	prompt += InjectProject(proj, LeadPromptSection(issue, route, base))
 	return DispatchPrompt{
-		Prompt:   BuildAgentPrompt(proj, issue, wf, wtPath, wtBranch),
+		Prompt:   prompt,
 		Slug:     issue.Slug,
 		Status:   issue.Status,
-		Worktree: wtPath,
-		Branch:   wtBranch,
+		Worktree: wt.Path,
+		Branch:   wt.Branch,
+		Base:     base,
 		Session:  AgentDisplayName(proj, AgentSessionName(issue.Slug)),
+		Lead:     route.Lead,
 	}
+}
+
+// LeadPromptSection is the "## Your lead" part of a worker's briefing, plus
+// "## Base branch" for children of an epic with a base branch. It names the
+// lead the worker reports to now and how that lead sees its work.
+func LeadPromptSection(issue *Issue, route LeadRoute, base string) string {
+	state := func(live bool) string {
+		if live {
+			return "live"
+		}
+		return "not running"
+	}
+	var b strings.Builder
+	b.WriteString("\n\n## Your lead\n\n")
+	switch {
+	case route.Epic != "" && route.SubLeadLive:
+		fmt.Fprintf(&b, "You report to %s, the sub-lead of epic %s (live).\n", route.SubLead, route.Epic)
+	case route.Epic != "":
+		fmt.Fprintf(&b, "Your epic %s has no live sub-lead (%s), so you report to the project lead %s (%s).\n", route.Epic, route.SubLead, route.ProjectLead, state(route.Live))
+	default:
+		fmt.Fprintf(&b, "You report to the project lead %s (%s).\n", route.ProjectLead, state(route.Live))
+	}
+	fmt.Fprintf(&b, "- Your lead follows your issue trail: ask with `issue-cli comment %s \"question: ...\"` and report with `progress:` comments. It relays questions and approvals to the human.\n", issue.Slug)
+	fmt.Fprintf(&b, "- In Claude Code you can also message %s, or another agent on this project, with ListAgents / SendMessage. An agent's address is its tmux name (lead-<scope>, agent-<slug>); yours is %s.\n", route.Lead, AgentSessionName(issue.Slug))
+	b.WriteString("- Only the human decides; a worker never ticks a gate.\n")
+	b.WriteString("- `issue-cli lead whoami` shows your lead and whether it is live right now.\n")
+	if base != "" {
+		fmt.Fprintf(&b, "\n## Base branch\n\nThis issue is part of epic %s, which integrates on base branch %s.\n", route.Epic, base)
+		fmt.Fprintf(&b, "- Build on %s: your branch was created from it. To catch up, merge %s (never main) into your branch.\n", base, base)
+		fmt.Fprintf(&b, "- Ship into %s (open the PR against %s, not main). The sub-lead takes the base branch to main when the human decides.\n", base, base)
+	}
+	return b.String()
 }
 
 // AgentSessionName is the tmux session (or shared-session window) name a
@@ -106,9 +155,7 @@ func BuildAgentPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, worktreeP
 	// already knows the project; the bot would otherwise have to discover or
 	// guess it. Replace bare `issue-cli ` (trailing space) so we don't break
 	// adjacent tokens, and skip when the project has no slug (bootstrap mode).
-	if proj != nil && proj.Slug != "" {
-		prompt = strings.ReplaceAll(prompt, "issue-cli ", "issue-cli --project "+proj.Slug+" ")
-	}
+	prompt = InjectProject(proj, prompt)
 
 	if worktreePath != "" {
 		prompt += fmt.Sprintf(`
@@ -122,6 +169,18 @@ You are already in an isolated git worktree at %s on branch %s.
 `, worktreePath, worktreeBranch, worktreeBranch)
 	}
 	return prompt
+}
+
+// InjectProject adds --project <slug> to every issue-cli command in text, so
+// agents in a multi-project projects.yaml setup don't silently run against
+// the default project. Bare `issue-cli ` (trailing space) is replaced so
+// adjacent tokens aren't broken; a project without a slug (bootstrap mode) is
+// left alone.
+func InjectProject(proj *Project, text string) string {
+	if proj == nil || proj.Slug == "" {
+		return text
+	}
+	return strings.ReplaceAll(text, "issue-cli ", "issue-cli --project "+proj.Slug+" ")
 }
 
 // PromptDeliveryMarker is the text whose appearance in the agent's pane shows

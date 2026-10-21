@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
@@ -55,5 +56,28 @@ func TestParseSharedAgentWindows(t *testing.T) {
 	}
 	if !sessionMatchesIssue(got[0].Name, "bug-in-login") {
 		t.Fatalf("shared window %q should match its issue", got[0].Name)
+	}
+}
+
+func TestParseSharedAgentWindows_KeepsLeadWindows(t *testing.T) {
+	out := "work\tlead-issue-viewer\nwork\tlead-ui-epic\nwork\tagent-ui-child\nwork\tzsh\nlead-x\tlead-x\n"
+	got := parseSharedAgentWindows(out)
+	var names []string
+	for _, s := range got {
+		names = append(names, s.Name)
+	}
+	if strings.Join(names, ",") != "work:lead-issue-viewer,work:lead-ui-epic,work:agent-ui-child" {
+		t.Fatalf("parseSharedAgentWindows = %v", names)
+	}
+}
+
+func TestSessionMatchesIssue_LeadIsNotAWorker(t *testing.T) {
+	for _, name := range []string{"lead-ui-epic", "work:lead-ui-epic"} {
+		if sessionMatchesIssue(name, "ui/epic") {
+			t.Errorf("%q counted as a worker on its epic", name)
+		}
+	}
+	if !sessionMatchesIssue("work:agent-ui-epic", "ui/epic") {
+		t.Errorf("the epic's own worker must still match")
 	}
 }

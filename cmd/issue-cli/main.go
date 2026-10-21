@@ -340,7 +340,8 @@ func runTraced(args []string, in io.Reader, out, errw io.Writer, inv *invocation
 
 	proj, allProjects, projErr := loadProjectOrErr(*configPath, *projectSlug)
 	// Help, process, and projects are project-agnostic surfaces (top-level
-	// help, releases, workflow reference, project listing). Every other
+	// help, releases, workflow reference, project listing); init/workflow/
+	// upgrade fall back to ./workflow.yaml in the current directory. Every other
 	// command must surface project-resolution errors so a nil project doesn't
 	// propagate into a downstream nil-pointer panic — covers ambiguous
 	// multi-project, missing config file, and unknown --project slug.
@@ -348,7 +349,7 @@ func runTraced(args []string, in io.Reader, out, errw io.Writer, inv *invocation
 	// always surface the error — the project-agnostic bypass is only for
 	// discovery without --project.
 	inv.cmd = cmd
-	bypassProjErr := rest.command == "help" || rest.command == "process" || rest.command == "projects" || rest.command == "version" || rest.command == "init" || rest.command == "telemetry"
+	bypassProjErr := rest.command == "help" || rest.command == "process" || rest.command == "projects" || rest.command == "version" || rest.command == "init" || rest.command == "workflow" || rest.command == "upgrade" || rest.command == "telemetry"
 	if projErr != nil && (!bypassProjErr || *projectSlug != "") {
 		inv.phase = phaseProject
 		return projErr

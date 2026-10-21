@@ -1,0 +1,977 @@
+# Workflow feature catalog: every workflow.yaml capability the engine supports.
+#
+# Read by:
+#   issue-cli workflow scan     detects which entries a workflow.yaml has and
+#                               writes its `features:` record
+#   issue-cli workflow upgrade  proposes entries a project lacks (propose: true
+#                               only, unless --all), item by item, read-only
+#
+# Kept separate from CHANGELOG.md (engine release notes). Installing a feature
+# means an agent copies its snippet, adapted, into workflow.yaml; nothing here
+# is merged at load time. When the engine gains a capability, or a template
+# changes a feature:
+#   1. add or update the entry here with `version:` = the release in CHANGELOG.md,
+#   2. bump that template's `template: <name>@<version>` stamp if the template
+#      file itself changed, and re-run `issue-cli workflow scan` on it so its
+#      `features:` record matches.
+# TestWorkflowFeature* checks fields, probe paths, stamps, records and snippets.
+#
+# Fields:
+#   id           stable kebab-case name; recorded as <id>@<version>
+#   version      issue-cli release that last changed the entry
+#   category     grouping for output: lifecycle, gates, automation, actions,
+#                board, dispatch, conventions
+#   propose      true: `upgrade` proposes it to projects that lack it;
+#                false: catalog only (scanned and recorded; listed by upgrade --all)
+#   templates    bundled templates `upgrade` proposes it for (empty = all)
+#   title, what, why, where, question   shown to the agent
+#   snippet      YAML example (must parse); adapt status names to the project
+#   detect       structural probes over the parsed workflow.yaml; the feature is
+#                present when ANY probe matches. Each probe has a `path` and at
+#                most one condition:
+#                  (none)    the value is set: not empty, false, 0 or null
+#                  equals    the value equals this scalar
+#                  one_of    the value is one of these strings
+#                  rule_in   the rule name (text before ':') is one of these
+#                  contains  the string value contains this text (case-insensitive)
+#                Path syntax: `key`, `key[]` (each list item), `*` (each map
+#                value). A path starting with statuses[] or transitions[] also
+#                matches inside every types.<t> and systems.<s> overlay.
+
+entries:
+  # ---------------------------------------------------------------- lifecycle
+  - id: status-prompts
+    version: v0.36.0
+    category: lifecycle
+    propose: false
+    title: "Per-status agent guidance"
+    what: |
+      `statuses[].prompt` is shown to the agent when an issue enters that status
+      (start, transition, dispatch briefing).
+    why: |
+      Tells the agent what "done" means at each step without repeating it in every
+      dispatch prompt.
+    where: "statuses[].prompt"
+    snippet: |
+      statuses:
+        - name: "in progress"
+          description: "Being implemented"
+          prompt: |
+            Implement the approved design. Keep the Implementation checklist current.
+    question: "Which statuses need written guidance for the agent, and what should it say?"
+    detect:
+      - path: statuses[].prompt
+
+  - id: optional-statuses
+    version: v0.36.0
+    category: lifecycle
+    propose: false
+    title: "Optional (skippable) statuses"
+    what: |
+      `optional: true` lets a forward transition skip the status. The viewer shows a
+      CTA button (label set by the edge's `cta_label`) to divert into it.
+    why: |
+      Steps like human testing that only some issues need stay in the lifecycle
+      without forcing every issue through them.
+    where: "statuses[].optional, plus transitions[].cta_label on the edge into it"
+    snippet: |
+      statuses:
+        - name: "human-testing"
+          description: "Waiting on manual verification"
+          optional: true
+      transitions:
+        - from: "testing"
+          to: "human-testing"
+          cta_label: "Needs human testing"
+          actions:
+            - type: "require_human_approval"
+              status: "human-testing"
+    question: "Is there a step only some issues need (e.g. human testing)? Should it be skippable?"
+    detect:
+      - path: statuses[].optional
+        equals: true
+      - path: transitions[].cta_label
+
+  - id: parked-status
+    version: v0.36.0
+    category: lifecycle
+    propose: true
+    templates: [development]
+    title: "Parked statuses (blocked / deferred)"
+    what: |
+      A status marked `optional: true` and `global: true`, reachable from anywhere with a
+      `from: "*"` transition that collects a reason via declarative `fields:`. Issues can
+      leave it to any status.
+    why: |
+      Gives blocked or deferred work a visible column with a recorded reason, without
+      enumerating edges from every status.
+    where: "a new entry in statuses: (and board.columns), plus a from: \"*\" transition"
+    snippet: |
+      statuses:
+        - name: "deferred"
+          description: "Parked — captured for later"
+          optional: true
+          global: true
+      transitions:
+        - from: "*"
+          to: "deferred"
+          fields:
+            - name: "deferral_reason"
+              prompt: "Reason for deferral"
+              target: "section:Deferred Record"
+              type: "multiline"
+              required: true
+    question: "Do you want a parked status for blocked or deferred work? What should it be called, and should it ask for a reason?"
+    detect:
+      - path: statuses[].global
+        equals: true
+
+  - id: wildcard-transitions
+    version: v0.36.0
+    category: lifecycle
+    propose: false
+    title: "Wildcard transitions (from: \"*\")"
+    what: |
+      A transition with `from: "*"` applies from any status that has no exact edge to
+      the target.
+    why: |
+      One edge instead of one per source status, e.g. "anything can be parked".
+    where: "transitions[] with from: \"*\""
+    snippet: |
+      transitions:
+        - from: "*"
+          to: "blocked"
+          actions:
+            - type: "inject_prompt"
+              prompt: "Record what blocks the issue in a comment."
+    question: "Is there a status every issue should be able to reach from anywhere?"
+    detect:
+      - path: transitions[].from
+        equals: "*"
+
+  - id: transition-fields
+    version: v0.36.0
+    category: lifecycle
+    propose: false
+    title: "Transition fields (answers collected before a move)"
+    what: |
+      `transitions[].fields` asks the human (in the viewer) or the agent (`--field`) for
+      values before the transition commits, written to frontmatter or a body section.
+    why: |
+      Captures the reason or decision at the moment of the move, in a fixed place.
+    where: "transitions[].fields"
+    snippet: |
+      transitions:
+        - from: "in progress"
+          to: "done"
+          fields:
+            - name: "resolution"
+              prompt: "How was this resolved?"
+              required: true
+    question: "Should any transition ask for a value (a reason, a link, a decision) before it goes through?"
+    detect:
+      - path: transitions[].fields[].name
+
+  - id: types-of-work
+    version: v0.36.0
+    category: lifecycle
+    propose: true
+    templates: [development]
+    title: "Types of work: lighter paths for tweaks and bugfixes"
+    what: |
+      `default_type` plus a `types:` block. An issue's `type:` frontmatter picks its path
+      through the statuses: `feature` walks every status, `tweak` skips design and
+      docs, `bugfix` needs a Repro section and a failing test first. Set with
+      `issue-cli create --type` or `issue-cli set-type`. See docs/Workflow/types.md.
+    why: |
+      Without types every five-minute tweak walks the full design path. Types give
+      each kind of work its own gates and prompts, enforced by the engine instead of
+      prompt text every agent has to read.
+    where: "new top-level default_type: and types: keys; path entries must be names from your statuses: list"
+    snippet: |
+      default_type: feature
+      types:
+        feature:
+          description: "New behaviour: the full path"
+        tweak:
+          description: "A small change the human already decided; no design"
+          path: [idea, in progress, testing, shipping, done]
+          transitions:
+            - from: "idea"
+              to: "in progress"
+              actions:
+                - type: "require_human_approval"
+                  status: "in progress"
+                - type: "validate"
+                  rule: "has_assignee"
+            - from: "testing"
+              to: "shipping"
+              actions:
+                - type: "validate"
+                  rule: "section_checkboxes_checked: Testing"
+                - type: "require_human_approval"
+                  status: "shipping"
+                - type: "append_section"
+                  title: "Shipping"
+                  body: |
+                    - [ ] Changes committed with a message referencing the issue
+        bugfix:
+          description: "Something that worked is broken: a repro and a failing test first"
+          path: [idea, in progress, testing, human-testing, documentation, shipping, done]
+          transitions:
+            - from: "idea"
+              to: "in progress"
+              actions:
+                - type: "validate"
+                  rule: "has_section"
+                  section: "Repro"
+                - type: "require_human_approval"
+                  status: "in progress"
+    question: "Do you want separate paths for kinds of work (e.g. tweak skips design, bugfix needs a repro first)? Which types, and which statuses should each skip?"
+    detect:
+      - path: types
+
+  - id: system-overlays
+    version: v0.36.0
+    category: lifecycle
+    propose: true
+    title: "Per-system prompt and checklist overlays"
+    what: |
+      `systems:` overrides status prompts and appends transition actions for issues whose
+      `system:` frontmatter matches, e.g. telling API issues to update docs/API/ in the
+      documentation step.
+    why: |
+      Area-specific instructions reach only the issues they apply to instead of
+      bloating every prompt.
+    where: "new top-level systems: map keyed by system name"
+    snippet: |
+      systems:
+        API:
+          statuses:
+            - name: "documentation"
+              prompt: |
+                Update docs/API/ with any changed endpoints, request/response formats, or behavior.
+          transitions: []
+    question: "Are there areas of the project (systems) that need their own instructions or checklists? Which ones, and what differs?"
+    detect:
+      - path: systems
+
+  # -------------------------------------------------------------------- gates
+  - id: human-approval-gates
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "Human approval gates"
+    what: |
+      A `require_human_approval` action blocks a transition until the human approves the
+      target status in the viewer (or `issue-cli approve`).
+    why: |
+      The human decides when design is settled or work can ship; the agent can't
+      skip ahead.
+    where: "transitions[].actions[] type: require_human_approval"
+    snippet: |
+      transitions:
+        - from: "in design"
+          to: "backlog"
+          actions:
+            - type: "require_human_approval"
+              status: "backlog"
+    question: "Which transitions should wait for your approval?"
+    detect:
+      - path: transitions[].actions[].type
+        one_of: [require_human_approval]
+
+  - id: checklist-gates
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "Checklist gates"
+    what: |
+      Validators that block a transition until checkboxes exist or are ticked:
+      `section_checkboxes_checked: <Title>`, `section_has_checkboxes: <Title>`,
+      `all_checkboxes_checked`, `has_checkboxes`.
+    why: |
+      Turns each step's checklist into something the engine enforces.
+    where: "transitions[].actions[] type: validate, rule: section_checkboxes_checked: <Title> (etc.)"
+    snippet: |
+      transitions:
+        - from: "in progress"
+          to: "testing"
+          actions:
+            - type: "validate"
+              rule: "section_checkboxes_checked: Implementation"
+    question: "Should a step's checklist be fully ticked before the issue can move on?"
+    detect:
+      - path: transitions[].actions[].rule
+        rule_in: [section_checkboxes_checked, section_has_checkboxes, all_checkboxes_checked, has_checkboxes]
+
+  - id: assignee-gate
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "Assignee required to start"
+    what: |
+      The `has_assignee` validator blocks a transition until someone has claimed the
+      issue (`issue-cli start` sets the assignee).
+    why: |
+      Two agents never pick up the same issue unknowingly.
+    where: "transitions[].actions[] rule: has_assignee"
+    snippet: |
+      transitions:
+        - from: "backlog"
+          to: "in progress"
+          actions:
+            - type: "validate"
+              rule: "has_assignee"
+    question: "Should work only start once the issue is claimed?"
+    detect:
+      - path: transitions[].actions[].rule
+        rule_in: [has_assignee]
+
+  - id: test-plan-gate
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "Test plan required"
+    what: |
+      The `has_test_plan` validator requires a `## Test Plan` section with `### Automated`
+      and `### Manual` subsections.
+    why: |
+      Testing is planned before it is claimed done.
+    where: "transitions[].actions[] rule: has_test_plan"
+    snippet: |
+      transitions:
+        - from: "in progress"
+          to: "testing"
+          actions:
+            - type: "validate"
+              rule: "has_test_plan"
+    question: "Should an issue need a written test plan before testing?"
+    detect:
+      - path: transitions[].actions[].rule
+        rule_in: [has_test_plan]
+
+  - id: comment-evidence-gates
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "Evidence comments required (tests:, docs:)"
+    what: |
+      `has_comment_prefix: <prefix>` blocks a transition until a comment starting with
+      the prefix exists, e.g. `tests:` with the test results.
+    why: |
+      The agent leaves a record of what it ran or wrote, not just a ticked box.
+    where: "transitions[].actions[] rule: has_comment_prefix: <prefix>"
+    snippet: |
+      transitions:
+        - from: "testing"
+          to: "documentation"
+          actions:
+            - type: "validate"
+              rule: "has_comment_prefix: tests:"
+    question: "Which steps should leave an evidence comment (test results, docs changed)?"
+    detect:
+      - path: transitions[].actions[].rule
+        rule_in: [has_comment_prefix]
+
+  - id: body-structure-gates
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "Body and section content gates"
+    what: |
+      `body_not_empty`, `has_section` (a `## <section>` exists), `section_min_length` and
+      `section_max_length` check the issue body's shape.
+    why: |
+      E.g. a bugfix can't start without a Repro section; a summary stays short.
+    where: "transitions[].actions[] rule: has_section (with section:), section_min_length (min:), …"
+    snippet: |
+      transitions:
+        - from: "idea"
+          to: "in progress"
+          actions:
+            - type: "validate"
+              rule: "has_section"
+              section: "Repro"
+    question: "Should any step require a section (or a minimum amount of text) in the issue body?"
+    detect:
+      - path: transitions[].actions[].rule
+        rule_in: [body_not_empty, has_section, section_min_length, section_max_length]
+
+  - id: todo-marker-gate
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "No TODO/FIXME markers"
+    what: |
+      `no_todo_markers` blocks a transition while the issue body contains a whole-word
+      TODO or FIXME.
+    why: |
+      Placeholders left in a design or plan get resolved before the work moves on.
+    where: "transitions[].actions[] rule: no_todo_markers"
+    snippet: |
+      transitions:
+        - from: "in design"
+          to: "backlog"
+          actions:
+            - type: "validate"
+              rule: "no_todo_markers"
+    question: "Should open TODO/FIXME markers in the issue block a step?"
+    detect:
+      - path: transitions[].actions[].rule
+        rule_in: [no_todo_markers]
+
+  - id: frontmatter-gates
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "Frontmatter field gates"
+    what: |
+      `field_present`, `field_not_empty`, `field_in` (with `values:`) and `field_matches`
+      (with `pattern:`) check a frontmatter key named by `field:`.
+    why: |
+      E.g. an issue needs a `version` or a valid `priority` before it is scheduled.
+    where: "transitions[].actions[] rule: field_not_empty (field:), field_in (field:, values:), …"
+    snippet: |
+      transitions:
+        - from: "backlog"
+          to: "in progress"
+          actions:
+            - type: "validate"
+              rule: "field_in"
+              field: "priority"
+              values: [low, medium, high, critical]
+    question: "Should any frontmatter field be required or restricted before a step?"
+    detect:
+      - path: transitions[].actions[].rule
+        rule_in: [field_present, field_not_empty, field_in, field_matches]
+
+  - id: label-gates
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "Label gates"
+    what: |
+      `has_label` (label named by `field:`) and `has_any_label` check the issue's labels.
+    why: |
+      E.g. an issue must be labelled before it leaves triage.
+    where: "transitions[].actions[] rule: has_label (field:) or has_any_label"
+    snippet: |
+      transitions:
+        - from: "idea"
+          to: "backlog"
+          actions:
+            - type: "validate"
+              rule: "has_any_label"
+    question: "Should issues need a label before some step?"
+    detect:
+      - path: transitions[].actions[].rule
+        rule_in: [has_label, has_any_label]
+
+  - id: pr-url-gate
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "Pull request link required"
+    what: |
+      `has_pr_url` requires the frontmatter `pr:` to be a GitHub pull request URL.
+    why: |
+      Shipping can't be claimed without the PR that ships it.
+    where: "transitions[].actions[] rule: has_pr_url"
+    snippet: |
+      transitions:
+        - from: "shipping"
+          to: "done"
+          actions:
+            - type: "validate"
+              rule: "has_pr_url"
+    question: "Should an issue need a linked PR before it is done?"
+    detect:
+      - path: transitions[].actions[].rule
+        rule_in: [has_pr_url]
+
+  - id: linked-issue-gate
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "Linked issue status gate"
+    what: |
+      `linked_issue_in_status` requires the issue named in a frontmatter key (`ref_key:`)
+      to be in `linked_status:`, e.g. a child waits for its parent.
+    why: |
+      Enforces ordering between issues (epics, dependencies) in the engine.
+    where: "transitions[].actions[] rule: linked_issue_in_status (ref_key:, linked_status:)"
+    snippet: |
+      transitions:
+        - from: "shipping"
+          to: "done"
+          actions:
+            - type: "validate"
+              rule: "linked_issue_in_status"
+              ref_key: "parent"
+              linked_status: "done"
+    question: "Do some issues depend on others? Should a step wait for the linked issue?"
+    detect:
+      - path: transitions[].actions[].rule
+        rule_in: [linked_issue_in_status]
+
+  - id: shell-gate
+    version: v0.36.0
+    category: gates
+    propose: true
+    templates: [development]
+    title: "Shell command gates (command_succeeds)"
+    what: |
+      `allow_shell: true` enables the `command_succeeds` validator, so a transition can
+      require a command (e.g. the test suite) to exit 0.
+    why: |
+      Turns "tests pass" from a checkbox the agent ticks into something the engine
+      checks.
+    where: "new top-level allow_shell: true, plus a validate action on the gated transition"
+    snippet: |
+      allow_shell: true
+      transitions:
+        - from: "in progress"
+          to: "testing"
+          actions:
+            - type: "validate"
+              rule: "command_succeeds"
+              command: "cd .. && make test"   # runs in the issues directory
+              timeout_seconds: 300
+              hint: "make the test suite pass before moving to testing"
+    question: "Should any transition require a command to pass (e.g. tests before testing)? Which command, on which transition?"
+    detect:
+      - path: allow_shell
+        equals: true
+      - path: transitions[].actions[].rule
+        rule_in: [command_succeeds]
+
+  - id: failure-hints
+    version: v0.36.0
+    category: gates
+    propose: false
+    title: "Custom failure hints"
+    what: |
+      `hint:` on a validate action replaces the default failure message with the exact
+      fix, templated with {{slug}}/{{number}}/{{repo}}/{{system}}.
+    why: |
+      A blocked agent gets the command that unblocks it instead of guessing.
+    where: "transitions[].actions[].hint"
+    snippet: |
+      transitions:
+        - from: "idea"
+          to: "in progress"
+          actions:
+            - type: "validate"
+              rule: "has_section"
+              section: "Repro"
+              hint: "issue-cli append {{slug}} --body \"## Repro\\n<steps>\""
+    question: "Are there gates agents keep tripping on where a specific fix message would help?"
+    detect:
+      - path: transitions[].actions[].hint
+
+  # --------------------------------------------------------------- automation
+  - id: checklist-sections
+    version: v0.36.0
+    category: automation
+    propose: false
+    title: "Checklist sections appended on transition"
+    what: |
+      An `append_section` action adds a `## <title>` section (usually checkboxes) to the
+      issue body when it enters a status.
+    why: |
+      Each step brings its own checklist; the agent works through it and checks boxes
+      by id.
+    where: "transitions[].actions[] type: append_section (title:, body:)"
+    snippet: |
+      transitions:
+        - from: "backlog"
+          to: "in progress"
+          actions:
+            - type: "append_section"
+              title: "Implementation"
+              body: |
+                - [ ] Code changes complete
+                - [ ] Automated tests added or updated
+    question: "What checklist should each step add to the issue?"
+    detect:
+      - path: transitions[].actions[].type
+        one_of: [append_section]
+
+  - id: transition-prompts
+    version: v0.36.0
+    category: automation
+    propose: false
+    title: "Prompts injected on a transition"
+    what: |
+      An `inject_prompt` action adds guidance for the agent on that specific edge, on top
+      of the target status prompt.
+    why: |
+      Edge-specific instructions (what to do when entering testing from in progress)
+      without changing the status prompt for every way in.
+    where: "transitions[].actions[] type: inject_prompt (prompt:)"
+    snippet: |
+      transitions:
+        - from: "in progress"
+          to: "testing"
+          actions:
+            - type: "inject_prompt"
+              prompt: "Run the relevant tests and record the results as a tests: comment."
+    question: "Does any transition need its own instruction for the agent?"
+    detect:
+      - path: transitions[].actions[].type
+        one_of: [inject_prompt]
+
+  - id: set-fields
+    version: v0.36.0
+    category: automation
+    propose: false
+    title: "Set or clear frontmatter on transition"
+    what: |
+      A `set_fields` action sets or clears a frontmatter field (assignee, priority,
+      human_approval, …) as part of the transition.
+    why: |
+      E.g. clear the assignee when work goes back to the backlog, or when it is done.
+    where: "transitions[].actions[] type: set_fields (field:, value:)"
+    snippet: |
+      transitions:
+        - from: "shipping"
+          to: "done"
+          actions:
+            - type: "set_fields"
+              field: "assignee"
+              value: ""
+    question: "Should any transition set or clear a field automatically?"
+    detect:
+      - path: transitions[].actions[].type
+        one_of: [set_fields]
+
+  # ------------------------------------------------------------------ actions
+  - id: issue-actions
+    version: v0.36.0
+    category: actions
+    propose: true
+    title: "Issue action buttons"
+    what: |
+      `issue_actions:` adds one-shot agent buttons to the issue detail view. Each opens an
+      agent session briefed with a prompt; no validation, no status change. (`actions:`
+      is the deprecated name.)
+    why: |
+      Recurring per-issue chores (defer to a team, write a summary) become one click
+      instead of a hand-written briefing every time.
+    where: "new top-level issue_actions: list"
+    snippet: |
+      issue_actions:
+        - id: "defer-to-team"
+          label: "Defer to team"
+          agent: "claude"
+          prompt: |
+            Draft a short handoff note for "{{title}}" ({{slug}}) and add it with:
+            issue-cli comment {{slug}} --text "deferred: <summary>"
+    question: "Any recurring per-issue chores you'd like as a one-click agent button on each issue?"
+    detect:
+      - path: issue_actions
+      - path: actions
+
+  - id: project-actions
+    version: v0.36.0
+    category: actions
+    propose: true
+    title: "Project action buttons"
+    what: |
+      `project_actions:` adds one-shot agent buttons to the list, board and graph views.
+      Prompts template with {{project}}.
+    why: |
+      Project-wide chores (triage the backlog, review stale issues) become one click.
+    where: "new top-level project_actions: list"
+    snippet: |
+      project_actions:
+        - id: "triage-backlog"
+          label: "Triage backlog"
+          agent: "claude"
+          prompt: |
+            Review every issue in the {{project}} backlog. Assess whether each is ready to start and
+            whether its priority still looks right, then post notes with:
+            issue-cli comment <slug> --text "triage: <note>"
+    question: "Any recurring project-wide chores you'd like as a one-click agent button on the board?"
+    detect:
+      - path: project_actions
+
+  # -------------------------------------------------------------------- board
+  - id: board-columns
+    version: v0.36.0
+    category: board
+    propose: false
+    title: "Custom board columns"
+    what: |
+      `board.columns` sets which statuses the board shows, in order (default: the whole
+      lifecycle).
+    why: |
+      Hide statuses nobody watches, or reorder them.
+    where: "board.columns"
+    snippet: |
+      board:
+        columns: [backlog, in progress, testing, done]
+    question: "Should the board show only some statuses, or in a different order?"
+    detect:
+      - path: board.columns
+
+  - id: board-card-fields
+    version: v0.36.0
+    category: board
+    propose: false
+    title: "Custom board card fields"
+    what: |
+      `board.card_fields` picks the frontmatter fields shown on board cards (default:
+      system, labels).
+    why: |
+      Show what matters for this project at a glance (priority, assignee, version).
+    where: "board.card_fields"
+    snippet: |
+      board:
+        card_fields: [system, labels, priority, assignee]
+    question: "Which fields should board cards show?"
+    detect:
+      - path: board.card_fields
+
+  - id: scoring
+    version: v0.36.0
+    category: board
+    propose: true
+    templates: [development]
+    title: "Ticket scoring and score sort"
+    what: |
+      An opt-in `scoring:` policy computes a score per issue from priority, due date,
+      age and labels, and `scoring.default_sort: score_desc` orders the list and board
+      by it. See docs/workflow.md "Scoring".
+    why: |
+      Helps pick what to work on next when the backlog is large.
+    where: "new top-level scoring: block"
+    snippet: |
+      scoring:
+        enabled: true
+        formula:
+          priority: {critical: 40, high: 20, medium: 10, low: 0}
+          due_date: {urgency_weight: 2, overdue_cap: 60}
+          age: {staleness_weight: 0.1}
+          labels: {bug: 5}
+        default_sort: score_desc
+    question: "Is the backlog big enough that you want issues scored and sorted by priority automatically?"
+    detect:
+      - path: scoring.enabled
+        equals: true
+
+  # ----------------------------------------------------------------- dispatch
+  - id: worktree
+    version: v0.36.0
+    category: dispatch
+    propose: true
+    templates: [development]
+    title: "Per-issue git worktrees on dispatch"
+    what: |
+      `worktree: true` makes the viewer's dispatch create a git worktree and branch per
+      issue before starting the agent. `worktree_sparse_exclude` keeps paths (default
+      issues/) out of it.
+    why: |
+      Concurrent agents stop stomping on each other's uncommitted changes, and every
+      issue's work lands on its own branch.
+    where: "new top-level worktree: (plus optional worktree_sparse_exclude:); optionally a Shipping box to remove the worktree after merge"
+    snippet: |
+      worktree: true
+    question: "Do you dispatch several agents at once from the viewer, in a git repo? Should each issue get its own worktree and branch?"
+    detect:
+      - path: worktree
+        equals: true
+
+  - id: worktree-setup
+    version: v0.36.0
+    category: dispatch
+    propose: false
+    title: "Worktree setup command"
+    what: |
+      `worktree_setup` runs a bootstrap command (e.g. `make`) inside a newly created
+      worktree; a failure aborts the dispatch.
+    why: |
+      Agents start in a tree that already builds, instead of each one re-discovering the
+      setup steps.
+    where: "top-level worktree_setup: (needs worktree: true)"
+    snippet: |
+      worktree: true
+      worktree_setup: "make"
+    question: "Does a fresh checkout need a setup command before an agent can work in it?"
+    detect:
+      - path: worktree_setup
+
+  # -------------------------------------------------------------- conventions
+  # Prompt and checklist wording the bundled templates ship. The probes match
+  # text, but only inside the fields that carry it.
+  - id: lead-handoff-prompts
+    version: v0.36.0
+    category: conventions
+    propose: true
+    title: "Approval gates and questions are handed to the lead"
+    what: |
+      Prompts before a human-approval gate (and wherever the agent needs a decision)
+      tell it to say in chat exactly what it needs (which approval, which question),
+      then end its turn. It doesn't wait or poll; the project lead agent (or the
+      human) relays the request and sends the answer back, which resumes it.
+    why: |
+      A worker blocked on a gate or a question wastes a session waiting, or retries the
+      transition in a loop. Handing the request to the lead keeps every worker's asks
+      in one place and resumes the worker only when there is an answer. Replaces older
+      prompts that told agents to block at the gate until it was approved.
+    where: "statuses[].prompt of each status whose next transition has require_human_approval; also any prompt that tells the agent to stop and ask"
+    snippet: |
+      statuses:
+        - name: "backlog"
+          prompt: |
+            This is a handoff state.
+            Say in chat that this needs `in progress` approval in the issue viewer, then end your turn. Don't wait or poll: the lead (or the human) relays the request and resumes you once it is approved.
+    question: "Should agents hand approval requests and questions to the lead and end their turn, instead of waiting at the gate (rewrites the prompts of statuses before each approval gate)?"
+    detect:
+      - path: statuses[].prompt
+        contains: "end your turn"
+      - path: transitions[].actions[].prompt
+        contains: "end your turn"
+
+  - id: design-overlap-discoverability
+    version: v0.36.0
+    category: conventions
+    propose: true
+    templates: [development]
+    title: "Design step reviews overlap and discoverability"
+    what: |
+      Two Design checkboxes and matching in-design prompt lines: list existing features
+      that already do something similar (and justify or shrink the new one), and say
+      how users and agents will discover and use the change.
+    why: |
+      Catches duplicate features before they are built, and makes the design say how
+      the change reaches the people and agents who need it.
+    where: "the idea → in design append_section \"Design\" body, and the \"in design\" status prompt"
+    snippet: |
+      transitions:
+        - from: "idea"
+          to: "in design"
+          actions:
+            - type: "append_section"
+              title: "Design"
+              body: |
+                - [ ] Approach documented
+                - [ ] Dependencies identified
+                - [ ] Overlap reviewed: similar existing features listed and the need justified
+                - [ ] Discoverability: how users and agents find and use this is documented
+                - [ ] Human approval requested for backlog
+      statuses:
+        - name: "in design"
+          prompt: |
+            Before settling the approach, list existing features that already do something similar and say why this one is still needed — or propose shrinking or dropping it.
+            Describe how users and agents will discover and use the change.
+    question: "Add the overlap and discoverability checks to the design step?"
+    detect:
+      - path: transitions[].actions[].body
+        contains: "overlap reviewed"
+
+  - id: sandbox-manual-tests
+    version: v0.36.0
+    category: conventions
+    propose: true
+    templates: [development]
+    title: "Manual tests run in a throwaway sandbox"
+    what: |
+      The Test Plan's `### Manual` boxes ask for a throwaway, gitignored sandbox scenario
+      (isolated config, data and state, one setup/run/clean script) and exact human
+      steps. The testing and human-testing prompts point at it.
+    why: |
+      The human verifies against a reproducible scenario instead of their real data,
+      and the steps are written down instead of improvised.
+    where: "the backlog → in progress append_section \"Test Plan\" body, plus the \"testing\" and \"human-testing\" status prompts"
+    snippet: |
+      transitions:
+        - from: "backlog"
+          to: "in progress"
+          actions:
+            - type: "append_section"
+              title: "Test Plan"
+              body: |
+                ### Automated
+                - [ ] Automated verification recorded
+
+                ### Manual
+                - [ ] Throwaway sandbox scenario prepared (gitignored, e.g. under `.agent-logs/<name>-sandbox/`, never committed; isolated config/data/state; never touches real user data)
+                - [ ] Human steps written: exact commands to run, what to look at, expected result for each, and how to clean up
+      statuses:
+        - name: "testing"
+          prompt: |
+            For manual checks, prepare a throwaway sandbox scenario (a gitignored path such as `.agent-logs/<name>-sandbox/`, never committed): isolated config, data and state, and one script with setup/run/clean steps. It must never touch real user data or state.
+            Describe it under `### Manual` in the Test Plan: where the script lives, the exact commands the human runs, what to look at, the expected result for each step, and how to clean up.
+    question: "Should manual verification use a throwaway sandbox with written steps (changes the Test Plan boxes and the testing prompts)?"
+    detect:
+      - path: transitions[].actions[].body
+        contains: "sandbox"
+
+  - id: playtest-sessions
+    version: v0.36.0
+    category: conventions
+    propose: true
+    templates: [development]
+    title: "Manual checks as playtest sessions"
+    what: |
+      The testing and human-testing prompts say: if the project has a playtest system
+      (`issue-cli process playtest`), write the manual checks as a playtest session
+      (step id = checkbox id), pass its machine run before handing over, and point the
+      human at its playtest and report commands.
+    why: |
+      A machine runs the repeatable checks, so the human only judges what a machine
+      can't, and the report ticks the boxes that passed instead of the agent asking.
+    where: "the \"testing\" and \"human-testing\" status prompts"
+    snippet: |
+      statuses:
+        - name: "testing"
+          prompt: |
+            If the project has a playtest system (see `issue-cli process playtest`), write the manual checks as a playtest session (step id = checkbox id) and pass its machine run (ux-test) before handing over, so the human only judges what a machine can't.
+        - name: "human-testing"
+          prompt: |
+            If the manual checks are a playtest session, point the human at its playtest and report commands; the report ticks the boxes that passed and comments failures as `playtest:`.
+    question: "Should agents write manual checks as playtest sessions when the project has a playtest system (adds a line to the testing and human-testing prompts)?"
+    detect:
+      - path: statuses[].prompt
+        contains: "playtest session"
+      - path: transitions[].actions[].prompt
+        contains: "playtest session"
+      - path: transitions[].actions[].body
+        contains: "playtest session"
+
+  - id: testing-unrelated-failures
+    version: v0.36.0
+    category: conventions
+    propose: true
+    templates: [development]
+    title: "Unrelated test failures are documented, not blocking"
+    what: |
+      A Testing checkbox and an inject_prompt line: if unrelated failures make the full
+      suite red, document them explicitly instead of stalling or "fixing" them.
+    why: |
+      Agents either get stuck on a red suite they didn't break or wander off fixing
+      unrelated code. This gives them a defined way through.
+    where: "the in progress → testing append_section \"Testing\" body and its inject_prompt"
+    snippet: |
+      transitions:
+        - from: "in progress"
+          to: "testing"
+          actions:
+            - type: "append_section"
+              title: "Testing"
+              body: |
+                - [ ] Relevant tests for changed code passing
+                - [ ] Known unrelated failures documented if full suite is red
+                - [ ] Test results logged as comment (`issue-cli comment <slug> --text "tests: ..."`)
+            - type: "inject_prompt"
+              prompt: |
+                Run the relevant tests for the changed code, record results, and capture any remaining manual checks.
+                If unrelated failures block the full suite, document them explicitly.
+    question: "Add the 'document unrelated failures' rule to the testing step?"
+    detect:
+      - path: transitions[].actions[].body
+        contains: "unrelated failures"
+      - path: transitions[].actions[].prompt
+        contains: "unrelated failures"

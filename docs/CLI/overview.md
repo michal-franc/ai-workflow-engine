@@ -15,6 +15,8 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 - `cmd/issue-cli/helpers.go` — shared helpers (`loadProjectOrErr` → `resolveBootstrap` / `resolveFromConfig`, `formatProjectList`, `parseFieldFlags`, `normalizeEscapedText`, `writeJSON`, `printCheckboxes`, etc.)
 - `cmd/issue-cli/cmd_<name>.go` — one file per subcommand. Each file declares a `*Command`, registers it in `init()`, and owns its own `flag.FlagSet`. Group commands (`data`, `workflow`, `process`) dispatch internally to per-subcommand handlers in the same file.
 - `cmd/issue-cli/workflow_init.go` — testable `doWorkflowInit` core (the `workflow init` subcommand wraps it from `cmd_workflow.go`)
+- `cmd/issue-cli/workflow_upgrade.go` / `cmd_upgrade.go` — `buildUpgradePlan` and the `workflow upgrade` / `upgrade` command; `workflowUpgradeHint` for `start` and `process workflow`
+- `cmd/issue-cli/workflow_features.go` / `cmd_scan.go` — feature catalog, structural probes, `features:` record writer, and the `workflow scan` command
 
 ### Adding a new subcommand
 
@@ -39,6 +41,8 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli decide <slug>`        | Record a decision as a `D-n` line under `## Decisions`; `--replaces <slug>#D-n` lists the open issues still citing the old one |
 | `issue-cli balance <slug>`       | Add a typed balance note (`--metric`, `--state`, `--hypothesis`, `--change`, `--evidence`, `--verdict`, `--pass`); `balance --list` prints the current notes |
 | `issue-cli decisions`            | List the project's decisions (active, deferred, replaced, stale) with `--system`, `--state`, `--issue`, `--json` |
+| `issue-cli lead <sub>`           | Lead agents: `spawn [--epic <slug>]`, `whoami`, `list`, `message <target> "text"`. See [`lead`](#lead) |
+| `issue-cli approve <slug>`       | Record a human approval with the human's words (leads only). See [`approve`](#approve) |
 | `issue-cli check <slug> <id>...` | Tick checkboxes by id (several at once), whole section (`--section X --all`), text, or `--section` + `--index` |
 | `issue-cli checklist <slug>`     | List checkboxes grouped by section, each with its id (`D3`, `AC2`) |
 | `issue-cli append <slug>`        | Append content to issue body             |
@@ -54,6 +58,8 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli retrospective <slug>` | Save a workflow retrospective            |
 | `issue-cli data <sub> <slug>`    | Per-issue structured data store — see [Per-issue Data Store](../data-store.md) |
 | `issue-cli workflow init`        | Bootstrap a new project: writes `workflow.yaml` from a bundled template and scaffolds `issues/`, `docs/` |
+| `issue-cli workflow upgrade`     | Read-only: propose catalog features `workflow.yaml` lacks, item by item, plus the upgrade steps. Alias `issue-cli upgrade`. `--all` lists the whole catalog |
+| `issue-cli workflow scan`        | Detect which catalog features `workflow.yaml` has and write its `features:` record. `--dry-run`, `--installed`, `--declined`, `--forget` |
 | `issue-cli projects`             | List configured projects (slug, name, issue dir). `--json` for scripting |
 | `issue-cli telemetry report`     | Local usage report: calls per command, never-used commands/flags/topics, errors, unknown tokens, retry sequences. See [CLI Usage Telemetry](telemetry.md) |
 | `issue-cli telemetry path`       | Print the active telemetry file and whether recording is enabled |
@@ -297,6 +303,42 @@ The output names the note and the board URL. When the note replaces an earlier o
 
 `issue-cli balance --list [--metric m] [--state s] [--pass n] [--json]` prints the current notes per metric and the number of free-text notes. `issue-cli comment` prints a tip pointing at `balance` when a `balance:` comment is free text.
 
+### `lead`
+
+Lead agents supervise workers: one project lead per project (`lead-<project>`) and at most one sub-lead per epic (`lead-<epic-slug>`). [The lead session](../patterns/lead-session.md) covers the roles; this is the command reference.
+
+| Subcommand | Does |
+|:--|:--|
+| `lead spawn [--epic <slug>] [--attach] [--agent claude\|codex]` | Starts the project lead, or the epic's sub-lead. A live lead is re-attached, never started twice. `--epic` creates the base branch (the epic's `base:`, else `base/<slug>`, from `main`) and `.worktrees/<slug>` on it, records `base:` and `lead:` on the epic, then starts the lead there. Headless unless `--attach`. `--json` prints the launch response |
+| `lead whoami` | Your role (`project lead`, `sub-lead`, `worker`, `unmanaged`), scope, guarded branch, your lead and whether it is live, how to reach it, and what you may tick |
+| `lead list` | `== Leads ==`: one row per lead with scope, session, live/dead, base, commits on `main` not in the base, children running/total. Then the epics with no sub-lead, and a start hint when the project lead isn't running |
+| `lead message <target> "text"` | Pastes `[from <your session>] text` into the target's tmux session (load-buffer + paste-buffer + Enter). `target`: `project`, a `lead-`/`agent-` session name, an epic slug (its sub-lead) or an issue slug (its worker) |
+
+The CLI works out who is asking from `ISSUE_VIEWER_LEAD_SCOPE`, `ISSUE_VIEWER_ISSUE_SLUG` and the tmux session/window name. It doesn't need the viewer running. Refusals name who can do it instead:
+
+- `lead spawn` from a worker or a sub-lead (the depth is fixed at project lead → sub-lead → worker);
+- `lead spawn --epic` on an issue that is not an epic (no child names it as `parent:`/`umbrella:`, and it has no `type: epic`, `lead:` or `base:`);
+- `lead message` from a worker, which posts a `question:` comment instead.
+
+`show` and `start` print a `Lead:` line naming the issue's lead and whether it is live. On an issue linked with the legacy `umbrella:` key they also print the `set-meta … --key parent` rename hint.
+
+Lead briefs come from the `leads:` block in `workflow.yaml` (`project:` and `epic:`, see `issue-cli process schema`), else built-in defaults, plus a fixed footer with the role, authority and handoff note.
+
+### `approve`
+
+`issue-cli approve <slug> --to <status> --quote "<the human's words>" [--how "<where>"]` is how a lead records a gate the human approved in chat:
+
+1. It writes an `approval: "<quote>" (<how>, <date>) — recorded by <session>` comment. `--how` defaults to `in the lead chat`, or `relayed by lead-<project>` for a sub-lead.
+2. It sets `human_approval` to the status. It never toggles an existing approval off, unlike the viewer's button.
+
+`--to` and `--quote` are required. It is refused:
+
+- from a worker session (the error suggests a `question:` comment to its lead);
+- from a sub-lead, for an issue outside its epic and the epic's children;
+- for Human Testing, always: the human approves that in the viewer.
+
+These checks read the environment and the session name; they are guardrails for agents, not security.
+
 ### `process transitions`
 
 Rules are rendered from the loaded workflow rather than a hardcoded list. Each
@@ -372,6 +414,63 @@ Behaviour:
 - `--force` overwrites an existing `workflow.yaml`. Without it, the command refuses to touch the existing file and exits non-zero.
 - `issues/` and `docs/` creation is idempotent — running the command in an already-initialised project does not error and does not re-create directories.
 - Templates live as plain YAML under `cmd/issue-cli/templates/workflow/*.yaml` and are embedded at build time via `//go:embed`. The list of valid `--template` names is derived from the embedded directory, so adding a new template is just dropping a new `<name>.yaml` file there and rebuilding.
+- Each template starts with a `template: <name>@<release>` stamp and a `features:` record, so a new project is stamped and recorded from the start. A new template needs both; run `issue-cli workflow scan` on it to write the record. See [Template Stamp and Feature Record](../Workflow/overview.md#template-stamp-and-feature-record).
+
+### `workflow upgrade`
+
+`issue-cli workflow upgrade` (alias `issue-cli upgrade`) tells an agent which `workflow.yaml` features the project could adopt. It is **read-only**, always exits 0, and never writes a file.
+
+```bash
+issue-cli workflow upgrade                      # proposals and steps
+issue-cli workflow upgrade --all                # every catalog feature the file lacks, declined ones flagged
+issue-cli workflow upgrade --template review    # compare an unstamped file with this template (default development)
+issue-cli --json workflow upgrade               # machine-readable plan
+```
+
+- **Status:** `up_to_date`, `behind`, `unstamped`, `custom` or `unknown_template`, with the current and bundled stamps.
+- **Record:** the `features:` record decides what is installed when the file has one (`record_source: record`); without one, the catalog's probes do (`detection`).
+- **Proposals** are numbered. Each one has the feature id, `kind` (`new`, or `update` from an older installed version), version, category, whether the bundled template ships it, and the text the agent relays: What, Why, Where, Ask (the question for the human), and a YAML Snippet. By default the list covers `propose: true` entries newer than the stamp (all of them when unstamped), for the project's template, that the file lacks.
+- After the proposals come three lists: already present, declined (with the re-open command `workflow scan --forget <id>`), and detected but not in the record (run `workflow scan`). These are never proposed.
+- **Steps**, printed whenever there is something to propose:
+  1. Continue only if the operator asked.
+  2. Propose the items one at a time.
+  3. `cp workflow.yaml workflow.oldN.yaml` (the first free N).
+  4. Write the picked snippets, adapted to the project.
+  5. Set `template: <name>@<latest>`.
+  6. `issue-cli workflow scan --installed <picked> --declined <declined>`.
+  7. `issue-cli process workflow`.
+- `--json` emits one object: `status`, `workflow_file`, `template`, `current`, `latest`, `record_source`, `record`, `all`, `proposals[]`, `already_present`, `declined`, `detected_unrecorded`, `backup_path`, `steps[]`, `message`.
+
+**Upgrade hint.** `start` and `process workflow` end with one line when the default plan has at least one proposal:
+
+```
+ℹ workflow.yaml has no template: stamp (compared with the bundled development@v0.36.0): 13 upgrade proposal(s). Tell the operator; run `issue-cli workflow upgrade` only if they ask you to upgrade.
+```
+
+It is built by `workflowUpgradeHint`, which returns `""` on any error so the hint can never break the command that prints it. `custom` and up-to-date files print nothing. `doctor` can reuse the same function.
+
+### `workflow scan`
+
+`issue-cli workflow scan` runs every catalog probe over the project's `workflow.yaml` and writes the `features:` record.
+
+```bash
+issue-cli workflow scan --dry-run                         # report + the record it would write; writes nothing
+issue-cli workflow scan                                   # write the features: record
+issue-cli workflow scan --installed types-of-work,scoring # record features as installed at the catalog version
+issue-cli workflow scan --declined worktree               # record features the human declined
+issue-cli workflow scan --forget worktree                 # drop ids from the record (re-opens a declined feature)
+issue-cli --json workflow scan --dry-run
+```
+
+- **Report:** every catalog feature grouped by category, marked ✓ detected, + recorded only, ✗ declined, or · absent. A detected line shows the evidence at its concrete path (`transitions[3].actions[1].rule = "has_test_plan"`, `+N more`). Then come the changes to the record, notes, and the block itself.
+- **Merge rules:**
+  - installed = detected ∪ already recorded ∪ `--installed`. A recorded version is kept; new entries and `--installed` ones get the catalog version.
+  - declined = recorded ∪ `--declined`, minus anything installed.
+  - A recorded feature that is no longer detected stays installed, with a note pointing at `--forget`.
+  - Ids the catalog doesn't know (written by a newer binary) are kept.
+- **Errors:** an unknown id, declining a feature that is present in the file, the same id in `--installed` and `--declined`/`--forget`, extra arguments, or a file that isn't a YAML mapping.
+- **Writing:** scan writes only when the record changes, or when there is none yet; a second run reports "record already up to date". It edits text: it replaces the existing `features:` block, or inserts one (with a comment) after `template:`, or else before the first top-level key. It then re-parses the result and refuses to write if anything other than `features:` changed. Comments and layout elsewhere are kept. It never sets `template:`, so an unstamped file keeps its proposals.
+- `--json` emits `workflow_file`, `dry_run`, `written`, `had_record`, `features[]` (`id`, `version`, `category`, `title`, `detected`, `matches`, `evidence`, `recorded`), `record`, `block`, `changes`, `notes`.
 
 ### `projects` and multi-project resolution
 

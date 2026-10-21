@@ -35,7 +35,7 @@ func TestDispatchPrompt_PrintsServerPromptVerbatim(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The server builds its prompt with this call and the project's workdir.
-	want := tracker.BuildDispatchPrompt(proj, issue, proj.LoadWorkflowForIssue(issue), proj.WorkDir).Prompt
+	want := tracker.BuildDispatchPrompt(proj, issue, proj.LoadWorkflowForIssue(issue), proj.WorkDir, nil).Prompt
 	if stdout.String() != want {
 		t.Fatalf("output differs from the server's prompt\ngot:  %q\nwant: %q", stdout.String(), want)
 	}

@@ -36,6 +36,28 @@ type DetailData struct {
 	// CanvasURL opens the issues canvas with this epic highlighted; "" when
 	// the issue is not an epic.
 	CanvasURL string
+	Lead      DetailLead
+}
+
+// DetailLead is the detail page's Lead section: who the issue reports to and,
+// for an epic, its sub-lead.
+type DetailLead struct {
+	Route       tracker.LeadRoute
+	IsEpic      bool
+	SubLead     string
+	SubLeadLive bool
+	Base        string
+}
+
+func detailLead(proj *tracker.Project, issue *tracker.Issue, issues []*tracker.Issue) DetailLead {
+	live := leadLive(proj)
+	dl := DetailLead{Route: tracker.LeadFor(proj, issue, issues, live), IsEpic: tracker.IsEpic(issue, issues)}
+	if dl.IsEpic {
+		dl.SubLead = tracker.LeadSessionName(proj, issue.Slug)
+		dl.SubLeadLive = live(dl.SubLead)
+		dl.Base = tracker.EpicBase(issue)
+	}
+	return dl
 }
 
 // OptionalApproval describes a transition to an Optional status that requires
@@ -184,6 +206,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		WorkTypes:         workTypeOptions(wf),
 		TypeWarning:       strings.TrimSpace(wf.UnknownTypeWarning(found.Slug, found.Type) + " " + wf.OffPathWarning()),
 		CanvasURL:         canvasURL,
+		Lead:              detailLead(proj, found, issues),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

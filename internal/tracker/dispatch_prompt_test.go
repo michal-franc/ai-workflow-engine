@@ -26,21 +26,27 @@ func TestBuildDispatchPrompt(t *testing.T) {
 	proj := &Project{Slug: "proj", TmuxSession: "work"}
 	issue := &Issue{Slug: "api/fix", Title: "Fix", Status: "in progress", BodyRaw: "Body text."}
 
-	dp := BuildDispatchPrompt(proj, issue, wf, "/w")
+	dp := BuildDispatchPrompt(proj, issue, wf, "/w", nil)
 	if dp.Worktree != filepath.Join("/w", ".worktrees", "api/fix") || dp.Branch != "work/api/fix" {
 		t.Fatalf("worktree = %q branch = %q", dp.Worktree, dp.Branch)
 	}
 	if dp.Session != "work:agent-api-fix" || dp.Slug != "api/fix" || dp.Status != "in progress" {
 		t.Fatalf("got %+v", dp)
 	}
-	if dp.Prompt != BuildAgentPrompt(proj, issue, wf, dp.Worktree, dp.Branch) {
-		t.Fatal("Prompt differs from BuildAgentPrompt with the resolved worktree")
+	if !strings.HasPrefix(dp.Prompt, BuildAgentPrompt(proj, issue, wf, dp.Worktree, dp.Branch)) {
+		t.Fatal("Prompt does not start with BuildAgentPrompt for the resolved worktree")
+	}
+	if dp.Lead != "lead-proj" || !strings.Contains(dp.Prompt, "## Your lead\n\nYou report to the project lead lead-proj (not running).") {
+		t.Fatalf("lead = %q, prompt missing the lead section: %q", dp.Lead, dp.Prompt)
+	}
+	if !strings.Contains(dp.Prompt, "message lead-proj, or another agent on this project, with ListAgents / SendMessage") || !strings.Contains(dp.Prompt, "yours is agent-api-fix") {
+		t.Fatalf("prompt missing the SendMessage line: %q", dp.Prompt)
 	}
 	if !strings.Contains(dp.Prompt, "issue-cli --project proj ") || !strings.Contains(dp.Prompt, "## Worktree") {
 		t.Fatalf("prompt missing --project injection or worktree section")
 	}
 
-	noWT := BuildDispatchPrompt(nil, issue, nil, "/w")
+	noWT := BuildDispatchPrompt(nil, issue, nil, "/w", nil)
 	if noWT.Worktree != "" || noWT.Branch != "" || noWT.Session != "agent-api-fix" || strings.Contains(noWT.Prompt, "## Worktree") {
 		t.Fatalf("without worktree: %+v", noWT)
 	}

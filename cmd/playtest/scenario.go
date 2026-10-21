@@ -150,7 +150,10 @@ func StartScenario(scenarioDir, name string, bins *Binaries, log io.Writer) (*Sc
 			return fail(fmt.Errorf("scenario %s: docs: %v", name, err))
 		}
 	}
-	cfg := fmt.Sprintf("projects:\n  - name: %q\n    slug: %q\n    issues: %q\n    docs: %q\n    workdir: %q\n",
+	// terminal: none keeps dispatch and lead spawns headless: otherwise the
+	// board falls back to `i3-msg exec alacritty`, which opens a window on the
+	// owner's desktop attached to the real tmux server.
+	cfg := fmt.Sprintf("projects:\n  - name: %q\n    slug: %q\n    issues: %q\n    docs: %q\n    workdir: %q\n    terminal: \"none\"\n",
 		spec.Project.Name, spec.Project.Slug, filepath.Join(s.Proj, "issues"), filepath.Join(s.Proj, "docs"), s.Proj)
 	if err := os.WriteFile(s.ConfigPath(), []byte(cfg), 0o644); err != nil {
 		return fail(err)

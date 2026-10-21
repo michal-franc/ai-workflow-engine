@@ -78,6 +78,7 @@ var WorkflowValidationRules = []SchemaNamedDoc{
 func WorkflowSchemaSections() []SchemaSection {
 	return []SchemaSection{
 		{Path: "(top level)", Title: "WorkflowConfig", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowConfig{}))},
+		{Path: "features", Title: "FeatureRecord", Fields: schemaFieldsOf(reflect.TypeOf(FeatureRecord{}))},
 		{Path: "statuses[]", Title: "WorkflowStatus", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowStatus{}))},
 		{Path: "transitions[]", Title: "WorkflowTransition", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowTransition{}))},
 		{Path: "transitions[].actions[]", Title: "WorkflowAction", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowAction{}))},
@@ -86,6 +87,7 @@ func WorkflowSchemaSections() []SchemaSection {
 		{Path: "systems[<name>]", Title: "WorkflowOverlay", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowOverlay{}))},
 		{Path: "types[<name>]", Title: "WorkflowType", Fields: schemaFieldsOf(reflect.TypeOf(WorkflowType{}))},
 		{Path: "actions[]", Title: "CustomAction", Fields: schemaFieldsOf(reflect.TypeOf(CustomAction{}))},
+		{Path: "leads", Title: "LeadsConfig", Fields: schemaFieldsOf(reflect.TypeOf(LeadsConfig{}))},
 		{Path: "scoring", Title: "ScoringConfig", Fields: schemaFieldsOf(reflect.TypeOf(ScoringConfig{}))},
 		{Path: "scoring.formula", Title: "ScoringFormula", Fields: schemaFieldsOf(reflect.TypeOf(ScoringFormula{}))},
 		{Path: "scoring.formula.due_date", Title: "ScoringDueDate", Fields: schemaFieldsOf(reflect.TypeOf(ScoringDueDate{}))},

@@ -13,6 +13,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/board.html` — kanban board with drag-and-drop
 - `templates/detail.html` — issue detail with sidebar, comments, dispatch
 - `templates/graph.html` — workflow status graph
+- `templates/canvas.html` — issues canvas: version columns × epic or system rows, pan and zoom (`handlers_canvas.go` builds it)
 - `templates/docs.html` — documentation viewer with sidebar navigation
 - `templates/_create_modal.html` — shared "New issue" modal partial included by list and board
 - `templates/_project_actions.html` — shared project-level custom action bar + dispatch modal, included by list, board, and graph
@@ -26,11 +27,37 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 | `/`               | `list.html`   | Filterable list with status, system, priority    |
 | `/board`          | `board.html`  | Kanban with configurable columns and card fields |
 | `/graph`          | `graph.html`  | Workflow DAG with stale highlighting             |
+| `/canvas`         | `canvas.html` | Issues canvas: versions × epics (or systems), see [Issues canvas](#issues-canvas) |
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
 | `/issue/<slug>`   | `detail.html` | Detail with edit, approve, dispatch, comments    |
 | `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
 
 In projects whose `workflow.yaml` defines `types:` ([Types of Work](../Workflow/types.md)), the list and board show a type badge and an "All types" filter (`?type=`), `type` joins the default board card fields, `/graph?type=<t>` draws that type's path, and the detail sidebar has a **Type** select (`POST /p/<project>/issue/<slug>/type`; a `409` with `statuses` asks the human which status on the new path to move to). Without `types:` none of these controls render.
+
+## Issues canvas
+
+`/p/<project>/canvas` (the **Canvas** tab, after Graph) is a read-only map of what each epic holds and what each version plans. `buildCanvas` in `handlers_canvas.go` holds every rule and is unit-tested without HTTP. The template only renders the view model.
+
+- **Columns** are the distinct `version:` values, sorted as dotted numbers (0.2 before 0.10). Each header shows "done/total", side-status counts and a status-coloured bar.
+- **The "no version" column** is hidden unless `?nover=1`, and the toolbar says how many issues it hides. When no issue has a version, the column is the only one and the toggle is disabled.
+- **Closed statuses** are the workflow's final status (`done`) and its `optional: true` side statuses (obsolete, parked). Side statuses are left out of "done/total" and listed separately. Closed cards are dimmed. With `?done=collapse`, each cell folds them into a "✓ 17 done · 20 obsolete" chip; clicking the chip turns collapse off.
+- **Rows** come from `?rows=`:
+  - `epic` (the default) gives one row per epic. An epic is an issue with `type: epic` (EPIC), or one that another issue's `parent:` (or legacy `umbrella:`) points at (UMBRELLA).
+    - The header shows status, `base:` branch, and a roll-up over all children, visible or not.
+    - A sub-epic is listed after its parent, indented, with "↳ in <parent>".
+    - An epic with no visible children shows one note across the row instead of cells, with a **Show no version** button when version hiding caused it.
+    - "No epic" is the last row. A card whose `parent:` matches no issue lands there with an "unknown parent" marker.
+    - Parent cycles list each epic once.
+  - `system` gives one row per `system:`, with "No system" last. Epics appear as cards, and every card under an epic carries a **⧉ <epic>** badge.
+- **Highlight** comes from `?hl=<epic slug>`, a row's Highlight button, or a card's badge. It rings the epic's cards and sorts them first, fades the rest, and shows a "Highlight ⧉ <epic> ×" chip.
+  - Client-side changes are mirrored into the URL with `history.replaceState`, and `data-order` restores the original card order when the highlight is cleared.
+  - An epic's detail page links to `/canvas?hl=<slug>` ("View on canvas").
+- **Pan and zoom** come from `initPanZoom(viewport, world, controls)` in `canvas.html`: a CSS transform on the grid.
+  - Drag the background or use the wheel to pan. Ctrl+wheel zooms around the pointer, and − / + step 10% between 20% and 200%. Fit scales the grid to the viewport width.
+  - The function has no canvas-specific names, so another map view can reuse it.
+  - Nothing is saved: the layout is always computed.
+- **Parent lookup** is `epicParentSlug` (`parent:`, then `umbrella:`). Swap it for `tracker.ParentSlug` once the lead-engineer branch lands.
+- **Test ids** are `canvas.*`: lanes are keyed by epic slug, `no_epic` or the system; columns and cells by version (`0_1`, `no_version`). The playtest sessions are `playtest/sessions/canvas-basics.yaml` and `canvas-phone.yaml`, on the `canvas` scenario.
 
 ## Design Considerations
 
@@ -40,6 +67,7 @@ When working on UI changes:
 - For work that launches local tools or editors, decide whether to reuse existing tmux/alacritty patterns
 - Handlers must not block on local processes — use goroutines for async operations
 - User feedback after actions (dispatch, approve, save) goes through the toast notification system
+- Status colours come from `statusColor` in `template_funcs.go`. Its map keys are in `canonicalStatusKey` form (lower case, spaces as hyphens), so `in-progress`, not `in progress`.
 - Board card fields and columns are driven by `workflow.yaml` — see [Board Configuration](../board-configuration)
 - The detail view substitutes `<!-- data -->` markers in the rendered body with an inline data table (status dropdown + contenteditable comment + remove button). Markdown HTML comments require `goldmark/renderer/html.WithUnsafe()`, which is enabled in `internal/tracker/issue.go`. See [Per-issue Data Store](../data-store.md).
 

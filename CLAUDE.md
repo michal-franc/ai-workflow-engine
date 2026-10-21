@@ -42,6 +42,7 @@ images.go                   — relative image src rewrite, /files/ image route
 tmux.go                     — agent session listing/matching/notification
 handlers_list.go            — list view, filters, /hash, /issues.json
 handlers_board.go           — board + graph views
+handlers_canvas.go          — issues canvas (/canvas): version columns × epic or system rows
 handlers_detail.go          — detail page, transition preview, data-table render
 handlers_issue_mutate.go    — update/create/delete/approve/upload, body editor
 handlers_data.go            — /data sidecar endpoints

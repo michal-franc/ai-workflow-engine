@@ -92,7 +92,7 @@ A large feature built in many pieces runs as an **umbrella issue** with **child 
 - The lead merges `main` into the base branch now and then so it doesn't drift.
 - The umbrella issue runs the workflow too: its build boxes tick when every child has shipped into the base branch, and its final steps take the base branch to `main`.
 
-Parent links and roll-up progress for umbrella issues are on the roadmap; until then this is all convention.
+The [issues canvas](../UI/overview.md#issues-canvas) shows umbrella issues with their children and roll-up progress per version. To show the human an umbrella's state, send `/p/<project>/canvas?hl=<umbrella slug>`. The branching above is still convention.
 
 ## Worked example: Raid League
 

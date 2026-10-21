@@ -16,6 +16,11 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.40.0 — 2026-10-21
+
+- **Breaking:** `issue-cli ask` and `issue-cli answer` are removed, with the `## Questions` / `Q-n` format, the open-questions block in `show` and `checklist`, and question-wait stats. Questions stay in chat (Claude Code or Codex; workers can message their lead with SendMessage). Only the outcome is recorded, with `issue-cli decide`. Existing "answered in lead chat (Q-n)" decision lines still parse and still show on the Decisions tab.
+- The dispatch prompt tells workers to record a human's decision with `issue-cli decide <slug> --text … --quote …`. The project lead's brief records relayed answers the same way and no longer suggests sub-leads (one lead per project).
+
 ## v0.39.2 — 2026-10-21
 
 - Agents canvas shows the hierarchy only: You → the project lead → its workers (plus a sub-lead only while one is live). Epic boxes, the not-running sub-lead placeholders and the Group umbrellas toggle are gone; epics live on the issues canvas, and their data stays in `agents.json`. Radial is one ring around the lead.

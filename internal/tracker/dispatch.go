@@ -48,7 +48,9 @@ Do not wait, poll or re-run commands to check for the approval: the human messag
    issue-cli check %s <id> [<id>...]
    (Matching by text, issue-cli check <slug> "<checkbox text>", still works as a fallback.)
 
-4. If you are unsure about something or need clarification, ask the user before proceeding.
+4. If you are unsure about something or need clarification, ask the user (or message your lead) in chat before proceeding.
+   When the human decides something, record it in their words:
+   issue-cli decide <slug> --text "<what was decided>" --quote "<their words>"
 
 5. When the current status checkboxes are done, transition to the next status:
    issue-cli transition %s --to "<next-status>"

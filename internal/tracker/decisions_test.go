@@ -1,6 +1,8 @@
 package tracker
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -72,7 +74,7 @@ func TestNormalizeDecisionRef(t *testing.T) {
 }
 
 func TestAddDecision_AppendsTightAndRoundTrips(t *testing.T) {
-	fp := writeQuestionIssue(t, "Body.\n\n## Decisions\n- **D-1** · 2026-10-02 · chat: First.\n\n## Design\nText.")
+	fp := writeDecisionIssue(t, "Body.\n\n## Decisions\n- **D-1** · 2026-10-02 · chat: First.\n\n## Design\nText.")
 	now := time.Date(2026, 10, 7, 9, 0, 0, 0, time.Local)
 	d, err := AddDecision(fp, "economy/gold", NewDecision{
 		Text: "Gold resets each stage.", How: "playtest", Quote: `"reset it"`, Deferred: true,
@@ -93,7 +95,7 @@ func TestAddDecision_AppendsTightAndRoundTrips(t *testing.T) {
 	}
 
 	// Missing section is created; default how.
-	fp2 := writeQuestionIssue(t, "Just a body.")
+	fp2 := writeDecisionIssue(t, "Just a body.")
 	d, err = AddDecision(fp2, "x", NewDecision{Text: "Ship it."}, now)
 	if err != nil || d.ID != "D-1" || d.How != defaultDecisionHow {
 		t.Fatalf("AddDecision new section = %+v, %v", d, err)
@@ -194,4 +196,27 @@ func TestClosedIssueFunc(t *testing.T) {
 	if !closed(&Issue{Status: "done"}) || closed(&Issue{Status: "backlog"}) {
 		t.Error("default workflow: done should be closed, backlog open")
 	}
+}
+
+func writeDecisionIssue(t *testing.T, body string) string {
+	t.Helper()
+	fp := filepath.Join(t.TempDir(), "gold.md")
+	content := "---\ntitle: \"Gold shop\"\nstatus: \"in design\"\n---\n\n" + body + "\n"
+	if err := os.WriteFile(fp, []byte(content), 0644); err != nil {
+		t.Fatalf("write issue: %v", err)
+	}
+	return fp
+}
+
+func readBody(t *testing.T, fp string) string {
+	t.Helper()
+	data, err := os.ReadFile(fp)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	issue, err := ParseIssue(filepath.Base(fp), data)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	return issue.BodyRaw
 }

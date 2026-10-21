@@ -70,7 +70,6 @@ func runShow(ctx *Context, args []string) error {
 		fmt.Fprintln(ctx.Stdout)
 	}
 
-	printOpenQuestions(ctx, issue)
 	printReplacedCitations(ctx, issue, issues)
 
 	hasAuto, hasManual := tracker.HasTestPlan(issue.BodyRaw)

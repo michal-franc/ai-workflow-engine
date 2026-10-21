@@ -83,7 +83,7 @@
         <div class="wb-head">
             <div>
                 <h2 class="wb-title">Decisions</h2>
-                <p class="wb-sub">Generated from every issue's <code>## Decisions</code> section. Nobody edits this list. The lead adds one with <code>issue-cli answer</code> (a question asked with <code>issue-cli ask</code>) or <code>issue-cli decide</code>.</p>
+                <p class="wb-sub">Generated from every issue's <code>## Decisions</code> section. Nobody edits this list. Agents and the lead add one with <code>issue-cli decide</code>.</p>
             </div>
             {{if .Total}}
             <div class="wb-stats" data-testid="decisions.stats">
@@ -99,7 +99,7 @@
         <div class="wb-empty decisions-empty" data-testid="decisions.empty">
             <div class="wb-empty-icon decisions-empty-icon">⚖</div>
             <h3>No decisions recorded yet</h3>
-            <p>Decisions appear here when the lead records an answer with <code>issue-cli answer &lt;slug&gt; Q-n --option B</code>, or when an agent records one with <code>issue-cli decide &lt;slug&gt; --text "…"</code>. Free-form <code>## Decisions</code> notes in older issues are not listed.</p>
+            <p>Decisions appear here when the lead or an agent records one with <code>issue-cli decide &lt;slug&gt; --text "…"</code>. Free-form <code>## Decisions</code> notes in older issues are not listed.</p>
         </div>
         {{else}}
         <div class="decisions-filters" data-testid="decisions.filters">

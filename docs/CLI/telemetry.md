@@ -64,7 +64,7 @@ Telemetry files live under `.agent-logs/`. Make sure each project repo gitignore
 | `flags` | Flag **names** used, global flags included, sorted. Never values. |
 | `project`, `issue`, `assignee` | Resolved project slug, and the issue slug and assignee when the command resolved a real issue. For an unresolvable project, `project` is the raw `--project` token (≤ 64 chars). |
 | `safe` | The only stored values: `to` (`--to`) and `section` (`--section`), ≤ 64 chars. |
-| `exit` | Process exit code: 0, 1 or 2 (panic). Events recorded before v0.43.0 may also hold 3 (a `--wait` timeout). |
+| `exit` | Process exit code: 0, 1 or 2 (panic). Events recorded before v0.45.0 may also hold 3 (a `--wait` timeout). |
 | `err_class` | See below. Empty on success. |
 | `unknown` | The offending token for unknown command, subcommand, topic or flag errors, ≤ 64 chars. Only that one token is kept, never the rest of the args. |
 | `caller` | `dispatched` (`ISSUE_VIEWER_ISSUE_SLUG` set by viewer dispatch), `agent` (`CLAUDECODE`, `AI_AGENT` or `CODEX_*` env), `tty` (interactive stdin) or `script`. |
@@ -75,7 +75,7 @@ Titles, comment and append bodies, retrospective text, `set-meta` values, `--fie
 
 ### Error classes
 
-`unknown_command`, `unknown_subcommand`, `unknown_topic`, `unknown_flag` (including a removed flag such as `--wait`), `flag_parse`, `usage` (missing positional or required flag), `project_resolution`, `approval_missing`, `issue_not_found`, `invalid_transition` (target status not reachable), `validation` (a workflow rule, a missing field answer, or `--dry-run` reporting unmet requirements), `panic`, `other`. Events recorded before v0.43.0 may also hold `wait_timeout` (exit 3, from the removed `--wait`).
+`unknown_command`, `unknown_subcommand`, `unknown_topic`, `unknown_flag` (including a removed flag such as `--wait`), `flag_parse`, `usage` (missing positional or required flag), `project_resolution`, `approval_missing`, `issue_not_found`, `invalid_transition` (target status not reachable), `validation` (a workflow rule, a missing field answer, or `--dry-run` reporting unmet requirements), `panic`, `other`. Events recorded before v0.45.0 may also hold `wait_timeout` (exit 3, from the removed `--wait`).
 
 ## `issue-cli telemetry report`
 

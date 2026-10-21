@@ -16,10 +16,19 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.45.0 — 2026-10-21
+
+- **Breaking:** `--wait`, `--timeout` and `--interval` are removed from `issue-cli transition` and `issue-cli start`. At a human-approval gate an agent tells the human what to approve, then stops and ends its turn; the viewer's approve button nudges its tmux session to resume. Passing one of the flags fails with `--wait was removed in v0.45.0: stop and end your turn; the approval nudge resumes you`. Exit code 3 and the `wait_timeout` telemetry class are gone, `transition --dry-run` suggests stopping instead of a `--wait` command, and `transition --json` no longer has a `wait` object.
+- The stats sidecar no longer writes `pending_wait` or per-row `wait_started_at`. Older sidecars that hold them still load; the fields are dropped on the next save.
+
+## v0.44.0 — 2026-10-21
+
+- **Breaking:** the read-only `/workflow-flow` page ("Agent Execution Flow") is removed. It was hand-written, not built from `workflow.yaml`, out of date, and unlinked since the designer went. [docs/agent-workflow-flow.md](../../docs/agent-workflow-flow.md) is the current description of the agent flow.
+
 ## v0.43.0 — 2026-10-21
 
-- **Breaking:** `--wait`, `--timeout` and `--interval` are removed from `issue-cli transition` and `issue-cli start`. At a human-approval gate an agent tells the human what to approve, then stops and ends its turn; the viewer's approve button nudges its tmux session to resume. Passing one of the flags fails with `--wait was removed in v0.43.0: stop and end your turn; the approval nudge resumes you`. Exit code 3 and the `wait_timeout` telemetry class are gone, `transition --dry-run` suggests stopping instead of a `--wait` command, and `transition --json` no longer has a `wait` object.
-- The stats sidecar no longer writes `pending_wait` or per-row `wait_started_at`. Older sidecars that hold them still load; the fields are dropped on the next save.
+- Approve from the agent's terminal: the `issue-approve` Claude Code mod (`claude-mods/issue-approve/`, installed once at user scope from that folder as a local marketplace) shows the issue's approvals above a dispatched agent's prompt as buttons that do what the detail page's checkboxes do. New `GET /p/<project>/issue/<slug>/approvals.json` (the same list as the Human Approval box) and `GET /project-for?cwd=<path>`; dispatch exports `ISSUE_VIEWER_PROJECT`.
+- Fix: dispatched worktrees no longer hide `demo/issues/`. Sparse-checkout excludes are anchored at the repo root (`!/issues/`), so `TestDemoConfig` passes in new worktrees.
 
 ## v0.42.0 — 2026-10-21
 

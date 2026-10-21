@@ -25,7 +25,7 @@ The dispatch flow also exports these environment variables into the agent sessio
 - `ISSUE_CLI_LOG`
 - `ISSUE_VIEWER_SERVER_PWD`
 
-The issue detail page can also notify the active tmux-backed agent session when a human grants approval. Approval metadata on the issue remains the source of truth, and the UI reports whether the follow-up notification reached a matching session. That notification is the hand-off: the agent asks for approval in chat, then stops and ends its turn, and the approval message wakes it. Agents don't block or poll; `--wait` was removed from `issue-cli` in v0.43.0.
+The issue detail page can also notify the active tmux-backed agent session when a human grants approval. Approval metadata on the issue remains the source of truth, and the UI reports whether the follow-up notification reached a matching session. That notification is the hand-off: the agent asks for approval in chat, then stops and ends its turn, and the approval message wakes it. Agents don't block or poll; `--wait` was removed from `issue-cli` in v0.45.0.
 
 ## 2. First Commands
 

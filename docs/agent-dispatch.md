@@ -156,7 +156,25 @@ Model names may contain only letters, digits and `._:/[]-`; anything else is ign
 
 When a human approves a status transition in the web UI, the server sends a natural-language message to the active agent's tmux session. The message is randomized from a set of conversational templates so the agent receives a human-like prompt rather than a structured signal.
 
-This nudge is the hand-off: at a gate the agent asks in chat, then stops and ends its turn, and the approval message resumes it. Agents don't block or poll (`issue-cli transition|start --wait` was removed in v0.43.0, see [CLI overview](CLI/overview.md#at-a-human-approval-gate)). If an agent wasn't reachable (no matching tmux session), tell it yourself that the approval landed. The approve handler also timestamps the approval in the issue's stats sidecar (`last_approval`), and logs nudges that fail (`agent not nudged: …`) to the server log, so their failure rate can be measured.
+This nudge is the hand-off: at a gate the agent asks in chat, then stops and ends its turn, and the approval message resumes it. Agents don't block or poll (`issue-cli transition|start --wait` was removed in v0.45.0, see [CLI overview](CLI/overview.md#at-a-human-approval-gate)). If an agent wasn't reachable (no matching tmux session), tell it yourself that the approval landed. The approve handler also timestamps the approval in the issue's stats sidecar (`last_approval`), and logs nudges that fail (`agent not nudged: …`) to the server log, so their failure rate can be measured.
+
+## Approve Buttons in the Agent's Session
+
+The `issue-approve` Claude Code mod (`claude-mods/issue-approve/` in this repo) puts the issue's approvals above the prompt of a dispatched Claude agent: `Human approval · in design: ☐ backlog ☐ in progress`. Pressing one does what the detail page's checkbox does (`POST …/approve`, a toggle, and the agent gets the approval nudge), so you can approve from the terminal you're watching.
+
+- The buttons come from `GET /p/<project>/issue/<slug>/approvals.json`: the approval-gated transitions out of the issue's current status, with the workflow's type and system overlays applied. It is the same list as the detail page's Human Approval box (both read `issueApprovals`).
+- The mod refreshes at session start, every 15 seconds, after each agent turn and after a press.
+- It reads `ISSUE_VIEWER_ISSUE_SLUG`, `ISSUE_VIEWER_URL` and `ISSUE_VIEWER_PROJECT`. An agent dispatched before `ISSUE_VIEWER_PROJECT` existed asks `GET /project-for?cwd=<its folder>`, which names the project whose work directory holds that folder (the most nested wins).
+- A session with no issue slug (a lead, a session you started yourself) shows nothing.
+
+Install it once, at user scope, from this repo's folder:
+
+```
+claude plugin marketplace add ~/Work/issue-viewer/claude-mods
+claude plugin install issue-approve@ai-workflow-engine --scope user
+```
+
+Running sessions pick it up with `/reload-plugins`, and so do later edits to the folder (it is read from there, so no reinstall).
 
 ## Approval-gate Deep Links
 
@@ -187,4 +205,5 @@ Dispatched sessions export:
 - `ISSUE_VIEWER_SERVER_PWD` — server working directory
 - `ISSUE_VIEWER_ISSUE_SLUG` — slug of the dispatched issue (attached to bug reports automatically)
 - `ISSUE_VIEWER_LEAD_SCOPE` — lead sessions only: `project` for the project lead, or the epic slug for a sub-lead. `issue-cli lead whoami`, `approve` and `lead spawn` read it to know who is asking.
+- `ISSUE_VIEWER_PROJECT` — the project's slug (read by the `issue-approve` mod)
 - `ISSUE_VIEWER_URL` — base URL of the dispatching server, reconstructed from the inbound request's `Host` (and `X-Forwarded-Host`/`X-Forwarded-Proto` if behind a proxy). The CLI uses it to build approval-gate deep links so dispatched bots' errors point back at the same host the human just clicked from.

@@ -165,7 +165,7 @@ func TestDynamicTransitionCost_AtLeastStatic(t *testing.T) {
 }
 
 func TestLoadStats_IgnoresRemovedWaitFields(t *testing.T) {
-	// Sidecars written while issue-cli had --wait (before v0.43.0) carry
+	// Sidecars written while issue-cli had --wait (before v0.45.0) carry
 	// pending_wait and per-row wait_started_at. They must still load, and the
 	// next save drops them.
 	issuePath := filepath.Join(t.TempDir(), "old.md")

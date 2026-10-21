@@ -230,10 +230,10 @@ It is built on `WorkflowConfig.PreviewTransitionAll`. That is the engine behind 
 
 Agents don't block at an approval gate. They tell the human what to approve, then stop and end their turn. When the human approves in the viewer, the approve handler sends a message into the agent's tmux session (see [Human Approval Notifications](../agent-dispatch.md#human-approval-notifications)), and the agent re-runs the command.
 
-`--wait`, `--timeout` and `--interval` were removed from `transition` and `start` in v0.43.0. Passing one changes nothing and fails with:
+`--wait`, `--timeout` and `--interval` were removed from `transition` and `start` in v0.45.0. Passing one changes nothing and fails with:
 
 ```
-Error: --wait was removed in v0.43.0: stop and end your turn; the approval nudge resumes you
+Error: --wait was removed in v0.45.0: stop and end your turn; the approval nudge resumes you
 ```
 
 | Exit code | Meaning |

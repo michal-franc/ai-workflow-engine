@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"github.com/michal-franc/issue-viewer/internal/agentrun"
 	"html/template"
 	"net/http"
@@ -63,6 +64,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleProjectList)
 	mux.HandleFunc("/p/", s.handleProjectRoutes)
+	mux.HandleFunc("/project-for", s.handleProjectFor)
 	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
 	return mux
 }
@@ -121,8 +123,6 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleUpdateRetroStatus(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "retros/bug/") && strings.HasSuffix(rest, "/status") && r.Method == http.MethodPost:
 		s.handleUpdateBugStatus(w, r, proj, prefix)
-	case rest == "workflow-flow":
-		s.handleWorkflowFlow(w, r, proj, prefix)
 	case rest == "decisions" && r.Method == http.MethodGet:
 		s.handleDecisions(w, r, proj, prefix)
 	case rest == "metrics" && r.Method == http.MethodGet:
@@ -167,6 +167,8 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleCustomAction(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/edit-in-nvim") && r.Method == http.MethodPost:
 		s.handleEditIssueInNvim(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/approvals.json") && r.Method == http.MethodGet:
+		s.handleApprovalsJSON(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/transition") && r.Method == http.MethodGet:
 		s.handleTransitionPreview(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/type") && r.Method == http.MethodPost:
@@ -242,4 +244,25 @@ func (s *Server) handleProjectList(w http.ResponseWriter, r *http.Request) {
 	if err := s.tmpl.ExecuteTemplate(w, "projects.html", ProjectListData{Projects: summaries}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// handleProjectFor is GET /project-for?cwd=<path>: the slug of the project
+// whose work directory holds path (the longest match wins), for a client that
+// knows its folder but not its project, such as the issue-approve Claude Code
+// mod in an agent session started before dispatch exported ISSUE_VIEWER_PROJECT.
+func (s *Server) handleProjectFor(w http.ResponseWriter, r *http.Request) {
+	cwd := filepath.Clean(r.URL.Query().Get("cwd"))
+	best, bestLen := "", -1
+	for i := range s.projects {
+		root := filepath.Clean(projectRoot(&s.projects[i]))
+		if (cwd == root || strings.HasPrefix(cwd, root+string(filepath.Separator))) && len(root) > bestLen {
+			best, bestLen = s.projects[i].Slug, len(root)
+		}
+	}
+	if best == "" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"project": best})
 }

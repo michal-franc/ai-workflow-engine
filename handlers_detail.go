@@ -81,6 +81,76 @@ type BodyEditResponse struct {
 
 var launchIssueBodyEditor = startIssueBodyEditor
 
+// issueApprovals lists the human approvals the issue's current status offers:
+// the targets of its outgoing approval-gated transitions, split into the
+// required path and optional side statuses (shown behind a CTA). The detail
+// page and approvals.json both read it, so they always offer the same gates.
+func issueApprovals(wf *tracker.WorkflowConfig, issue *tracker.Issue) (needs []string, optional []OptionalApproval) {
+	for _, t := range wf.Transitions {
+		if t.From != issue.Status {
+			continue
+		}
+		requiresApproval := false
+		for _, action := range t.Actions {
+			if action.Type == "require_human_approval" {
+				requiresApproval = true
+				break
+			}
+		}
+		if !requiresApproval {
+			continue
+		}
+		target := wf.GetStatus(t.To)
+		if target != nil && target.Optional {
+			optional = append(optional, OptionalApproval{
+				Status:      t.To,
+				Description: target.Description,
+				CTALabel:    t.CTALabel,
+			})
+			continue
+		}
+		needs = append(needs, t.To)
+	}
+	return needs, optional
+}
+
+// ApprovalsJSON is GET /p/<project>/issue/<slug>/approvals.json: the approvals
+// the detail page's Human Approval box offers, for clients outside the
+// browser (the issue-approve Claude Code mod's buttons). Approving goes
+// through the same POST .../approve the page's checkboxes call.
+type ApprovalsJSON struct {
+	Slug          string         `json:"slug"`
+	Title         string         `json:"title"`
+	Status        string         `json:"status"`
+	HumanApproval string         `json:"human_approval"`
+	Approvals     []ApprovalItem `json:"approvals"`
+}
+
+type ApprovalItem struct {
+	Status   string `json:"status"`
+	Approved bool   `json:"approved"`
+	Optional bool   `json:"optional,omitempty"`
+}
+
+func (s *Server) handleApprovalsJSON(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	slug := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, prefix+"/issue/"), "/approvals.json")
+	issue := s.findIssueBySlug(proj, slug)
+	if issue == nil {
+		http.NotFound(w, r)
+		return
+	}
+	needs, optional := issueApprovals(proj.LoadWorkflowForIssue(issue), issue)
+	out := ApprovalsJSON{Slug: issue.Slug, Title: issue.Title, Status: issue.Status, HumanApproval: issue.HumanApproval, Approvals: []ApprovalItem{}}
+	for _, st := range needs {
+		out.Approvals = append(out.Approvals, ApprovalItem{Status: st, Approved: strings.EqualFold(issue.HumanApproval, st)})
+	}
+	for _, o := range optional {
+		out.Approvals = append(out.Approvals, ApprovalItem{Status: o.Status, Approved: strings.EqualFold(issue.HumanApproval, o.Status), Optional: true})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
 func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
 	path := strings.TrimPrefix(r.URL.Path, prefix+"/issue/")
 	slug := path
@@ -136,33 +206,7 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		detailView.Score = tracker.ComputeScore(found, &wf.Scoring, time.Now())
 	}
 
-	var needsApprovals []string
-	var optionalApprovals []OptionalApproval
-	for _, t := range wf.Transitions {
-		if t.From != found.Status {
-			continue
-		}
-		requiresApproval := false
-		for _, action := range t.Actions {
-			if action.Type == "require_human_approval" {
-				requiresApproval = true
-				break
-			}
-		}
-		if !requiresApproval {
-			continue
-		}
-		target := wf.GetStatus(t.To)
-		if target != nil && target.Optional {
-			optionalApprovals = append(optionalApprovals, OptionalApproval{
-				Status:      t.To,
-				Description: target.Description,
-				CTALabel:    t.CTALabel,
-			})
-			continue
-		}
-		needsApprovals = append(needsApprovals, t.To)
-	}
+	needsApprovals, optionalApprovals := issueApprovals(wf, found)
 	approveThen := approveThenFor(wf, needsApprovals)
 
 	workDir := resolveProjectWorkDir(proj)

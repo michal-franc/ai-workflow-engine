@@ -50,6 +50,8 @@ type WaitingItem struct {
 	Target   string
 	Sessions []string
 	Since    time.Time
+	// Approx: Since is the file's mtime, not a recorded transition.
+	Approx bool
 }
 
 // pendingGate returns the status the issue waits on the human for: its next
@@ -114,13 +116,13 @@ func waitingOnOwner(proj *tracker.Project, issues []*tracker.Issue) []WaitingIte
 	for _, issue := range issues {
 		a := ownerAttention(proj, issue)
 		if a.Gate != nil && a.Gate.Ready {
-			items = append(items, WaitingItem{Issue: issue, Kind: "gate", Target: a.Gate.Target, Since: a.Since})
+			items = append(items, WaitingItem{Issue: issue, Kind: "gate", Target: a.Gate.Target, Since: a.Since, Approx: a.SinceApprox})
 		}
 		if a.PlaytestDue {
-			items = append(items, WaitingItem{Issue: issue, Kind: "playtest", Sessions: a.Playtests, Since: a.Since})
+			items = append(items, WaitingItem{Issue: issue, Kind: "playtest", Sessions: a.Playtests, Since: a.Since, Approx: a.SinceApprox})
 		}
 		if a.OpenQuestion {
-			items = append(items, WaitingItem{Issue: issue, Kind: "question", Since: a.Since})
+			items = append(items, WaitingItem{Issue: issue, Kind: "question", Since: a.Since, Approx: a.SinceApprox})
 		}
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].Since.Before(items[j].Since) })

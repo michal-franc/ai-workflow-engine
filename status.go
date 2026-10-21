@@ -146,6 +146,9 @@ type StatusModel struct {
 // WaitingCount is the number shown on the sidebar's Status entry.
 func (m *StatusModel) WaitingCount() int { return len(m.Waiting) }
 
+// AgeOf is how long ago t was, as of the page: 25m, 1h 30m, 13d.
+func (m *StatusModel) AgeOf(t time.Time) string { return shortDuration(m.AsOf.Sub(t)) }
+
 // WaitingOf returns the waiting items of one kind (gate, playtest, question).
 func (m *StatusModel) WaitingOf(kind string) []WaitingItem {
 	var out []WaitingItem

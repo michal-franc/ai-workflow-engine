@@ -87,7 +87,7 @@ Entries are newest-first. Each entry has the form:
 - One.
 `)
 	write("sessions/2026-10-01-lead-session.md", "# Old note\n\n## Next\n1. Stale step.\n")
-	write("sessions/2026-10-21-lead-status.md", "# Handoff\n\n## What is live\nStuff.\n\n## Next\n1. Approve ui/ready.\n2. Build it.\n\n## Resume\nRun things.\n")
+	write("sessions/2026-10-21-lead-status.md", "# Handoff\n\n## What is live\nStuff.\n\n## Next\n1. Approve `ui/ready`.\n2. Build it.\n\n## Resume\nRun things.\n")
 
 	write("workflow.yaml", `workbench:
   changelog: docs/CHANGELOG.md
@@ -169,7 +169,7 @@ func TestBuildStatus(t *testing.T) {
 		t.Errorf("in design = %+v", m.InDesign)
 	}
 
-	if !m.Next.Found || m.Next.File != "sessions/2026-10-21-lead-status.md" || m.Next.Text != "1. Approve ui/ready.\n2. Build it." {
+	if !m.Next.Found || m.Next.File != "sessions/2026-10-21-lead-status.md" || m.Next.Text != "1. Approve `ui/ready`.\n2. Build it." {
 		t.Errorf("next = %+v", m.Next)
 	}
 	if len(m.Backlog) != 2 || m.Backlog[0].Slug != "ui/high" {
@@ -237,7 +237,7 @@ func TestStatusMarkdownEndpoint(t *testing.T) {
 		"- Done in the last 7 days (1):\n  - ui/shipped",
 		"Lead: lead-status (not running)",
 		"] ui/tested (agent stopped)",
-		"From sessions/2026-10-21-lead-status.md:\n1. Approve ui/ready.",
+		"From sessions/2026-10-21-lead-status.md:\n1. Approve `ui/ready`.",
 		"Backlog:\n- ui/high (high)\n- ui/low (low)",
 		"Parked:\n- ui/parked: Blocked on the sidebar.",
 		"## Waiting on you (3)",
@@ -308,4 +308,57 @@ func slugsOf(issues []*tracker.Issue) []string {
 		out = append(out, i.Slug)
 	}
 	return out
+}
+
+func TestStatusPageRenders(t *testing.T) {
+	proj := setupStatusProject(t, time.Now())
+	withMockTmuxSessions(t, nil)
+	stubAgentsGit(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	resp, body := getResp(t, ts.URL+"/p/status/status")
+	if resp.StatusCode != 200 {
+		t.Fatalf("status %d:\n%s", resp.StatusCode, body)
+	}
+	for _, want := range []string{
+		`data-testid="nav.tab.status" aria-current="page"`,
+		`data-testid="nav.tab.status.count">3</span>`,
+		`data-testid="status.no_versions"`,
+		`data-testid="status.epic.ui/epic"`,
+		`data-testid="status.working.row.ui/tested"`,
+		`3d</td>`,
+		`From <span class="mono">sessions/2026-10-21-lead-status.md</span>`,
+		`<li>Approve <a href="/p/status/issue/ui/ready"><code>ui/ready</code></a>.</li>`,
+		`data-testid="status.waiting.gate.ui/ready"`,
+		`data-testid="status.waiting.playtest.ui/tested"`,
+		`data-testid="status.waiting.question.ui/asker"`,
+		`1 more issue is at a gate`,
+		`data-testid="status.release.v0_4_0"`,
+		`Blocked on the sidebar.`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("status page missing %q", want)
+		}
+	}
+	if strings.Contains(body, "status.release.v0_1_0") {
+		t.Error("only the newest 3 releases should show")
+	}
+
+	// The count follows the page onto every other view.
+	_, list := getResp(t, ts.URL+"/p/status/")
+	if !strings.Contains(list, `data-testid="nav.tab.status.count">3</span>`) {
+		t.Error("list page sidebar is missing the Status count")
+	}
+}
+
+func TestLinkCodeSlugs(t *testing.T) {
+	issues := []*tracker.Issue{{Slug: "ui/ready"}}
+	got := linkCodeSlugs(renderMarkdown("1. Ship `ui/ready`, then `make validate`.\n<script>x</script>"), "/p/s", issues)
+	if !strings.Contains(got, `<a href="/p/s/issue/ui/ready"><code>ui/ready</code></a>`) || !strings.Contains(got, "<code>make validate</code>") {
+		t.Errorf("links = %s", got)
+	}
+	if strings.Contains(got, "<script>") {
+		t.Errorf("raw HTML must be dropped: %s", got)
+	}
 }

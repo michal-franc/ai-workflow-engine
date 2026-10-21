@@ -1,0 +1,6 @@
+{
+  "name": "issue-approve",
+  "version": "0.1.0",
+  "description": "Approve buttons above the prompt for a dispatched agent's issue, the same approvals as the AI Workflow Engine board",
+  "types": "./types/index.d.ts"
+}

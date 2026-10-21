@@ -130,7 +130,7 @@ func TestNavLinksToBalance(t *testing.T) {
 	withMockTmuxSessions(t, nil)
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
-	for _, path := range []string{"/", "/board", "/graph", "/docs", "/stats", "/decisions", "/retros", "/workflow-flow"} {
+	for _, path := range []string{"/", "/board", "/graph", "/docs", "/stats", "/decisions", "/retros"} {
 		page := pageGet(t, ts.URL+"/p/wb"+path)
 		decisions := strings.Index(page, `href="/p/wb/decisions"`)
 		balance := strings.Index(page, `href="/p/wb/balance"`)

@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -92,5 +94,30 @@ func TestHandleProjectRoutes_404ForUnknownProject(t *testing.T) {
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+// /project-for maps a folder to the project whose work directory holds it,
+// the longest (most nested) match winning, as for issue-viewer and its demo.
+func TestProjectFor(t *testing.T) {
+	root := t.TempDir()
+	outer := tracker.Project{Slug: "outer", WorkDir: root, IssueDir: filepath.Join(root, "issues")}
+	inner := tracker.Project{Slug: "inner", WorkDir: filepath.Join(root, "demo"), IssueDir: filepath.Join(root, "demo", "issues")}
+	ts := newTestServer(t, []tracker.Project{outer, inner})
+	defer ts.Close()
+
+	for cwd, want := range map[string]string{
+		root: "outer",
+		filepath.Join(root, ".worktrees", "ui/x"): "outer",
+		filepath.Join(root, "demo"):               "inner",
+		filepath.Join(root, "demo", "sub"):        "inner",
+	} {
+		resp, body := getResp(t, ts.URL+"/project-for?cwd="+url.QueryEscape(cwd))
+		if resp.StatusCode != http.StatusOK || !strings.Contains(body, `"project":"`+want+`"`) {
+			t.Errorf("cwd %s: %d %s, want %s", cwd, resp.StatusCode, body, want)
+		}
+	}
+	if resp, _ := getResp(t, ts.URL+"/project-for?cwd=/elsewhere"); resp.StatusCode != http.StatusNotFound {
+		t.Errorf("unrelated cwd: status %d, want 404", resp.StatusCode)
 	}
 }

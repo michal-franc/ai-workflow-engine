@@ -1,0 +1,11 @@
+{
+  "name": "ai-workflow-engine",
+  "owner": { "name": "AI Workflow Engine" },
+  "plugins": [
+    {
+      "name": "issue-approve",
+      "source": "./issue-approve",
+      "description": "Approve buttons above the prompt for a dispatched agent's issue, the same approvals as the board"
+    }
+  ]
+}

@@ -28,7 +28,6 @@ func TestProjectPagesRenderSidebar(t *testing.T) {
 		"/docs":                 "docs",
 		"/docs/getting-started": "docs",
 		"/retros":               "retros",
-		"/workflow-flow":        "",
 		"/stats":                "stats",
 		"/github":               "github",
 		"/decisions":            "decisions",

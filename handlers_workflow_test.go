@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
@@ -326,5 +327,36 @@ func TestBuildAgentPrompt_InjectsProjectFlagForMultiProjectDispatch(t *testing.T
 		if strings.HasPrefix(trimmed, "issue-cli ") && !strings.HasPrefix(trimmed, "issue-cli --project ") {
 			t.Fatalf("unrewritten issue-cli call leaked into prompt: %q", trimmed)
 		}
+	}
+}
+
+func TestWorkflowDesignerRemoved(t *testing.T) {
+	f := setupWorkbenchProject(t, time.Now())
+	withMockTmuxSessions(t, nil)
+	ts := newTestServer(t, []tracker.Project{f.proj})
+	defer ts.Close()
+	for _, path := range []string{"/", "/board", "/graph", "/canvas", "/agents", "/docs", "/stats", "/decisions", "/retros", "/workflow-flow"} {
+		if strings.Contains(pageGet(t, ts.URL+"/p/wb"+path), "workflow-designer") {
+			t.Errorf("%s: still links to the removed workflow designer", path)
+		}
+	}
+	for _, path := range []string{"/workflow-designer", "/workflow-designer/data"} {
+		resp, err := http.Get(ts.URL + "/p/wb" + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			t.Errorf("GET %s still answers", path)
+		}
+	}
+	for _, path := range []string{"/workflow-designer", "/workflow-designer/preview"} {
+		resp := pagePost(t, ts.URL+"/p/wb"+path, `{"yaml":"statuses: []"}`)
+		if resp.StatusCode == http.StatusOK {
+			t.Errorf("POST %s still answers", path)
+		}
+	}
+	if _, err := os.Stat("static/workflow-designer-v2.js"); err == nil {
+		t.Error("static/workflow-designer-v2.js still exists")
 	}
 }

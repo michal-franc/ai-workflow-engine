@@ -27,7 +27,7 @@ steps:
       - open: /p/{project}/
     act:
       - click: nav.more
-      - check: { visible: [nav.tab.graph, nav.tab.canvas, nav.tab.agents, nav.tab.retros, nav.tab.workflow_designer, nav.tab.stats] }
+      - check: { visible: [nav.tab.graph, nav.tab.canvas, nav.tab.agents, nav.tab.retros, nav.tab.stats] }
       - click: nav.tab.graph
       - wait_for: { url: { contains: /graph } }
     checks:

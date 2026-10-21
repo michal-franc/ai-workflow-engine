@@ -100,7 +100,7 @@ The lint flags a status prompt that both a type and a system set.
 ### Lint
 
 `WorkflowConfig.Lint() []string`. Its output shows in `issue-cli process workflow` under
-`== Warnings (workflow.yaml) ==` (the viewer's workflow designer page doesn't show it yet). Checks:
+`== Warnings (workflow.yaml) ==`. Checks:
 
 - `default_type` is missing or names no type; a `path` entry isn't a base status; a `path` is out of base order.
 - **Section gaps**: an edge on a type's path validates `section_checkboxes_checked: X`, `section_has_checkboxes: X`,

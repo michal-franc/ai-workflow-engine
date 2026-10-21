@@ -30,13 +30,6 @@ func resolveProjectWorkDir(proj *tracker.Project) string {
 	return workDir
 }
 
-func workflowFileTarget(proj *tracker.Project) string {
-	if proj.WorkflowFile != "" {
-		return proj.WorkflowFile
-	}
-	return "workflow.yaml"
-}
-
 func fileExists(path string) bool {
 	if path == "" {
 		return false

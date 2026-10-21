@@ -27,8 +27,7 @@ func TestProjectPagesRenderSidebar(t *testing.T) {
 		"/docs":                 "docs",
 		"/docs/getting-started": "docs",
 		"/retros":               "retros",
-		"/workflow-designer":    "workflow_designer",
-		"/workflow-flow":        "workflow_designer",
+		"/workflow-flow":        "",
 		"/stats":                "stats",
 		"/github":               "github",
 		"/decisions":            "decisions",
@@ -97,7 +96,7 @@ func TestSidebarNav(t *testing.T) {
 	if got := keys(nav.Main); got != "board,list,decisions,docs" {
 		t.Errorf("main = %s (Balance needs workbench.balance)", got)
 	}
-	if got := keys(nav.More); got != "graph,canvas,agents,retros,workflow_designer,stats" {
+	if got := keys(nav.More); got != "graph,canvas,agents,retros,stats" {
 		t.Errorf("more = %s (GitHub needs supports_github)", got)
 	}
 	if !nav.MoreActive {

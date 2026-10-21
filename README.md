@@ -70,7 +70,7 @@ Just looking? Clone the repo and run `make demo` (Go 1.25+) to open a sample pro
 | **Issues** | One markdown file per issue, `issues/<System>/<slug>.md`. Frontmatter holds `title`, `status`, `system`, `version`, `priority`, `labels`, `assignee` and any custom key. The body grows section by section; comments sit in a hidden block at the end of the file. See [docs/issue-format.md](docs/issue-format.md). |
 | **Workflow** | `workflow.yaml`: statuses with a prompt each, transitions with ordered actions (`validate`, `require_human_approval`, `append_section`, `inject_prompt`, `set_fields`), optional side states, and per-system overlays. |
 | **issue-cli** | How agents (and you) move issues: `start`, `check`, `comment`, `transition`. It enforces the workflow and prints `Requires:` / `Will:` before every step. |
-| **The board** | `issue-viewer`: board, list, graph and docs views, the issue page with its approval boxes, a workflow designer, retros and stats. One server hosts many projects. |
+| **The board** | `issue-viewer`: board, list, graph and docs views, the issue page with its approval boxes, retros and stats. One server hosts many projects. |
 | **Dispatch** | ▶ on a card starts Claude or Codex in tmux with a briefing built from the workflow. With `worktree: true` each issue gets its own git worktree and branch. |
 
 ### Gates and checks
@@ -155,7 +155,7 @@ The same rhythm on a real issue, replayed from its logs: Raid League's "Sapper t
 | `repo`, `supports_github`, `import_status` | GitHub sync and auto-close ([docs/github-integration.md](docs/github-integration.md)) |
 | `telemetry` | `false` turns off issue-cli's local, names-only usage log ([docs/CLI/telemetry.md](docs/CLI/telemetry.md)) |
 
-**`workflow.yaml`** is the process: `statuses`, `transitions`, `systems` (per-system overlays), `board` (columns and card fields), `scoring`, `worktree`, `worktree_setup`, `worktree_sparse_exclude`, `allow_shell`, `issue_actions` and `project_actions`. Start from a template with `issue-cli init`, edit it in the board's workflow designer, or print the schema with `issue-cli process schema`. See [docs/workflow.md](docs/workflow.md) and [docs/board-configuration.md](docs/board-configuration.md).
+**`workflow.yaml`** is the process: `statuses`, `transitions`, `systems` (per-system overlays), `board` (columns and card fields), `scoring`, `worktree`, `worktree_setup`, `worktree_sparse_exclude`, `allow_shell`, `issue_actions` and `project_actions`. Start from a template with `issue-cli init`, edit it as text (`issue-cli workflow upgrade` pulls in template changes), or print the schema with `issue-cli process schema`. See [docs/workflow.md](docs/workflow.md) and [docs/board-configuration.md](docs/board-configuration.md).
 
 ## Commands
 

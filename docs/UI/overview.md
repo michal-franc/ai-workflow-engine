@@ -31,7 +31,7 @@ Every project page has the left sidebar from `templates/_sidebar.html`:
 
 - **All projects** link and the **project block**: name, version (projects.yaml `version`) and open-issue count.
 - **New issue**. On list and board it opens the create modal; elsewhere it links to `/?new=1`, which opens the modal on the list.
-- **Views**: Board, List, Balance (when `workbench.balance` is set), Decisions and Docs, then a **More** group with Graph, Canvas, Agents, Retros, Workflow, Stats and GitHub (when `supports_github` is set).
+- **Views**: Board, List, Balance (when `workbench.balance` is set), Decisions and Docs, then a **More** group with Graph, Canvas, Agents, Retros, Stats and GitHub (when `supports_github` is set).
   - The current view has `aria-current="page"`.
   - More opens on load when the current view is in it; otherwise the browser remembers it open or closed (`localStorage` key `nav.more`).
 - **N agents running**, linking to Agents. It is hidden at 0, and `auto-refresh.js` updates it.

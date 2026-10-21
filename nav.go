@@ -34,7 +34,6 @@ var navViews = []navView{
 	{Key: "canvas", Label: "Canvas", Path: "/canvas", More: true},
 	{Key: "agents", Label: "Agents", Path: "/agents", More: true},
 	{Key: "retros", Label: "Retros", Path: "/retros", More: true},
-	{Key: "workflow_designer", Label: "Workflow", Path: "/workflow-designer", More: true},
 	{Key: "stats", Label: "Stats", Path: "/stats", More: true},
 	{Key: "github", Label: "GitHub", Path: "/github", More: true, Show: func(s *Server, p *tracker.Project) bool {
 		return p.SupportsGitHub

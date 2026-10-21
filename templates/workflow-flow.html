@@ -55,7 +55,7 @@
 </head>
 <body>
 <div class="app">
-{{template "sidebar" (sidebar .Prefix "workflow_designer")}}
+{{template "sidebar" (sidebar .Prefix "")}}
 <div class="app-main">
     <div class="container">
         <section class="flow-hero">
@@ -259,7 +259,6 @@ Tooling/workflow friction: ..."</span>
                     <h3>Persistence map</h3>
                     <ul class="flow-list">
                         <li>`workflow.yaml` stores workflow semantics.</li>
-                        <li>Browser `localStorage` stores workflow-designer draft layout.</li>
                         <li>Project `retros/` stores workflow retrospectives.</li>
                         <li>`bugs/` stores `issue-cli` bug reports.</li>
                         <li>Issue markdown files store issue state, comments, and body updates.</li>

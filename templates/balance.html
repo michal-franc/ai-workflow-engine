@@ -54,6 +54,7 @@
             {{end}}
         </div>
 
+        {{if .System}}<p class="wb-footnote" data-testid="balance.system">Only {{.System}} issues · <a href="{{.Prefix}}/balance">All systems</a></p>{{end}}
         {{if .Total}}
         <div class="wb-chips decisions-chips balance-chips">
             <span class="decisions-chips-label">State</span>

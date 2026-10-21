@@ -556,3 +556,24 @@ types:
 
               ### Manual
               - [ ] Repro steps re-run and the bug is gone (a playtest session when it shows on the board)
+
+# System pages (/p/issue-viewer/systems): a summary and design doc per issue
+# `system`, and families (an umbrella issue's children inside a system).
+workbench:
+  systems:
+    UI:
+      summary: "Templates, views and client-side behaviour of the viewer: list, board, canvases, detail page and the workbench pages."
+      design_doc: docs/UI/overview.md
+      families:
+        Workbench:
+          summary: "The workbench redesign: system pages, balance board, decisions index, status page and the new frame."
+          umbrella: ui/workbench-redesign-inbox-system-pages-balance-board-and-decisions-index
+    CLI:
+      summary: "issue-cli commands and their output contracts."
+      design_doc: docs/CLI/overview.md
+    Workflow:
+      summary: "The workflow engine: statuses, transitions, overlays and types of work."
+      design_doc: docs/Workflow/overview.md
+    API:
+      summary: "HTTP endpoints, handlers and server logic."
+      design_doc: docs/API/overview.md

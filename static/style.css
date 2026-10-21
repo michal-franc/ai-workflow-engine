@@ -311,6 +311,9 @@ code, pre, kbd, samp { font-family: var(--font-mono); }
 }
 .sidebar-panel-row span { color: var(--text-secondary); }
 .sidebar-panel-row.muted { color: var(--text-secondary); }
+.sidebar-panel-row.family { padding-left: 14px; color: var(--text-secondary); }
+.sidebar-panel-row.active { color: var(--text); font-weight: 700; background: var(--bg-active); border-radius: 6px; margin: 0 -8px; padding-left: 8px; padding-right: 8px; }
+.sidebar-panel-row.family.active { padding-left: 22px; }
 
 .sidebar-foot {
     margin-top: auto;
@@ -3391,3 +3394,73 @@ body.canvas-page { overflow: hidden; }
 
 .canvas-world.has-highlight .canvas-card:not(.lit) { opacity: 0.3; }
 .canvas-world.has-highlight .canvas-lane-head:not(.lit) { opacity: 0.45; }
+
+/* System pages (/systems, /systems/<System>[/<Family>]) */
+.system-page .mono, .systems .mono { font-family: var(--font-mono); }
+.system-page .muted, .systems .muted { color: var(--text-secondary); }
+.sys-index-head { justify-content: space-between; align-items: flex-end; }
+.wb-stat.waiting .wb-stat-num { color: var(--amber); }
+.sys-notfound { border: 1px solid var(--red-border); background: var(--red-bg); color: var(--red); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 18px; font-size: 14px; }
+.sys-grid, .sys-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.sys-col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.sys-card { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; color: inherit; min-width: 0; }
+.sys-card:hover { border-color: var(--text-secondary); text-decoration: none; }
+.sys-card-head, .sys-card-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sys-card-name { font-size: 22px; font-weight: 800; font-stretch: 85%; }
+.sys-card-summary { color: var(--text-nav); font-size: 14px; line-height: 1.45; margin: 0; }
+.sys-card-foot { font-size: 12px; }
+.sys-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+.sys-nosystem { margin-top: 20px; border: 1px dashed var(--border); border-radius: 10px; padding: 14px 20px; color: var(--text-secondary); font-size: 14px; }
+.sys-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; }
+.sys-seg { min-width: 3px; }
+.sys-seg.tone-green { background: var(--green); }
+.sys-seg.tone-amber { background: var(--amber); }
+.sys-seg.tone-blue { background: var(--blue); }
+.sys-seg.tone-red { background: var(--red); }
+.sys-seg.tone-neutral, .sys-seg.tone-muted { background: var(--border); }
+.tone-text-green { color: var(--green); }
+.tone-text-amber { color: var(--amber); }
+.tone-text-blue { color: var(--blue); }
+.tone-text-red { color: var(--red); }
+.tone-text-neutral, .tone-text-muted { color: var(--text-secondary); }
+.chip-muted { color: var(--text-secondary); }
+.sys-header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+.sys-crumbs { font-size: 13px; color: var(--text-secondary); }
+.sys-title-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.sys-title-block { display: flex; flex-direction: column; gap: 8px; max-width: 760px; }
+.sys-summary { margin: 0; font-size: 15px; line-height: 1.5; color: var(--text-nav); }
+.sys-hint { border: 1px dashed var(--border); border-radius: var(--radius); padding: 12px 14px; font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+.sys-links { display: flex; gap: 8px 22px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); }
+.sys-panel { padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.sys-panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.sys-panel-head h2 { margin: 0; font-size: 20px; font-weight: 800; font-stretch: 85%; }
+.sys-panel-head a { font-size: 13px; }
+.sys-legend { display: flex; gap: 6px 14px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
+.sys-rows { list-style: none; margin: 0; padding: 0; }
+.sys-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border-subtle); }
+.sys-row-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; color: inherit; }
+.sys-row-main:hover { text-decoration: none; }
+.sys-row-main:hover .sys-row-title { color: var(--text-link); }
+.sys-row-title { font-size: 14px; font-weight: 600; }
+.sys-row-slug { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sys-row .sys-chips { flex-shrink: 0; }
+.sys-doc-row { padding: 8px 0; }
+.sys-doc-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.sys-note { font-size: 11px; }
+.sys-panel-foot { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; border-top: 1px solid var(--border-subtle); padding-top: 10px; }
+.sys-group { display: flex; flex-direction: column; gap: 8px; color: inherit; border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; background: var(--bg); }
+.sys-group:hover { border-color: var(--text-secondary); text-decoration: none; }
+.sys-group-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.sys-group-name { font-size: 16px; font-weight: 700; }
+.sys-group-summary { font-size: 13px; color: var(--text-nav); }
+.sys-group-slug { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sys-subhead { margin-top: 4px; }
+.sys-progress { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.sys-progress-track { flex: 1; display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--border); }
+.sys-progress-track span { background: var(--green); }
+.sys-decision { display: flex; flex-direction: column; gap: 4px; padding: 10px 0; border-top: 1px solid var(--border-subtle); }
+.sys-decision-meta { display: flex; gap: 8px; align-items: center; font-size: 12px; flex-wrap: wrap; }
+.sys-decision-text { font-size: 14px; line-height: 1.45; }
+@media (max-width: 900px) {
+    .sys-grid, .sys-panels { grid-template-columns: minmax(0, 1fr); }
+}

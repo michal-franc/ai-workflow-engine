@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/fs"
 	"strings"
 	"testing"
@@ -93,7 +94,8 @@ func TestSidebarNav(t *testing.T) {
 		}
 		return strings.Join(k, ",")
 	}
-	if got := keys(nav.Main); got != "board,list,decisions,docs" {
+	// Systems shows because the issues have systems (ui/workbench-sidebar-and-system-pages#D-2).
+	if got := keys(nav.Main); got != "systems,board,list,decisions,docs" {
 		t.Errorf("main = %s (Balance needs workbench.balance)", got)
 	}
 	if got := keys(nav.More); got != "graph,canvas,agents,retros,stats" {
@@ -121,6 +123,23 @@ func TestSidebarNav(t *testing.T) {
 	}
 	if got := strings.Join(systems, " "); got != "Auth=/p/test-project/board?system=Auth UI=/p/test-project/board?system=UI" {
 		t.Errorf("board systems = %s", got)
+	}
+
+	sys := srv.sidebarNav("/p/test-project", "systems/UI")
+	if !sys.Main[0].Active || sys.Main[0].Note == "" {
+		t.Errorf("systems entry = %+v, want active with a system count", sys.Main[0])
+	}
+	var rows []string
+	for _, s := range sys.Systems {
+		rows = append(rows, fmt.Sprintf("%s=%s:%v", s.Name, s.Href, s.Active))
+	}
+	// The test project shares the repo's workflow.yaml, whose workbench.systems
+	// adds configured systems and the UI › Workbench family.
+	got := strings.Join(rows, " ")
+	for _, want := range []string{"Auth=/p/test-project/systems/Auth:false UI=/p/test-project/systems/UI:true Workbench=/p/test-project/systems/UI/Workbench:false"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("systems panel = %s, want %s", got, want)
+		}
 	}
 
 	if got := srv.sidebarNav("/p/missing", "list"); got.ProjectName != "" || got.Main != nil {

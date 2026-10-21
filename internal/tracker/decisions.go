@@ -14,7 +14,6 @@ const DecisionsSection = "Decisions"
 
 var decisionIDRe = regexp.MustCompile(`\*\*D-(\d+)\*\*`)
 
-
 // Decisions are numbered lines under an issue's `## Decisions` section.
 // `issue-cli decide` writes them. The project-wide decisions index is
 // generated from these lines; nobody edits it by hand. Older lines written by
@@ -241,6 +240,7 @@ type DecisionIndex struct {
 	Entries []*DecisionEntry // newest first
 	byRef   map[string]*DecisionEntry
 	cites   map[string][]string // citing slug → refs it cites
+	known   map[string]bool     // every issue slug, for resolving refs
 }
 
 // Lookup returns the entry for a normalised ref, or nil.
@@ -262,12 +262,27 @@ func (x *DecisionIndex) Cited(slug string) []*DecisionEntry {
 	return out
 }
 
+// CitedIn returns the indexed decisions that text (a design doc section, say)
+// cites with `<slug>#D-n`, by the same rules as issue citations.
+func (x *DecisionIndex) CitedIn(text string) []*DecisionEntry {
+	if x == nil {
+		return nil
+	}
+	var out []*DecisionEntry
+	for _, ref := range citedRefs(text, x.known) {
+		if e := x.byRef[ref]; e != nil {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // BuildDecisionIndex parses every issue's decisions and resolves
 // replacements and citations. isClosed tells open from closed issues (only
 // open citers make a replaced decision stale).
 func BuildDecisionIndex(issues []*Issue, isClosed func(*Issue) bool) *DecisionIndex {
-	x := &DecisionIndex{byRef: map[string]*DecisionEntry{}, cites: map[string][]string{}}
 	known := map[string]bool{}
+	x := &DecisionIndex{byRef: map[string]*DecisionEntry{}, cites: map[string][]string{}, known: known}
 	for _, issue := range issues {
 		known[issue.Slug] = true
 		for _, d := range ParseDecisions(issue.Slug, issue.BodyRaw) {

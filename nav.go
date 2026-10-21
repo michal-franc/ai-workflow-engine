@@ -20,9 +20,13 @@ type navView struct {
 	Show func(s *Server, proj *tracker.Project) bool
 }
 
-// navViews in display order. Status and Systems (D-2) join the main group when
-// their pages exist; until then they are not listed (D-7).
+// navViews in display order. Status (D-2) joins the main group when its page
+// exists; until then it is not listed (D-7). Systems shows whenever an issue
+// has a system or workbench.systems is set (ui/workbench-sidebar-and-system-pages#D-2,
+// replacing the visibility clause of this issue's D-2); sidebarNav decides,
+// since it has the issues.
 var navViews = []navView{
+	{Key: "systems", Label: "Systems", Path: "/systems"},
 	{Key: "board", Label: "Board", Path: "/board"},
 	{Key: "list", Label: "List", Path: "/"},
 	{Key: "balance", Label: "Balance", Path: "/balance", Show: func(s *Server, p *tracker.Project) bool {
@@ -50,11 +54,14 @@ type NavItem struct {
 	Live   bool   // Note is a running-agents count (green)
 }
 
-// NavCount is a name with an open-issue count (the Board's systems panel).
+// NavCount is a name with an open-issue count (the systems panel on the
+// Board and the systems pages).
 type NavCount struct {
-	Name  string
-	Count int
-	Href  string
+	Name   string
+	Count  int
+	Href   string
+	Family bool // a family, listed indented under its system
+	Active bool
 }
 
 // Nav is everything the sidebar partial renders for one page.
@@ -69,7 +76,7 @@ type Nav struct {
 	ActiveBots     int
 	CreateInPage   bool // the page has the create modal; elsewhere New issue links to the list
 	ProjectActions []tracker.CustomAction
-	Systems        []NavCount // the Board's screen panel
+	Systems        []NavCount // the screen panel on the Board and the systems pages
 }
 
 // sidebarNav builds the sidebar for the project behind prefix, with active
@@ -85,12 +92,19 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 
 	open := 0
 	bySystem := map[string]int{}
+	systemNames := map[string]bool{}
 	for _, issue := range issues {
+		if name := strings.TrimSpace(issue.System); name != "" {
+			systemNames[strings.ToLower(name)] = true
+		}
 		if issue.Status == "done" {
 			continue
 		}
 		open++
 		bySystem[issue.System]++
+	}
+	for name := range proj.LoadWorkflow().Workbench.Systems {
+		systemNames[strings.ToLower(name)] = true
 	}
 
 	nav := Nav{
@@ -110,10 +124,16 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 		if v.Show != nil && !v.Show(s, proj) {
 			continue
 		}
+		if v.Key == "systems" && len(systemNames) == 0 {
+			continue
+		}
 		item := NavItem{Key: v.Key, Label: v.Label, Href: prefix + v.Path, Active: v.Key == active}
 		switch v.Key {
 		case "list":
 			item.Note = fmt.Sprint(open)
+		case "systems":
+			item.Active = active == "systems" || strings.HasPrefix(active, "systems/")
+			item.Note = fmt.Sprint(len(systemNames))
 		case "agents":
 			if activeBots > 0 {
 				item.Note, item.Live = fmt.Sprintf("%d running", activeBots), true
@@ -127,21 +147,24 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 		}
 	}
 
-	if active == "board" {
-		nav.Systems = systemCounts(prefix, bySystem)
+	switch {
+	case active == "board":
+		nav.Systems = systemCounts(bySystem, func(name string) string { return prefix + "/board?system=" + name })
+	case active == "systems" || strings.HasPrefix(active, "systems/"):
+		nav.Systems = systemsPanel(prefix, active, issues, proj.LoadWorkflow())
 	}
 	return nav
 }
 
-// systemCounts lists systems by open count (most first), with issues that
-// have no system last as "No system".
-func systemCounts(prefix string, bySystem map[string]int) []NavCount {
+// systemCounts lists systems by open count (most first), each linking to
+// href(name), with issues that have no system last as "No system".
+func systemCounts(bySystem map[string]int, href func(name string) string) []NavCount {
 	var out []NavCount
 	for name, n := range bySystem {
 		if name == "" {
 			continue
 		}
-		out = append(out, NavCount{Name: name, Count: n, Href: prefix + "/board?system=" + name})
+		out = append(out, NavCount{Name: name, Count: n, Href: href(name)})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Count != out[j].Count {
@@ -150,6 +173,48 @@ func systemCounts(prefix string, bySystem map[string]int) []NavCount {
 		return out[i].Name < out[j].Name
 	})
 	if n := bySystem[""]; n > 0 {
+		out = append(out, NavCount{Name: "No system", Count: n})
+	}
+	return out
+}
+
+// systemsPanel is the screen panel on the systems pages: every system with
+// its open count, linking to its page, and its configured families indented
+// below it. active is "systems", "systems/<System>" or
+// "systems/<System>/<Family>".
+func systemsPanel(prefix, active string, issues []*tracker.Issue, wf *tracker.WorkflowConfig) []NavCount {
+	st := newStatusTones(wf)
+	groups, none := groupSystems(issues, wf.Workbench)
+	segs := splitSystemPath(strings.TrimPrefix(strings.TrimPrefix(active, "systems"), "/"))
+	type entry struct {
+		row  NavCount
+		fams []NavCount
+	}
+	var entries []entry
+	for _, g := range groups {
+		e := entry{row: NavCount{Name: g.Name, Count: len(openIssues(st, g.Members)), Href: systemHref(prefix, g.Name)}}
+		e.row.Active = len(segs) == 1 && strings.EqualFold(segs[0], g.Name)
+		for _, fname := range g.Config.FamilyNames() {
+			kids := childrenOf(g.Members, g.Config.Families[fname].Umbrella)
+			e.fams = append(e.fams, NavCount{
+				Name: fname, Count: len(openIssues(st, kids)), Href: familyHref(prefix, g.Name, fname), Family: true,
+				Active: len(segs) == 2 && strings.EqualFold(segs[0], g.Name) && strings.EqualFold(segs[1], fname),
+			})
+		}
+		entries = append(entries, e)
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].row.Count != entries[j].row.Count {
+			return entries[i].row.Count > entries[j].row.Count
+		}
+		return strings.ToLower(entries[i].row.Name) < strings.ToLower(entries[j].row.Name)
+	})
+	var out []NavCount
+	for _, e := range entries {
+		out = append(out, e.row)
+		out = append(out, e.fams...)
+	}
+	if n := len(openIssues(st, none)); n > 0 {
 		out = append(out, NavCount{Name: "No system", Count: n})
 	}
 	return out

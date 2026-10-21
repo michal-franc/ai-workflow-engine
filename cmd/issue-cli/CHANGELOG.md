@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.39.1 — 2026-10-21
+
+- The **Spawn sub-lead** buttons are gone from the agents canvas (epic box and selected-agent panel) and from an epic's detail page: one lead per project for now. `issue-cli lead spawn --epic` and the endpoint still work.
+
 ## v0.39.0 — 2026-10-21
 
 - Fix: agents from other projects no longer show up in this project's views. The agents canvas, the board's and list's active-agent markers, approval notifications and `issue-cli lead list` / `whoami` listed every `agent-*` / `lead-*` session on the tmux server, so another project's workers appeared as this project's (and an equal slug in two projects looked like the same agent). A project with `tmux_session` now only sees that session's windows; without one, only standalone sessions started under its root.

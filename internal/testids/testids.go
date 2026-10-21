@@ -86,8 +86,6 @@ var IDs = []string{
 	"detail.lead",
 	"detail.lead.name",
 	"detail.lead.state",
-	"detail.lead.spawn",
-	"detail.lead.steps",
 
 	// Project actions bar and its dispatch modal (list, board, graph).
 	"actions.bar",
@@ -114,7 +112,6 @@ var IDs = []string{
 	"agents.node.*.issue",
 	"agents.epic.*",
 	"agents.epic.*.meta",
-	"agents.epic.*.spawn",
 	"agents.unfinished",
 	"agents.panel",
 	"agents.panel.title",

@@ -161,14 +161,14 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 - **Clicking a live agent** (lead, sub-lead or worker) opens its tmux session in a terminal: `POST /p/<project>/agents/open` `{"session"}` runs the same attach as a dispatch re-attach (the project's `terminal`, or in `tmux_session` mode a `select-window` plus a terminal only when no client is attached). A session that already has a terminal attached never gets a second window: on i3 the window titled with the session name is focused (`focused`; the default i3 + alacritty terminal titles its windows that way), otherwise the panel says it is already open (`already-open`). With `terminal: none` the panel shows the attach command instead (prefixed `TMUX_TMPDIR=…` when the board runs on a private tmux server). The page never shows the pane and has no message box (D-12); you watch and type in tmux.
 - **Selected-agent panel** (shown for the clicked node): kind, state, tmux location, the issue, then:
   - **Approve gate** (at-gate workers) calls the issue's existing `/approve` endpoint, a direct human action;
-  - **Spawn lead** / **Spawn sub-lead** for a lead that is not running;
+  - **Spawn lead** when the project lead is not running (there is no sub-lead button: one lead per project for now, workbench umbrella D-13);
   - **Open in tmux** (live sessions) does the same as clicking the node again: it opens the terminal, or brings the open one to the front, and a status line says which;
   - **Copy attach** copies the `tmux attach` command;
   - the issue's last 5 comments and the branch's `git diff --stat` against its base (or `main`), from `GET /p/<project>/agents/detail?session=<name>&issue=<slug>`.
 
-Spawn buttons POST to `/p/<project>/lead/spawn` (`{}` for the project lead, `{"epic": "<slug>"}` for a sub-lead) and show the launch steps in a modal. It runs the same `agentrun.LeadSpec` as `issue-cli lead spawn`; a non-epic slug returns `422`.
+Spawn buttons POST `{}` to `/p/<project>/lead/spawn` and show the launch steps in a modal. The endpoint still accepts `{"epic": "<slug>"}` for a sub-lead, but no button sends it. It runs the same `agentrun.LeadSpec` as `issue-cli lead spawn`; a non-epic slug returns `422`.
 
-The detail page's sidebar has a **Lead** section: on an epic, its sub-lead, whether it is live, its base branch and a **Spawn sub-lead** button; on any other issue, the lead it reports to and its epic.
+The detail page's sidebar has a **Lead** section: on an epic, its sub-lead, whether it is live and its base branch; on any other issue, the lead it reports to and its epic.
 
 ## Project action bar
 

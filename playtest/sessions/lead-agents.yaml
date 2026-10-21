@@ -176,33 +176,6 @@ steps:
       - text_contains: { target: actions.modal.steps, text: "Existing session — attaching" }
       - tmux: { session: lead-crew, present: true }
 
-  - id: TP13
-    title: Spawn sub-lead on the epic's detail page records base and lead and starts lead-ui-epic
-    setup:
-      - open: /p/{project}/issue/ui/epic
-      - tmux: [new-session, -d, -s, lead-ui-epic, cat]
-    act:
-      - click: detail.lead.spawn
-    checks:
-      - text_contains: { target: detail.lead.steps, text: "Existing session — attaching" }
-      - issue: { slug: ui/epic, field: lead, equals: lead-ui-epic }
-      - issue: { slug: ui/epic, field: base, equals: base/ui/epic }
-      - http: { path: "/p/{project}/agents.json", json: { "epics.0.main_ahead_known": true } }
-
-  - id: TP14
-    title: Spawn sub-lead on the canvas epic box starts lead-ui-epic
-    setup:
-      - open: /p/{project}/agents
-      - wait_for: agents.epic.ui/epic.spawn
-      - tmux: [new-session, -d, -s, lead-ui-epic, cat]
-    act:
-      - click: agents.epic.ui/epic.spawn
-      - wait_for: agents.spawn_modal.steps
-    checks:
-      - text_contains: { target: agents.spawn_modal.steps, text: "Existing session — attaching" }
-      - issue: { slug: ui/epic, field: lead, equals: lead-ui-epic }
-      - absent: agents.epic.ui/epic.spawn
-
   - id: TP15
     title: The canvas reads well at desktop and phone width, in Tree and Radial
     from: TP8

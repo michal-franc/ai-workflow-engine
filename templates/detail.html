@@ -146,7 +146,7 @@
 
                 <div class="sidebar-section" id="lead-section" data-testid="detail.lead">
                     <h3>Lead</h3>
-                    {{if .Lead.IsEpic}}
+                    {{if and .Lead.IsEpic .Lead.SubLeadLive}}
                     <div class="active-session-item">
                         <div class="active-session-name" data-testid="detail.lead.name">{{.Lead.SubLead}}</div>
                         <div class="active-session-time" data-testid="detail.lead.state">sub-lead · {{if .Lead.SubLeadLive}}live{{else}}not running{{end}} · base {{.Lead.Base}}</div>

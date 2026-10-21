@@ -181,17 +181,18 @@ func TestAgentOpenAndDetail(t *testing.T) {
 		*steps = append(*steps, agentrun.Step{Name: "Open terminal", Status: "ok"})
 		return true
 	}
-	var forced []string
 	attached := map[string]bool{}
-	origTerm, origAttached := openTerminal, agentrun.SessionAttached
-	openTerminal = func(_ *tracker.Project, name string, steps *[]agentrun.Step) bool {
-		forced = append(forced, name)
-		return true
-	}
+	var focused []string
+	focusOK := true
+	origAttached, origFocus := agentrun.SessionAttached, agentrun.FocusTerminal
 	agentrun.SessionAttached = func(name string) bool { return attached[name] }
+	agentrun.FocusTerminal = func(name string) bool {
+		focused = append(focused, name)
+		return focusOK
+	}
 	t.Cleanup(func() {
 		agentSessionLive, attachAgent = origLive, origAttach
-		openTerminal, agentrun.SessionAttached = origTerm, origAttached
+		agentrun.SessionAttached, agentrun.FocusTerminal = origAttached, origFocus
 	})
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
@@ -200,14 +201,15 @@ func TestAgentOpenAndDetail(t *testing.T) {
 	if code != 200 || resp["status"] != "opened" || len(opened) != 1 || opened[0] != "lead-ui-epic" || resp["attach_cmd"] == "" {
 		t.Fatalf("open: %d %v opened=%v", code, resp, opened)
 	}
-	// A click on a session that already has a terminal opens no second
-	// window; the Open in tmux button (force) does.
+	// A session that already has a terminal never gets a second window: its
+	// window is brought to the front, or the answer says it is open.
 	attached["lead-ui-epic"] = true
-	if code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"lead-ui-epic"}`); code != 200 || resp["status"] != "already-open" || len(opened) != 1 || len(forced) != 0 {
-		t.Fatalf("already open: %d %v opened=%v forced=%v", code, resp, opened, forced)
+	if code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"lead-ui-epic"}`); code != 200 || resp["status"] != "focused" || len(opened) != 1 || len(focused) != 1 || focused[0] != "lead-ui-epic" {
+		t.Fatalf("focus: %d %v opened=%v focused=%v", code, resp, opened, focused)
 	}
-	if code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"lead-ui-epic","force":true}`); code != 200 || resp["status"] != "opened" || len(forced) != 1 || forced[0] != "lead-ui-epic" {
-		t.Fatalf("force: %d %v forced=%v", code, resp, forced)
+	focusOK = false
+	if code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"lead-ui-epic"}`); code != 200 || resp["status"] != "already-open" || len(opened) != 1 {
+		t.Fatalf("already open, no window to focus: %d %v opened=%v", code, resp, opened)
 	}
 	if code, _ := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"agent-gone"}`); code != 409 || len(opened) != 1 {
 		t.Fatalf("not running: %d opened=%v", code, opened)

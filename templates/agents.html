@@ -262,18 +262,17 @@
         render();
         renderPanel();
         var n = findNode(name);
-        if (n && n.live) openSession(n, false);
+        if (n && n.live) openSession(n);
     }
 
-    // openSession opens n's tmux session in a terminal. A click (force false)
-    // opens nothing when a terminal is already attached; the Open in tmux
-    // button (force true) always opens another.
-    function openSession(n, force) {
+    // openSession opens n's tmux session in a terminal, or brings the one
+    // already open to the front; it never opens a second window.
+    function openSession(n) {
         var status = document.getElementById('panel-open-status');
         if (status) status.textContent = 'Opening ' + n.name + '…';
         fetch(prefix + '/agents/open', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session: n.name, force: !!force })
+            body: JSON.stringify({ session: n.name })
         }).then(function(r) { return r.json(); }).then(function(d) {
             var el = document.getElementById('panel-open-status');
             if (!el || selected !== n.name) return;
@@ -282,8 +281,10 @@
             var failed = steps.filter(function(s) { return s.status === 'error'; })[0];
             if (d.status === 'no-session') {
                 el.textContent = n.name + ' is not running.';
+            } else if (d.status === 'focused') {
+                el.textContent = 'Switched to the open terminal for ' + n.name + '.';
             } else if (d.status === 'already-open') {
-                el.textContent = n.name + ' is already open in a terminal. Open in tmux opens another window.';
+                el.textContent = n.name + ' is already open in a terminal, but its window could not be brought to the front (it needs i3 and a window titled ' + n.name + ').';
             } else if (failed) {
                 el.textContent = 'Could not open ' + n.name + ': ' + failed.name + (failed.detail ? ' (' + failed.detail + ')' : '');
             } else if (headless) {
@@ -339,7 +340,7 @@
         panelKey = keyOf(n);
 
         var open = document.getElementById('panel-open');
-        if (open) open.addEventListener('click', function() { openSession(n, true); });
+        if (open) open.addEventListener('click', function() { openSession(n); });
 
         var copy = document.getElementById('panel-copy');
         copy.addEventListener('click', function() {

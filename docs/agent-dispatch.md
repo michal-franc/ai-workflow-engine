@@ -73,12 +73,12 @@ The handler substitutes `{{session}}` with the tmux session name and runs the co
 | Platform                   | Config                                                                       |
 |:---------------------------|:-----------------------------------------------------------------------------|
 | Linux + alacritty          | `alacritty -e tmux attach -t {{session}}`                                    |
-| Linux + i3 + alacritty     | `i3-msg exec "alacritty -e tmux attach -t {{session}}"`                      |
+| Linux + i3 + alacritty     | `i3-msg exec "alacritty -T {{session}} -e tmux attach -t {{session}}"`       |
 | macOS + iTerm2             | `osascript -e 'tell app "iTerm2" to create window with default profile command "tmux attach -t {{session}}"'` |
 | macOS + Terminal.app       | `osascript -e 'tell app "Terminal" to do script "tmux attach -t {{session}}"'` |
 | Headless (attach manually) | `none`                                                                       |
 
-If `terminal` is unset, defaults to i3 + alacritty. Set to `none` to only create the tmux session (the response includes the `attach_cmd`).
+If `terminal` is unset, defaults to i3 + alacritty, with the window titled after the session (`alacritty -T <session>`). On i3, opening an agent from the agents canvas when its session already has a terminal focuses the window with that exact title instead of opening another, so give your own `terminal` command `-T {{session}}` (or your terminal's equivalent) to get the same. Set to `none` to only create the tmux session (the response includes the `attach_cmd`).
 
 When the viewer itself runs with `TMUX_TMPDIR` set (a sandbox or playtest scenario on a private tmux server), `attach_cmd` starts with `TMUX_TMPDIR=<dir>`, so it reaches that server from any shell. A `terminal` command inherits the variable through `sh -c`; the i3 default passes it on with `env`. The board waits for the `terminal` command to exit, so use one that returns at once (`i3-msg exec …`, or `setsid -f alacritty -e … >/dev/null 2>&1`).
 

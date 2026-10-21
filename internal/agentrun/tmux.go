@@ -24,6 +24,7 @@ type Session struct {
 var (
 	HasSession      = defaultHasSession
 	SessionAttached = defaultSessionAttached
+	FocusTerminal   = defaultFocusTerminal
 	SendKeys        = defaultSendKeys
 	ListSessions    = defaultListSessions
 	CapturePane     = defaultCapturePane
@@ -139,6 +140,18 @@ func defaultSessionAttached(session string) bool {
 	}
 	n, _ := strconv.Atoi(strings.TrimSpace(string(out)))
 	return n > 0
+}
+
+// defaultFocusTerminal brings the open terminal for session to the front and
+// reports whether it found one. Only i3 can do this: it focuses the window
+// titled exactly session (switching workspace if needed), which is how the
+// default i3 + alacritty terminal titles the windows it opens.
+func defaultFocusTerminal(session string) bool {
+	if _, err := exec.LookPath("i3-msg"); err != nil {
+		return false
+	}
+	out, err := exec.Command("i3-msg", fmt.Sprintf(`[title="^%s$"] focus`, regexp.QuoteMeta(session))).CombinedOutput()
+	return err == nil && strings.Contains(string(out), `"success":true`)
 }
 
 func defaultSendKeys(target string, lines []string) error {
@@ -297,8 +310,10 @@ func OpenTerminalStep(proj *tracker.Project, session string, steps *[]Step) bool
 	if p := tmuxEnvPrefix(); p != "" {
 		envFlag = "env " + p
 	}
+	// The window is titled after the session, so a later click can focus it
+	// (FocusTerminal) instead of opening another.
 	return RunStep(steps, "Open alacritty",
-		exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -e %stmux attach -t %s", envFlag, session)))
+		exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -T %s -e %stmux attach -t %s", session, envFlag, session)))
 }
 
 // AttachStep makes the agent visible to the human. By default it opens a

@@ -355,13 +355,13 @@ var mainBranch = agentrun.MainBranch
 // handleAgentOpen opens a live agent's or lead's tmux session in a terminal,
 // the way a dispatch re-attach does: a terminal from the project's terminal
 // setting, or in shared mode a select-window plus a terminal only when no
-// client is attached. A session that already has a client gets no second
-// window unless force is set (the panel's Open in tmux button). With
-// terminal: none it only returns the attach command.
+// client is attached. A session that already has a terminal gets no second
+// window: its window is brought to the front instead (i3, by title), or the
+// answer says it is already open. With terminal: none it only returns the
+// attach command.
 func (s *Server) handleAgentOpen(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
 	var body struct {
 		Session string `json:"session"`
-		Force   bool   `json:"force"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || !validAgentName(body.Session) {
 		http.Error(w, `{"error":"session (agent-* or lead-*) required"}`, http.StatusBadRequest)
@@ -376,24 +376,30 @@ func (s *Server) handleAgentOpen(w http.ResponseWriter, r *http.Request, proj *t
 		json.NewEncoder(w).Encode(resp)
 		return
 	}
+	// The terminal shows the agent's own session, or in shared mode the
+	// shared session switched to the agent's window.
 	shared := agentrun.SharedSession(proj)
-	var ok bool
-	switch {
-	case body.Force && shared != "":
+	home := body.Session
+	if shared != "" {
+		home = shared
+	}
+	if !agentrun.SessionAttached(home) {
+		if !attachAgent(proj, body.Session, &resp.Steps) {
+			resp.Status = "error"
+		}
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+	if shared != "" {
 		agentrun.RunStep(&resp.Steps, "Select window "+body.Session,
 			exec.Command("tmux", "select-window", "-t", agentTmuxTarget(proj, body.Session)))
-		ok = openTerminal(proj, shared, &resp.Steps)
-	case body.Force:
-		ok = openTerminal(proj, body.Session, &resp.Steps)
-	case shared == "" && agentrun.SessionAttached(body.Session):
-		resp.Status = "already-open"
-		resp.Steps = []DispatchStep{{Name: body.Session + " is already open in a terminal — no new window", Status: "ok"}}
-		ok = true
-	default:
-		ok = attachAgent(proj, body.Session, &resp.Steps)
 	}
-	if !ok {
-		resp.Status = "error"
+	if agentrun.FocusTerminal(home) {
+		resp.Status = "focused"
+		resp.Steps = append(resp.Steps, DispatchStep{Name: "Focused the open terminal for " + home, Status: "ok"})
+	} else {
+		resp.Status = "already-open"
+		resp.Steps = append(resp.Steps, DispatchStep{Name: home + " is already open in a terminal — no new window", Status: "ok"})
 	}
 	json.NewEncoder(w).Encode(resp)
 }
@@ -403,7 +409,6 @@ var agentSessionLive = func(proj *tracker.Project, name string) bool {
 	return agentrun.HasSession(agentTmuxTarget(proj, name))
 }
 var attachAgent = agentrun.AttachStep
-var openTerminal = agentrun.OpenTerminalStep
 
 // startLead is a seam over agentrun for tests.
 var startLead = agentrun.Start

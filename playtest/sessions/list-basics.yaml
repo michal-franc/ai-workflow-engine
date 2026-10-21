@@ -1,0 +1,29 @@
+session: list-basics
+issue: workflow/playtest-sessions-an-issues-manual-checks-as-a-runnable-yaml-session-on-a-sandbox-scenario
+title: List rows, status filter and search
+scenario: basic
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+  # Known bug: at phone width the header doesn't wrap (see board-basics).
+  layout_ignore: [header.bar]
+
+steps:
+  - id: TP6
+    title: Rows show each issue's title and status; the filter and search narrow them
+    setup:
+      - open: /p/{project}/
+    act:
+      - check: { count: { pattern: list.row.*, equals: 5 } }
+      - check: { text_equals: { target: list.row.ui/dark-mode-toggle.status, text: idea } }
+      - select: { target: list.filter.status, value: backlog }
+      - wait_for: { url: { contains: status=backlog } }
+      - check: { count: { pattern: list.row.*, equals: 2 } }
+      - type: { target: list.search, text: csv, enter: true }
+      - wait_for: { url: { contains: search=csv } }
+    checks:
+      - count: { pattern: list.row.*, equals: 1 }
+      - visible: list.row.cli/export-issues-as-csv
+      - visible: list.clear

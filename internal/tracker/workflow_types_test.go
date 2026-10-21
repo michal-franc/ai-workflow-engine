@@ -54,7 +54,9 @@ func actionTitles(actions []WorkflowAction) []string {
 
 // Projects without types: ForIssue must return exactly what ForSystem did.
 func TestForIssue_NoTypesMatchesForSystem(t *testing.T) {
-	for _, file := range []string{"../../workflow.yaml", "../../workflow.yaml.example", "../../demo/workflow.yaml"} {
+	// The repo's own workflow.yaml defines types (feature/tweak/bugfix), so it is
+	// not a no-types golden; the example and the demo stay untyped.
+	for _, file := range []string{"../../workflow.yaml.example", "../../demo/workflow.yaml"} {
 		wf, err := LoadWorkflow(file)
 		if err != nil {
 			t.Fatalf("%s: %v", file, err)

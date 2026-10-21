@@ -116,6 +116,7 @@ func TestBoard_TypeBadgeAndFilter(t *testing.T) {
 
 func TestBoard_UntypedProjectHasNoTypeControls(t *testing.T) {
 	proj, _ := setupTestProject(t)
+	proj.WorkflowFile = "workflow.yaml.example" // untyped; the repo's workflow.yaml defines types
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
 	for _, page := range []string{"/board", "/", "/graph"} {
@@ -224,6 +225,7 @@ func TestDispatchPrompt_TypeLine(t *testing.T) {
 	}
 
 	plain, _ := setupTestProject(t)
+	plain.WorkflowFile = "workflow.yaml.example" // untyped; the repo's workflow.yaml defines types
 	untyped := &tracker.Issue{Title: "U", Slug: "u", Status: "idea"}
 	if p := buildAgentPrompt(&plain, untyped, plain.LoadWorkflowForIssue(untyped), "", ""); strings.Contains(p, "Type:") {
 		t.Error("untyped dispatch prompt has a Type line")

@@ -40,6 +40,11 @@ features:
 # session needs its own working tree to avoid stomping on uncommitted state.
 worktree: true
 
+# The Status page lists recent releases from the CLI's changelog (the repo
+# root has none: go:embed keeps it next to the CLI).
+workbench:
+  changelog: cmd/issue-cli/CHANGELOG.md
+
 board:
   columns:
     - idea

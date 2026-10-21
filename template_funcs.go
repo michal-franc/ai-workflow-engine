@@ -97,6 +97,19 @@ var funcMap = template.FuncMap{
 	// tid turns a status or slug into one data-testid segment (see
 	// internal/testids).
 	"tid": testids.Segment,
+	"plural": plural,
+	// agentTone is the chip class for a Status page agent state.
+	"agentTone": func(state string) string {
+		switch state {
+		case "working":
+			return "chip-green"
+		case "at gate":
+			return "chip-amber"
+		case "question":
+			return "chip-blue"
+		}
+		return ""
+	},
 	"statusFragment": func(s string) string {
 		return strings.ReplaceAll(strings.TrimSpace(s), " ", "-")
 	},

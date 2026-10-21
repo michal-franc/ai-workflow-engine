@@ -33,6 +33,10 @@ type ScenarioSpec struct {
 	Issues   string `yaml:"issues"`
 	Workflow string `yaml:"workflow"`
 	Docs     string `yaml:"docs"`
+	// Root, when set, is a folder copied into the project root as is: files a
+	// view reads beside the issues (sessions/ handoff notes, a changelog,
+	// playtest/ sessions and .playtest/ runs).
+	Root string `yaml:"root"`
 }
 
 // LoadScenarioSpec reads dir/scenario.yaml and fills defaults.
@@ -148,6 +152,11 @@ func StartScenario(scenarioDir, name string, bins *Binaries, log io.Writer) (*Sc
 	if spec.Docs != "" {
 		if err := copyTree(filepath.Join(src, spec.Docs), filepath.Join(s.Proj, "docs")); err != nil {
 			return fail(fmt.Errorf("scenario %s: docs: %v", name, err))
+		}
+	}
+	if spec.Root != "" {
+		if err := copyTree(filepath.Join(src, spec.Root), s.Proj); err != nil {
+			return fail(fmt.Errorf("scenario %s: root: %v", name, err))
 		}
 	}
 	// terminal: none keeps dispatch and lead spawns headless: otherwise the

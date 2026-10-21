@@ -3,6 +3,8 @@ package tracker
 import (
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // These tests exercise the tracker-side dispatch wiring: WorkflowConfig
@@ -105,5 +107,35 @@ func TestDescribeAction_StructuredSummary(t *testing.T) {
 	}, "")
 	if !strings.Contains(got, "frontmatter \"priority\"") || !strings.Contains(got, "low, high") {
 		t.Fatalf("expected structured summary, got %q", got)
+	}
+}
+
+func TestReadyForApproval(t *testing.T) {
+	var wf WorkflowConfig
+	if err := yaml.Unmarshal([]byte(`allow_shell: true
+statuses:
+  - name: "in design"
+  - name: "backlog"
+transitions:
+  - from: "in design"
+    to: "backlog"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Design"
+      - type: "validate"
+        rule: "command_succeeds"
+        command: "exit 1"
+      - type: "require_human_approval"
+        status: "backlog"
+`), &wf); err != nil {
+		t.Fatal(err)
+	}
+	done := &Issue{Slug: "a", Status: "in design", BodyRaw: "## Design\n- [x] Approach"}
+	open := &Issue{Slug: "b", Status: "in design", BodyRaw: "## Design\n- [ ] Approach"}
+	if !wf.ReadyForApproval(done, "in design", "backlog", nil) {
+		t.Error("checklist done: want ready (approval missing and the shell rule skipped)")
+	}
+	if wf.ReadyForApproval(open, "in design", "backlog", nil) {
+		t.Error("checklist open: want not ready")
 	}
 }

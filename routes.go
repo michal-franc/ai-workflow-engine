@@ -97,6 +97,10 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleGraph(w, r, proj, prefix)
 	case rest == "canvas":
 		s.handleCanvas(w, r, proj, prefix)
+	case rest == "status" && r.Method == http.MethodGet:
+		s.handleStatus(w, r, proj, prefix)
+	case rest == "status.md" && r.Method == http.MethodGet:
+		s.handleStatusMD(w, r, proj, prefix)
 	case rest == "github" && r.Method == http.MethodGet:
 		s.handleGitHub(w, r, proj, prefix)
 	case rest == "github/fetch" && r.Method == http.MethodPost:

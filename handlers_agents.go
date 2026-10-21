@@ -114,32 +114,6 @@ func activeStatus(wf *tracker.WorkflowConfig, status string) bool {
 	return idx >= start && idx < end
 }
 
-// pendingGate returns the status the issue waits on the human for: its next
-// status, when that transition needs approval not yet given.
-func pendingGate(wf *tracker.WorkflowConfig, issue *tracker.Issue) string {
-	order := wf.GetStatusOrder()
-	idx := wf.GetStatusIndex(issue.Status)
-	if idx < 0 || idx+1 >= len(order) {
-		return ""
-	}
-	next := order[idx+1]
-	required := wf.RequiredHumanApproval(issue.Status, next)
-	if required == "" || strings.EqualFold(issue.HumanApproval, required) {
-		return ""
-	}
-	return required
-}
-
-// openQuestion reports whether the issue's newest comment is a question:
-// nobody has answered yet.
-func openQuestion(comments []tracker.Comment) bool {
-	if len(comments) == 0 {
-		return false
-	}
-	last := strings.ToLower(strings.TrimSpace(comments[len(comments)-1].Text))
-	return strings.HasPrefix(last, "question:")
-}
-
 func (s *Server) buildAgentsModel(proj *tracker.Project, prefix string) (*AgentsModel, error) {
 	issues, err := tracker.LoadIssues(proj.IssueDir)
 	if err != nil {

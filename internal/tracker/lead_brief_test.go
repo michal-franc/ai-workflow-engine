@@ -28,6 +28,9 @@ func TestLeadBrief_CustomPromptsAndPlaceholders(t *testing.T) {
 	if !strings.Contains(got, "message each other with ListAgents / SendMessage, addressed by tmux name (yours is lead-p;") {
 		t.Fatalf("project brief messaging line:\n%s", got)
 	}
+	if !strings.Contains(got, "a ## Next section with the ordered next steps. The viewer's Status page shows that ## Next list; its text form, /p/<project>/status.md,") {
+		t.Fatalf("project brief should ask for ## Next and name status.md:\n%s", got)
+	}
 
 	epic := &Issue{Slug: "ui/epic", Title: "Epic", ExtraFields: []ExtraField{{Key: "base", Value: "exp"}}}
 	got = LeadBrief(&wf, LeadBriefInput{Project: proj, Epic: epic, Root: "/r", Now: day})
@@ -38,6 +41,9 @@ func TestLeadBrief_CustomPromptsAndPlaceholders(t *testing.T) {
 		!strings.Contains(got, "--how \"relayed by lead-p\"") ||
 		!strings.Contains(got, "/r/sessions/2026-10-18-lead-ui-epic.md") {
 		t.Fatalf("epic footer:\n%s", got)
+	}
+	if !strings.Contains(got, "a ## Next section") || strings.Contains(got, "status.md") {
+		t.Fatalf("epic brief asks for ## Next but leaves the Status page to the project lead:\n%s", got)
 	}
 }
 

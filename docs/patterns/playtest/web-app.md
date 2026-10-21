@@ -15,7 +15,7 @@ internal/testids/testids.go     every data-testid id and pattern, one list
 templates/*.html                data-testid="board.card.{{tid .Slug}}" on what steps point at
 testids_test.go                 fails when templates and the list drift apart
 playtest/sessions/<name>.yaml   sessions (step id = checkbox id)
-playtest/scenarios/<name>/      scenario.yaml, workflow.yaml, tracker/<System>/*.md fixtures
+playtest/scenarios/<name>/      scenario.yaml, workflow.yaml, tracker/<System>/*.md fixtures, optional root/
 cmd/playtest/                   the runner: check | ux-test | playtest | report
 cmd/playtest/assets/checks.js   DOM checks, layout rules, action helpers (both modes)
 cmd/playtest/assets/overlay.js  the owner's overlay (injected; the board has none)
@@ -58,6 +58,10 @@ Each step at each viewport starts a fresh scenario:
   it. The fixtures are copied into `proj/issues/` and committed to a new git
   repo. Fixtures live under `tracker/`, never under `issues/`, because the
   sparse-checkout rule `!issues/` would hide them in dispatched worktrees.
+- **Files beside the issues:** with `root: <folder>` in `scenario.yaml`,
+  that folder is copied into the project root as is: `sessions/` handoff
+  notes, a `CHANGELOG.md`, `playtest/sessions/` and `.playtest/runs/`
+  (the `status` scenario uses it).
 - **Its own config:** a `projects.yaml` that points only at that project.
 - **Fresh binaries:** `issue-viewer` and `issue-cli` built from the
   checkout, once per run, and put first on `PATH`.

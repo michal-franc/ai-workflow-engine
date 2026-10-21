@@ -43,11 +43,13 @@ statuses:
     prompt: |
       Build or update the relevant automated coverage, record concrete test evidence, and surface any remaining manual checks clearly.
       Before checking test-related boxes, make sure the Test Plan section in the issue body contains the explicit automated and manual steps being verified.
+      If the project has a playtest system (see `issue-cli process playtest`), write the manual checks as a playtest session (step id = checkbox id) and pass its machine run (ux-test) before handing over, so the human only judges what a machine can't.
   - name: "human-testing"
     description: "Manual verification by humans"
     prompt: |
       Stop here and wait for human verification.
       Make sure the manual checks are explicit, minimal, and reproducible.
+      If the manual checks are a playtest session, point the human at its playtest and report commands; the report ticks the boxes that passed and comments failures as `playtest:`.
   - name: "documentation"
     description: "Being documented"
     prompt: |

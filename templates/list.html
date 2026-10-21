@@ -9,49 +9,49 @@
     <script src="/static/theme.js"></script>
 </head>
 <body>
-    <div class="header">
+    <div class="header" data-testid="header.bar">
         <div class="container header-inner">
             <div style="display:flex;align-items:center;">
                 <a href="/" class="project-back-link">Projects</a>
                 <span class="header-sep">/</span>
                 <h1>{{.ProjectName}}</h1>
-                <span class="count">{{.Filtered}}{{if ne .Filtered .Total}} / {{.Total}}{{end}}</span>
+                <span class="count" data-testid="header.count">{{.Filtered}}{{if ne .Filtered .Total}} / {{.Total}}{{end}}</span>
             </div>
             <nav class="view-tabs">
-                <a href="{{.Prefix}}/" class="view-tab active">
+                <a href="{{.Prefix}}/" data-testid="nav.tab.list" class="view-tab active">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v1.5H2V2zm0 4h12v1.5H2V6zm0 4h12v1.5H2V10zm0 4h12v1.5H2V14z"/></svg>
                     List
                 </a>
-                <a href="{{.Prefix}}/board" class="view-tab">
+                <a href="{{.Prefix}}/board" data-testid="nav.tab.board" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2h4v12H1V2zm5 0h4v8H6V2zm5 0h4v10h-4V2z"/></svg>
                     Board
                 </a>
-                <a href="{{.Prefix}}/graph" class="view-tab">
+                <a href="{{.Prefix}}/graph" data-testid="nav.tab.graph" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="2.5" cy="8" r="1.75"/><circle cx="8" cy="2.5" r="1.75"/><circle cx="13.5" cy="8" r="1.75"/><circle cx="8" cy="13.5" r="1.75"/><path d="M4.2 8h7.6M8 4.2v7.6" stroke="currentColor" stroke-width="1.4" fill="none"/></svg>
                     Graph
                 </a>
-                <a href="{{.Prefix}}/agents" class="view-tab">
+                <a href="{{.Prefix}}/agents" data-testid="nav.tab.agents" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="2"/><circle cx="3" cy="12" r="2"/><circle cx="13" cy="12" r="2"/><path d="M8 5v3M8 8L3.6 10.4M8 8l4.4 2.4" stroke="currentColor" stroke-width="1.3" fill="none"/></svg>
                     Agents
                 </a>
-                <a href="{{.Prefix}}/docs" class="view-tab">
+                <a href="{{.Prefix}}/docs" data-testid="nav.tab.docs" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1h5v2H3v10h4v2H1V1zm9 0h5v14H8v-2h4V3H10V1zM5 5h2v1H5V5zm0 2h2v1H5V7zm0 2h2v1H5V9z"/></svg>
                     Docs
                 </a>
-                <a href="{{.Prefix}}/retros" class="view-tab">
+                <a href="{{.Prefix}}/retros" data-testid="nav.tab.retros" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.75A1.75 1.75 0 014.75 1h6.5A1.75 1.75 0 0113 2.75v10.5A1.75 1.75 0 0111.25 15h-6.5A1.75 1.75 0 013 13.25V2.75zm2 .75v1.25h6V3.5H5zm0 3v1.25h6V6.5H5zm0 3v1.25h4V9.5H5z"/></svg>
                     Retros
                 </a>
-                <a href="{{.Prefix}}/workflow-designer" class="view-tab">
+                <a href="{{.Prefix}}/workflow-designer" data-testid="nav.tab.workflow_designer" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.5 3.25A1.25 1.25 0 013.75 2h2.5A1.25 1.25 0 017.5 3.25v2.5A1.25 1.25 0 016.25 7h-2.5A1.25 1.25 0 012.5 5.75v-2.5zm6 0A1.25 1.25 0 019.75 2h2.5a1.25 1.25 0 011.25 1.25v2.5A1.25 1.25 0 0112.25 7h-2.5A1.25 1.25 0 018.5 5.75v-2.5zm-6 6A1.25 1.25 0 013.75 8h2.5A1.25 1.25 0 017.5 9.25v2.5A1.25 1.25 0 016.25 13h-2.5a1.25 1.25 0 01-1.25-1.25v-2.5zm9.25.75a.75.75 0 010 1.5H10v1.75a.75.75 0 01-1.5 0V11.5H6.75a.75.75 0 010-1.5H8.5V8.25a.75.75 0 011.5 0V10h1.75z"/></svg>
                     Workflow
                 </a>
-                <a href="{{.Prefix}}/stats" class="view-tab">
+                <a href="{{.Prefix}}/stats" data-testid="nav.tab.stats" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1 14h14v1H1v-1zm2-4h2v3H3v-3zm3-4h2v7H6V6zm3 2h2v5H9V8zm3-6h2v11h-2V2z"/></svg>
                     Stats
                 </a>
                 {{if .SupportsGitHub}}
-                <a href="{{.Prefix}}/github" class="view-tab">
+                <a href="{{.Prefix}}/github" data-testid="nav.tab.github" class="view-tab">
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
                     GitHub
                 </a>
@@ -59,7 +59,7 @@
             </nav>
             <div class="theme-picker">
                 <div class="agent-activity-summary" id="project-active-bots" data-count="{{.ActiveBots}}">{{.ActiveBots}} active bot{{if ne .ActiveBots 1}}s{{end}}</div>
-                <button class="header-create-btn" title="New issue" onclick="openCreateModal('')">
+                <button class="header-create-btn" data-testid="header.create" title="New issue" onclick="openCreateModal('')">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M7.25 1a.75.75 0 01.75.75V7h5.25a.75.75 0 010 1.5H8v5.25a.75.75 0 01-1.5 0V8.5H1.25a.75.75 0 010-1.5H6.5V1.75A.75.75 0 017.25 1z"/></svg>
                     New issue
                 </button>
@@ -73,31 +73,31 @@
     {{template "project-actions-bar" .}}
 
     <div class="container">
-        <form class="filter-bar" method="GET" action="{{.Prefix}}/">
-            <input type="search" name="search" placeholder="Search issues..." value="{{.Filter.Search}}">
+        <form class="filter-bar" data-testid="list.filters" method="GET" action="{{.Prefix}}/">
+            <input type="search" name="search" data-testid="list.search" placeholder="Search issues..." value="{{.Filter.Search}}">
 
-            <select name="status" onchange="this.form.submit()">
+            <select name="status" data-testid="list.filter.status" onchange="this.form.submit()">
                 <option value="">All statuses</option>
                 {{range .Statuses}}
                 <option value="{{.}}" {{if eq . $.Filter.Status}}selected{{end}}>{{.}}</option>
                 {{end}}
             </select>
 
-            <select name="system" onchange="this.form.submit()">
+            <select name="system" data-testid="list.filter.system" onchange="this.form.submit()">
                 <option value="">All systems</option>
                 {{range .Systems}}
                 <option value="{{.}}" {{if eq . $.Filter.System}}selected{{end}}>{{.}}</option>
                 {{end}}
             </select>
 
-            <select name="priority" onchange="this.form.submit()">
+            <select name="priority" data-testid="list.filter.priority" onchange="this.form.submit()">
                 <option value="">All priorities</option>
                 {{range .Priorities}}
                 <option value="{{.}}" {{if eq . $.Filter.Priority}}selected{{end}}>{{.}}</option>
                 {{end}}
             </select>
 
-            <select name="assignee" onchange="this.form.submit()">
+            <select name="assignee" data-testid="list.filter.assignee" onchange="this.form.submit()">
                 <option value="">All assignees</option>
                 <option value="_claimed" {{if eq .Filter.Assignee "_claimed"}}selected{{end}}>Claimed</option>
                 <option value="_unclaimed" {{if eq .Filter.Assignee "_unclaimed"}}selected{{end}}>Unclaimed</option>
@@ -107,7 +107,7 @@
             </select>
 
             {{if .WorkTypes}}
-            <select name="type" onchange="this.form.submit()">
+            <select name="type" data-testid="list.filter.type" onchange="this.form.submit()">
                 <option value="">All types</option>
                 {{range .WorkTypes}}
                 <option value="{{.Name}}" title="{{.Path}}" {{if eq .Name $.Filter.Type}}selected{{end}}>{{.Name}}</option>
@@ -115,7 +115,7 @@
             </select>
             {{end}}
 
-            <select name="label" onchange="this.form.submit()">
+            <select name="label" data-testid="list.filter.label" onchange="this.form.submit()">
                 <option value="">All labels</option>
                 {{range .Labels}}
                 <option value="{{.}}" {{if eq . $.Filter.Label}}selected{{end}}>{{.}}</option>
@@ -123,7 +123,7 @@
             </select>
 
             {{if or .Filter.Status .Filter.System .Filter.Priority .Filter.Label .Filter.Assignee .Filter.Search .Filter.Type}}
-            <a href="{{.Prefix}}/" class="clear-btn">Clear filters</a>
+            <a href="{{.Prefix}}/" class="clear-btn" data-testid="list.clear">Clear filters</a>
             {{end}}
         </form>
 
@@ -145,11 +145,11 @@
                 {{end}}
             </div>
             {{range .Issues}}
-            <div class="issue-row">
+            <div class="issue-row" data-testid="list.row.{{tid .Slug}}">
                 <div class="issue-main">
                     <div class="issue-title-row">
-                        <a href="{{$.Prefix}}/issue/{{.Slug}}" class="issue-title">{{.Title}}</a>
-                        <span class="badge" style="background:{{statusColor .Status}};color:{{statusTextColor .Status}}">{{.Status}}</span>
+                        <a href="{{$.Prefix}}/issue/{{.Slug}}" class="issue-title" data-testid="list.row.{{tid .Slug}}.title">{{.Title}}</a>
+                        <span class="badge" data-testid="list.row.{{tid .Slug}}.status" style="background:{{statusColor .Status}};color:{{statusTextColor .Status}}">{{.Status}}</span>
                         {{if .HasActiveAgent}}
                         <span class="agent-active-chip">{{len .ActiveSessions}} agent active{{if ne (len .ActiveSessions) 1}}s{{end}}</span>
                         {{end}}
@@ -179,7 +179,7 @@
             {{end}}
         </div>
         {{else}}
-        <div class="empty-state">
+        <div class="empty-state" data-testid="list.empty">
             <h2>No issues found</h2>
             {{if or .Filter.Status .Filter.System .Filter.Priority .Filter.Label .Filter.Assignee .Filter.Search .Filter.Type}}
             <p>Try adjusting your filters or <a href="{{.Prefix}}/">clear all filters</a></p>

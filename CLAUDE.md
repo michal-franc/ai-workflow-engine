@@ -37,7 +37,7 @@ See [docs/patterns/playtest/web-app.md](docs/patterns/playtest/web-app.md).
 main.go                     — entry point, CLI flags, starts HTTP server
 routes.go                   — Server struct, NewServer, Routes, dispatcher, project list
 template_funcs.go           — funcMap, status/priority colors, link rewriters
-helpers.go                  — projectRoot, fileExists, workflowFileTarget, small utilities
+helpers.go                  — projectRoot, fileExists, small utilities
 images.go                   — relative image src rewrite, /files/ image route
 tmux.go                     — agent session listing/matching/notification
 handlers_list.go            — list view, filters, /hash, /issues.json
@@ -47,7 +47,7 @@ handlers_detail.go          — detail page, transition preview, data-table rend
 handlers_issue_mutate.go    — update/create/delete/approve/upload, body editor
 handlers_data.go            — /data sidecar endpoints
 handlers_comments.go        — comment add/get/toggle/delete
-handlers_workflow.go        — designer, retros, bug status, docs handlers
+handlers_workflow.go        — workflow-flow view, retros, bug status, docs handlers
 handlers_dispatch.go        — agent dispatch + prompt builders
 handlers_github.go          — github page, fetch, import
 handlers_stats.go           — /stats workflow token-cost view

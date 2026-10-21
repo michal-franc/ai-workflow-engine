@@ -118,7 +118,7 @@ This mode can't set dispatch options such as `terminal`, so use a `projects.yaml
 | `-port`    | `8080`     | HTTP port                                 |
 | `-version` | `false`    | Print the version and exit                |
 
-Open `http://localhost:8080`. The tabs at the top lead to the list, the board, the workflow graph, the docs, retros, the workflow designer and stats.
+Open `http://localhost:8080`. The tabs at the top lead to the list, the board, the workflow graph, the docs, retros and stats.
 
 ## Docs pages
 

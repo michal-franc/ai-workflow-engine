@@ -11,19 +11,7 @@ import (
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
-	"gopkg.in/yaml.v3"
 )
-
-type WorkflowDesignerData struct {
-	Prefix         string
-	ProjectName    string
-	WorkflowJSON   string
-	WorkflowYAML   string
-	WorkflowIssues string
-	WorkflowSource string
-	WorkflowTarget string
-	SupportsGitHub bool
-}
 
 type WorkflowFlowData struct {
 	Prefix         string
@@ -70,70 +58,6 @@ type RetrosData struct {
 
 type statusUpdateResponse struct {
 	Status string `json:"status"`
-}
-
-func (s *Server) handleWorkflowDesigner(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
-	wf := proj.LoadWorkflow()
-	workflowJSON, err := json.MarshalIndent(wf, "", "  ")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	workflowYAML, err := yaml.Marshal(wf)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	issues, err := tracker.LoadIssues(proj.IssueDir)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	type workflowIssue struct {
-		Slug   string `json:"slug"`
-		Title  string `json:"title"`
-		Status string `json:"status"`
-		System string `json:"system"`
-	}
-	issueOptions := make([]workflowIssue, 0, len(issues))
-	for _, issue := range issues {
-		issueOptions = append(issueOptions, workflowIssue{
-			Slug:   issue.Slug,
-			Title:  issue.Title,
-			Status: issue.Status,
-			System: issue.System,
-		})
-	}
-	issuesJSON, err := json.Marshal(issueOptions)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	source := "built-in default workflow"
-	target := workflowFileTarget(proj)
-	switch {
-	case proj.WorkflowFile != "":
-		source = proj.WorkflowFile
-	case fileExists("workflow.yaml"):
-		source = "workflow.yaml"
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.ExecuteTemplate(w, "workflow-designer.html", WorkflowDesignerData{
-		Prefix:         prefix,
-		ProjectName:    proj.Name,
-		WorkflowJSON:   string(workflowJSON),
-		WorkflowYAML:   string(workflowYAML),
-		WorkflowIssues: string(issuesJSON),
-		WorkflowSource: source,
-		WorkflowTarget: target,
-		SupportsGitHub: proj.SupportsGitHub,
-	}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }
 
 func (s *Server) handleWorkflowFlow(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
@@ -608,115 +532,6 @@ func writeBugStatus(path string, status string) error {
 		return err
 	}
 	return os.WriteFile(path, append(encoded, '\n'), 0644)
-}
-
-func (s *Server) handleWorkflowDesignerData(w http.ResponseWriter, r *http.Request, proj *tracker.Project) {
-	wf := proj.LoadWorkflow()
-	source := "built-in default workflow"
-	target := workflowFileTarget(proj)
-	switch {
-	case proj.WorkflowFile != "":
-		source = proj.WorkflowFile
-	case fileExists("workflow.yaml"):
-		source = "workflow.yaml"
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"workflow": wf,
-		"source":   source,
-		"target":   target,
-	})
-}
-
-func (s *Server) handleWorkflowDesignerPreview(w http.ResponseWriter, r *http.Request, proj *tracker.Project) {
-	var req struct {
-		Slug string `json:"slug"`
-		To   string `json:"to"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid JSON body"}`, http.StatusBadRequest)
-		return
-	}
-	if strings.TrimSpace(req.Slug) == "" || strings.TrimSpace(req.To) == "" {
-		http.Error(w, `{"error":"slug and to are required"}`, http.StatusBadRequest)
-		return
-	}
-
-	issues, err := tracker.LoadIssues(proj.IssueDir)
-	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"failed loading issues: %s"}`, strings.ReplaceAll(err.Error(), `"`, `'`)), http.StatusInternalServerError)
-		return
-	}
-
-	var issue *tracker.Issue
-	for _, candidate := range issues {
-		if candidate.Slug == req.Slug {
-			issue = candidate
-			break
-		}
-	}
-	if issue == nil {
-		http.Error(w, `{"error":"issue not found"}`, http.StatusNotFound)
-		return
-	}
-
-	comments, err := tracker.LoadComments(issue.FilePath)
-	if err != nil && !os.IsNotExist(err) {
-		http.Error(w, fmt.Sprintf(`{"error":"failed loading comments: %s"}`, strings.ReplaceAll(err.Error(), `"`, `'`)), http.StatusInternalServerError)
-		return
-	}
-
-	wf := proj.LoadWorkflowForIssue(issue)
-	preview := wf.PreviewTransition(issue, issue.Status, strings.TrimSpace(req.To), issue.System, comments)
-	if !wf.IsValidTransition(issue.Status, strings.TrimSpace(req.To)) {
-		preview.Allowed = false
-		preview.ValidationError = fmt.Sprintf("cannot transition from %q to %q", issue.Status, strings.TrimSpace(req.To))
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"issue": map[string]string{
-			"slug":   issue.Slug,
-			"title":  issue.Title,
-			"status": issue.Status,
-			"system": issue.System,
-		},
-		"preview": preview,
-	})
-}
-
-func (s *Server) handleSaveWorkflowDesigner(w http.ResponseWriter, r *http.Request, proj *tracker.Project) {
-	var body struct {
-		YAML string `json:"yaml"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, `{"error":"invalid JSON body"}`, http.StatusBadRequest)
-		return
-	}
-
-	if strings.TrimSpace(body.YAML) == "" {
-		http.Error(w, `{"error":"yaml is required"}`, http.StatusBadRequest)
-		return
-	}
-
-	var cfg tracker.WorkflowConfig
-	if err := yaml.Unmarshal([]byte(body.YAML), &cfg); err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"invalid workflow yaml: %s"}`, strings.ReplaceAll(err.Error(), `"`, `'`)), http.StatusBadRequest)
-		return
-	}
-
-	target := workflowFileTarget(proj)
-	if err := os.WriteFile(target, []byte(body.YAML+"\n"), 0644); err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"save failed: %s"}`, strings.ReplaceAll(err.Error(), `"`, `'`)), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
-		"path":   target,
-	})
 }
 
 // --- Docs ---

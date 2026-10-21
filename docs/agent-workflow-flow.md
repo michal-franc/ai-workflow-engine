@@ -143,7 +143,6 @@ Bug reports are written to:
 Different parts of the workflow are stored in different places:
 
 - workflow semantics: `workflow.yaml`
-- workflow designer draft and layout: browser `localStorage`
 - retrospectives: project `retros/`
 - `issue-cli` bug reports: `bugs/`
 - issue state and body updates: issue markdown files managed through `issue-cli`

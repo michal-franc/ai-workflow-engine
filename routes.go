@@ -140,14 +140,6 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleUpdateBugStatus(w, r, proj, prefix)
 	case rest == "workflow-flow":
 		s.handleWorkflowFlow(w, r, proj, prefix)
-	case rest == "workflow-designer" && r.Method == http.MethodGet:
-		s.handleWorkflowDesigner(w, r, proj, prefix)
-	case rest == "workflow-designer/data" && r.Method == http.MethodGet:
-		s.handleWorkflowDesignerData(w, r, proj)
-	case rest == "workflow-designer/preview" && r.Method == http.MethodPost:
-		s.handleWorkflowDesignerPreview(w, r, proj)
-	case rest == "workflow-designer" && r.Method == http.MethodPost:
-		s.handleSaveWorkflowDesigner(w, r, proj)
 	case rest == "decisions" && r.Method == http.MethodGet:
 		s.handleDecisions(w, r, proj, prefix)
 	case rest == "balance" && r.Method == http.MethodGet:

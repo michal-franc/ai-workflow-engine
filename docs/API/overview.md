@@ -11,7 +11,7 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 
 - `routes.go` — `Server` struct, `NewServer`, `Routes`, `handleProjectRoutes` dispatcher, project list page
 - `template_funcs.go` — `funcMap`, `statusColor`/`priorityColor`/`assigneeColor`, `linkIssueRefs`, status ordering helpers
-- `helpers.go` — `projectRoot`, `fileExists`, `workflowFileTarget`, `resolveProjectWorkDir`, `valueOrDash`, `trimSnippet`
+- `helpers.go` — `projectRoot`, `fileExists`, `resolveProjectWorkDir`, `valueOrDash`, `trimSnippet`
 - `images.go` — `rewriteRelativeImages` (relative `<img src>` → `/files/`), `handleProjectFile` (image-only, root-confined `/p/<project>/files/` route)
 - `tmux.go` — agent session listing (`listTmuxSessions`), matching (`sessionMatchesIssue`), notification (`tmuxSendKeys`), existence probe (`tmuxHasSession`)
 - `handlers_list.go` — list view, filters, `IssueView`, `attachScores`, `/hash` polling, `/issues.json`
@@ -20,7 +20,7 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 - `handlers_issue_mutate.go` — update/create/delete/approve/upload, edit-in-nvim full-file editor goroutine (writes the entire markdown file to a temp, parse-validates on save, calls `tracker.RewriteIssueFile`)
 - `handlers_data.go` — `/data` endpoints (`extractDataSlugAndID` + add/set-status/set-comment/remove)
 - `handlers_comments.go` — comment add/get/toggle/delete
-- `handlers_workflow.go` — workflow designer (data/preview/save), retros, bug status, docs pages
+- `handlers_workflow.go` — workflow-flow view, retros, bug status, docs pages
 - `handlers_dispatch.go` — agent dispatch, `startAgentSession`, `buildAgentPrompt`, `buildRetrosReviewPrompt`
 - `handlers_github.go` — github page, fetch, import
 - `handlers_agents.go` — agents canvas (`buildAgentsModel`, `AgentsModel`), agent detail, `handleAgentOpen` (open a session in a terminal), `handleLeadSpawn`

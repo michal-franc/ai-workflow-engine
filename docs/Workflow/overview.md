@@ -281,7 +281,7 @@ features:
     - scoring
 ```
 
-- `template:` is `WorkflowConfig.Template` and `features:` is `WorkflowConfig.Features` (`FeatureRecord{Installed, Declined}`). Both are declared on the struct so the web designer's marshal round trip keeps them, and `process schema` lists them. The engine never acts on either.
+- `template:` is `WorkflowConfig.Template` and `features:` is `WorkflowConfig.Features` (`FeatureRecord{Installed, Declined}`). Both are declared on the struct so a marshal round trip keeps them, and `process schema` lists them. The engine never acts on either.
 - `template: custom` marks a hand-built workflow: no upgrade hint, no proposals. A file with no `template:` is **unstamped**; `upgrade` compares it with `development` (or `--template <name>`).
 - "Latest" is the stamp of the template bundled in the running binary, not `issue-cli version`. Releases that don't change a template don't make projects look behind, and `dev` builds work.
 - Older binaries ignore both keys (yaml.v3 decoding is not strict).

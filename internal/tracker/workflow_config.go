@@ -158,7 +158,7 @@ type WorkflowConfig struct {
 	// Template stamps the bundled template this file came from, as
 	// <name>@<issue-cli release> ("custom" opts out). `issue-cli workflow
 	// upgrade` compares it with the bundled template. Declared here so the
-	// designer's marshal round-trip keeps it.
+	// a marshal round-trip keeps it.
 	Template string `yaml:"template,omitempty" desc:"Bundled template stamp <name>@<release> (e.g. development@v0.36.0), or custom; read by issue-cli workflow upgrade"`
 	// Features records which catalog features this file has installed or
 	// declined. Written by `issue-cli workflow scan`, read by `workflow

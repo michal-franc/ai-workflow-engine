@@ -950,6 +950,74 @@ func TestSetFrontmatterField_EscapesSpecialChars(t *testing.T) {
 	}
 }
 
+// TestFrontmatterScalarWrites_RoundTrip writes awkward values through both
+// scalar writers — UpdateIssueFrontmatter (update --title, the UI edit) and
+// SetFrontmatterField (set-meta) — and reads them back. A second write after
+// each one catches a value that spilled onto more than one line.
+func TestFrontmatterScalarWrites_RoundTrip(t *testing.T) {
+	values := []struct{ name, value string }{
+		{"dollar group", `cost $1`},
+		{"dollar named", `cost ${x}`},
+		{"quotes", `say "hi"`},
+		{"backslash", `back\slash`},
+		{"newline", "line1\nline2"},
+		{"carriage return", "line1\r\nline2"},
+		{"tab", "a\tb"},
+		{"colon hash", `a: #b`},
+		{"leading dash", `- lead`},
+	}
+	noteOf := func(issue *Issue) string {
+		for _, ef := range issue.ExtraFields {
+			if ef.Key == "note" {
+				return ef.Value
+			}
+		}
+		return ""
+	}
+
+	for _, tc := range values {
+		t.Run(tc.name, func(t *testing.T) {
+			fp := filepath.Join(t.TempDir(), "test.md")
+			os.WriteFile(fp, []byte("---\ntitle: \"old\"\nstatus: \"backlog\"\nnote: \"old\"\n---\n\nbody\n"), 0644)
+
+			title := tc.value
+			if err := UpdateIssueFrontmatter(fp, IssueUpdate{Title: &title}); err != nil {
+				t.Fatalf("UpdateIssueFrontmatter: %v", err)
+			}
+			if err := SetFrontmatterField(fp, "note", tc.value, false); err != nil {
+				t.Fatalf("SetFrontmatterField: %v", err)
+			}
+			data, _ := os.ReadFile(fp)
+			issue, err := ParseIssue("test.md", data)
+			if err != nil {
+				t.Fatalf("file no longer parses: %v\n%s", err, data)
+			}
+			if issue.Title != tc.value {
+				t.Errorf("title = %q, want %q", issue.Title, tc.value)
+			}
+			if got := noteOf(issue); got != tc.value {
+				t.Errorf("note = %q, want %q", got, tc.value)
+			}
+
+			later, again := "later", "again"
+			if err := UpdateIssueFrontmatter(fp, IssueUpdate{Title: &later}); err != nil {
+				t.Fatalf("second UpdateIssueFrontmatter: %v", err)
+			}
+			if err := SetFrontmatterField(fp, "note", again, false); err != nil {
+				t.Fatalf("second SetFrontmatterField: %v", err)
+			}
+			data, _ = os.ReadFile(fp)
+			issue, err = ParseIssue("test.md", data)
+			if err != nil {
+				t.Fatalf("file no longer parses after a second write: %v\n%s", err, data)
+			}
+			if issue.Title != later || noteOf(issue) != again || issue.Status != "backlog" {
+				t.Errorf("second write: title=%q note=%q status=%q\n%s", issue.Title, noteOf(issue), issue.Status, data)
+			}
+		})
+	}
+}
+
 // TestFrontmatterSplitHandlesEmbeddedDashes guards against the bare-"---" split
 // bug: if the frontmatter contains a "---" substring without a leading newline
 // (typical case: a YAML value mentioning a dash separator), the bare split

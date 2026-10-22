@@ -98,6 +98,8 @@ func WorkflowSchemaSections() []SchemaSection {
 		{Path: "workbench.metrics", Title: "WorkbenchMetrics", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchMetrics{}))},
 		{Path: "workbench.balance", Title: "WorkbenchBalance", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchBalance{}))},
 		{Path: "workbench.pages[]", Title: "WorkbenchPage", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchPage{}))},
+		{Path: "ci", Title: "CIConfig", Fields: schemaFieldsOf(reflect.TypeOf(CIConfig{}))},
+		{Path: "ci.run[]", Title: "CICommand", Fields: schemaFieldsOf(reflect.TypeOf(CICommand{}))},
 	}
 }
 

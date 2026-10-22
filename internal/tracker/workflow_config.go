@@ -193,6 +193,9 @@ type WorkflowConfig struct {
 	// Workbench points the workbench views at the project's own files. It is
 	// project-wide: system overlays cannot override it.
 	Workbench WorkbenchConfig `yaml:"workbench,omitempty" desc:"Optional workbench views config: systems, metric sources, tuning files, balance (paths relative to the project root)"`
+	// CI is the local CI that re-checks the integration branch after every
+	// move. Project-wide like Workbench; nil means CI is off.
+	CI *CIConfig `yaml:"ci,omitempty" desc:"Optional local CI: commands run on the integration branch after every move, results in .ci/ (see docs/workflow.md, Local CI)"`
 	// AllowShell opts in to the command_succeeds validator. When false, any
 	// transition with a command_succeeds rule fails at validate time.
 	AllowShell bool `yaml:"allow_shell,omitempty" desc:"Permit command_succeeds validators to run shell commands (default false)"`

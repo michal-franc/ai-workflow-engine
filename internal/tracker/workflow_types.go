@@ -189,11 +189,12 @@ func restrictToPath(statuses []WorkflowStatus, transitions []WorkflowTransition,
 	return ss, ts
 }
 
-// Lint reports problems in the types: configuration and the workbench:
-// block, plus obsolete keys. Projects without types get only the workbench
+// Lint reports problems in the types: configuration, the workbench: and ci:
+// blocks, plus obsolete keys. Projects without types get only the workbench
 // and obsolete-key warnings. See docs/Workflow/types.md "Lint".
 func (w *WorkflowConfig) Lint() []string {
 	out := w.Workbench.Validate()
+	out = append(out, w.CI.Validate()...)
 	if strings.TrimSpace(w.Leads.Epic) != "" {
 		out = append(out, "leads.epic is obsolete and ignored: there is one lead per project (remove it)")
 	}

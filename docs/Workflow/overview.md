@@ -105,9 +105,20 @@ Each transition can have ordered actions:
 |:---------------------------|:---------------------------------------------------------|
 | `validate`                 | Check a rule (body not empty, checkboxes checked, etc.)  |
 | `require_human_approval`   | Block until human approves in the web UI                 |
-| `append_section`           | Add a titled section with checklist to the issue body. Fence-aware: section headings inside fenced code blocks (``` or `~~~`) are not treated as existing sections, so quoting workflow YAML in the body does not block appends. |
+| `append_section`           | Add a `## <title>` section with its checklist to the issue body. See [Gate sections](#gate-sections-append_section) for when it creates the section and when it tops up an existing one. |
 | `inject_prompt`            | Add extra guidance for this specific transition          |
 | `set_fields`               | Update a frontmatter field. Supported `field` values: `assignee`, `priority`, `status`, `human_approval` (alias `approved_for`). An empty `value` clears the field. |
+
+### Gate sections (`append_section`)
+
+A gate such as `section_checkboxes_checked: Testing` reads the boxes under a level-2 `## Testing` heading, so `append_section` uses the same heading to decide whether the section is there:
+
+- **Only `## <title>` counts.** A `### Testing` inside `## Design`, the text `## Testing` in a paragraph, or a heading inside a fenced code block (``` or `~~~`) is not the section. The title compares case- and spacing-insensitively.
+- **Missing:** `## <title>` and the action's body are appended at the end of the issue.
+- **Present:** each checkbox of the action's body that no `## <title>` section holds yet (same text, ticked or not, case- and spacing-insensitive) is added to the first one. Boxes already there keep their ticks, so a section written by hand, or left from an earlier round after a backward move, still gets the gate's boxes, and a second pass adds nothing. Prose lines of the body are not re-added.
+- **Sub-headings:** boxes under a `### X` in the action's body go under the section's own `### X` (appended at the section's end when it has none). Boxes before the body's first sub-heading go before the section's first sub-heading. This keeps the bundled `## Test Plan` (`### Automated` / `### Manual`) intact.
+
+`transition` and `start` name each section: `## Testing appended`, or `## Testing existed — added 2 missing boxes` (`sections` in `--json`). `transition --dry-run` replaces `appends ## Testing section` with `## Testing exists — adds 2 missing boxes` or `exists with all its boxes — left as is` when the issue already has the section. A legacy status `template:` that opens with a heading follows the same rules.
 
 ## Declarative Fields (v0.5.0+)
 

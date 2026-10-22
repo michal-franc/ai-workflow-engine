@@ -126,7 +126,7 @@ When the approval is missing, the agent stops and ends its turn; the approval me
 `issue-cli append <slug> --body "..."` adds content to the issue body. Two routing modes:
 
 - **Default** — content is appended after the existing body. Headings inside `--body` must be unique against the issue.
-- **Section** — pass `--section "Name"` to append into an existing section (or create it if missing). Use `--force` to disambiguate when the same heading exists at multiple levels.
+- **Section** — pass `--section "Name"` to append into an existing section (or create it if missing). Use `--force` to disambiguate when the same heading exists at multiple levels. When the body's first line is a heading with that name (`--section Design --body "## Design\n- [ ] x"`), it is dropped, so the heading is not written twice. `--section` matches a heading at any level (`--section Automated` finds `### Automated`); a transition's `append_section` matches only `## Name` (see [Workflow](../Workflow/overview.md#gate-sections-append_section)).
 
 If `--body` starts with a heading that is already present in the issue (and the rest contains only deeper subheadings), the command auto-routes into that section — equivalent to passing `--section`. This means agents drafting `## Implementation\n…` style appends do not have to retry with `--section` after a duplicate-heading failure.
 

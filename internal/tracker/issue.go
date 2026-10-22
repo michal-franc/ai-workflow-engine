@@ -2,6 +2,9 @@ package tracker
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -397,6 +400,7 @@ func AppendIssueBody(body, text string) (string, bool, error) {
 }
 
 func AppendIssueBodyToSection(body, section, text string, force bool) (string, bool, error) {
+	text = stripLeadingHeading(text, section)
 	matches := findHeadingMatches(body, section)
 	if len(matches) > 1 && !force {
 		var labels []string
@@ -416,6 +420,18 @@ func AppendIssueBodyToSection(body, section, text string, force bool) (string, b
 
 	nextBody, changed := appendToSection(body, section, text)
 	return nextBody, changed, nil
+}
+
+// stripLeadingHeading drops text's first non-blank line when it is a heading
+// titled section, so `append --section X` with a body that opens with "## X"
+// does not write the heading a second time.
+func stripLeadingHeading(text, section string) string {
+	trimmed := strings.TrimLeft(text, " \t\r\n")
+	first, rest, _ := strings.Cut(trimmed, "\n")
+	if _, title, ok := parseHeadingLine(first); ok && normalizeHeadingKey(title) == normalizeHeadingKey(section) {
+		return rest
+	}
+	return text
 }
 
 // ReplaceIssueBodySection replaces the content of an existing section with text.
@@ -631,6 +647,51 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 		return fmt.Errorf("stat %s: %w", filePath, err)
 	}
 	return writeFileAtomically(filePath, []byte(out.String()), info.Mode().Perm())
+}
+
+// BodyHash fingerprints an issue body (as in Issue.BodyRaw) so a writer
+// holding an older copy can be refused.
+func BodyHash(body string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(body)))
+	return hex.EncodeToString(sum[:8])
+}
+
+// ErrStaleBody marks a body write refused because the file's body is no
+// longer the one the writer started from.
+var ErrStaleBody = errors.New("issue body changed since it was read")
+
+// UpdateIssueFrontmatterIfBody is UpdateIssueFrontmatter that first checks,
+// under the issue lock, that the file's body still hashes to baseHash
+// (ErrStaleBody otherwise). It returns the hash of the body as written.
+func UpdateIssueFrontmatterIfBody(filePath, baseHash string, update IssueUpdate) (string, error) {
+	var written string
+	err := withIssueLock(filePath, func() error {
+		current, err := readIssueBodyHash(filePath)
+		if err != nil {
+			return err
+		}
+		if current != baseHash {
+			return ErrStaleBody
+		}
+		if err := updateIssueFrontmatterLocked(filePath, update); err != nil {
+			return err
+		}
+		written, err = readIssueBodyHash(filePath)
+		return err
+	})
+	return written, err
+}
+
+func readIssueBodyHash(filePath string) (string, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("reading %s: %w", filePath, err)
+	}
+	issue, err := ParseIssue(filepath.Base(filePath), data)
+	if err != nil {
+		return "", err
+	}
+	return BodyHash(issue.BodyRaw), nil
 }
 
 func UpdateIssueFrontmatter(filePath string, update IssueUpdate) error {

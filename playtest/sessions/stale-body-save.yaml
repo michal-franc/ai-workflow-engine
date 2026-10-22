@@ -1,0 +1,55 @@
+session: stale-body-save
+issue: workflow/idea-in-design-append-section-skips-when-same-name-section-already-exists
+title: A detail page loaded before the CLI wrote the issue cannot overwrite it
+scenario: basic
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+  # TP4 and TP6 post from a stale page on purpose: the 409 the browser logs
+  # is the refusal under test.
+  console_ignore:
+    - "status of 409"
+
+steps:
+  - id: TP4
+    title: A checkbox click on a stale page is refused and the CLI's section survives
+    setup:
+      - open: /p/{project}/issue/ui/card-titles-overflow-on-a-phone
+      - cli: [append, ui/card-titles-overflow-on-a-phone, --section, Documentation, --body, "- [ ] Docs updated"]
+    act:
+      - click: detail.body.checkbox.0
+    checks:
+      - visible: detail.toast
+      - text_contains: { target: detail.toast, text: changed since the page loaded }
+      - issue: { slug: ui/card-titles-overflow-on-a-phone, body_contains: "- [ ] Docs updated" }
+      - issue: { slug: ui/card-titles-overflow-on-a-phone, checkbox: P1, checked: false }
+
+  - id: TP5
+    title: Two clicks in a row on a fresh page both save
+    setup:
+      - open: /p/{project}/issue/ui/card-titles-overflow-on-a-phone
+      - click: detail.body.checkbox.0
+      - check: { issue: { slug: ui/card-titles-overflow-on-a-phone, checkbox: P1, checked: true } }
+    act:
+      - click: detail.body.checkbox.1
+    checks:
+      - selected: [detail.body.checkbox.0, detail.body.checkbox.1]
+      - issue: { slug: ui/card-titles-overflow-on-a-phone, checkbox: P1, checked: true }
+      - issue: { slug: ui/card-titles-overflow-on-a-phone, checkbox: P2, checked: true }
+
+  - id: TP6
+    title: An editor Save on a stale page is refused and keeps the typed text
+    setup:
+      - open: /p/{project}/issue/ui/card-titles-overflow-on-a-phone
+      - click: detail.tab.edit
+      - type: { target: detail.body.textarea, text: "Rewritten from a stale page" }
+      - cli: [append, ui/card-titles-overflow-on-a-phone, --section, Documentation, --body, "- [ ] Docs updated"]
+    act:
+      - click: detail.body.save
+    checks:
+      - text_contains: { target: detail.toast, text: changed since the page loaded }
+      - value_equals: { target: detail.body.textarea, value: "Rewritten from a stale page" }
+      - issue: { slug: ui/card-titles-overflow-on-a-phone, body_contains: "- [ ] Docs updated" }
+      - issue: { slug: ui/card-titles-overflow-on-a-phone, body_contains: "Wrap long titles" }

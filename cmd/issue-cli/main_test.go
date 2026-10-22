@@ -80,6 +80,27 @@ func TestTransitionSideEffects(t *testing.T) {
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("transitionSideEffects = %#v, want %#v", got, want)
 	}
+
+	// Gate sections are named instead of the generic line: created, topped
+	// up with missing boxes, or (already complete) not mentioned.
+	result = tracker.TransitionResult{
+		BodyAppended: true,
+		Sections: []tracker.SectionAppend{
+			{Title: "Testing", Created: true, BoxesAdded: 3},
+			{Title: "Design", BoxesAdded: 1},
+			{Title: "Test Plan", BoxesAdded: 2},
+			{Title: "Idea"},
+		},
+	}
+	got = transitionSideEffects(result)
+	want = []string{
+		"## Testing appended",
+		"## Design existed — added 1 missing box",
+		"## Test Plan existed — added 2 missing boxes",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("transitionSideEffects(sections) = %#v, want %#v", got, want)
+	}
 }
 
 func TestRunTransitionPrintsPostTransitionState(t *testing.T) {
@@ -94,7 +115,7 @@ func TestRunTransitionPrintsPostTransitionState(t *testing.T) {
 	assertContains(t, output, "Status: in progress")
 	assertContains(t, output, "✓ Assignee cleared")
 	assertContains(t, output, "✓ Approval consumed")
-	assertContains(t, output, "✓ Workflow content appended to issue body")
+	assertContains(t, output, "✓ ## Implementation appended")
 	assertContains(t, output, "✓ 1 entry guidance prompt(s) injected")
 	assertContains(t, output, "== Checklist (1/3) ==")
 	assertContains(t, output, "## (no section)\n  1. [x] already done")

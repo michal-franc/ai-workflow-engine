@@ -92,7 +92,11 @@ func runStart(ctx *Context, args []string) error {
 	if !advanced {
 		fmt.Fprintf(ctx.Stdout, "Status unchanged (%s is a work status — ready to pick up)\n", started.ToStatus)
 	}
-	if started.Result.BodyAppended {
+	if sections := sectionEffects(started.Result); len(sections) > 0 {
+		for _, line := range sections {
+			fmt.Fprintf(ctx.Stdout, "✓ %s\n", line)
+		}
+	} else if started.Result.BodyAppended {
 		fmt.Fprintln(ctx.Stdout, "✓ Workflow content appended to issue body")
 	}
 	// When advanced, the banner already states the approval was consumed.

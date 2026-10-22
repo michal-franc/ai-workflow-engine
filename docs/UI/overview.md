@@ -373,6 +373,15 @@ A UI issue's manual checks are written as a playtest session (`playtest/sessions
 - **Containers:** label containers too (`nav.sidebar`, `board.filters`). A session's `layout_ignore` on a container waives a known layout bug inside it.
 - **Known bug:** at phone width (390px) the page headers and the board filter bar don't wrap. Sessions waive them with `layout_ignore`.
 
+## Stale body saves
+
+A checkbox click and the editor's **Save** on `/issue/<slug>` post the whole body (`{"body": …}` to `POST /issue/<slug>`). An agent or the CLI may have written the file since the page loaded (a transition appending `## Documentation`, say), and posting the page's copy would erase that. So the page sends `base_body_hash`, the hash of the body it started from (`data-body-hash` on `detail.body.textarea`, `tracker.BodyHash`):
+
+- The server compares it with the file's body under the issue lock (`tracker.UpdateIssueFrontmatterIfBody`). When they differ it writes nothing and answers 409 with "This issue changed since the page loaded …", shown as a red toast.
+- A refused checkbox click is undone and the page reloads after the toast. A refused Save keeps the text in the editor so it can be copied.
+- A successful save returns `body_hash`; the page keeps it, so clicks in a row keep saving.
+- A body write without `base_body_hash` (a script, an older page) is applied as before.
+
 ## Detail Sidebar Toggles
 
 The frontmatter sidebar on `/issue/<slug>` has a small toolbar at the top with two toggles:

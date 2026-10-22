@@ -317,6 +317,49 @@ func TestAppendIssueBodyToSectionForceUsesFirstMatch(t *testing.T) {
 	}
 }
 
+// A body that starts with the target section's own heading must not write
+// that heading a second time (cli/append-section-duplicates-the-heading-when-the-body-starts-with-it).
+func TestAppendIssueBodyToSectionStripsLeadingSameHeading(t *testing.T) {
+	cases := []struct {
+		name, body, section, text, want string
+	}{
+		{
+			name: "existing section", body: "## Design\n- [ ] one", section: "Design",
+			text: "\n## Design\n- [ ] two",
+			want: "## Design\n- [ ] one\n\n- [ ] two\n",
+		},
+		{
+			name: "normalized title", body: "## Design\n- [ ] one", section: "design",
+			text: "##  DESIGN \n- [ ] two",
+			want: "## Design\n- [ ] one\n\n- [ ] two\n",
+		},
+		{
+			name: "missing section is created once", body: "## Idea\nx", section: "Design",
+			text: "## Design\n- [ ] two",
+			want: "## Idea\nx\n\n## Design\n- [ ] two\n",
+		},
+		{
+			name: "a different leading heading is kept", body: "## Design\n- [ ] one", section: "Design",
+			text: "### Risks\n- [ ] two",
+			want: "## Design\n- [ ] one\n\n### Risks\n- [ ] two\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body, changed, err := AppendIssueBodyToSection(tc.body, tc.section, tc.text, false)
+			if err != nil {
+				t.Fatalf("AppendIssueBodyToSection returned error: %v", err)
+			}
+			if !changed {
+				t.Fatal("changed = false, want true")
+			}
+			if body != tc.want {
+				t.Fatalf("body = %q, want %q", body, tc.want)
+			}
+		})
+	}
+}
+
 func TestReplaceIssueBodySectionReplacesUntilNextHeading(t *testing.T) {
 	body := "## Design\nOld plan\nMore old detail\n\n## Notes\nKept"
 	got, changed, err := ReplaceIssueBodySection(body, "Design", "New plan", false)

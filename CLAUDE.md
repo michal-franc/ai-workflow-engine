@@ -12,6 +12,7 @@ Flags:
 
 - `-dir` — issue markdown directory (default `./issues`), supports subdirectories
 - `-docs` — documentation markdown directory (default `./docs`)
+- `-host` — interface to listen on (default `127.0.0.1`; anything else is an opt-in and warns at startup)
 - `-port` — HTTP port (default `8080`)
 
 ## Validation
@@ -36,6 +37,7 @@ See [docs/patterns/playtest/web-app.md](docs/patterns/playtest/web-app.md).
 ```
 main.go                     — entry point, CLI flags, starts HTTP server
 routes.go                   — Server struct, NewServer, Routes, dispatcher, project list
+origin.go                   — sameOriginOnly (403 for cross-origin writes), -host / listen-address helpers
 nav.go                      — sidebar views (navViews) and the Nav the sidebar partial renders
 template_funcs.go           — funcMap, status/priority colors, link rewriters
 helpers.go                  — projectRoot, fileExists, small utilities

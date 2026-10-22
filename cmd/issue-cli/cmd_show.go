@@ -37,8 +37,9 @@ func runShow(ctx *Context, args []string) error {
 	if ctx.JSONOutput {
 		comments, _ := tracker.LoadComments(issue.FilePath)
 		out := map[string]interface{}{
-			"issue":    issue,
-			"comments": comments,
+			"issue":         issue,
+			"comments":      comments,
+			"workflow_file": workflowFileLabel(ctx.Project),
 		}
 		if wf.ActiveType != "" {
 			out["type"] = wf.ActiveType
@@ -51,6 +52,7 @@ func runShow(ctx *Context, args []string) error {
 	fmt.Fprintf(ctx.Stdout, "Status: %s%s | System: %s | Priority: %s | Assignee: %s\n",
 		statusLabel(wf, issue.Status), typeLabel(wf), issue.System, issue.Priority, issue.Assignee)
 	fmt.Fprintf(ctx.Stdout, "File: %s\n", issue.FilePath)
+	fmt.Fprintf(ctx.Stdout, "Workflow file: %s\n", workflowFileLabel(ctx.Project))
 	if wf.ActiveType != "" {
 		fmt.Fprintf(ctx.Stdout, "Path: %s\n", typePath(wf))
 	}

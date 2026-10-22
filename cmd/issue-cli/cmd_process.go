@@ -133,6 +133,7 @@ func runProcessWorkflow(ctx *Context, args []string) error {
 	} else {
 		fmt.Fprintln(ctx.Stdout, "== Status Lifecycle ==")
 	}
+	fmt.Fprintf(ctx.Stdout, "Workflow file: %s\n", workflowFileLabel(ctx.Project))
 	statusOrder := wf.GetStatusOrder()
 	statusDescs := wf.GetStatusDescriptions()
 	for i, s := range statusOrder {
@@ -314,6 +315,7 @@ func runProcessTransitions(ctx *Context, args []string) error {
 		header = fmt.Sprintf("== Transition Rules — system %q ==", system)
 	}
 	fmt.Fprintln(ctx.Stdout, header)
+	fmt.Fprintf(ctx.Stdout, "Workflow file: %s\n", workflowFileLabel(proj))
 	if wf.HasTypes() && scoped.ActiveType == "" {
 		fmt.Fprintf(ctx.Stdout, "(base rules with no type applied; types: %s — pass --type <name> or an issue slug)\n", strings.Join(wf.TypeNames(), ", "))
 	}

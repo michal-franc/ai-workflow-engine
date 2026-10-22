@@ -3390,6 +3390,57 @@ body.canvas-page { overflow: hidden; }
 .canvas-world.has-highlight .canvas-card:not(.lit) { opacity: 0.3; }
 .canvas-world.has-highlight .canvas-lane-head:not(.lit) { opacity: 0.45; }
 
+/* Folding: a lane's head and cells sit in .canvas-lane (no box of its own).
+   A folded lane shows each cell's status counts instead of its cards. */
+.canvas-fold-all { display: flex; gap: 6px; }
+.canvas-lane { display: contents; }
+.canvas-lane-head { cursor: pointer; }
+.canvas-fold-btn {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 10px;
+    cursor: pointer;
+}
+.canvas-fold-btn::before { content: "▾"; }
+.canvas-lane.folded .canvas-fold-btn::before { content: "▸"; }
+/* A folded head is three short rows: kind and status, the title on one
+   line, then the summary with Highlight beside it. */
+.canvas-lane.folded .canvas-lane-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 8px;
+    padding: 8px 14px;
+}
+.canvas-lane.folded .canvas-lane-head > * { grid-column: 1 / -1; }
+.canvas-lane.folded .canvas-lane-summary { grid-column: 1; }
+.canvas-lane.folded .canvas-lane-head > .canvas-hl-btn { grid-column: 2; }
+.canvas-lane.folded .canvas-lane-head > .canvas-bar { display: none; }
+.canvas-lane.folded .canvas-lane-title,
+.canvas-lane.folded .canvas-lane-head > .canvas-muted {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.canvas-toolbar select[name=epic] { max-width: 200px; }
+.canvas-lane.folded .canvas-cell { min-height: 0; justify-content: center; }
+.canvas-lane.folded .canvas-cards,
+.canvas-lane.folded .canvas-closed-chip,
+.canvas-lane:not(.folded) .canvas-fold { display: none; }
+.canvas-fold {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text);
+}
+.canvas-fold > span { display: flex; align-items: center; gap: 5px; }
+
 /* Workboard (/workboard): board cards with markers, epic progress and the
    agent footer. Chips come from .chip; tones from the workbench tokens. */
 .workboard-head { justify-content: space-between; align-items: flex-end; }

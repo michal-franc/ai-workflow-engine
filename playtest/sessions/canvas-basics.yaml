@@ -18,6 +18,7 @@ steps:
     title: Epic rows - version columns, epic and umbrella lanes, sub-epic, no-version hidden
     setup:
       - open: /p/{project}/canvas
+      - click: canvas.expand_all
     checks:
       - selected: nav.tab.canvas
       - text_equals: { target: canvas.count, text: 8 of 16 issues }
@@ -52,6 +53,7 @@ steps:
     title: Collapse done folds closed cards into a chip; the chip turns it off again
     setup:
       - open: /p/{project}/canvas
+      - click: canvas.expand_all
     act:
       - check: { count: { pattern: canvas.card.*, within: canvas.cell.no_epic.0_1, equals: 2 } }
       - click: canvas.collapse_done
@@ -63,12 +65,13 @@ steps:
     checks:
       - absent: canvas.cell.no_epic.0_1.closed
       - count: { pattern: canvas.card.*, within: canvas.cell.no_epic.0_1, equals: 2 }
-      - url: { matches: "^/p/[^/]+/canvas\\?rows=epic&hl=$" }
+      - url: { matches: "^/p/[^/]+/canvas\\?rows=epic&open=[^&]+$" }
 
   - id: TP6
     title: Show no version adds the column and fills an epic whose children have no version
     setup:
       - open: /p/{project}/canvas
+      - click: canvas.expand_all
     act:
       - click: canvas.lane.core/plugin-system.show_no_version
       - wait_for: { url: { contains: nover=1 } }
@@ -84,6 +87,7 @@ steps:
     title: System rows - an epic badge highlights the epic across systems and survives a reload
     setup:
       - open: /p/{project}/canvas?rows=system
+      - click: canvas.expand_all
     act:
       - check: { hidden: canvas.highlight }
       - click: canvas.card.ui/search-box-in-the-header.epic
@@ -125,6 +129,7 @@ steps:
     title: A parent that matches no issue leaves the card under No epic with a marker
     setup:
       - open: /p/{project}/canvas
+      - click: canvas.expand_all
     checks:
       - count: { pattern: canvas.card.ui/orphan-task, within: canvas.cell.no_epic.0_2, equals: 1 }
       - text_equals: { target: canvas.card.ui/orphan-task.unknown_parent, text: "⚠ unknown parent: core/does-not-exist" }
@@ -147,6 +152,7 @@ steps:
     title: The map reads well, pans and highlights clearly
     setup:
       - open: /p/{project}/canvas
+      - click: canvas.expand_all
     targets:
       - { id: canvas.world, note: Drag empty background here to pan }
       - { id: canvas.lane.core/search-everywhere.highlight, note: Highlight this epic }

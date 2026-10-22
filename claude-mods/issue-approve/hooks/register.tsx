@@ -48,9 +48,11 @@ async function projectFor($: EngineInterface, url: string, cwd: string): Promise
 }
 
 // readyForPlaytest: the issue waits on the owner's playtest (human-testing,
-// or a project's own "playtest…" status).
-function readyForPlaytest(status: string): boolean {
-  return /human-testing|playtest/.test(status.toLowerCase())
+// or a project's own "playtest…" status), or sits at testing behind an owner
+// gate: a tweak's path has no human-testing, the owner checks it at testing.
+function readyForPlaytest(a: Approvals): boolean {
+  const status = a.status.toLowerCase()
+  return /human-testing|playtest/.test(status) || (status === 'testing' && a.approvals.length > 0)
 }
 
 // runPlaytest runs `make playtest ISSUE=<slug>` in the session's worktree: the
@@ -151,7 +153,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const a = await read($, approvals)
     const step = await read($, playtest)
-    const canPlaytest = !!a && (await read($, hasPlaytest)) && (readyForPlaytest(a.status) || step !== 'idle')
+    const canPlaytest = !!a && (await read($, hasPlaytest)) && (readyForPlaytest(a) || step !== 'idle')
     if (e.props.hasSurvey || !a || (a.approvals.length === 0 && !canPlaytest)) {
       return next(e)
     }

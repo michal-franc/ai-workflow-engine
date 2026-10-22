@@ -123,3 +123,29 @@ test('at human-testing it offers Playtest, then Report, which applies the result
   expect((await ui.find({ key: 'playtest' }))?.text).toBe('▶ Playtest')
   await ui.unmount()
 })
+
+// A tweak's path has no human-testing: the owner checks it at testing, behind
+// the shipping gate, so Playtest shows there too, and only behind a gate.
+for (const [name, approvals, shown] of [
+  ['at testing behind an owner gate (a tweak) it offers Playtest', [{ status: 'shipping', approved: false }], true],
+  ['at testing with no owner gate it offers no Playtest', [], false],
+] as const) {
+  test(name, async ($, on) => {
+    on('env.get', (_, e) => ({ value: ENV[e.name] }))
+    on('clock.every', () => ({ deny: 'no timers in tests' }))
+    on('http.fetch', () => {
+      const body = { slug: 'ui/foo', title: 'Foo', status: 'testing', human_approval: '', approvals }
+      return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
+    })
+    on('process.run', () => ({ value: { exitCode: 0, stdout: '', stderr: '' } }))
+    on('session.start', (_, e) => ({ cwd: e.cwd }))
+    on('ui.render', ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      return <Text>engine</Text>
+    })
+    await $.session.start({ cwd: '/w/proj/.worktrees/ui/foo', surface: 'terminal', isInteractive: true })
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+    expect(!!(await ui.find({ key: 'playtest' }))).toBe(shown)
+    await ui.unmount()
+  })
+}

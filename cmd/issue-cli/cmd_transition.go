@@ -87,7 +87,7 @@ func runTransition(ctx *Context, args []string) error {
 	if err := rejectRemovedWaitFlags(rest); err != nil {
 		return err
 	}
-	if err := parseFlags(ctx, fs, rest); err != nil {
+	if err := parseFlagsArgs(ctx, fs, rest); err != nil {
 		return err
 	}
 	to := *toFlag
@@ -356,7 +356,7 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 				mark = "x"
 			}
 			if item.ID != "" {
-				fmt.Fprintf(w, "  %s [%s] %s\n", item.ID, mark, item.Text)
+				fmt.Fprintf(w, "  %s [%s] %s\n", item.ID, mark, tracker.StripCheckboxID(item.ID, item.Text))
 				hint = hint || !item.Checked
 			} else {
 				fmt.Fprintf(w, "  %d. [%s] %s\n", item.Index, mark, item.Text)
@@ -364,6 +364,7 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 		}
 		if hint {
 			fmt.Fprintf(w, "Tick done boxes by id, several at once: issue-cli check %s <id> [<id>...]\n", slug)
+			fmt.Fprintf(w, "Box text wrong? issue-cli check-edit %s <id> --text \"...\"\n", slug)
 		}
 		fmt.Fprintln(w)
 	}

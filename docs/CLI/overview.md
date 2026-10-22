@@ -11,7 +11,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 
 - `cmd/issue-cli/main.go` — entry point, global-flag parsing, top-level error printing
 - `cmd/issue-cli/commands.go` — registry (`registerCommand`, `lookupCommand`, `printHelp`); top-level help is auto-generated from this list
-- `cmd/issue-cli/context.go` — `Command` and `Context` types, `findIssueOrErr`, `requireSlug`, `newFlagSet`, `flagWasSet`
+- `cmd/issue-cli/context.go` — `Command` and `Context` types, `findIssueOrErr`, `requireSlug`, `newFlagSet`, `flagWasSet`, and flag parsing: `parseFlags` / `parseFlagsArgs` / `parsePositionals`, `flagsFirst`, `usageError`
 - `cmd/issue-cli/helpers.go` — shared helpers (`loadProjectOrErr` → `resolveBootstrap` / `resolveFromConfig`, `formatProjectList`, `parseFieldFlags`, `normalizeEscapedText`, `writeJSON`, `printCheckboxes`, etc.)
 - `cmd/issue-cli/cmd_<name>.go` — one file per subcommand. Each file declares a `*Command`, registers it in `init()`, and owns its own `flag.FlagSet`. Group commands (`data`, `workflow`, `process`) dispatch internally to per-subcommand handlers in the same file.
 - `cmd/issue-cli/workflow_init.go` — testable `doWorkflowInit` core (the `workflow init` subcommand wraps it from `cmd_workflow.go`)
@@ -23,7 +23,12 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 
 1. Create `cmd/issue-cli/cmd_<name>.go`.
 2. Declare a `var <name>Command = &Command{Name, ShortHelp, LongHelp, Run}` and call `registerCommand(<name>Command)` in `init()`.
-3. Build the `Run` function as `func(ctx *Context, args []string) error`. Construct a `flag.FlagSet` via `newFlagSet("<name>", ctx)` and parse `args` (everything after the subcommand name) with `parseFlags(ctx, fs, args)`, never `fs.Parse` directly. `parseFlags` records the flag names for [usage telemetry](telemetry.md) and lets the never-used report introspect the command's flags. Call it before doing any work. Return errors instead of calling `os.Exit`.
+3. Build the `Run` function as `func(ctx *Context, args []string) error`. Construct a `flag.FlagSet` via `newFlagSet("<name>", ctx)` and parse `args` (everything after the subcommand name) with one of these, never `fs.Parse` directly. Call it before doing any work. Return errors instead of calling `os.Exit`.
+   - `parseFlags(ctx, fs, args)`: the command takes no positionals beyond what it already pulled off (e.g. the slug from `requireSlug`). A leftover positional is a usage error.
+   - `parseFlagsArgs(ctx, fs, args)`: the command reads positionals from `fs.Args()` (text, ids, a status).
+   - `parsePositionals(ctx, name, args, max)`: the command has no flags at all; it returns the positionals and refuses more than `max`.
+
+   All three accept flags anywhere in `args` (see [Flags, `--help` and exit codes](#flags---help-and-exit-codes)), record the flag names for [usage telemetry](telemetry.md), and let help and the never-used report introspect the command's flags. `TestEveryCommandRejectsUnknownFlags` and `TestEveryCommandHelpNeedsNoProject` run every registered command and subcommand, so a new command that skips them fails the build.
    - Group commands set `Subcommands` (and `SubAliases`) on the `Command`. Flags parsed by hand go in `ExtraFlags`.
 4. Reach the project via `ctx.Project`, write to `ctx.Stdout` / `ctx.Stderr`, and consult `ctx.JSONOutput` for output mode. The package-global `jsonOutput` no longer exists.
 5. The new command appears in `issue-cli help` automatically.
@@ -33,7 +38,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | Command                          | Description                              |
 |:---------------------------------|:-----------------------------------------|
 | `issue-cli show <slug>`          | Print full issue context                 |
-| `issue-cli list`                 | List issues with filters — supports `--sort score` and emits `Score`/`ScoreBreakdown` in `--json` when scoring is enabled |
+| `issue-cli list`                 | List issues with filters; `--all` drops the default project-version filter. Supports `--sort score` and emits `Score`/`ScoreBreakdown` in `--json` when scoring is enabled |
 | `issue-cli start <slug>`         | Pick up issue from any status — claim + auto-advance handoff states (announced with a banner) |
 | `issue-cli transition <slug>`    | Attempt the next workflow transition. `--dry-run` lists every unmet requirement |
 | `issue-cli comment <slug>`       | Add a comment to an issue                |
@@ -44,9 +49,11 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli ci <sub>`             | Local CI on the integration branch: `status`, `run`, `reset`, `watch`. See [`ci`](#ci) |
 | `issue-cli approve <slug>`       | Record a human approval with the human's words (leads only). See [`approve`](#approve) |
 | `issue-cli check <slug> <id>...` | Tick checkboxes by id (several at once), whole section (`--section X --all`), text, or `--section` + `--index` |
+| `issue-cli check-edit <slug> <id> --text "…"` | Change one box's text; it keeps its tick and id. See [`check-edit`](#check-edit) |
 | `issue-cli checklist <slug>`     | List checkboxes grouped by section, each with its id (`D3`, `AC2`) |
 | `issue-cli append <slug>`        | Append content to issue body             |
-| `issue-cli replace <slug>`       | Replace content of an existing section   |
+| `issue-cli replace <slug>`       | Replace content of an existing section, or one line of it (`--line N`, `--match RE`). See [`replace`](#replace) |
+| `issue-cli update <slug>`        | Change the title (the slug is kept; `--rename` moves it) and/or replace the body. See [`update`](#update) |
 | `issue-cli set-meta <slug>`      | Set or clear a frontmatter field (refuses `type` in projects with types — use `set-type`; checks every slug in `depends_on`) |
 | `issue-cli set-type <slug> <t>`  | Change an issue's type of work; agents only while it is at its type's first status. See [Types of Work](../Workflow/types.md) |
 | `issue-cli process workflow`     | Print the workflow file in use (`Workflow file:`), the active workflow, the `== Types ==` block and `workflow.yaml` lint warnings; `--type <t>` prints one type's lifecycle |
@@ -84,6 +91,26 @@ Retry with the full slug.
 ```
 
 The list stops at 10 slugs and ends with `… and N more (issue-cli list)`. A system name is almost always ambiguous, so `issue-cli retrospective <System>` fails instead of filing the retro under some issue of that system.
+
+### Flags, `--help` and exit codes
+
+Every command parses its arguments the same way:
+
+- **Flags go anywhere.** `issue-cli list done --status done` and `issue-cli comment <slug> "text" --text more` parse every flag, wherever it is. Before 0.53 Go's flag parsing stopped at the first positional, so a flag after one was silently dropped: `list done --all` listed everything with exit 0. `--` ends the flags; everything after it is a positional, even `--text`.
+- **A flag is a word shaped like one:** `-name`, `--name` or `--name=value`. Text that merely starts with a dash (`"- [ ] item"`, `"--force is risky"`, `-5`) stays a positional.
+- **Mistakes exit 2.** An unknown flag, a bad flag value, an unexpected positional, or a flag where the slug belongs fails with **exit 2** and a short message on stderr:
+
+  ```
+  Error: unknown flag --al for 'list'
+  Valid flags: --all --assignee --category --sort --status --system --type --version
+
+  Run: issue-cli list --help
+  ```
+
+  Other failures keep exit 1. A removed flag (`--wait`) also exits 2.
+- **The slug comes first.** `issue-cli comment --text hi <slug>` fails with `comment takes <slug> first, then flags: …` instead of looking up an issue called `--text`.
+- **`--help` anywhere.** `-h`, `-help` or `--help` in a command's arguments prints that command's help: its description, examples, and a **Flags** section read from the code (one per subcommand for `data`, `ci`, `lead`, `telemetry`, `workflow`). It exits 0 and needs no project, and it is never read as a slug or as text. `issue-cli help <command>` prints the same thing.
+- **The global `--json`** also works after the command (`issue-cli list --all --json`). `--project` and `--config` must come before the command; after it they get a hint saying so.
 
 ### `start`
 
@@ -134,7 +161,7 @@ issue-cli check <slug> --section "Design" --index 2   # by section + stable inde
 issue-cli check <slug> --index 5                      # by position in the whole body
 ```
 
-Flags go before ids or text.
+Flags may come before or after the ids or text.
 
 #### Checkbox ids
 
@@ -158,6 +185,7 @@ Tick done boxes by id, several at once: issue-cli check <slug> <id> [<id>...]
 - Ids are case-insensitive (`d3` = `D3`). The long form `<Section>#<n>` (`Design#3`, `"Acceptance Criteria#2"`) always works.
 - Boxes before any `## ` heading have no id and show as `1.`; reach them with `--index`.
 - Boxes inside fenced code blocks are illustrative, not workflow state. They get no id and are not counted by `checklist`, the progress line, or transition gates.
+- Don't write the id into the box text. If a box's text already starts with its own id (`- [ ] TP4: run the suite`), the id is printed once (`TP4 [ ] run the suite`), not twice. The file keeps the text as written; `check-edit` drops a leading copy of the id when it rewrites a box.
 
 #### Behaviour
 
@@ -192,9 +220,53 @@ Tick the ones that are done (ids, several at once):
 
 Before v0.30.0 this read `2/4 checkboxes incomplete`, where 2 was the number of *checked* boxes.
 
+### `check-edit`
+
+`issue-cli check-edit <slug> <id> --text "…"` replaces the text of one checkbox. The id is the short or long form `check` takes (`D3`, `"Design#3"`). The box keeps its tick state, indentation and position, so its id doesn't change:
+
+```
+✓ Edited D3 [Design #3]
+  was: Overlap reviewed
+  now: Overlap reviewed: similar features listed
+file: …
+```
+
+An unknown id lists the issue's ids. The text must be one line.
+
+### `replace`
+
+`issue-cli replace <slug> --section S --body "…"` replaces the body of a section. To change **one line** of it instead:
+
+```bash
+issue-cli replace <slug> --section "Design" --line 3 --text "- Risk: none"
+issue-cli replace <slug> --section "Design" --match "^- Risk:" --text "- Risk: none"
+```
+
+- `--line N` counts from the line after the heading, blank lines included (1-based).
+- `--match RE` (Go regexp) must match exactly one line of the section.
+- When the line can't be chosen (out of range, no match, several matches), nothing is written and the error prints the section with line numbers, so you can retry with `--line`.
+- `--line` and `--match` can't be combined. The replacement is a single line. A heading that appears twice is an error.
+
+### `update`
+
+`issue-cli update <slug> --title "…"` changes an issue's title and **keeps its slug**. An issue's slug comes from its title, so before 0.53 a retitle moved the issue to a new slug, and links, `parent:`/`depends_on:` references and agents holding the old slug broke. Now the old slug is written to a `slug:` frontmatter field (see [Issue File Format](../issue-format.md)), which wins over the title:
+
+```
+✓ Retitled: cli/old-name (slug kept: pinned with slug: in frontmatter)
+  To let the slug follow the title: issue-cli update cli/old-name --title "New name" --rename
+```
+
+`--rename` opts into the old behaviour. It removes the pin, renames the file to the new slug, and lists the issues whose `parent:` or `depends_on:` still name the old slug. It doesn't rewrite them. If a file with the new name already exists, nothing is written. The title editor on the detail page keeps the slug the same way, and never renames.
+
+`--body "…"` replaces the whole body (frontmatter and comments are kept).
+
 ### `list`
 
-`issue-cli list` filters by `--status`, `--system`, `--assignee`, `--version` and, in projects with types of work, `--type` (untyped issues count as `default_type`; rows then show a type column). With `--json`, each entry is the full issue plus two scoring fields:
+`issue-cli list` filters by `--status`, `--system`, `--assignee`, `--version` and, in projects with types of work, `--type` (untyped issues count as `default_type`; rows then show a type column).
+
+When the project sets a `version:`, `list` shows only that version by default, and the footer says how many issues that hid: `12 issues (version 0.53; 40 more in other versions: issue-cli list --all)`. **`--all`** drops that default and lists every issue in every status and version. Filters you pass still apply (`list --all --status done`).
+
+With `--json`, each entry is the full issue plus two scoring fields:
 
 | Field            | Type                                | When populated                                                                                  |
 |:-----------------|:------------------------------------|:------------------------------------------------------------------------------------------------|

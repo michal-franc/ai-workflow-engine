@@ -264,7 +264,7 @@ func openCheckboxesError(slug, section string, open []CheckboxItem, total int) e
 		} else {
 			ids = append(ids, it.ID)
 		}
-		fmt.Fprintf(&b, "  %-4s %s\n", ref, it.Text)
+		fmt.Fprintf(&b, "  %-4s %s\n", ref, it.Label())
 	}
 	if len(ids) > 0 {
 		fmt.Fprintf(&b, "\nTick the ones that are done (ids, several at once):\n  issue-cli check %s %s", slug, strings.Join(ids, " "))

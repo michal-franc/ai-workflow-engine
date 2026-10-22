@@ -269,6 +269,35 @@ func TestHandleUpdateIssue_UpdatesPriority(t *testing.T) {
 	t.Fatal("issue not found after update")
 }
 
+func TestHandleUpdateIssue_RetitleKeepsSlug(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	// A client-sent slug is ignored: the pin is the server's call.
+	body := `{"title":"Login fails on Safari","slug":"something-else"}`
+	resp, err := http.Post(ts.URL+"/p/test-project/issue/bug-in-login", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var out map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d, decode %v", resp.StatusCode, err)
+	}
+	if out["slug"] != "bug-in-login" {
+		t.Fatalf("response slug = %q, want bug-in-login", out["slug"])
+	}
+	issues, _ := tracker.LoadIssues(proj.IssueDir)
+	got := tracker.FindIssue(issues, "bug-in-login")
+	if got == nil || got.Title != "Login fails on Safari" || got.SlugPin != "bug-in-login" {
+		t.Fatalf("after retitle: %+v", got)
+	}
+	if filepath.Base(got.FilePath) == "login-fails-on-safari.md" {
+		t.Fatal("retitle renamed the file")
+	}
+}
+
 func TestHandleUpdateIssue_UpdatesAssignee(t *testing.T) {
 	proj, _ := setupTestProject(t)
 	ts := newTestServer(t, []tracker.Project{proj})

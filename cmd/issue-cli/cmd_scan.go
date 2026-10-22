@@ -23,7 +23,7 @@ func runWorkflowScan(ctx *Context, args []string) error {
 	installed := fs.String("installed", "", "comma-separated feature ids to record as installed at the catalog version")
 	declined := fs.String("declined", "", "comma-separated feature ids to record as declined")
 	forget := fs.String("forget", "", "comma-separated feature ids to drop from the record (re-opens a declined feature)")
-	if err := parseFlags(ctx, fs, args); err != nil {
+	if err := parseFlagsArgs(ctx, fs, args); err != nil {
 		return err
 	}
 	if fs.NArg() > 0 {

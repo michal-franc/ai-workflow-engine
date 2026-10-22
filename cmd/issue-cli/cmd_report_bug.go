@@ -22,7 +22,7 @@ func init() {
 
 func runReportBug(ctx *Context, args []string) error {
 	fs := newFlagSet("report-bug", ctx)
-	if err := parseFlags(ctx, fs, args); err != nil {
+	if err := parseFlagsArgs(ctx, fs, args); err != nil {
 		return err
 	}
 	rest := fs.Args()

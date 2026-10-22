@@ -7,6 +7,8 @@ order: 8
 
 The **Metrics** view (`/p/<project>/metrics`) and the system-page panels show a project's guard metrics and tuning knobs. They read JSON files that the project writes, such as a probe run or a knob export. The viewer never stores values or targets, and it never parses source code: change the files in the repo, and the page reloads.
 
+The same block also points the viewer at the project's own HTML pages: a custom Status page and extra sidebar pages, shown sandboxed. See [Project pages](#project-pages-status_page-pages).
+
 A project points at the files in the optional `workbench:` block of its `workflow.yaml`. Every path is relative to the project root. Validation rejects absolute paths and paths that leave the root, and the reader refuses symlinks that leave it and files over 2 MB.
 
 ```yaml
@@ -124,3 +126,88 @@ rust-manager writes `docs/balance/snapshot.json` with `make balance` (Tests/Bala
 - **Bands and names:** `make balance` adds `name`, `group` and `band` from `Tests/Balance/Targets.cs`, plus a `run` header.
 - **Branch values:** `make balance-check` writes its partial snapshot into the worktree at the same path.
 - **Knobs:** a `make knobs` export of `Sim/Tuning.cs` fills the Knobs tab.
+
+## Project pages (`status_page`, `pages`)
+
+A project can show its own HTML pages in the viewer: a richer status update, a balance report, an ideas page. Projects (and their agents) write them as plain files in the repo. Both keys are optional, and without them nothing changes.
+
+```yaml
+workbench:
+  status_page: docs/status/index.html   # /status shows this page by default
+  pages:                                # extra pages, listed under Status in the sidebar
+    - title: "Balance report"
+      path: docs/reports/balance.html
+```
+
+- **`status_page`:** `/status` shows the page inside the normal viewer frame (sidebar and header). Two tabs sit at the top: **Project status** (the default) and **Built-in** (`/status?view=builtin`), the generated Status page. The built-in page is always one click away, and `/status.md` stays built-in.
+- **`pages`:** each entry is an indented row under Status in the sidebar, at `/p/<project>/pages/<n>` (`n` is its place in the list, from 0), in the same frame without the tabs.
+- **Paths:** relative to the project root, inside it, ending in `.html` or `.htm`. Each `pages` entry needs a `title`. `issue-cli process workflow` prints a bad key under `== Warnings (workflow.yaml) ==`. A configured file that is missing shows a card in place of the page, naming the key and the fix. On `/status` the card also links to the built-in page.
+- **The header** shows the page's path, how long ago it changed and an **Open raw** link.
+
+### Sandbox
+
+A page is arbitrary HTML and its scripts run, but it is kept away from the viewer:
+
+- The frame embeds it as `<iframe sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation">` with **no `allow-same-origin`**. The page gets an opaque origin (`null`), so it can't read the viewer's cookies or storage, or read viewer API responses.
+- Links: a link with `target="_top"` may replace the whole tab when clicked (e.g. to an issue). A script can't navigate the viewer on its own. `target="_blank"` opens a new tab.
+- The viewer refuses every non-GET request whose `Origin` is `null` (403), so a page can't approve, comment or dispatch.
+- `GET /p/<project>/page-raw/<path>` serves the page and its assets. It serves only files under the folder of a configured page (for `docs/status/index.html`, everything under `docs/status/`), with these extensions: html, htm, css, js, json, svg, png, jpg, jpeg, gif, webp, woff2. Responses carry the right `Content-Type`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-cache` and `Content-Security-Policy: sandbox …; frame-ancestors 'self'`, so opening the raw URL directly is sandboxed too.
+- Anything else gets a 404: other folders, `..`, symlinks that leave the root, and directories (there is no listing).
+- The page's own `fetch("data.json")` comes from origin `null`, and the response allows it (`Access-Control-Allow-Origin: null`).
+- Give pages a folder of their own. A page at the project root makes the whole root its folder.
+
+### Refresh
+
+`/hash` returns a `pages` value besides `hash` when the project has pages. It changes when a file under the page folders is added, removed or rewritten (at most 500 files are counted). The frame polls every 2 s and reloads only the iframe when `pages` changes, and the header then reads "changed just now · reloaded". Other views ignore `pages`, so a rewritten report doesn't reload the board.
+
+### Live status (postMessage)
+
+The frame sends the page the built-in Status model, so a page can show live counts without any network access:
+
+```js
+{ type: "issue-viewer.status", project: "Atlas", status: { … } }
+```
+
+It is sent when the iframe loads, again whenever the issues change (`/hash`'s `hash`), and whenever the page asks with `parent.postMessage({type: "issue-viewer.status.request"}, "*")`. The frame ignores every other message. `status` has this shape (also at `GET /p/<project>/status.json`):
+
+```json
+{
+  "project": "Atlas",
+  "as_of": "2026-10-22T13:39:00Z",
+  "open": 3,
+  "all": { "done": 1, "total": 4 },
+  "versions": [{ "label": "0.9", "done": 9, "total": 12 }],
+  "epics": [{ "slug": "ui/atlas-redesign", "title": "Atlas redesign", "status": "in progress", "done": 0, "total": 2 }],
+  "active": [{ "slug": "ui/search", "title": "Search as you type", "status": "human-testing", "agent": "stopped" }],
+  "waiting": [{ "slug": "ui/route-planner-panel", "title": "Route planner panel", "kind": "gate", "to": "backlog" }],
+  "shipped": [{ "version": "v1.4.0", "date": "2026-10-20", "text": "Route planner shows travel time per leg." }]
+}
+```
+
+`kind` is `gate`, `playtest` or `question`, and `to` is a gate's target status. Lists are empty, never missing.
+
+### Minimal page
+
+`docs/status/index.html`:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Status</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <h1>This week</h1>
+  <p>Open issues: <strong id="open">…</strong></p>
+  <p><a href="/p/atlas/workboard" target="_top">Open the board</a></p>
+  <script>
+    window.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'issue-viewer.status') {
+        document.getElementById('open').textContent = e.data.status.open;
+      }
+    });
+    if (window.parent !== window) parent.postMessage({type: 'issue-viewer.status.request'}, '*');
+  </script>
+</body>
+</html>
+```
+
+The `project-pages` playtest scenario (`playtest/scenarios/project-pages/`) is a fuller example with a sibling stylesheet and script.

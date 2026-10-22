@@ -23,6 +23,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/_project_actions.html` — the project-action dispatch modal, included by the sidebar
 - `templates/balance.html` — balance board (`handlers_balance.go`, board built by `tracker.BuildBalanceBoard`). Its sidebar entry shows only when `workbench.balance` is set
 - `templates/status.html` — the project Status page (`handlers_status.go`; the model is `buildStatus` in `status.go`, the "waiting on you" rule is `attention.go`)
+- `templates/page.html`, `templates/_status_tabs.html` — the frame around a project's own HTML page (`workbench.status_page` / `pages`), and the Project status / Built-in tabs (`handlers_pages.go`). See [Project pages](#project-pages)
 - `templates/decisions.html` — generated decisions index (`handlers_decisions.go`, index built by `tracker.BuildDecisionIndex`)
 - `templates/systems.html`, `templates/system.html` — systems index and the system / family pages (`handlers_systems.go`; the model is built in `systems.go`, the design doc panel in `docsections.go`). See [System pages](#system-pages)
 - `templates/metrics.html` — Metrics view: guard metrics, knobs, branches (`handlers_metrics.go`; readers in `internal/tracker/metrics.go`, `knobs.go`, `branches.go`, `deps.go`)
@@ -96,7 +97,11 @@ Status colours stay per status (`statusColor`). A status chip tints its colour w
 | `/systems`        | `systems.html` | One card per system, most open first: summary and design doc (from `workbench.systems`), open / done counts, status bar, waiting-on-you count and family chips, plus a "No system" line. See [System pages](#system-pages) |
 | `/systems/<System>[/<Family>]` | `system.html` | One page per system or configured family. Unknown names get a 404 listing the systems. See [System pages](#system-pages) |
 | `/status`         | `status.html` | Where the project stands: progress, work in flight, next steps, what waits on the owner, what shipped. See [Status page](#status-page) |
+| `/status`         | `page.html`   | With `workbench.status_page`: the project's own page, with Project status / Built-in tabs. `?view=builtin` shows `status.html`. See [Project pages](#project-pages) |
 | `/status.md`      | (text)        | The Status page as markdown (`text/markdown`), for pasting as a stand-up |
+| `/status.json`    | (JSON)        | The Status model the frame posts to project pages (shape in [Workbench Files](../workbench-files.md#live-status-postmessage)) |
+| `/pages/<n>`      | `page.html`   | The `n`th `workbench.pages` entry in the viewer frame; 404 when out of range |
+| `/page-raw/<path>` | (file)       | A project page or one of its assets, sandboxed by CSP; only files under a configured page's folder |
 | `/decisions`      | `decisions.html` | Generated index of every `D-n` decision: how it was made, recording issue, citing issues, state (active / deferred / replaced / replaced · stale). System and state chips (`?system=`, `?state=`); reloads when `/hash` changes. The page renders the `/hash` value it was built from as the polling baseline, so a change made before the first 5 s poll still triggers a reload |
 
 | `/metrics`        | `metrics.html` | Guard metrics, knobs and branch overlap, read from the project's files and git (see [Metrics view](#metrics-view)). `/metrics.json` returns the same data; `?sig=1` only the reload signature |
@@ -211,6 +216,17 @@ workbench:
   - This repo sets `workbench.changelog: cmd/issue-cli/CHANGELOG.md`.
 
 **Copy as markdown** fetches `status.md` onto the clipboard and shows "✓ Copied" for 2 s. Without a clipboard (plain http on another host) it opens `status.md` instead.
+
+## Project pages
+
+With `workbench.status_page` or `workbench.pages` in `workflow.yaml`, the viewer shows the project's own HTML pages: config, sandbox rules and the postMessage shape are in [Workbench Files](../workbench-files.md#project-pages-status_page-pages).
+
+- **Frame** (`page.html`): the sidebar, a header with the title, the page's path, its age and **Open raw**, then a full-height `<iframe>` (only the iframe scrolls). It is sandboxed without `allow-same-origin`, and the iframe gets a white background.
+  - On `/status` the header also has the tabs (`status.tabs`); `status.html` shows the same tabs, Built-in selected, when `status_page` is set.
+  - A missing file or a bad path shows the `page.missing` card in place of the iframe.
+- **Sidebar:** `Nav.Pages` render as `.nav-sub` rows right after Status (`nav.page.<n>`); the active one is highlighted and Status is not.
+- **Refresh:** the frame polls `/hash`. When its `pages` value changes, the frame reloads only the iframe and shows "· reloaded" (`page.source.reloaded`). When `hash` changes, it re-posts the status.
+- **Origin guard:** `handleProjectRoutes` answers 403 to any non-GET/HEAD request with `Origin: null`.
 
 ## Issues canvas
 

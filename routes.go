@@ -66,7 +66,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/p/", s.handleProjectRoutes)
 	mux.HandleFunc("/project-for", s.handleProjectFor)
 	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
-	return mux
+	return sameOriginOnly(mux)
 }
 
 // handleProjectRoutes dispatches /p/<slug>/... to the right handler
@@ -87,12 +87,6 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	prefix := "/p/" + projectSlug
-
-	// A sandboxed project page has origin null; it may read, never write.
-	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Header.Get("Origin") == "null" {
-		http.Error(w, "cross-origin request refused", http.StatusForbidden)
-		return
-	}
 
 	switch {
 	case rest == "" || rest == "/":

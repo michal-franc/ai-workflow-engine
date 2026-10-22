@@ -232,7 +232,7 @@ With `workbench.status_page` or `workbench.pages` in `workflow.yaml`, the viewer
   - A missing file or a bad path shows the `page.missing` card in place of the iframe.
 - **Sidebar:** `Nav.Pages` render as `.nav-sub` rows right after Status (`nav.page.<n>`); the active one is highlighted and Status is not.
 - **Refresh:** the frame polls `/hash`. When its `pages` value changes, the frame reloads only the iframe and shows "· reloaded" (`page.source.reloaded`). When `hash` changes, it re-posts the status.
-- **Origin guard:** `handleProjectRoutes` answers 403 to any non-GET/HEAD request with `Origin: null`.
+- **Origin guard:** `sameOriginOnly` (`origin.go`) answers 403 to any non-GET/HEAD request from another origin, `Origin: null` included, so a page may read but never write.
 
 ## Issues canvas
 

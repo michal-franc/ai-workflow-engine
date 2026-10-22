@@ -115,13 +115,16 @@ This mode can't set dispatch options such as `terminal`, so use a `projects.yaml
 
 ### Server flags
 
-| Flag       | Default    | Description                               |
-|:-----------|:-----------|:------------------------------------------|
-| `-config`  | none       | Path to `projects.yaml` (multi-project)   |
-| `-dir`     | `./issues` | Issues directory (single-project mode)    |
-| `-docs`    | `./docs`   | Docs directory (single-project mode)      |
-| `-port`    | `8080`     | HTTP port                                 |
-| `-version` | `false`    | Print the version and exit                |
+| Flag       | Default     | Description                               |
+|:-----------|:------------|:------------------------------------------|
+| `-config`  | none        | Path to `projects.yaml` (multi-project)   |
+| `-dir`     | `./issues`  | Issues directory (single-project mode)    |
+| `-docs`    | `./docs`    | Docs directory (single-project mode)      |
+| `-host`    | `127.0.0.1` | Interface to listen on                    |
+| `-port`    | `8080`      | HTTP port                                 |
+| `-version` | `false`     | Print the version and exit                |
+
+The server listens on loopback only. Its POST endpoints start agents, tmux sessions and editors on your machine, so binding to another interface (`-host 0.0.0.0`) lets anyone who can reach the port drive them; it is an explicit opt-in and the server prints a warning at startup. Writes from another site in your browser are refused either way (see [API: Design Considerations](API/overview.md#design-considerations)).
 
 Open `http://localhost:8080` and pick a project. The sidebar on the left leads to the board, the list, decisions and the docs; **More** holds the workflow graph, the canvas, agents, retros and stats. The swatches at the bottom switch between the dark, Dracula and light themes.
 

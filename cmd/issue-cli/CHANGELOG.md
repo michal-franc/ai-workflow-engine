@@ -16,7 +16,7 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
-## Unreleased
+## v0.51.0 — 2026-10-22
 
 - **One terminal, a session per project.** Two new top-level keys in `projects.yaml`, `terminal:` and `tmux_session_per_project: true`, set machine-wide defaults. Every project without its own value inherits them.
   - With `terminal: none` and a session per project, each project's lead and workers are windows of one tmux session, and nothing ever opens a terminal.

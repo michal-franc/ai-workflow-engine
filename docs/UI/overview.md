@@ -208,6 +208,7 @@ workbench:
   - gates whose approval is the only unmet requirement (`WorkflowConfig.ReadyForApproval`, which skips `command_succeeds`)
   - human-testing issues with a playtest session (`issue: <slug>`) and no `-judge` run
   - issues whose newest comment starts with `question:`
+  - issue-cli bug reports queued on this machine because `report-bug` found no engine project (`status.waiting.cli_bugs`, `clibug.PendingCount`): one row naming the count and `issue-cli report-bug --send`, one more on the waiting count and the sidebar's Status number, and a line in `status.md`
   - a footer counts gates whose checklist is still open
   - the sidebar's Status count is the same number
 - **Local CI** (only with a `ci:` block; `ci_view.go`), at the top of the side column:

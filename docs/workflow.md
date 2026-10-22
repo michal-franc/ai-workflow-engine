@@ -96,24 +96,21 @@ In practice:
 
 For the full end-to-end agent flow from dispatch through approvals, retrospectives, and bug reporting, see [Agent Workflow Flow](agent-workflow-flow).
 
-### Lead briefs (`leads:`)
+### Lead brief (`leads:`)
 
-A top-level `leads:` block sets the brief each kind of [lead agent](patterns/lead-session.md) is spawned with by `issue-cli lead spawn`:
+A top-level `leads:` block sets the brief the [project lead](patterns/lead-session.md) is spawned with by `issue-cli lead spawn`:
 
 ```yaml
 leads:
   project: |
     You are the project lead of {{project}}, running in {{lead}}.
     Dispatch workers from the board and relay their questions to the human one at a time.
-  epic: |
-    You are the sub-lead of {{epic}} ("{{title}}") on base branch {{base}}.
-    Merge each child into {{base}} and keep it green. Report to {{project_lead}}.
 ```
 
-- `project` is the project lead's brief; `epic` is a sub-lead's.
-- Placeholders: `{{project}}`, `{{lead}}` (this lead's tmux name), `{{project_lead}}`, `{{epic}}`, `{{title}}` (the epic's title) and `{{base}}` (its base branch). `issue-cli` commands get `--project` injected.
-- A missing or empty key uses the built-in default brief, so a workflow without `leads:` still gets working leads.
-- The CLI always appends a footer: role, who the lead reports to, what it may tick, and its handoff note under `sessions/`.
+- Placeholders: `{{project}}` and `{{lead}}` (the lead's tmux name). `issue-cli` commands get `--project` injected.
+- A missing or empty `project` uses the built-in default brief, so a workflow without `leads:` still gets a working lead.
+- The CLI always appends a footer: role, what the lead may tick, and its handoff note under `sessions/`.
+- An old `epic` key still loads but is ignored; `issue-cli process workflow` warns about it.
 - `leads:` is project-wide: type, system and per-issue overlays keep it as it is.
 
 ## Side-Effects

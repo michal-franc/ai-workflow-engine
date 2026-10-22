@@ -221,7 +221,7 @@ workbench:
 - **Closed statuses** are the workflow's final status (`done`) and its `optional: true` side statuses (obsolete, parked). Side statuses are left out of "done/total" and listed separately. Closed cards are dimmed. With `?done=collapse`, each cell folds them into a "✓ 17 done · 20 obsolete" chip; clicking the chip turns collapse off.
 - **Rows** come from `?rows=`:
   - `epic` (the default) gives one row per epic. An epic is an issue with `type: epic` (EPIC), or one that another issue's `parent:` (or legacy `umbrella:`) points at (UMBRELLA).
-    - The header shows status, `base:` branch, and a roll-up over all children, visible or not.
+    - The header shows status and a roll-up over all children, visible or not.
     - A sub-epic is listed after its parent, indented, with "↳ in <parent>".
     - An epic with no visible children shows one note across the row instead of cells, with a **Show no version** button when version hiding caused it.
     - "No epic" is the last row. A card whose `parent:` matches no issue lands there with an "unknown parent" marker.
@@ -345,7 +345,7 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 
 `/p/<project>/agents` (**Agents** under More in the sidebar) shows who is working on what, built from `tmux ls`, the issues' `parent:` links and git. The page polls `GET /p/<project>/agents.json` (the `AgentsModel` in `handlers_agents.go`) every 5 seconds; the toolbar shows `live · tmux ls Ns ago`, or `offline` when a poll fails.
 
-- **Tree:** the hierarchy only: You → the project lead (`lead-<project>`) → its workers, plus any live sub-lead (`lead-<epic>`, started from the CLI). Epics are not drawn here; the [issues canvas](#issues-canvas) shows them. Nodes show the session name without `agent-`, cut at 32 characters; the full name is the tooltip. The epic data (base branch, children running, `main` ahead) stays in `agents.json`.
+- **Tree:** the hierarchy only: You → the project lead (`lead-<project>`) → its workers, then any other live agent session (a project action, or a leftover `lead-*` session). Epics are not drawn here; the [issues canvas](#issues-canvas) shows them. Nodes show the session name without `agent-`, cut at 32 characters; the full name is the tooltip. Each open epic's children running and total stay in `agents.json`.
 - **Worker states:**
   - *working*: live session, nothing pending, an issue-cli call in the last 15 minutes (or no readable clilog);
   - *idle*: live session, but its newest issue-cli call is 15 minutes old or more. The time comes from the agent's clilog (`<worktree>/.agent-logs/<session>/<session>.clilog`, else the project's). Records naming another `--project` are skipped, because test runs in the agent's shell log fixture projects;
@@ -355,18 +355,18 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 - **Unfinished jobs:** every stopped worker.
 - **Issue cards:** each worker links to its issue card with a dashed line in the status color.
 - **Toolbar:** Tree / Radial layout (radial puts the project lead in the middle with one ring of agents around it), and the Show issues and Show stopped toggles. **Spawn lead** shows while the project lead is not running.
-- **Clicking a live agent** (lead, sub-lead or worker) opens its tmux session in a terminal: `POST /p/<project>/agents/open` `{"session"}` runs the same attach as a dispatch re-attach (the project's `terminal`, or in `tmux_session` mode a `select-window` plus a terminal only when no client is attached). A session that already has a terminal attached never gets a second window: on i3 the window titled with the session name is focused (`focused`; the default i3 + alacritty terminal titles its windows that way), otherwise the panel says it is already open (`already-open`). With `terminal: none` nothing opens: in `tmux_session` mode the agent's window is selected (`selected`). The panel shows `Inside tmux: <switch_cmd> · From a shell: <attach_cmd>`; the attach command is prefixed `TMUX_TMPDIR=…` when the board runs on a private tmux server. The page never shows the pane and has no message box (D-12); you watch and type in tmux.
+- **Clicking a live agent** (the lead or a worker) opens its tmux session in a terminal: `POST /p/<project>/agents/open` `{"session"}` runs the same attach as a dispatch re-attach (the project's `terminal`, or in `tmux_session` mode a `select-window` plus a terminal only when no client is attached). A session that already has a terminal attached never gets a second window: on i3 the window titled with the session name is focused (`focused`; the default i3 + alacritty terminal titles its windows that way), otherwise the panel says it is already open (`already-open`). With `terminal: none` nothing opens: in `tmux_session` mode the agent's window is selected (`selected`). The panel shows `Inside tmux: <switch_cmd> · From a shell: <attach_cmd>`; the attach command is prefixed `TMUX_TMPDIR=…` when the board runs on a private tmux server. The page never shows the pane and has no message box (D-12); you watch and type in tmux.
 - **`?agent=<session>`** selects that agent on load without opening its terminal (the workboard's footer links here).
 - **Selected-agent panel** (shown for the clicked node): kind, state, tmux location, the last issue-cli call (`last_call` / `last_cmd` in agents.json), the issue, then:
   - **Approve gate** (at-gate workers) calls the issue's existing `/approve` endpoint, a direct human action;
-  - **Spawn lead** when the project lead is not running (there is no sub-lead button: one lead per project for now, workbench umbrella D-13);
+  - **Spawn lead** when the project lead is not running (one lead per project, workbench umbrella D-13);
   - **Open in tmux** (live sessions) does the same as clicking the node again: it opens the terminal, or brings the open one to the front, and a status line says which;
   - **Copy attach** copies the `tmux attach` command. With `terminal: none` (`terminal_none` in agents.json) the button is **Copy switch** and copies `tmux switch-client …`, because the owner is inside tmux;
-  - the issue's last 5 comments and the branch's `git diff --stat` against its base (or `main`), from `GET /p/<project>/agents/detail?session=<name>&issue=<slug>`.
+  - the issue's last 5 comments and the branch's `git diff --stat` against `main`, from `GET /p/<project>/agents/detail?session=<name>&issue=<slug>`.
 
-Spawn buttons POST `{}` to `/p/<project>/lead/spawn` and show the launch steps in a modal. The endpoint still accepts `{"epic": "<slug>"}` for a sub-lead, but no button sends it. It runs the same `agentrun.LeadSpec` as `issue-cli lead spawn`; a non-epic slug returns `422`.
+Spawn buttons POST `{}` to `/p/<project>/lead/spawn` and show the launch steps in a modal. It runs the same `agentrun.LeadSpec` as `issue-cli lead spawn`. A body naming an `epic` returns `422`: there is one lead per project.
 
-The detail page's sidebar has a **Lead** section: on an epic, its sub-lead, whether it is live and its base branch; on any other issue, the lead it reports to and its epic.
+The detail page's sidebar has a **Lead** section: the project lead, whether it is live, and the issue's epic.
 
 ## Project actions
 

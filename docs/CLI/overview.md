@@ -39,7 +39,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli decide <slug>`        | Record a decision as a `D-n` line under `## Decisions`; `--replaces <slug>#D-n` lists the open issues still citing the old one |
 | `issue-cli balance <slug>`       | Add a typed balance note (`--metric`, `--state`, `--hypothesis`, `--change`, `--evidence`, `--verdict`, `--pass`); `balance --list` prints the current notes |
 | `issue-cli decisions`            | List the project's decisions (active, deferred, replaced, stale) with `--system`, `--state`, `--issue`, `--json` |
-| `issue-cli lead <sub>`           | Lead agents: `spawn [--epic <slug>]`, `whoami`, `list`, `message <target> "text"`. See [`lead`](#lead) |
+| `issue-cli lead <sub>`           | The project lead: `spawn`, `whoami`, `list`, `message <target> "text"`. See [`lead`](#lead) |
 | `issue-cli approve <slug>`       | Record a human approval with the human's words (leads only). See [`approve`](#approve) |
 | `issue-cli check <slug> <id>...` | Tick checkboxes by id (several at once), whole section (`--section X --all`), text, or `--section` + `--index` |
 | `issue-cli checklist <slug>`     | List checkboxes grouped by section, each with its id (`D3`, `AC2`) |
@@ -273,19 +273,18 @@ The output names the note and the board URL. When the note replaces an earlier o
 
 ### `lead`
 
-Lead agents supervise workers: one project lead per project (`lead-<project>`) and at most one sub-lead per epic (`lead-<epic-slug>`). [The lead session](../patterns/lead-session.md) covers the roles; this is the command reference.
+The project lead supervises workers: one lead per project (`lead-<project>`), and every worker reports to it. [The lead session](../patterns/lead-session.md) covers the roles; this is the command reference.
 
 | Subcommand | Does |
 |:--|:--|
-| `lead spawn [--epic <slug>] [--attach] [--agent claude\|codex]` | Starts the project lead, or the epic's sub-lead. A live lead is re-attached, never started twice. `--epic` creates the base branch (the epic's `base:`, else `base/<slug>`, from `main`) and `.worktrees/<slug>` on it, records `base:` and `lead:` on the epic, then starts the lead there. Headless unless `--attach`. `--json` prints the launch response |
-| `lead whoami` | Your role (`project lead`, `sub-lead`, `worker`, `unmanaged`), scope, guarded branch, your lead and whether it is live, how to reach it, and what you may tick |
-| `lead list` | `== Leads ==`: one row per lead with scope, session, live/dead, base, commits on `main` not in the base, children running/total. Then the epics with no sub-lead, and a start hint when the project lead isn't running |
-| `lead message <target> "text"` | Pastes `[from <your session>] text` into the target's tmux session (load-buffer + paste-buffer + Enter). `target`: `project`, a `lead-`/`agent-` session name, an epic slug (its sub-lead) or an issue slug (its worker) |
+| `lead spawn [--attach] [--agent claude\|codex]` | Starts the project lead in the project checkout. A live lead is re-attached, never started twice. Headless unless `--attach`. `--json` prints the launch response. `--epic` fails with one line: there is one lead per project |
+| `lead whoami` | Your role (`project lead`, `worker`, `unmanaged`), guarded branch, your lead and whether it is live, how to reach it, and what you may tick |
+| `lead list` | `== Lead ==`: the project lead, live or not. `== Epics ==`: each open epic with its children running/total. A start hint when the lead isn't running. `--json` gives `{lead, epics}` |
+| `lead message <target> "text"` | Pastes `[from <your session>] text` into the target's tmux session (load-buffer + paste-buffer + Enter). `target`: `project`, a `lead-`/`agent-` session name, or an issue slug (its worker) |
 
 The CLI works out who is asking from `ISSUE_VIEWER_LEAD_SCOPE`, `ISSUE_VIEWER_ISSUE_SLUG` and the tmux session/window name. It doesn't need the viewer running. Refusals name who can do it instead:
 
-- `lead spawn` from a worker or a sub-lead (the depth is fixed at project lead → sub-lead → worker);
-- `lead spawn --epic` on an issue that is not an epic (no child names it as `parent:`/`umbrella:`, and it has no `type: epic`, `lead:` or `base:`);
+- `lead spawn` from a worker;
 - `lead message` from a worker, which posts a `question:` comment instead.
 
 `show` also prints, under the header:
@@ -297,19 +296,18 @@ When the issue's `work/<slug>` branch is open, `show` also prints `== Shared fil
 
 `show` and `start` print a `Lead:` line naming the issue's lead and whether it is live. On an issue linked with the legacy `umbrella:` key they also print the `set-meta … --key parent` rename hint.
 
-Lead briefs come from the `leads:` block in `workflow.yaml` (`project:` and `epic:`, see `issue-cli process schema`), else built-in defaults, plus a fixed footer with the role, authority and handoff note.
+The lead's brief comes from `leads.project` in `workflow.yaml` (see `issue-cli process schema`), else a built-in default, plus a fixed footer with the role, authority and handoff note. An old `leads.epic` is ignored, and `process workflow` warns about it.
 
 ### `approve`
 
 `issue-cli approve <slug> --to <status> --quote "<the human's words>" [--how "<where>"]` is how a lead records a gate the human approved in chat:
 
-1. It writes an `approval: "<quote>" (<how>, <date>) — recorded by <session>` comment. `--how` defaults to `in the lead chat`, or `relayed by lead-<project>` for a sub-lead.
+1. It writes an `approval: "<quote>" (<how>, <date>) — recorded by <session>` comment. `--how` defaults to `in the lead chat`.
 2. It sets `human_approval` to the status. It never toggles an existing approval off, unlike the viewer's button.
 
 `--to` and `--quote` are required. It is refused:
 
 - from a worker session (the error suggests a `question:` comment to its lead);
-- from a sub-lead, for an issue outside its epic and the epic's children;
 - for Human Testing, always: the human approves that in the viewer.
 
 These checks read the environment and the session name; they are guardrails for agents, not security.

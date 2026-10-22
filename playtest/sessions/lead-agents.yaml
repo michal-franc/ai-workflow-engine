@@ -143,10 +143,11 @@ steps:
       - check: { visible: [agents.panel.open, agents.panel.copy, agents.panel.issue] }
       - check: { text_contains: { target: agents.panel.branch, text: "base/ui/epic vs main" } }
       # The scenario is headless (terminal: none), so opening reports the
-      # attach command instead of a window; with a terminal set it opens one.
-      # The board runs on the scenario's private tmux server, so the command
-      # names it (TMUX_TMPDIR=…) and works when pasted into any shell.
-      - check: { text_contains: { target: agents.panel.open_status, text: "Attach with: TMUX_TMPDIR=" } }
+      # switch and attach commands instead of a window; with a terminal set it
+      # opens one. The board runs on the scenario's private tmux server, so
+      # the attach command names it (TMUX_TMPDIR=…) and works when pasted
+      # into any shell.
+      - check: { text_contains: { target: agents.panel.open_status, text: "From a shell: TMUX_TMPDIR=" } }
       - check: { text_contains: { target: agents.panel.open_status, text: "tmux attach -t lead-ui-epic" } }
       - click: agents.node.agent-cli-loner
     checks:

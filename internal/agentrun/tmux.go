@@ -96,6 +96,36 @@ func AttachCmd(proj *tracker.Project, name string) string {
 	return fmt.Sprintf("%stmux attach -t %s", tmuxEnvPrefix(), name)
 }
 
+// SwitchCmd is the command a human already inside tmux runs to reach the
+// agent: a plain `tmux attach` refuses to nest there. It switches the client
+// to the agent's session, or in shared mode to its window in the shared
+// session. It carries no TMUX_TMPDIR: inside tmux, $TMUX already names the
+// server, including a sandbox's private one.
+func SwitchCmd(proj *tracker.Project, name string) string {
+	return "tmux switch-client -t " + shellWord(Target(proj, name))
+}
+
+// AttachHint is the two ways to reach the agent, one per line, for text
+// output: from inside tmux, and from a plain shell.
+func AttachHint(proj *tracker.Project, name string) string {
+	return "Inside tmux:  " + SwitchCmd(proj, name) + "\nFrom a shell: " + AttachCmd(proj, name)
+}
+
+// TerminalNone reports whether proj is headless (terminal: none): agents get
+// their tmux home and nothing on screen changes.
+func TerminalNone(proj *tracker.Project) bool {
+	return proj != nil && strings.TrimSpace(proj.Terminal) == "none"
+}
+
+// shellWord single-quotes s unless it is safe to type unquoted. A leading
+// "=" is not: zsh expands =word to a command's path.
+func shellWord(s string) string {
+	if safeShellWord.MatchString(s) {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 // tmuxEnvPrefix is "TMUX_TMPDIR=<dir> " when this process uses a private tmux
 // server, else "". A dir that isn't safe to type unquoted is single-quoted.
 func tmuxEnvPrefix() string {
@@ -103,10 +133,7 @@ func tmuxEnvPrefix() string {
 	if dir == "" {
 		return ""
 	}
-	if !safeShellWord.MatchString(dir) {
-		dir = "'" + strings.ReplaceAll(dir, "'", `'\''`) + "'"
-	}
-	return "TMUX_TMPDIR=" + dir + " "
+	return "TMUX_TMPDIR=" + shellWord(dir) + " "
 }
 
 var safeShellWord = regexp.MustCompile(`^[A-Za-z0-9._/:-]+$`)
@@ -327,7 +354,7 @@ func OpenTerminalStep(proj *tracker.Project, session string, steps *[]Step) bool
 		terminal = proj.Terminal
 	}
 
-	if terminal == "none" {
+	if TerminalNone(proj) {
 		*steps = append(*steps, Step{Name: "Terminal: headless — attach manually", Status: "ok"})
 		return true
 	}

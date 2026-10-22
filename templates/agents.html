@@ -219,8 +219,11 @@
             var steps = d.steps || [];
             var headless = steps.some(function(s) { return s.name.indexOf('Terminal: headless') === 0; });
             var failed = steps.filter(function(s) { return s.status === 'error'; })[0];
+            var hint = 'Inside tmux: ' + d.switch_cmd + ' · From a shell: ' + d.attach_cmd;
             if (d.status === 'no-session') {
                 el.textContent = n.name + ' is not running.';
+            } else if (d.status === 'selected') {
+                el.textContent = 'Selected ' + n.name + ' in tmux session ' + d.session.split(':')[0] + ' (terminal: none). ' + hint;
             } else if (d.status === 'focused') {
                 el.textContent = 'Switched to the open terminal for ' + n.name + '.';
             } else if (d.status === 'already-open') {
@@ -228,7 +231,7 @@
             } else if (failed) {
                 el.textContent = 'Could not open ' + n.name + ': ' + failed.name + (failed.detail ? ' (' + failed.detail + ')' : '');
             } else if (headless) {
-                el.textContent = 'No terminal configured (terminal: none). Attach with: ' + d.attach_cmd;
+                el.textContent = 'No terminal configured (terminal: none). ' + hint;
             } else {
                 el.textContent = 'Opened ' + n.name + ' in a terminal.';
             }
@@ -272,7 +275,11 @@
         if (n.live) {
             html += '<button type="button" class="btn" id="panel-open" data-testid="agents.panel.open">Open in tmux</button>';
         }
-        html += '<button type="button" class="btn" id="panel-copy" data-testid="agents.panel.copy">Copy attach</button></div>';
+        // With terminal: none the owner works inside tmux, where a plain
+        // tmux attach refuses to nest, so Copy gives the switch command.
+        var copyCmd = model.terminal_none && n.switch_cmd ? n.switch_cmd : n.attach_cmd;
+        html += '<button type="button" class="btn" id="panel-copy" data-testid="agents.panel.copy" title="' + esc(copyCmd) + '">'
+            + (copyCmd === n.attach_cmd ? 'Copy attach' : 'Copy switch') + '</button></div>';
         if (n.live) {
             html += '<p class="agents-sub" id="panel-open-status" data-testid="agents.panel.open_status"></p>';
         }
@@ -285,8 +292,8 @@
 
         var copy = document.getElementById('panel-copy');
         copy.addEventListener('click', function() {
-            navigator.clipboard.writeText(n.attach_cmd).then(function() { copy.textContent = 'Copied'; },
-                function() { copy.textContent = n.attach_cmd; });
+            navigator.clipboard.writeText(copyCmd).then(function() { copy.textContent = 'Copied'; },
+                function() { copy.textContent = copyCmd; });
         });
         var approve = document.getElementById('panel-approve');
         if (approve) approve.addEventListener('click', function() {

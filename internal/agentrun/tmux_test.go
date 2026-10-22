@@ -30,6 +30,39 @@ func TestAttachCmdNamesPrivateServer(t *testing.T) {
 	}
 }
 
+// The switch command is for a human already inside tmux, where $TMUX names
+// the server, so it never carries TMUX_TMPDIR. A shared-session target is
+// quoted: zsh expands a leading "=" to a command path.
+func TestSwitchCmd(t *testing.T) {
+	t.Setenv("TMUX_TMPDIR", "/tmp/lsbx-tmux-1000")
+	proj := &tracker.Project{Slug: "p"}
+	if got := SwitchCmd(proj, "agent-x"); got != "tmux switch-client -t agent-x" {
+		t.Errorf("own session: %q", got)
+	}
+	shared := &tracker.Project{Slug: "p", TmuxSession: "work"}
+	if got := SwitchCmd(shared, "agent-x"); got != "tmux switch-client -t '=work:=agent-x'" {
+		t.Errorf("shared session: %q", got)
+	}
+	want := "Inside tmux:  tmux switch-client -t '=work:=agent-x'\nFrom a shell: TMUX_TMPDIR=/tmp/lsbx-tmux-1000 tmux attach -t work \\; select-window -t agent-x"
+	if got := AttachHint(shared, "agent-x"); got != want {
+		t.Errorf("hint:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestTerminalNone(t *testing.T) {
+	for _, c := range []struct {
+		terminal string
+		want     bool
+	}{{"none", true}, {" none ", true}, {"", false}, {"alacritty -e tmux attach -t {{session}}", false}} {
+		if got := TerminalNone(&tracker.Project{Terminal: c.terminal}); got != c.want {
+			t.Errorf("TerminalNone(%q) = %v", c.terminal, got)
+		}
+	}
+	if TerminalNone(nil) {
+		t.Error("TerminalNone(nil) = true")
+	}
+}
+
 // Every project's agents share one tmux server and the agent-<slug> naming,
 // so listings are scoped: a shared-session project keeps its own session's
 // windows, a per-agent-session project keeps standalone sessions started under

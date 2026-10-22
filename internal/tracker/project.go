@@ -137,8 +137,17 @@ func (p *Project) LoadWorkflowForIssue(issue *Issue) *WorkflowConfig {
 	return p.LoadWorkflow().ForIssue(issue)
 }
 
+// ProjectsConfig is projects.yaml. The top-level keys are machine-wide
+// defaults: each fills in the project setting of the same kind wherever a
+// project leaves it unset.
 type ProjectsConfig struct {
-	Projects []Project `yaml:"projects"`
+	// Terminal is the terminal: every project without its own gets.
+	Terminal string `yaml:"terminal"`
+	// TmuxSessionPerProject gives every project without its own tmux_session
+	// one named after its slug, so each project's lead and workers are
+	// windows of one session.
+	TmuxSessionPerProject bool      `yaml:"tmux_session_per_project"`
+	Projects              []Project `yaml:"projects"`
 }
 
 func LoadProjects(configPath string) ([]Project, error) {
@@ -156,6 +165,12 @@ func LoadProjects(configPath string) ([]Project, error) {
 		p := &cfg.Projects[i]
 		if p.Slug == "" {
 			p.Slug = Slugify(p.Name)
+		}
+		if strings.TrimSpace(p.Terminal) == "" {
+			p.Terminal = cfg.Terminal
+		}
+		if cfg.TmuxSessionPerProject && strings.TrimSpace(p.TmuxSession) == "" {
+			p.TmuxSession = sessionSafe(p.Slug)
 		}
 		switch p.AgentModelSource {
 		case "", "global", "project":

@@ -16,6 +16,17 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.51.0 — 2026-10-22
+
+- **One terminal, a session per project.** Two new top-level keys in `projects.yaml`, `terminal:` and `tmux_session_per_project: true`, set machine-wide defaults. Every project without its own value inherits them.
+  - With `terminal: none` and a session per project, each project's lead and workers are windows of one tmux session, and nothing ever opens a terminal.
+  - Switching session (`prefix s`) switches lead.
+  - A new "One terminal, a session per project" recipe in `docs/agent-dispatch.md` covers this, with an optional status bar listing every project session.
+- With `terminal: none`, a dispatch or re-dispatch no longer selects the worker's window in a shared session, so the lead keeps the focus. "Open in tmux" on the agents canvas still selects it.
+- **`switch_cmd`** (`tmux switch-client -t …`) now comes alongside `attach_cmd` in dispatch, lead-spawn and open responses and in agents.json, because a plain `tmux attach` refuses to run inside tmux.
+  - `issue-cli lead spawn`, the agents canvas panel and the nvim edit hints print both, as `Inside tmux:` and `From a shell:`.
+  - The canvas button becomes **Copy switch** for `terminal: none` projects.
+
 ## v0.50.0 — 2026-10-22
 
 - **Playtest layout checks:** ux-test now notices a page whose styles didn't apply. In v0.48.0 the Status and Metrics pages rendered unstyled on desktop and every session still passed.

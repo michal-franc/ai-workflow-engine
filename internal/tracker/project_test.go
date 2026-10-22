@@ -39,6 +39,49 @@ func TestLoadProjects(t *testing.T) {
 	}
 }
 
+func TestLoadProjects_TopLevelDefaults(t *testing.T) {
+	load := func(content string) []Project {
+		t.Helper()
+		fp := filepath.Join(t.TempDir(), "projects.yaml")
+		os.WriteFile(fp, []byte(content), 0644)
+		projects, err := LoadProjects(fp)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		return projects
+	}
+
+	projects := load(`terminal: none
+tmux_session_per_project: true
+projects:
+  - name: "Issue Viewer"
+  - name: "Own"
+    slug: "own.v2"
+    terminal: "alacritty -e tmux attach -t {{session}}"
+    tmux_session: "work"
+  - name: "Dotted"
+    slug: "dotted.v2"
+`)
+	if p := projects[0]; p.Terminal != "none" || p.TmuxSession != "issue-viewer" {
+		t.Errorf("inheriting project: terminal %q, tmux_session %q; want none, issue-viewer", p.Terminal, p.TmuxSession)
+	}
+	if p := projects[1]; p.Terminal != "alacritty -e tmux attach -t {{session}}" || p.TmuxSession != "work" {
+		t.Errorf("a project's own values must win: terminal %q, tmux_session %q", p.Terminal, p.TmuxSession)
+	}
+	// tmux turns "." in a session name into "_", so the session would never
+	// match its configured name; the slug is made session-safe first.
+	if got := projects[2].TmuxSession; got != "dotted-v2" {
+		t.Errorf("tmux_session from slug dotted.v2 = %q, want dotted-v2", got)
+	}
+
+	projects = load(`projects:
+  - name: "Plain"
+`)
+	if p := projects[0]; p.Terminal != "" || p.TmuxSession != "" {
+		t.Errorf("no top-level keys must change nothing: terminal %q, tmux_session %q", p.Terminal, p.TmuxSession)
+	}
+}
+
 func TestLoadProjects_Empty(t *testing.T) {
 	dir := t.TempDir()
 	fp := filepath.Join(dir, "projects.yaml")

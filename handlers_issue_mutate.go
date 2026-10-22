@@ -280,6 +280,12 @@ func approvalLabel(status string) string {
 	return fmt.Sprintf("Human-approved for %s", status)
 }
 
+// editorReachHint is the one-line form of agentrun.AttachHint for edit
+// session messages.
+func editorReachHint(proj *tracker.Project, session string) string {
+	return fmt.Sprintf("inside tmux: %s · from a shell: %s", agentrun.SwitchCmd(proj, session), agentAttachCmd(proj, session))
+}
+
 // openEditorTerminal opens a terminal window attached to the given tmux
 // session, using project terminal config (or i3+alacritty as backwards-compat
 // fallback). Returns ("", nil) on success, a friendly attach hint when the
@@ -292,8 +298,8 @@ func openEditorTerminal(proj *tracker.Project, session string) (string, error) {
 	if proj != nil {
 		terminal = proj.Terminal
 	}
-	if terminal == "none" {
-		return agentAttachCmd(proj, session), nil
+	if agentrun.TerminalNone(proj) {
+		return editorReachHint(proj, session), nil
 	}
 	if shared := sharedTmuxSession(proj); shared != "" {
 		exec.Command("tmux", "select-window", "-t", agentTmuxTarget(proj, session)).Run()
@@ -342,7 +348,7 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 		}
 		msg := "Existing edit session — attached without registering save-on-exit. Finish or kill the existing session before editing again."
 		if attachCmd != "" {
-			msg = fmt.Sprintf("Existing edit session at %q. Attach manually: %s", agentDisplayName(proj, session), attachCmd)
+			msg = fmt.Sprintf("Existing edit session at %q. Reach it %s", agentDisplayName(proj, session), attachCmd)
 		}
 		return BodyEditResponse{
 			Status:     "reattached",
@@ -408,8 +414,8 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 		exec.Command("tmux", "rename-window", "-t", session, issue.Slug).Run()
 	}
 
-	if proj != nil && proj.Terminal == "none" {
-		return BodyEditResponse{}, fmt.Errorf("terminal is 'none': attach manually with: %s", agentAttachCmd(proj, session))
+	if agentrun.TerminalNone(proj) {
+		return BodyEditResponse{}, fmt.Errorf("terminal is 'none': %s", editorReachHint(proj, session))
 	}
 	if _, err := openEditorTerminal(proj, session); err != nil {
 		return BodyEditResponse{}, err

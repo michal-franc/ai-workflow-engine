@@ -901,6 +901,56 @@ func TestStartAgentSession_SharedSessionAddsWindows(t *testing.T) {
 	}
 }
 
+// activeWindow is the selected window of a session on the test's tmux server.
+func activeWindow(t *testing.T, session string) string {
+	t.Helper()
+	out, err := exec.Command("tmux", "display-message", "-p", "-t", "="+session+":", "#{window_name}").Output()
+	if err != nil {
+		t.Fatalf("active window of %s: %v", session, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// With terminal: none a dispatch never changes what the shared session shows:
+// the lead's window stays selected while workers' windows are added and
+// re-dispatched (D-4). A project with a terminal still selects the new window.
+func TestStartAgentSession_SharedHeadlessKeepsLeadFocused(t *testing.T) {
+	isolateTmux(t)
+	proj := &tracker.Project{Slug: "test", Terminal: "none", TmuxSession: "work", WorkDir: t.TempDir()}
+	if out, err := exec.Command("tmux", "new-session", "-d", "-s", "work", "-n", "lead-test").CombinedOutput(); err != nil {
+		t.Fatalf("new-session: %v %s", err, out)
+	}
+
+	for _, name := range []string{"agent-a", "agent-b", "agent-a"} {
+		resp := startAgentSession(proj, name, "prompt", strings.TrimPrefix(name, "agent-"), "true", "", nil)
+		if resp.Status == "error" {
+			t.Fatalf("dispatch %s: steps=%+v", name, resp.Steps)
+		}
+		if got := activeWindow(t, "work"); got != "lead-test" {
+			t.Fatalf("after dispatching %s (%s) the active window is %q, want lead-test; steps=%+v", name, resp.Status, got, resp.Steps)
+		}
+		for _, step := range resp.Steps {
+			if strings.HasPrefix(step.Name, "Select window") {
+				t.Errorf("headless dispatch selected a window: %+v", step)
+			}
+		}
+		if resp.SwitchCmd != "tmux switch-client -t '=work:="+name+"'" || !strings.Contains(resp.AttachCmd, "tmux attach -t work") {
+			t.Errorf("hints: switch %q, attach %q", resp.SwitchCmd, resp.AttachCmd)
+		}
+	}
+
+	withTerminal := &tracker.Project{Slug: "test", Terminal: "true {{session}}", TmuxSession: "work", WorkDir: proj.WorkDir}
+	original := agentrun.SessionAttached
+	agentrun.SessionAttached = func(string) bool { return true }
+	t.Cleanup(func() { agentrun.SessionAttached = original })
+	if resp := startAgentSession(withTerminal, "agent-c", "prompt", "c", "true", "", nil); resp.Status == "error" || resp.SwitchCmd != "" {
+		t.Fatalf("dispatch with a terminal: status %q, switch %q; steps=%+v", resp.Status, resp.SwitchCmd, resp.Steps)
+	}
+	if got := activeWindow(t, "work"); got != "agent-c" {
+		t.Fatalf("with a terminal the new window is selected as before; active = %q", got)
+	}
+}
+
 func TestAttachAgentStep_SharedSessionAlreadyAttachedOpensNoTerminal(t *testing.T) {
 	isolateTmux(t)
 	// A terminal command that fails loudly if it were run.

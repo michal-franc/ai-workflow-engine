@@ -325,6 +325,7 @@ func printTickHint(w io.Writer, slug, body string) {
 	for _, it := range tracker.ListCheckboxes(body) {
 		if !it.Checked && it.ID != "" {
 			fmt.Fprintf(w, "Tick done boxes by id, several at once: issue-cli check %s <id> [<id>...]\n", slug)
+			fmt.Fprintf(w, "Box text wrong? issue-cli check-edit %s <id> --text \"...\"\n", slug)
 			return
 		}
 	}

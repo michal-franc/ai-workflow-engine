@@ -348,6 +348,7 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 		}
 		if hint {
 			fmt.Fprintf(w, "Tick done boxes by id, several at once: issue-cli check %s <id> [<id>...]\n", slug)
+			fmt.Fprintf(w, "Box text wrong? issue-cli check-edit %s <id> --text \"...\"\n", slug)
 		}
 		fmt.Fprintln(w)
 	}

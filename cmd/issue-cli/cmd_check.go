@@ -33,7 +33,9 @@ is ticked. A box that is already checked is reported, not an error.
 
 A text query matches a box whose label contains it (case-insensitive). If it
 matches more than one unchecked box, check errors and lists the candidates
-with their ids. Flags go before ids or text.`,
+with their ids. Flags may come before or after the ids or text.
+
+To change a box's text instead of ticking it: issue-cli check-edit <slug> <id> --text "..."`,
 	Run: runCheck,
 }
 

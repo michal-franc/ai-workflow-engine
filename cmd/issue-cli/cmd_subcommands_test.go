@@ -1041,7 +1041,7 @@ func TestPrintHelpListsTopicsAndNextActions(t *testing.T) {
 	}
 	out := stdout.String()
 	assertContains(t, out, "Topics (issue-cli help <topic>):")
-	assertContains(t, out, "Per-command help:")
+	assertContains(t, out, "Per-command help (with flags):\n  issue-cli <command> --help")
 	assertContains(t, out, "Next viable actions for a bot:")
 	assertContains(t, out, "issue-cli transition <slug> --to <status>")
 }

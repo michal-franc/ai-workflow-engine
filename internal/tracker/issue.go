@@ -2,6 +2,8 @@ package tracker
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -608,7 +610,8 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 // BodyHash fingerprints an issue body (as in Issue.BodyRaw) so a writer
 // holding an older copy can be refused.
 func BodyHash(body string) string {
-	return ""
+	sum := sha256.Sum256([]byte(strings.TrimSpace(body)))
+	return hex.EncodeToString(sum[:8])
 }
 
 // ErrStaleBody marks a body write refused because the file's body is no
@@ -619,7 +622,34 @@ var ErrStaleBody = errors.New("issue body changed since it was read")
 // under the issue lock, that the file's body still hashes to baseHash
 // (ErrStaleBody otherwise). It returns the hash of the body as written.
 func UpdateIssueFrontmatterIfBody(filePath, baseHash string, update IssueUpdate) (string, error) {
-	return "", nil
+	var written string
+	err := withIssueLock(filePath, func() error {
+		current, err := readIssueBodyHash(filePath)
+		if err != nil {
+			return err
+		}
+		if current != baseHash {
+			return ErrStaleBody
+		}
+		if err := updateIssueFrontmatterLocked(filePath, update); err != nil {
+			return err
+		}
+		written, err = readIssueBodyHash(filePath)
+		return err
+	})
+	return written, err
+}
+
+func readIssueBodyHash(filePath string) (string, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("reading %s: %w", filePath, err)
+	}
+	issue, err := ParseIssue(filepath.Base(filePath), data)
+	if err != nil {
+		return "", err
+	}
+	return BodyHash(issue.BodyRaw), nil
 }
 
 func UpdateIssueFrontmatter(filePath string, update IssueUpdate) error {

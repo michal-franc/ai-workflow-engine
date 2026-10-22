@@ -44,6 +44,9 @@ var funcMap = template.FuncMap{
 	// statusTabs is the data of the Status page's Project status / Built-in
 	// tabs (_status_tabs.html), shown when workbench.status_page is set.
 	"statusTabs": func(prefix string, builtin bool) StatusTabs { return StatusTabs{Prefix: prefix, Builtin: builtin} },
+	// bodyHash is the fingerprint the detail page sends back with a body
+	// save, so a save from a stale page is refused (409).
+	"bodyHash": tracker.BodyHash,
 	"statusColor": func(s string) string {
 		// Keys are canonicalStatusKey form: lower case, spaces as hyphens.
 		colors := map[string]string{

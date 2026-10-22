@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -163,6 +165,65 @@ func TestCIRedMarker(t *testing.T) {
 	for _, issue := range issues {
 		if m := ciMarkers(ctx, issue); m != nil {
 			t.Errorf("%s still marked after green", issue.Slug)
+		}
+	}
+}
+
+func TestStatusPageShowsLastRuns(t *testing.T) {
+	proj, root := ciViewProject(t, ciBlockOn, redState())
+	t0 := time.Now().Add(-time.Hour)
+	runs := []ci.Run{
+		{Sha: "aaaaaaa111", Tier: "default", State: ci.Green, Started: t0, Finished: t0.Add(time.Minute)},
+		{Sha: "bbbbbbb222", Tier: "default", State: ci.Red, Failed: "make validate", Failures: []string{"TestBroken"}, Started: t0.Add(10 * time.Minute), Finished: t0.Add(11 * time.Minute)},
+		{Sha: "ccccccc333", Tier: "slow", State: ci.Red, Started: t0.Add(15 * time.Minute), Finished: t0.Add(16 * time.Minute)},
+		{Sha: "ddddddd444", Tier: "default", State: ci.Green, Subject: "fix the build", Started: t0.Add(20 * time.Minute), Finished: t0.Add(21 * time.Minute)},
+	}
+	for _, r := range runs {
+		data, _ := json.Marshal(r)
+		name := r.Sha
+		if r.Tier != "default" {
+			name += "." + r.Tier
+		}
+		if err := os.WriteFile(filepath.Join(ci.RunsDir(root), name+".json"), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A live run (this process holds the lock).
+	lock := fmt.Sprintf(`{"pid": %d, "sha": "eeeeeee555", "tier": "default", "started": %q}`, os.Getpid(), time.Now().Add(-2*time.Minute).Format(time.RFC3339))
+	if err := os.WriteFile(ci.LockPath(root), []byte(lock), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	withMockTmuxSessions(t, nil)
+	stubAgentsGit(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	_, body := getResp(t, ts.URL+"/p/civ/status")
+	if !strings.Contains(body, `data-testid="status.ci.runs"`) {
+		t.Fatal("no last-runs row")
+	}
+	// Oldest first, slow tier left out, the live run last.
+	var order []string
+	for _, sha := range []string{"aaaaaaa", "bbbbbbb", "ccccccc", "ddddddd", "eeeeeee"} {
+		if i := strings.Index(body, `data-testid="status.ci.run.`+sha+`"`); i >= 0 {
+			order = append(order, sha)
+		}
+	}
+	if strings.Join(order, ",") != "aaaaaaa,bbbbbbb,ddddddd,eeeeeee" {
+		t.Errorf("boxes = %v", order)
+	}
+	if !(strings.Index(body, "status.ci.run.aaaaaaa") < strings.Index(body, "status.ci.run.bbbbbbb") &&
+		strings.Index(body, "status.ci.run.bbbbbbb") < strings.Index(body, "status.ci.run.ddddddd") &&
+		strings.Index(body, "status.ci.run.ddddddd") < strings.Index(body, "status.ci.run.eeeeeee")) {
+		t.Error("boxes are not oldest first")
+	}
+	for _, want := range []string{
+		`class="ci-run ci-run-red" role="listitem" data-testid="status.ci.run.bbbbbbb" data-state="red" title="bbbbbbb · red · 49m ago · took 1m0s · make validate: TestBroken"`,
+		`class="ci-run ci-run-running" role="listitem" data-testid="status.ci.run.eeeeeee" data-state="running" title="eeeeeee · running for 2m"`,
+		"fix the build",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %q", want)
 		}
 	}
 }

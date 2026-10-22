@@ -154,6 +154,14 @@
                         <span class="chip{{if eq .State "green"}} chip-green{{else if eq .State "red"}} chip-red{{else if eq .State "error"}} chip-amber{{end}}" data-testid="status.ci.state">{{if .State}}{{.State}}{{else}}no run yet{{end}}</span>
                     </div>
                     <span class="mono status-ci-line" data-testid="status.ci.line">{{.Line}}</span>
+                    {{if .Runs}}
+                    <div class="status-ci-runs-wrap">
+                        <span class="label">Last runs</span>
+                        <div class="status-ci-runs" data-testid="status.ci.runs" role="list" aria-label="Last CI runs, oldest first">
+                            {{range .Runs}}<span class="ci-run ci-run-{{.State}}" role="listitem" data-testid="status.ci.run.{{.Sha}}" data-state="{{.State}}" title="{{.Title}}" aria-label="{{.Title}}"></span>{{end}}
+                        </div>
+                    </div>
+                    {{end}}
                     {{if .Red}}
                     <div class="status-list" data-testid="status.ci.failed">
                         <span class="label">Failing</span>

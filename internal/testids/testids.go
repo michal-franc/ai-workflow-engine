@@ -84,6 +84,8 @@ var IDs = []string{
 	"status.ci",
 	"status.ci.state",
 	"status.ci.line",
+	"status.ci.runs",
+	"status.ci.run.*",
 	"status.ci.failed",
 	"status.ci.blamed",
 	"status.ci.error",

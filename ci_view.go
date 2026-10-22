@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/ci"
@@ -32,6 +33,55 @@ type CIRow struct {
 	LogTail  []string
 	Running  bool
 	RunSha   string
+	// Runs are the last default-tier runs, oldest first, for the row of
+	// boxes on the card.
+	Runs []CIRunBox
+}
+
+// CIRunBox is one box in the card's last-runs row.
+type CIRunBox struct {
+	Sha   string
+	State string // green, red, error, or running
+	Title string // tooltip: sha, state, when, how long, what failed
+}
+
+// ciRunsShown is how many past runs the card shows.
+const ciRunsShown = 12
+
+// ciRunBoxes lists the newest default-tier runs as boxes, oldest first, and
+// a running box at the end while a run is live.
+func ciRunBoxes(root string, lock *ci.Lock, alive bool, now time.Time) []CIRunBox {
+	var boxes []CIRunBox
+	for _, r := range ci.RecentRuns(root, 0) {
+		if r.Tier != tracker.CIDefaultTier {
+			continue
+		}
+		title := fmt.Sprintf("%s · %s · %s ago · took %s", ci.Short(r.Sha), r.State, ci.Ago(now.Sub(r.Finished)), r.Finished.Sub(r.Started).Round(time.Second))
+		switch {
+		case r.Failed != "":
+			title += " · " + r.Failed
+			if f := ci.FailureList(r.Failures); f != "" {
+				title += ": " + f
+			}
+		case r.Error != "":
+			title += " · " + r.Error
+		}
+		if r.Subject != "" {
+			title += "\n" + r.Subject
+		}
+		boxes = append(boxes, CIRunBox{Sha: ci.Short(r.Sha), State: r.State, Title: title})
+		if len(boxes) == ciRunsShown {
+			break
+		}
+	}
+	for i, j := 0, len(boxes)-1; i < j; i, j = i+1, j-1 {
+		boxes[i], boxes[j] = boxes[j], boxes[i]
+	}
+	if alive && lock.Tier == tracker.CIDefaultTier {
+		boxes = append(boxes, CIRunBox{Sha: ci.Short(lock.Sha), State: "running",
+			Title: fmt.Sprintf("%s · running for %s", ci.Short(lock.Sha), ci.Ago(now.Sub(lock.Started)))})
+	}
+	return boxes
 }
 
 // Red reports whether the branch is red.
@@ -63,7 +113,7 @@ func ciRow(proj *tracker.Project, issues []*tracker.Issue, now time.Time) *CIRow
 	root := ciRootFor(proj)
 	lock, alive := ci.ReadLock(root)
 	branch, _ := ci.ResolveBranch(root, proj.LoadWorkflow().CI)
-	row := &CIRow{Line: ci.OneLine(st, lock, alive, branch, now), Branch: branch, Running: alive}
+	row := &CIRow{Line: ci.OneLine(st, lock, alive, branch, now), Branch: branch, Running: alive, Runs: ciRunBoxes(root, lock, alive, now)}
 	if alive {
 		row.RunSha = ci.Short(lock.Sha)
 	}

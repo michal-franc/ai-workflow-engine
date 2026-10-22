@@ -3650,6 +3650,13 @@ a.chip { text-decoration: none; }
 .status-ci-none { border-style: dashed; }
 .status-ci-red { border-color: var(--red-border); }
 .status-ci-cmd { font-size: 13px; overflow-wrap: anywhere; }
+.status-ci-runs-wrap { display: flex; flex-direction: column; gap: 6px; }
+.status-ci-runs { display: flex; flex-wrap: wrap; gap: 4px; }
+.ci-run { width: 14px; height: 14px; border-radius: 3px; border: 1px solid transparent; }
+.ci-run-green { background: var(--green); }
+.ci-run-red { background: var(--red); }
+.ci-run-error { background: var(--amber); }
+.ci-run-running { background: transparent; border: 1px dashed var(--amber); }
 .status-ci-error { border-color: var(--amber-border); }
 .status-ci-line { font-size: 12px; overflow-wrap: anywhere; }
 .status-ci-log summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); }

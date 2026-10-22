@@ -11,14 +11,15 @@ session_checks:
 steps:
   - id: TP4
     title: With a ci block the viewer runs CI on main by itself, in tmux, and the Status page shows it green
+    # Everything happens in setup, which judge mode (make playtest) runs too.
     setup:
       - open: /p/{project}/status
-    act:
       # Nobody starts the run: the viewer's watcher sees the untested head.
       - wait_for: { http: { path: "/p/{project}/status.md", contains: "- Local CI: main green at" }, ms: 30000 }
       - reload: true
     checks:
-      - visible: [status.ci, status.ci.state, status.ci.line]
+      - visible: [status.ci, status.ci.state, status.ci.line, status.ci.runs]
+      - count: { pattern: status.ci.run.*, min: 1 }
       - text_equals: { target: status.ci.state, text: green }
       - text_contains: { target: status.ci.line, text: "main green at" }
       - absent: [status.waiting.ci, status.ci.log, status.ci.blamed]
@@ -32,13 +33,13 @@ steps:
     title: A merge that breaks main turns CI red - card, waiting item, sidebar count, ci comment on the merged issue
     setup:
       - open: /p/{project}/status
-    act:
       - wait_for: { http: { path: "/p/{project}/status.md", contains: "- Local CI: main green at" }, ms: 30000 }
       # An agent ships: fast-forward main to its branch, which breaks a test.
       - tmux: [new-session, -d, -s, land, -c, "{dir}", "git merge -q --ff-only work/ui/route-planner-panel"]
       - wait_for: { http: { path: "/p/{project}/status.md", contains: "- Local CI: main red since" }, ms: 30000 }
       - reload: true
     checks:
+      - count: { pattern: status.ci.run.*, min: 2 }
       - text_equals: { target: status.ci.state, text: red }
       - text_contains: { target: status.ci.line, text: "TestRoutePlanner" }
       - text_contains: { target: status.ci.failed, text: "TestRoutePlanner" }
@@ -48,15 +49,14 @@ steps:
       - text_equals: { target: nav.tab.status.count, text: "1" }
       - issue: { slug: ui/route-planner-panel, comment_contains: "ci: local CI red on main" }
       - http: { path: "/p/{project}/status.md", contains: "## Waiting on you (1)\n- Local CI red on main since" }
-    expect: The card turns red and names the failing command, TestRoutePlanner and the Route planner panel issue; the log tail opens from the card; Waiting on you lists Local CI first.
-    do: Open the Log tail.
+    expect: The card turns red and names the failing command, TestRoutePlanner and the Route planner panel issue. Last runs shows a green box then a red one, and hovering a box tells its commit, result and what failed. The log tail opens from the card; Waiting on you lists Local CI first.
+    do: Hover the boxes under Last runs, then open the Log tail.
     why: A red main is reported where the owner and lead look, with who landed since green, so nobody starts work on a suite nobody owns.
 
   - id: TP6
     title: The merged issue carries a CI red chip on its system page
     setup:
       - open: /p/{project}/status
-    act:
       - wait_for: { http: { path: "/p/{project}/status.md", contains: "- Local CI: main green at" }, ms: 30000 }
       - tmux: [new-session, -d, -s, land, -c, "{dir}", "git merge -q --ff-only work/ui/route-planner-panel"]
       - wait_for: { http: { path: "/p/{project}/status.md", contains: "- Local CI: main red since" }, ms: 30000 }
@@ -70,7 +70,6 @@ steps:
     title: Agents see the CI state in ci status and their dispatch prompt
     setup:
       - open: /p/{project}/status
-    act:
       - wait_for: { http: { path: "/p/{project}/status.md", contains: "- Local CI: main green at" }, ms: 30000 }
       - tmux: [new-session, -d, -s, land, -c, "{dir}", "git merge -q --ff-only work/ui/route-planner-panel"]
       - wait_for: { http: { path: "/p/{project}/status.md", contains: "- Local CI: main red since" }, ms: 30000 }

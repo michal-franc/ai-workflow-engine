@@ -22,7 +22,7 @@ human
 
 There is one lead per project, and it leads the epics itself (workbench epic D-13). You talk to the lead, and the lead talks to the workers. You can still attach to any session's tmux. The board stays the source of truth for status and approvals.
 
-![Who does what: the human, the lead session, the board, worker agents, issue-cli, workflow.yaml and the issue files, and where finished work lands](../images/lead-and-workers.png)
+![Who does what: the human, the lead session, the board, worker agents in their worktrees, issue-cli and workflow.yaml; finished work merges into local main, local CI re-tests it, and the lead pushes once per milestone release](../images/lead-and-workers.png)
 
 The name is the identity, the same rule as `agent-<slug>` for workers. Dots and spaces in the project slug become `-`. The lead's session also exports `ISSUE_VIEWER_LEAD_SCOPE=project`, so `issue-cli lead whoami` and the refusals below know who is asking.
 

@@ -24,6 +24,16 @@ release nothing.
 
 ## Unreleased
 
+- **issue-cli: flags work anywhere, mistakes exit 2, `--help` on every command.**
+  - A flag after a positional used to be dropped silently: `list done --all` listed everything with exit 0. Flags now parse wherever they are (`--` ends them).
+  - An unknown flag, a bad value, an extra argument, or a flag where the slug belongs fails with **exit 2**: one line naming the flag, the valid flags, and `Run: issue-cli <cmd> --help`. Other errors keep exit 1. Scripts that expected 1 on a bad flag (including the removed `--wait`) get 2.
+  - `<cmd> --help` (or `-h`) prints that command's help with a Flags section. It needs no project and is never read as a slug or text: `comment --help` and `decide --help` used to fail.
+  - The global `--json` also works after the command (`projects --json`, `list --all --json`).
+- **`issue-cli check-edit <slug> <id> --text "…"`** changes one box's text and keeps its tick and id. **`replace --section S --line N`** or **`--match RE`** changes one line. When the line can't be chosen, the error lists the section with line numbers.
+- **A retitle keeps the slug.** `issue-cli update --title` and the title editor on the detail page now write the old slug to a `slug:` field, so links and `parent:`/`depends_on:` references stay valid. `update --title … --rename` lets the slug follow the title: it renames the file and lists the issues still referencing the old slug.
+- **`issue-cli list --all`** lists every status and version. Without it, when the project sets a version, the footer says how many issues the version filter hid.
+- A box whose text starts with its own id (`- [ ] TP4: …`) no longer shows the id twice in `checklist`, `show`, `check` and gate errors.
+
 - **Viewer shuts down gracefully and has HTTP timeouts.** Ctrl-C or SIGTERM now waits up to 10s for in-flight requests and background work (a GitHub close, the CI watcher) before exiting. A second Ctrl-C exits immediately. An edit-in-nvim session still open at shutdown is closed and leaves an `edit-in-nvim aborted: server shut down` comment on the issue. The server sets read-header, read, write and idle timeouts (5s/30s/60s/120s), so a slow client can no longer hold a connection open forever. Startup errors (bad `-dir`, port in use) exit with status 1 and a single `issue-viewer: …` line. The project list logs a project that fails to load, with its slug.
 - **Status: Waiting for release.** A new card on the Status page (and a block in `status.md`) shows what is merged and not released. It lists the `## Unreleased` changelog entries and the commits not pushed to the upstream. It also shows the current milestone (the first `version:` after the newest release) with its open issues and three checks: every issue done, local CI green on the head, and entries under `## Unreleased`. When all three pass, it shows "Ready to cut vX.Y.0" with the rename and push steps. Missing data hides its row. The lead's brief points at the block. Playtest scenarios gain `upstream:` (main tracks a branch).
 - **Frontmatter values save exactly.** `set-meta`, `update --title` and the detail page edits no longer drop `$1` or `${x}` from a value. A title with `"` or `\`, or any value with a newline, no longer breaks the issue file on that write or the next one.

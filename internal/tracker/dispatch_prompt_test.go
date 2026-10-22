@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -67,5 +68,39 @@ func TestBuildAgentPrompt_RetrospectiveNamesSlugNotSystem(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "system-specific instructions that should be added for Campaign\n") {
 		t.Fatalf("missing-instructions line does not name the system:\n\n%s", prompt)
+	}
+}
+
+// Every {{name}} in the template has a field and every field is used, so a
+// renamed or misspelt placeholder can't reach an agent unfilled.
+func TestAgentDispatchPromptTemplate_EveryPlaceholderFilled(t *testing.T) {
+	issue := &Issue{Slug: "the-slug", System: "the-system", Title: "the-title", Priority: "the-priority", BodyRaw: "the-body"}
+	fields := agentPromptFields(issue, "the-guidance", "the-reminder", "the-status")
+
+	used := map[string]bool{}
+	for _, m := range regexp.MustCompile(`\{\{(\w+)\}\}`).FindAllStringSubmatch(AgentDispatchPromptTemplate, -1) {
+		used[m[1]] = true
+		if _, ok := fields[m[1]]; !ok {
+			t.Errorf("template placeholder {{%s}} has no field", m[1])
+		}
+	}
+	for name, value := range fields {
+		if !used[name] {
+			t.Errorf("field %q is not used by the template", name)
+		}
+		if !strings.Contains(renderPromptTemplate(AgentDispatchPromptTemplate, fields), value) {
+			t.Errorf("rendered prompt lacks %q (field %q)", value, name)
+		}
+	}
+	if got := renderPromptTemplate(AgentDispatchPromptTemplate, fields); strings.Contains(got, "{{") {
+		t.Fatalf("rendered prompt still has a placeholder:\n\n%s", got)
+	}
+}
+
+// A value is not re-scanned: an issue body quoting {{slug}} stays literal.
+func TestRenderPromptTemplate_LeavesValuesAlone(t *testing.T) {
+	got := renderPromptTemplate("{{slug}} / {{body}}", map[string]string{"slug": "a/b", "body": "see {{slug}}"})
+	if got != "a/b / see {{slug}}" {
+		t.Fatalf("got %q", got)
 	}
 }

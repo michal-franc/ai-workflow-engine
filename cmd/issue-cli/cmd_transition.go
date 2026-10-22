@@ -86,7 +86,7 @@ func runTransition(ctx *Context, args []string) error {
 	if err := rejectRemovedWaitFlags(rest); err != nil {
 		return err
 	}
-	if err := parseFlags(ctx, fs, rest); err != nil {
+	if err := parseFlagsArgs(ctx, fs, rest); err != nil {
 		return err
 	}
 	to := *toFlag

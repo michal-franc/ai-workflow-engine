@@ -38,6 +38,9 @@ type Context struct {
 	// system-scoped workflow).
 	ConfigPath  string
 	ProjectSlug string
+	// Config is where ConfigPath came from (findConfig), for `projects` and
+	// report-bug's "why".
+	Config configSource
 
 	Now func() time.Time
 
@@ -243,8 +246,11 @@ func newFlagUsageError(fs *flag.FlagSet, err error) *usageError {
 	if name, ok := strings.CutPrefix(msg, undefined); ok {
 		flagName := "--" + name
 		hint := helpHint(fs)
-		if name == "project" || name == "config" {
+		switch name {
+		case "project", "config":
 			hint = fmt.Sprintf("\n\n%s is a global flag: put it before the command (issue-cli %s <value> %s ...)", flagName, flagName, fs.Name())
+		case "debug":
+			hint = fmt.Sprintf("\n\n--debug is a global flag: put it before the command (issue-cli --debug %s ...)", fs.Name())
 		}
 		return &usageError{
 			msg:  fmt.Sprintf("unknown flag %s for '%s'\nValid flags: %s%s", flagName, fs.Name(), validFlags(fs), hint),

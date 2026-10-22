@@ -120,11 +120,11 @@ func runReportBug(ctx *Context, args []string) error {
 // one it returns why, for the "saved locally" line.
 func findEngineProject(ctx *Context) (*tracker.Project, string) {
 	if ctx.ConfigPath == "" {
-		return nil, "no projects.yaml given"
+		return nil, ctx.Config.notFound().Error()
 	}
 	cfg, err := tracker.LoadProjectsConfig(ctx.ConfigPath)
 	if err != nil {
-		return nil, fmt.Sprintf("no projects.yaml at %s", ctx.ConfigPath)
+		return nil, fmt.Sprintf("cannot load %s (%s): %v", ctx.ConfigPath, ctx.Config.Why, err)
 	}
 	engine := clibug.FindEngine(cfg)
 	if engine != nil {
@@ -334,7 +334,9 @@ func printOutcome(ctx *Context, o reportOutcome) {
 		fmt.Fprintf(w, "file: %s\n", o.File)
 	case "queued":
 		fmt.Fprintf(w, "saved locally, not sent: %s\n", o.Queued)
-		fmt.Fprintf(w, "  why: %s\n", o.Reason)
+		// A multi-line why (the config lookup's) stays under "why:".
+		why := strings.ReplaceAll(strings.ReplaceAll(o.Reason, "\n\n", "\n"), "\n", "\n  ")
+		fmt.Fprintf(w, "  why: %s\n", why)
 		fmt.Fprintln(w, "  It is sent by the next report-bug that finds the engine project, or run: issue-cli report-bug --send")
 	case "skipped":
 		fmt.Fprintf(w, "skipped: %s\n", o.Reason)

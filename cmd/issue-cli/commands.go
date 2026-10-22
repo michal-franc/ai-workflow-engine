@@ -90,9 +90,12 @@ func printHelp(w io.Writer, projects []tracker.Project, activeSlug string) error
 	}
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Global flags:")
-	fmt.Fprintln(w, "  --config <path>      Path to projects.yaml (default: projects.yaml)")
+	fmt.Fprintln(w, "  --config <path>      Path to projects.yaml. Without it: $ISSUE_VIEWER_CONFIG,")
+	fmt.Fprintln(w, "                       ./projects.yaml, the running viewer's config, then")
+	fmt.Fprintln(w, "                       ~/.config/ai-workflow-engine/projects.yaml")
 	fmt.Fprintln(w, "  --project <slug>     Select project (required when >1 project is configured)")
 	fmt.Fprintln(w, "  --json               Output as JSON")
+	fmt.Fprintln(w, "  --debug              Print which config was used and why (stderr)")
 	if len(projects) > 1 {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "Configured projects:")

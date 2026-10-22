@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
+	"github.com/michal-franc/issue-viewer/internal/viewerstate"
 )
 
 // Version is set at build time via -ldflags "-X main.Version=v0.X.Y".
@@ -63,6 +64,7 @@ func run(args []string) error {
 	}
 
 	var projects []tracker.Project
+	absConfig := ""
 
 	if *configFile != "" {
 		var err error
@@ -73,11 +75,11 @@ func run(args []string) error {
 		// Make the config path discoverable to dispatched bot sessions so the
 		// CLI doesn't fall back to its hard-coded "projects.yaml" default when
 		// the viewer was launched with a differently-named config.
+		absConfig = *configFile
 		if abs, absErr := filepath.Abs(*configFile); absErr == nil {
-			os.Setenv("ISSUE_VIEWER_CONFIG", abs)
-		} else {
-			os.Setenv("ISSUE_VIEWER_CONFIG", *configFile)
+			absConfig = abs
 		}
+		os.Setenv("ISSUE_VIEWER_CONFIG", absConfig)
 		fmt.Printf("Loaded %d projects from %s\n", len(projects), *configFile)
 	} else {
 		info, err := os.Stat(*dir)
@@ -116,7 +118,17 @@ func run(args []string) error {
 		srv.bg.Go("ci watcher", func() { srv.watchCI(ctx.Done()) })
 	}
 
-	fmt.Printf("Issue Viewer running at http://%s\n", listenAddr(displayHost(*host), *port))
+	url := "http://" + listenAddr(displayHost(*host), *port)
+	// Shells and leads the viewer did not start have no ISSUE_VIEWER_CONFIG;
+	// viewer.json is how issue-cli finds this config from any folder.
+	if absConfig != "" {
+		state := viewerstate.State{Config: absConfig, URL: url, PID: os.Getpid(), Started: time.Now()}
+		if err := viewerstate.Write(state); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not record the viewer for issue-cli in %s: %v\n", viewerstate.Path(), err)
+		}
+	}
+
+	fmt.Printf("Issue Viewer running at %s\n", url)
 	if !isLoopbackHost(*host) {
 		fmt.Fprintf(os.Stderr, "WARNING: listening on %s, not loopback: anyone who can reach it can dispatch agents and edit issues\n", addr)
 	}

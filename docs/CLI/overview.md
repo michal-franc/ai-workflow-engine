@@ -110,7 +110,8 @@ Every command parses its arguments the same way:
   Other failures keep exit 1. A removed flag (`--wait`) also exits 2.
 - **The slug comes first.** `issue-cli comment --text hi <slug>` fails with `comment takes <slug> first, then flags: …` instead of looking up an issue called `--text`.
 - **`--help` anywhere.** `-h`, `-help` or `--help` in a command's arguments prints that command's help: its description, examples, and a **Flags** section read from the code (one per subcommand for `data`, `ci`, `lead`, `telemetry`, `workflow`). It exits 0 and needs no project, and it is never read as a slug or as text. `issue-cli help <command>` prints the same thing.
-- **The global `--json`** also works after the command (`issue-cli list --all --json`). `--project` and `--config` must come before the command; after it they get a hint saying so.
+- **The global `--json`** also works after the command (`issue-cli list --all --json`). `--project`, `--config` and `--debug` must come before the command; after it they get a hint saying so.
+- **`--debug`** (global) prints `debug: config: <path> (<why>)` on stderr, and the lookup's checked list when no config was found.
 
 ### `start`
 
@@ -435,7 +436,7 @@ These checks read the environment and the session name; they are guardrails for 
 
 `issue-cli report-bug "<what went wrong>"` is for bugs in issue-cli or the workflow engine, from any project. A project's own bugs go on its own board with `issue-cli create`.
 
-**Where it goes.** The engine project in the same `projects.yaml`: `engine_project: <slug>` at the top, else the project whose `repo:` is `michal-franc/ai-workflow-engine` (or the old `michal-franc/ai-native-project-viewer`). The reporter needs no setup, and `--project` is optional.
+**Where it goes.** The engine project in the same `projects.yaml` (found by the [config lookup](#config-lookup), so report-bug works from any folder once the viewer has run with `-config`): `engine_project: <slug>` at the top, else the project whose `repo:` is `michal-franc/ai-workflow-engine` (or the old `michal-franc/ai-native-project-viewer`). The reporter needs no setup, and `--project` is optional.
 
 **What it files.** An issue in the engine project at the bugfix type's first status (`idea`), system `CLI`, label `cli-bug`, with:
 
@@ -447,7 +448,7 @@ The `## Repro` section is left for triage, so the bugfix gate still needs a huma
 
 **Dedupe.** If an open `cli-bug` issue has the same title after normalizing (lowercase, punctuation dropped, spaces collapsed), the report becomes a `report:` comment on it instead. If the only match is closed (done or parked), a new issue `<title> (again)` is filed, linking the old one. A lock makes two agents reporting at once produce one issue.
 
-**No engine project, or its issues directory is missing.** The report is saved in `${XDG_DATA_HOME:-~/.local/share}/issue-cli/bug-reports/` (per user) and the output says `saved locally, not sent` and why. The next report-bug that finds the engine sends the queue, oldest first, and so does `issue-cli report-bug --send`. Until then, the Status page shows *N issue-cli bug reports not sent* under Needs you.
+**No engine project, or its issues directory is missing.** The report is saved in `${XDG_DATA_HOME:-~/.local/share}/issue-cli/bug-reports/` (per user) and the output says `saved locally, not sent` and why. With no config found at all, the why is the config lookup's error: every place checked and the fix. The next report-bug that finds the engine sends the queue, oldest first, and so does `issue-cli report-bug --send`. Until then, the Status page shows *N issue-cli bug reports not sent* under Needs you.
 
 **Old reports.** `issue-cli report-bug --import ~/Work/bugs/*.json` files the old JSON reports with the same dedupe. It finds the reporter's project from the `issue_slug`, and moves each filed file into `imported/` next to it, which the Retros page skips.
 
@@ -601,7 +602,7 @@ issue-cli --json workflow scan --dry-run
 
 ### `projects` and multi-project resolution
 
-`issue-cli projects` lists every project parsed from `projects.yaml`. The active project (resolved via `--project` or the single-project default) is marked `(active)`; in a multi-project setup with no `--project` the historical fallback (`projects[0]`) is marked `(historical default)`. `--json` emits an array with `slug`, `name`, `issue_dir`, `active`, and `default` fields.
+`issue-cli projects` lists every project parsed from `projects.yaml`. Its first line after the heading is `config: <path> (<why>)`, the config the lookup chose. The active project (resolved via `--project` or the single-project default) is marked `(active)`; in a multi-project setup with no `--project` the historical fallback (`projects[0]`) is marked `(historical default)`. `--json` emits an array with `slug`, `name`, `issue_dir`, `active`, and `default` fields.
 
 ```bash
 issue-cli projects
@@ -610,6 +611,31 @@ issue-cli --project cli projects   # marks "cli" as active
 ```
 
 `projects` is intentionally tolerant of a missing or unreadable config file — it is the discovery surface a confused bot reaches for first, so it must succeed when nothing else does. `help` and `process` are in the same allow-list.
+
+#### Config lookup
+
+Which `projects.yaml` issue-cli reads (`findConfig`, `cmd/issue-cli/config_lookup.go`):
+
+1. `--config <path>`
+2. `$ISSUE_VIEWER_CONFIG`
+3. `./projects.yaml`, **only if it exists**
+4. the config named in `~/.local/state/ai-workflow-engine/viewer.json` (`$XDG_STATE_HOME`), if that config file still exists. `issue-viewer -config` writes the file at start: `config` (absolute), `url`, `pid`, `started` (package `internal/viewerstate`)
+5. `~/.config/ai-workflow-engine/projects.yaml` (`$XDG_CONFIG_HOME`), if it exists
+
+Steps 1 and 2 are used even when the file is missing: the user named that file, so loading it fails loud instead of falling through to another config. When nothing is found, a command that needs a project fails with:
+
+```
+no projects config found. Checked, in order:
+  1. --config: not passed
+  2. $ISSUE_VIEWER_CONFIG: not set
+  3. ./projects.yaml: not found
+  4. ~/.local/state/ai-workflow-engine/viewer.json: not found (issue-viewer --config writes it at start)
+  5. ~/.config/ai-workflow-engine/projects.yaml: not found
+
+Fix: export ISSUE_VIEWER_CONFIG=/path/to/projects.yaml, or start the viewer (issue-viewer --config /path/to/projects.yaml)
+```
+
+(The real message shows the absolute paths.) Bootstrap mode (a cwd with `./issues/`) still picks the project; the lookup only decides which config it matches cwd against. Tests in `cmd/issue-cli` run with their own `XDG_STATE_HOME` and `XDG_CONFIG_HOME` and no `$ISSUE_VIEWER_CONFIG` (`main_testmain_test.go`), so they never read this machine's config.
 
 **Resolution order in `loadProjectOrErr`:**
 

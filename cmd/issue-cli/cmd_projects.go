@@ -15,6 +15,11 @@ The active project (resolved via --project or the single-project default) is
 marked "(active)". When --project is omitted in a multi-project setup the
 historical default (projects[0]) is marked instead.
 
+The first line names the config and why it was chosen. Without --config the
+lookup is: $ISSUE_VIEWER_CONFIG, ./projects.yaml (only if it exists), the
+running viewer's config (~/.local/state/ai-workflow-engine/viewer.json),
+then ~/.config/ai-workflow-engine/projects.yaml.
+
 Examples:
   issue-cli projects
   issue-cli projects --json
@@ -73,6 +78,7 @@ func runProjects(ctx *Context, args []string) error {
 	}
 
 	fmt.Fprintln(ctx.Stdout, "== Configured Projects ==")
+	fmt.Fprintln(ctx.Stdout, ctx.Config.describe())
 	if len(projects) == 0 {
 		fmt.Fprintln(ctx.Stdout, "  (none)")
 		return nil

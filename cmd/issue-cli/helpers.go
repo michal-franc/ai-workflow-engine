@@ -123,6 +123,9 @@ func canonicalPath(p string) string {
 // An empty slug triggers the fail-loud / silent-fallback decision based on
 // project count.
 func resolveFromConfig(configPath, projectSlug string) (*tracker.Project, []tracker.Project, error) {
+	if configPath == "" {
+		return nil, nil, errNoConfig
+	}
 	projects, err := tracker.LoadProjects(configPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot load config %s: %w\n\nEither run from a project root with an issues/ directory, or use --config <path>", configPath, err)

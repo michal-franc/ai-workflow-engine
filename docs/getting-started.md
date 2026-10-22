@@ -107,6 +107,18 @@ issue-viewer -config projects.yaml
 
 With one terminal and tmux, as on a Mac, see [One terminal, a session per project](agent-dispatch.md#one-terminal-a-session-per-project).
 
+#### How issue-cli finds the config
+
+issue-cli needs the same `projects.yaml` as the viewer, from whatever folder it runs in. Without `--config` it looks, in order:
+
+1. `--config <path>`
+2. `$ISSUE_VIEWER_CONFIG` (the viewer sets it for the agents it dispatches)
+3. `./projects.yaml`, only if it exists
+4. the running viewer's config: at start, `issue-viewer -config …` writes `~/.local/state/ai-workflow-engine/viewer.json` (`$XDG_STATE_HOME`) with the absolute config path, URL, pid and start time. The entry is used while that config file exists, even after the viewer stops
+5. `~/.config/ai-workflow-engine/projects.yaml` (`$XDG_CONFIG_HOME`)
+
+So once the viewer has started with `-config` on this machine, `issue-cli --project <slug> …` and `issue-cli report-bug` work from any folder with no env var. `issue-cli projects` prints the chosen config and why on its first line, and `issue-cli --debug <command>` prints it on stderr. When nothing is found, the error lists every place checked and the fix: `export ISSUE_VIEWER_CONFIG=/path/to/projects.yaml`, or start the viewer.
+
 For a quick look at a single folder without a config file:
 
 ```bash
@@ -119,7 +131,7 @@ This mode can't set dispatch options such as `terminal`, so use a `projects.yaml
 
 | Flag       | Default     | Description                               |
 |:-----------|:------------|:------------------------------------------|
-| `-config`  | none        | Path to `projects.yaml` (multi-project)   |
+| `-config`  | none        | Path to `projects.yaml` (multi-project); recorded in `viewer.json` for issue-cli |
 | `-dir`     | `./issues`  | Issues directory (single-project mode)    |
 | `-docs`    | `./docs`    | Docs directory (single-project mode)      |
 | `-host`    | `127.0.0.1` | Interface to listen on                    |

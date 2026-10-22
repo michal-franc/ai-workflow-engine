@@ -5,12 +5,16 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/michal-franc/issue-viewer/internal/viewerstate"
 )
 
 func TestNewHTTPServer_SetsTimeouts(t *testing.T) {
@@ -157,6 +161,55 @@ func TestRun_SIGINTShutsDownCleanly(t *testing.T) {
 		if err != nil {
 			t.Fatalf("run after SIGINT = %v, want nil", err)
 		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("run did not return after SIGINT")
+	}
+}
+
+func TestRun_ConfigModeRecordsViewerForCLI(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	t.Setenv("ISSUE_VIEWER_CONFIG", "") // run sets it; restored after the test
+	proj, _ := setupTestProject(t)
+	cfg := filepath.Join(t.TempDir(), "projects.yaml")
+	body := "projects:\n  - name: T\n    slug: t\n    issues: " + proj.IssueDir + "\n    docs: " + proj.DocsDir + "\n"
+	if err := os.WriteFile(cfg, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
+	ln.Close()
+
+	runErr := make(chan error, 1)
+	go func() { runErr <- run([]string{"-config", cfg, "-port", port}) }()
+
+	var state viewerstate.State
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if state, err = viewerstate.Read(); err == nil {
+			break
+		}
+		select {
+		case err := <-runErr:
+			t.Fatalf("run exited before recording the viewer: %v", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("viewer.json never written: %v", err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if state.Config != cfg || state.URL != "http://127.0.0.1:"+port || state.PID != os.Getpid() || state.Started.IsZero() {
+		t.Fatalf("viewer.json = %+v, want config %s on port %s", state, cfg, port)
+	}
+
+	if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-runErr:
 	case <-time.After(15 * time.Second):
 		t.Fatal("run did not return after SIGINT")
 	}

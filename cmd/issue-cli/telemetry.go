@@ -33,7 +33,7 @@ const (
 )
 
 // globalFlagNames are issue-cli's global flags, recorded like any other flag.
-var globalFlagNames = []string{"config", "project", "json"}
+var globalFlagNames = []string{"config", "project", "json", "debug"}
 
 // recordTelemetry builds and writes the event for one invocation. It must
 // never affect the CLI: every failure (including a panic) is swallowed.

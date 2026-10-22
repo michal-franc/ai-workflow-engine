@@ -113,12 +113,9 @@ func resolveAgentClilog(args []string) string {
 	if strings.HasPrefix(slug, "-") {
 		return ""
 	}
-	configPath := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_CONFIG"))
+	configPath := findConfig(extractCLIFlag(args, "--config")).Path
 	if configPath == "" {
-		configPath = "projects.yaml"
-	}
-	if explicit := extractCLIFlag(args, "--config"); explicit != "" {
-		configPath = explicit
+		return ""
 	}
 	projSlug := extractCLIFlag(args, "--project")
 	projects, err := tracker.LoadProjects(configPath)
@@ -171,14 +168,14 @@ func agentClilogPath(proj *tracker.Project, issue *tracker.Issue) string {
 	return filepath.Join(workDir, ".agent-logs", issue.Assignee, issue.Assignee+".clilog")
 }
 
-// stripCLIGlobalFlags strips --json/--config/--project so the residual args
+// stripCLIGlobalFlags strips --json/--debug/--config/--project so the residual args
 // start with the subcommand. Mirrors agent_timeline.go's stripGlobalFlags;
 // duplicated here because that lives in the viewer's main package.
 func stripCLIGlobalFlags(args []string) []string {
 	out := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
-		case "--json":
+		case "--json", "--debug":
 			continue
 		case "--config", "--project":
 			if i+1 < len(args) {
@@ -318,19 +315,13 @@ func run(args []string, in io.Reader, out, errw io.Writer) error {
 func runTraced(args []string, in io.Reader, out, errw io.Writer, inv *invocation) error {
 	global := flag.NewFlagSet("issue-cli", flag.ContinueOnError)
 	global.SetOutput(errw)
-	// Precedence for the config path: explicit --config > $ISSUE_VIEWER_CONFIG
-	// (set by the viewer when it dispatches a bot, so the bot inherits the
-	// exact config the human is browsing) > the historical "projects.yaml"
-	// default. The env-var route exists because the viewer can be launched
-	// with any config name (projects-mfranc.yaml etc.) and we don't want
-	// dispatched bots to have to discover or guess the file.
-	defaultConfig := "projects.yaml"
-	if env := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_CONFIG")); env != "" {
-		defaultConfig = env
-	}
-	configPath := global.String("config", defaultConfig, "path to projects.yaml")
+	// The config path itself comes from findConfig (config_lookup.go):
+	// --config, $ISSUE_VIEWER_CONFIG, ./projects.yaml, the running viewer's
+	// config, the user config.
+	configFlag := global.String("config", "", "path to projects.yaml")
 	projectSlug := global.String("project", "", "select project (default: first in config)")
 	jsonOut := global.Bool("json", false, "output as JSON")
+	debug := global.Bool("debug", false, "print which config was used and why (stderr)")
 
 	rest, err := splitGlobalAndCommand(args)
 	if err != nil {
@@ -341,6 +332,14 @@ func runTraced(args []string, in io.Reader, out, errw io.Writer, inv *invocation
 	if err := global.Parse(rest.global); err != nil {
 		inv.phase = phaseSplit
 		return err
+	}
+	cfgSrc := findConfig(*configFlag)
+	configPath := &cfgSrc.Path
+	if *debug {
+		fmt.Fprintln(errw, "debug: "+cfgSrc.describe())
+		if cfgSrc.Path == "" {
+			fmt.Fprintln(errw, "debug: "+strings.ReplaceAll(cfgSrc.notFound().Error(), "\n", "\ndebug: "))
+		}
 	}
 	if rest.command == "" {
 		// Help must work even when --project is missing in a multi-project
@@ -382,6 +381,9 @@ func runTraced(args []string, in io.Reader, out, errw io.Writer, inv *invocation
 	// discovery without --project.
 	inv.cmd = cmd
 	bypassProjErr := rest.command == "help" || rest.command == "process" || rest.command == "projects" || rest.command == "version" || rest.command == "init" || rest.command == "workflow" || rest.command == "upgrade" || rest.command == "telemetry" || rest.command == "report-bug"
+	if errors.Is(projErr, errNoConfig) {
+		projErr = cfgSrc.notFound()
+	}
 	if projErr != nil && (!bypassProjErr || *projectSlug != "") {
 		inv.phase = phaseProject
 		return projErr
@@ -394,6 +396,7 @@ func runTraced(args []string, in io.Reader, out, errw io.Writer, inv *invocation
 		Project:     proj,
 		AllProjects: allProjects,
 		ConfigPath:  *configPath,
+		Config:      cfgSrc,
 		ProjectSlug: *projectSlug,
 		Now:         time.Now,
 	}
@@ -445,7 +448,7 @@ func splitGlobalAndCommand(args []string) (splitArgs, error) {
 			}
 			split.global = append(split.global, a, args[i+1])
 			i += 2
-		case "--json":
+		case "--json", "--debug":
 			split.global = append(split.global, a)
 			i++
 		case "help", "--help", "-h":

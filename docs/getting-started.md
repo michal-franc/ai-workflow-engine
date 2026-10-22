@@ -126,6 +126,12 @@ This mode can't set dispatch options such as `terminal`, so use a `projects.yaml
 
 The server listens on loopback only. Its POST endpoints start agents, tmux sessions and editors on your machine, so binding to another interface (`-host 0.0.0.0`) lets anyone who can reach the port drive them; it is an explicit opt-in and the server prints a warning at startup. Writes from another site in your browser are refused either way (see [API: Design Considerations](API/overview.md#design-considerations)).
 
+### Stopping the server
+
+Ctrl-C (or SIGTERM) stops the server gracefully. It stops accepting connections, waits up to 10 seconds for requests and background work to finish (a GitHub close, an open edit-in-nvim, the CI watcher), and exits with status 0. If anything is still running after 10 seconds, it prints `shutdown: still running after 10s: …` and exits anyway. Press Ctrl-C a second time to exit immediately.
+
+An edit-in-nvim session that is still open when the server stops is closed. Its changes are discarded, and the issue gets a comment saying so. Agent tmux sessions and local CI runs keep running; they don't belong to the server process.
+
 Open `http://localhost:8080` and pick a project. The sidebar on the left leads to the board, the list, decisions and the docs; **More** holds the workflow graph, the canvas, agents, retros and stats. The swatches at the bottom switch between the dark, Dracula and light themes.
 
 ## Docs pages

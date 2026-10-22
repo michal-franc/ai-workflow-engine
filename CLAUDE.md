@@ -35,7 +35,8 @@ See [docs/patterns/playtest/web-app.md](docs/patterns/playtest/web-app.md).
 ## Project Structure
 
 ```
-main.go                     — entry point, CLI flags, starts HTTP server
+main.go                     — entry point: run() (flags, listener), server timeouts, graceful shutdown on SIGINT/SIGTERM
+background.go               — goroutines that outlive a request (s.bg.Go), waited for and named at shutdown
 routes.go                   — Server struct, NewServer, Routes, dispatcher, project list
 origin.go                   — sameOriginOnly (403 for cross-origin writes), -host / listen-address helpers
 nav.go                      — sidebar views (navViews) and the Nav the sidebar partial renders

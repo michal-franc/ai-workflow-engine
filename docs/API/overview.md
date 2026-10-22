@@ -9,7 +9,9 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 
 ## Key Files
 
-- `routes.go` — `Server` struct, `NewServer`, `Routes`, `handleProjectRoutes` dispatcher, project list page
+- `main.go` — `run` (flags, listener, signals), `newHTTPServer` (timeouts), `serve` (graceful shutdown); `main` only calls `os.Exit` on a `run` error
+- `background.go` — `background`: goroutines that outlive a request (`Go(name, fn)`, `Wait(deadline)`), with the shutdown context `ctx` and the deadline context `hard`
+- `routes.go` — `Server` struct, `NewServer`, `Routes`, `handleProjectRoutes` dispatcher, project list page (logs per-project load errors with the slug)
 - `origin.go` — `sameOriginOnly` (cross-origin write guard), `-host` helpers (`defaultHost`, `listenAddr`, `isLoopbackHost`)
 - `template_funcs.go` — `funcMap`, `statusColor`/`priorityColor`/`assigneeColor`, `linkIssueRefs`, status ordering helpers
 - `helpers.go` — `projectRoot`, `fileExists`, `resolveProjectWorkDir`, `valueOrDash`, `trimSnippet`
@@ -47,6 +49,9 @@ When working on API changes:
 - Server-side polling uses the `/hash` endpoint for cache invalidation — check whether your change affects the hash
 - Every non-GET/HEAD request a browser sends for another site gets a 403 before any handler runs (`sameOriginOnly` in `origin.go`, wrapping `Routes`): `Sec-Fetch-Site: cross-site`, or an `Origin` whose host is not the request's `Host` — another port on localhost and `Origin: null` (a sandboxed project page) included. The UI's own fetches are same-origin; curl and `issue-cli` send neither header and pass. Do not add CORS headers to write endpoints
 - The server binds `127.0.0.1` by default (`-host`, `defaultHost`); a non-loopback bind prints a startup warning
+- The `http.Server` has timeouts: ReadHeader 5s, Read 30s, Write 60s, Idle 120s (constants in `main.go`). `WriteTimeout` bounds a whole handler, so keep handlers well under 60s; long work belongs in the background, not in the request. There are no streaming endpoints; adding one would need its own write deadline (`http.ResponseController`)
+- Shutdown: the first SIGINT/SIGTERM cancels the signal context and calls `Shutdown`. In-flight requests and `s.bg` work share a 10s grace, and the names still running at the deadline are logged. The second signal gets the default handling and kills the process
+- Never start a bare `go` from a handler for work that outlives the request: use `s.bg.Go("<name>", fn)` so shutdown waits for it and can name it. Inside `fn`, wait or poll on `s.bg.ctx` (cancelled when shutdown starts), and run subprocesses that should finish during the grace period with `exec.CommandContext(s.bg.hard, …)` (cancelled at the deadline). Detached processes that are meant to outlive the server (agent tmux sessions, `issue-cli ci run --detach`) are not tracked
 - Changes to issue update endpoints must preserve the atomic write + file lock pattern in `issue.go`
 - JSON responses should include a `status` field for consistency
 - Tmux-backed flows (`startAgentSession`, `startIssueBodyEditor`) probe `tmuxHasSession` before `tmux new-session`. When a session with the target name already exists they skip setup (no re-prompt of the agent, no nvim relaunch, no save-on-exit goroutine) and just open a terminal attached to the existing session. The `/dispatch` response uses `status: "reattached"` with a single step of the same status; `edit-in-nvim` adds `reattached: true`. The UI renders both as a yellow warning banner/toast distinct from the normal success/error styling. When the project sets `tmux_session`, these flows address the window `=<tmux_session>:=<name>` instead of a session (`agentTmuxTarget`), create it with `new-window` in the shared session, and only open a terminal if no client is attached to it (`attachAgentStep`).
@@ -90,6 +95,8 @@ When working on API changes:
 1. Parse the temp file via `tracker.ParseIssue`. On parse error, the change is rejected.
 2. Hash-check the on-disk file against the snapshot taken at launch time. If a sidebar save raced, the nvim write loses (existing behavior).
 3. Persist via `tracker.RewriteIssueFile`, which holds `withIssueLock`, validates parseability again, and writes atomically through `writeFileAtomically`. The user's exact byte sequence is preserved — comment placement, key order, and blank lines all survive.
+
+**Shutdown.** The save-on-exit goroutine runs through `s.bg` (`awaitBodyEdit`), and its `tmux wait-for` is bound to the shutdown context. If the server stops while nvim is open, the edit session is killed and the issue gets `edit-in-nvim aborted: server shut down; nvim session closed, changes discarded`. A write-back that has already started finishes within the grace period.
 
 **Failure surfacing.** Each rejection path drops a comment on the issue with source `edit-in-nvim` (e.g. `edit-in-nvim aborted: invalid issue file: …`). Users discover failures on next page reload via the existing comments timeline — no polling endpoint or new toast plumbing.
 

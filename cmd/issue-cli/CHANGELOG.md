@@ -24,6 +24,12 @@ release nothing.
 
 ## Unreleased
 
+- **Local CI.** An opt-in `ci:` block in `workflow.yaml` makes the viewer re-test the integration branch after every move (merge, pull, hotfix), so a break between parallel merges is caught and reported. Details: docs/workflow.md, "Local CI".
+  - Runs live in tmux `ci-<project>` and survive a viewer restart; the viewer catches up on an untested head when it starts. Merges that land during a run give one more run, of the newest head. The worktree `.worktrees/.ci` is kept between runs, so builds stay incremental. Results go to `.ci/` in the main checkout.
+  - When main goes red: a Local CI card on the Status page (state, Last runs boxes, failing command and tests, issues merged since green, log tail), an entry under Waiting on you, `status.md`, a `ci-red` chip and a `ci:` comment on each merged issue, and a `[from ci]` message to a live lead. `on_red: file_issue` also files one bugfix issue per red streak.
+  - `issue-cli ci status|run|reset|watch` (`--json`). `ci run --tier slow` runs commands marked `tier: slow`, which never run on merge. `ci watch` works without the viewer.
+  - Agents see the one-line state in `start` and the dispatch prompt, with red marked as inherited, and `transition --to done` tells them not to wait for CI. The lead brief says not to push while main is red.
+  - This repo runs `make validate` on every move of main, with `make ux-test` as the slow tier.
 - **`issue-approve` mod 0.2.1:** the Playtest button also shows at `testing` behind an owner gate, so a tweak (whose path has no human-testing) can be playtested from the agent's session. Update with `claude plugin update issue-approve@ai-workflow-engine`, then `/reload-plugins` in running sessions.
 - Canvas: lanes start folded, one compact row each with a count per status for every version. Click a lane head (or Expand all) to see its cards; open lanes stay in the URL (`?open=`). A new Epic select (`?epic=`) shows one epic and its sub-epics, unfolded. System rows fold the same way.
 

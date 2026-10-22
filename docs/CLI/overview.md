@@ -71,6 +71,27 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli telemetry report`     | Local usage report: calls per command, never-used commands/flags/topics, errors, unknown tokens, retry sequences. See [CLI Usage Telemetry](telemetry.md) |
 | `issue-cli telemetry path`       | Print the active telemetry file and whether recording is enabled |
 
+### Slug arguments
+
+Every command that takes `<slug>` resolves it the same way (`findIssueOrErr` in `context.go`):
+
+1. **Exact slug**, case-insensitive; a trailing `.md` or a path under the issue directory is accepted.
+2. **Unique suffix** on `/<arg>`, so `sample` finds `cli/sample`.
+3. **Unique substring**, so `first-partial` finds `cli/slug-lookup-silently-picks-the-first-partial-match`. The command then prints `note: resolved "<arg>" to <slug> (partial match)` on stderr before it acts.
+
+When a step matches two or more issues, the command fails with exit status 1 and writes nothing:
+
+```
+Error: ambiguous slug "sim": 4 issues match:
+  sim/a
+  sim/b
+  …
+
+Retry with the full slug.
+```
+
+The list stops at 10 slugs and ends with `… and N more (issue-cli list)`. A system name is almost always ambiguous, so `issue-cli retrospective <System>` fails instead of filing the retro under some issue of that system.
+
 ### Flags, `--help` and exit codes
 
 Every command parses its arguments the same way:

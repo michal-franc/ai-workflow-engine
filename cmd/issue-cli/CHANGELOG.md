@@ -24,6 +24,7 @@ release nothing.
 
 ## Unreleased
 
+- **Ambiguous slugs fail instead of picking an issue.** A slug argument that is not an exact match used to resolve to the first issue whose slug contained it, with no warning, so `retrospective Sim` or `check foo` could change an unrelated issue. Now an exact slug wins, then a unique `/<arg>` suffix, then a unique substring. When several issues match, every slug-taking command exits 1 with `ambiguous slug "<arg>": N issues match:` and the candidates (up to 10), and writes nothing. A unique substring match still works and prints `note: resolved "<arg>" to <slug> (partial match)` on stderr. See docs/CLI/overview.md#slug-arguments.
 - **issue-cli: flags work anywhere, mistakes exit 2, `--help` on every command.**
   - A flag after a positional used to be dropped silently: `list done --all` listed everything with exit 0. Flags now parse wherever they are (`--` ends them).
   - An unknown flag, a bad value, an extra argument, or a flag where the slug belongs fails with **exit 2**: one line naming the flag, the valid flags, and `Run: issue-cli <cmd> --help`. Other errors keep exit 1. Scripts that expected 1 on a bad flag (including the removed `--wait`) get 2.

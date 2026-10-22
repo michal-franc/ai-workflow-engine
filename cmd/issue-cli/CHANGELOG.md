@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.48.1 — 2026-10-22
+
+- Fix: the Status and Metrics pages lost their layout on desktop. A merge dropped the closing `}` of the system pages' `@media (max-width: 900px)` block in `static/style.css`, so every later rule only applied below 900px. A new test fails on unbalanced braces in `style.css`.
+
 ## v0.48.0 — 2026-10-22
 
 - **System pages** (`/p/<project>/systems`, `/systems/<System>`, `/systems/<System>/<Family>`). They are read-only, and every project whose issues set `system:` gets them, with or without config.

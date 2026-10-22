@@ -6,7 +6,7 @@ priority: "high"
 type: "feature"
 parent: "workflow/harness-checks-the-work-ideas-from-rigone"
 created: "2026-10-22"
-version: "0.54"
+version: "0.55"
 
 ---
 

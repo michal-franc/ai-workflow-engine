@@ -18,7 +18,7 @@ Set 2026-10-22 at v0.50.0, after a cleanup that triaged every open issue against
 
 | Epic | Goal | Size | Notes |
 |:--|:--|:--|:--|
-| `api/server-hardening-safe-correct-and-fast-core` | 1 | 10 children, mostly S (0.51–0.52) | Starts with localhost bind + cross-origin rejection (critical) and the frontmatter `$` / newline fix |
+| `api/server-hardening-safe-correct-and-fast-core` | 1 | 10 children, mostly S (0.52–0.53) | Starts with localhost bind + cross-origin rejection (critical) and the frontmatter `$` / newline fix |
 | `cli/adoption-make-ai-workflow-engine-easy-to-set-up-start-and-use` | 2 | 5 children + 5 CLI papercuts | `doctor` tier 1 is the dependency several other epics wait on |
 | `workflow/gate-correctness-checks-an-agent-cannot-satisfy-by-accident` | 3 | 11 small bugs | Fills gaps between bigger work; includes the bootstrap-mode wrong-workflow bug |
 | `workflow/harness-checks-the-work-ideas-from-rigone` | 3 | 5 children | Preflight and the health section wait on `doctor --json` |
@@ -27,16 +27,17 @@ Set 2026-10-22 at v0.50.0, after a cleanup that triaged every open issue against
 
 ## Versions
 
-Each version is one milestone with one focus. Issues carry it as `version:` (the issues canvas shows a column per version; `issue-cli next --version 0.51`). A version is released once, when its last issue ships. See [Releases](#releases).
+Each version is one milestone with one focus. Issues carry it as `version:` (the issues canvas shows a column per version; `issue-cli next --version 0.52`). A version is released once, when its last issue ships. See [Releases](#releases).
 
 | Version | Focus | Issues | Released when |
 |:--|:--|:--|:--|
-| **0.51** Safe core | Nothing outside can drive the server; issue-cli always loads the right workflow; one-lead model only | one-terminal tmux mode (in flight), localhost bind + origin check, frontmatter `$`/newline fix, bootstrap-mode wrong workflow, remove sub-lead leftovers, CI runs `make validate`, graceful shutdown | No network exposure, CI green on every push |
-| **0.52** Fast, robust server | Big projects stay fast; failures are visible, not lost in stderr | LoadIssues cache, slow /status and /workboard, data/delete locks, writeJSON helpers, GitHub + timeline error paths, server failures on /status, GitHub token path in config, consolidated frontmatter helpers, sentinel `%w` sweep, repo hygiene | /status under 500 ms on roguetech |
-| **0.53** Setup in minutes | A new user goes from install to a working board without hand-editing config | easier setup (salvage `origin/claude/project-adoption-ideas-gtw1bo`), `doctor` tier 1, `--help` never needs a project, `create --body/--meta`, `--body-file` everywhere, issue-cli inside a worktree, uncheck, repair commands, worktree prune | `install → init → board` works on a clean machine |
-| **0.54** Gates you can trust | Every gate measures what it says; checks run without trusting the agent | the gate-correctness children, RigOne check-results, process safety (prompt off argv), guidance dedupe (22) | No gate passes on stale comments/boxes; "nothing ran" fails |
-| **0.55** One landing page | One shape for the product | /status at `/`, Classic board + Graph retired, Go 1.22 routing, report-bug creates issues, modernized tracker | No legacy views or removed-feature leftovers |
-| **0.56** Preflight, health, onboarding | Problems show up before an agent starts, and Claude can set a project up | dispatch preflight, Status health section, agent-led onboarding, first run in minutes | A fresh project reaches its first approval in minutes |
+| **0.51** One terminal | Run the lead and every worker from one tmux, no extra terminal windows | one-terminal tmux mode (in flight; released on its own as soon as it ships) | The owner's sandbox walk passes |
+| **0.52** Safe core | Nothing outside can drive the server; issue-cli always loads the right workflow; one-lead model only | localhost bind + origin check, frontmatter `$`/newline fix, bootstrap-mode wrong workflow, remove sub-lead leftovers, CI runs `make validate`, graceful shutdown | No network exposure, CI green on every push |
+| **0.53** Fast, robust server | Big projects stay fast; failures are visible, not lost in stderr | LoadIssues cache, slow /status and /workboard, data/delete locks, writeJSON helpers, GitHub + timeline error paths, server failures on /status, GitHub token path in config, consolidated frontmatter helpers, sentinel `%w` sweep, repo hygiene | /status under 500 ms on roguetech |
+| **0.54** Setup in minutes | A new user goes from install to a working board without hand-editing config | easier setup (salvage `origin/claude/project-adoption-ideas-gtw1bo`), `doctor` tier 1, `--help` never needs a project, `create --body/--meta`, `--body-file` everywhere, issue-cli inside a worktree, uncheck, repair commands, worktree prune | `install → init → board` works on a clean machine |
+| **0.55** Gates you can trust | Every gate measures what it says; checks run without trusting the agent | the gate-correctness children, RigOne check-results, process safety (prompt off argv), guidance dedupe (22) | No gate passes on stale comments/boxes; "nothing ran" fails |
+| **0.56** One landing page | One shape for the product | /status at `/`, Classic board + Graph retired, Go 1.22 routing, report-bug creates issues, modernized tracker | No legacy views or removed-feature leftovers |
+| **0.57** Preflight, health, onboarding | Problems show up before an agent starts, and Claude can set a project up | dispatch preflight, Status health section, agent-led onboarding, first run in minutes | A fresh project reaches its first approval in minutes |
 | **1.0** Stable | One binary, pinned contracts | one name one binary, pinned CLI JSON output; closes the code-health epic | CLI, `workflow.yaml` and JSON contracts frozen for 1.x |
 
 Small issues from a later version can be picked up early when an agent is free. Their release then simply comes sooner.

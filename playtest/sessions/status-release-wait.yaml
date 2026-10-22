@@ -28,8 +28,9 @@ steps:
       - text_contains: { target: status.release_wait.unreleased, text: "UNRELEASED · 2" }
       - text_contains: { target: status.release_wait.unreleased, text: Dark map style follows the system theme, and the legend switches with it. }
       - text_contains: { target: status.release_wait.unpushed, text: 2 commits on main not on published }
-      # Side column: between Waiting on you and Recently shipped.
-      - below: [status.waiting, status.release_wait]
+      # Side column, beside Epics: under the top tiles, above Recently shipped.
+      - below: [status.strip, status.release_wait]
+      - beside: [status.epics, status.release_wait]
       - below: [status.release_wait, status.shipped]
 
   - id: TP5

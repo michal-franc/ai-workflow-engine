@@ -129,7 +129,7 @@ The dispatch prompt and the status prompts in `workflow.yaml` already tell worke
 
 ### Handoff and restarts
 
-The lead writes a handoff note before it exits: `sessions/YYYY-MM-DD-lead-<project>.md`. The note ends with a `## Next` section: the ordered next steps. The viewer's Status page (`/p/<project>/status`) shows that `## Next` list, and its text form, `/p/<project>/status.md`, is a ready-made stand-up to paste. Its **Waiting for release** block tells the lead when the current milestone is ready to cut (or what blocks it), what is merged and not released, and what is not pushed. A new lead's brief names its newest note to read first, falling back to the older `sessions/*-lead-session.md`.
+The lead writes a handoff note before it exits: `sessions/YYYY-MM-DD-lead-<project>.md`. The note ends with a `## Next` section: the ordered next steps. The viewer's Status page (`/p/<project>/status`) shows that `## Next` list in its What's next tile, and its text form, `/p/<project>/status.md`, is a ready-made stand-up to paste. Its lists are capped: each "+K more" line names the `issue-cli list` command that shows the rest. Its **Waiting for release** block tells the lead when the current milestone is ready to cut (or what blocks it), what is merged and not released, and what is not pushed. A new lead's brief names its newest note to read first, falling back to the older `sessions/*-lead-session.md`.
 
 After a restart (tmux and the board gone, worktrees kept):
 

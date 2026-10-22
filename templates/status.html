@@ -37,7 +37,7 @@
                     </div>
                     <div class="status-progress" data-testid="status.all_progress">
                         <div class="status-progress-row"><span class="status-strong">All issues</span><span class="mono">{{.All.Done}}/{{.All.Total}} done</span></div>
-                        <div class="status-bar"><span style="width: {{.All.Pct}}%"></span></div>
+                        <div class="status-bar"><span data-testid="status.all_progress.bar" style="width: {{.All.Pct}}%"></span></div>
                     </div>
                     {{range .Versions}}
                     <div class="status-progress" data-testid="status.version.{{tid .Label}}">

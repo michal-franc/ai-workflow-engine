@@ -112,6 +112,14 @@ steps:
       - text_contains: { target: agents.node.agent-cli-loner.state, text: stopped }
       - text_contains: { target: agents.live, text: "live · tmux ls" }
       - hidden: agents.spawn_lead
+      # The tree's shape: toolbar over the canvas, each level under the
+      # one above it, nodes with real size.
+      - below: [agents.toolbar, agents.canvas]
+      - below: [agents.you, agents.node.lead-crew]
+      - below: [agents.node.lead-crew, agents.node.lead-ui-epic]
+      - below: [agents.node.lead-ui-epic, agents.node.agent-ui-child]
+      - below: [agents.tree, agents.unfinished]
+      - size: { target: agents.node.lead-crew, min_width: 100, min_height: 20 }
 
   - id: TP9
     title: Show stopped and the Radial layout re-render the canvas

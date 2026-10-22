@@ -35,6 +35,12 @@ steps:
     checks:
       - count: { pattern: metrics.row.*, equals: 6 }
       - visible: metrics.row.stuck
+      # The page's shape: tabs in a row, the two run cards side by side,
+      # the table under the tabs.
+      - beside: [metrics.tab.metrics, metrics.tab.knobs]
+      - beside: [metrics.tab.knobs, metrics.tab.branches]
+      - beside: [metrics.run.master, metrics.run.branches]
+      - below: [metrics.tab.metrics, metrics.table]
       - visible: metrics.row.keep-holds
       - visible: metrics.row.open-ladder
 

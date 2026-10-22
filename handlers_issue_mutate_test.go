@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
 	"net/http"
@@ -323,7 +324,7 @@ func TestHandleEditIssueInNvim_UsesLauncherAndPreservesComments(t *testing.T) {
 
 	origLauncher := launchIssueBodyEditor
 	t.Cleanup(func() { launchIssueBodyEditor = origLauncher })
-	launchIssueBodyEditor = func(proj *tracker.Project, issue *tracker.Issue) (BodyEditResponse, error) {
+	launchIssueBodyEditor = func(_ *background, proj *tracker.Project, issue *tracker.Issue) (BodyEditResponse, error) {
 		updated := "Edited in nvim"
 		if err := tracker.UpdateIssueFrontmatter(issue.FilePath, tracker.IssueUpdate{Body: &updated}); err != nil {
 			return BodyEditResponse{}, err
@@ -405,7 +406,7 @@ func TestStartIssueBodyEditor_ReattachWhenSessionExists(t *testing.T) {
 		return true
 	})
 
-	resp, err := startIssueBodyEditor(&proj, target)
+	resp, err := startIssueBodyEditor(newBackground(context.Background()), &proj, target)
 	if err != nil {
 		t.Fatalf("startIssueBodyEditor returned error on reattach: %v", err)
 	}

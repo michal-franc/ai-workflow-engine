@@ -43,7 +43,11 @@ func loadProjectOrErr(configPath, projectSlug string) (*tracker.Project, []track
 }
 
 // resolveBootstrap synthesizes a single-project config from cwd when ./issues
-// exists. configPath is consulted only for version / workflow metadata.
+// exists. Version and workflow come from, in order: ./project.yaml,
+// ./workflow.yaml (workflow only), then the one configured project whose
+// workdir or issues path is this directory. Several matches fail loud with
+// errAmbiguousProject when the workflow still depends on them; projects that
+// do not match cwd never contribute anything.
 func resolveBootstrap(configPath string) (*tracker.Project, []tracker.Project, error) {
 	docsDir := "./docs"
 	if info, err := os.Stat(docsDir); err != nil || !info.IsDir() {
@@ -57,40 +61,62 @@ func resolveBootstrap(configPath string) (*tracker.Project, []tracker.Project, e
 		IssueDir: "./issues",
 		DocsDir:  docsDir,
 	}
-	for _, f := range []string{"project.yaml", configPath} {
-		data, readErr := os.ReadFile(f)
-		if readErr != nil {
-			continue
-		}
+	if data, err := os.ReadFile("project.yaml"); err == nil {
 		var local tracker.Project
 		if yaml.Unmarshal(data, &local) == nil {
-			if local.Version != "" {
-				proj.Version = local.Version
-			}
-			if local.WorkflowFile != "" {
-				proj.WorkflowFile = local.WorkflowFile
-			}
-			if proj.Version != "" {
-				break
-			}
-		}
-		var cfg tracker.ProjectsConfig
-		if yaml.Unmarshal(data, &cfg) == nil {
-			for _, p := range cfg.Projects {
-				if p.Version != "" {
-					proj.Version = p.Version
-					break
-				}
-				if p.WorkflowFile != "" {
-					proj.WorkflowFile = p.WorkflowFile
-				}
-			}
-		}
-		if proj.Version != "" {
-			break
+			proj.Version = local.Version
+			proj.WorkflowFile = local.WorkflowFile
 		}
 	}
+	if proj.WorkflowFile == "" && isRegularFile("workflow.yaml") {
+		proj.WorkflowFile = "workflow.yaml"
+	}
+	if proj.Version != "" && proj.WorkflowFile != "" {
+		return proj, []tracker.Project{*proj}, nil
+	}
+	projects, err := tracker.LoadProjects(configPath)
+	if err != nil {
+		return proj, []tracker.Project{*proj}, nil
+	}
+	matches := projectsAtDir(projects, cwd)
+	switch {
+	case len(matches) == 1:
+		if proj.Version == "" {
+			proj.Version = matches[0].Version
+		}
+		if proj.WorkflowFile == "" {
+			proj.WorkflowFile = matches[0].WorkflowFile
+		}
+	case len(matches) > 1 && proj.WorkflowFile == "":
+		return nil, matches, fmt.Errorf("%w: several configured projects match %s\n%s", errAmbiguousProject, cwd, formatProjectList(matches, ""))
+	}
 	return proj, []tracker.Project{*proj}, nil
+}
+
+// projectsAtDir returns the configured projects whose workdir is dir or whose
+// issues directory is dir/issues.
+func projectsAtDir(projects []tracker.Project, dir string) []tracker.Project {
+	dir = canonicalPath(dir)
+	issues := filepath.Join(dir, "issues")
+	var out []tracker.Project
+	for _, p := range projects {
+		if (p.WorkDir != "" && canonicalPath(p.WorkDir) == dir) || (p.IssueDir != "" && canonicalPath(p.IssueDir) == issues) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// canonicalPath makes a path absolute and resolves symlinks where it can, so
+// a configured path and os.Getwd compare equal however they were spelled.
+func canonicalPath(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	}
+	if resolved, err := filepath.EvalSymlinks(p); err == nil {
+		p = resolved
+	}
+	return filepath.Clean(p)
 }
 
 // resolveFromConfig reads projects.yaml and resolves projectSlug against it.

@@ -1,8 +1,10 @@
 name: Release Marker
 
 on:
-  # Agents ship by pushing straight to main (no pull requests), so a release
-  # is cut from the CHANGELOG on every push to main.
+  # Agents merge into the local main and add their changes under
+  # `## Unreleased`; the lead pushes main when the owner asks. A push releases
+  # only when the CHANGELOG's top heading is a version the lead has just cut
+  # (`## vX.Y.Z — date`).
   push:
     branches:
       - main
@@ -48,7 +50,13 @@ jobs:
             TARGET_SHA="$(git rev-parse HEAD)"
           else
             CHANGELOG="cmd/issue-cli/CHANGELOG.md"
-            CURRENT="$(grep -m1 -E '^## v[0-9]+\.[0-9]+\.[0-9]+' "$CHANGELOG" | awk '{print $2}')"
+            TOP="$(grep -m1 -E '^## ' "$CHANGELOG" | awk '{print $2}')"
+            if ! printf '%s' "$TOP" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "Top CHANGELOG heading is '${TOP:-<none>}', not a version — nothing to release." >&2
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            CURRENT="$TOP"
             if [ -z "$CURRENT" ]; then
               echo "No '## vX.Y.Z' entry found in $CHANGELOG — skipping release." >&2
               echo "skip=true" >> "$GITHUB_OUTPUT"

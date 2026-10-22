@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -174,6 +175,9 @@ func (e *stepEnv) do(ctx context.Context, a Action) error {
 			return fmt.Errorf("post %s: status %d: %s", m["path"], code, trim(body))
 		}
 		return nil
+	case "write":
+		m, _ := argMap(a.Arg)
+		return e.write(fmt.Sprint(m["path"]), fmt.Sprint(m["text"]))
 	case "cli":
 		call, err := cliArgs(a.Arg)
 		if err != nil {
@@ -262,6 +266,23 @@ func (e *stepEnv) expandAll(in []string) []string {
 	return out
 }
 
+// write replaces a file under the scenario's project root (the write
+// action): rel must stay inside it.
+func (e *stepEnv) write(rel, text string) error {
+	clean := filepath.Clean("/" + rel)
+	target := filepath.Join(e.sc.Proj, clean)
+	if !strings.HasPrefix(target, e.sc.Proj+string(os.PathSeparator)) {
+		return fmt.Errorf("write %s: path leaves the scenario project", rel)
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return err
+	}
+	e.logf("write %s (%d bytes)", clean, len(text))
+	return os.WriteFile(target, []byte(text), 0o644)
+}
+
+// post sends the post action's request, with optional headers (e.g.
+// Origin: "null", as a sandboxed project page sends).
 func (e *stepEnv) post(ctx context.Context, m map[string]any) (int, string, error) {
 	u := e.sc.Base + e.sc.Expand(fmt.Sprint(m["path"]))
 	var body io.Reader
@@ -288,6 +309,11 @@ func (e *stepEnv) post(ctx context.Context, m map[string]any) (int, string, erro
 	}
 	if ctype != "" {
 		req.Header.Set("Content-Type", ctype)
+	}
+	if h, ok := m["headers"].(map[string]any); ok {
+		for k, v := range h {
+			req.Header.Set(k, fmt.Sprint(v))
+		}
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

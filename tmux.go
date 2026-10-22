@@ -63,8 +63,8 @@ func sessionsByIssueSlug(proj *tracker.Project, issues []*tracker.Issue) (map[st
 }
 
 // sessionMatchesIssue reports whether a listed session is a worker on the
-// issue. Leads (lead-*) are never workers: a sub-lead's lead-<epic> would
-// otherwise substring-match its own epic.
+// issue. Leads (lead-*) are never workers: a lead's name could otherwise
+// substring-match an issue slug.
 func sessionMatchesIssue(sessionName string, slug string) bool {
 	sessionName = strings.ToLower(strings.TrimSpace(sessionName))
 	slug = strings.ToLower(strings.TrimSpace(slug))

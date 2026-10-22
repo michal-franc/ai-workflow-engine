@@ -16,6 +16,33 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+Shipped changes collect under `## Unreleased` at the top. A release is cut
+per milestone (the `version:` on issues, see docs/roadmap.md): the lead
+renames `## Unreleased` to `## vX.Y.Z — YYYY-MM-DD` and pushes, and the
+release-marker Action tags and builds it. Pushes with `## Unreleased` on top
+release nothing.
+
+## v0.52.0 — 2026-10-22
+
+Focus: project status pages. Two Safe core (0.53) fixes that landed early ship with it: one lead per project, and the bootstrap workflow lookup.
+
+- **One lead per project: sub-leads are gone.** Every worker reports to the project lead, epic children included, and epics get no base branch of their own: children branch from `main` and ship to `main` like any issue.
+  - `issue-cli lead spawn --epic` fails with one line, and the `lead/spawn` endpoint answers `422` to a body naming an epic.
+  - `lead list` shows the project lead and the open epics with their children running (`--json` is now `{lead, epics}`); it no longer suggests spawning anything per epic.
+  - `approve`, `lead whoami` and `lead message` lose their per-epic branches. A leftover `lead-<epic>` session or `ISSUE_VIEWER_LEAD_SCOPE=<epic>` is no lead.
+  - Dispatch prompts name the project lead and the issue's epic, with no `## Base branch` section.
+  - The agents canvas lists a leftover `lead-<epic>` session with the other sessions; `agents.json` epics keep only the issue and children counts. The detail page's Lead section always names the project lead. The issues canvas no longer shows an epic's base branch.
+  - Old `base:` and `lead:` fields on epics still load as plain custom fields; nothing writes them. An old `leads.epic` brief in `workflow.yaml` still loads, is ignored, and `issue-cli process workflow` warns about it.
+- **issue-cli loads the right workflow without `--project`.** Run from a project root with `./issues/`, issue-cli used to take the workflow of the *last* project in `projects.yaml`. From `~/Work/issue-viewer`, that was Demo's. It now uses `./project.yaml`, then `./workflow.yaml`, then the configured project whose `workdir` or `issues` is that directory. If several match, it fails with the `--project` hint.
+- `process workflow`, `process transitions` and `show` print `Workflow file: <path>`, and `show --json` adds `workflow_file`.
+- **Project status pages.** Two new optional `workbench:` keys in `workflow.yaml` let a project show its own HTML in the viewer. See "Project pages" in `docs/workbench-files.md`.
+  - `status_page: docs/status/index.html` makes `/status` show the project's page by default, with **Project status** / **Built-in** tabs. `/status?view=builtin` and `/status.md` stay built-in.
+  - `pages:` (each with a `title` and `path`) adds indented rows under Status in the sidebar, at `/pages/<n>`.
+  - Pages run in an iframe sandboxed without `allow-same-origin`. `/page-raw/` serves only files under a configured page's folder, with CSP `sandbox` and `nosniff`. Any non-GET request with `Origin: null` gets a 403, so a page can't approve or dispatch.
+  - An open page reloads when its files change. It gets live counts from the viewer through `postMessage({type: "issue-viewer.status", project, status})`, with the same model at `/status.json`.
+  - `process workflow` now warns about bad `workbench:` paths, and `help schema` lists `workbench.pages[]`.
+- Playtest sessions: `post` takes `headers:`, and a new `write` action replaces a file under the scenario's project. REPEAT runs no longer differ on a minute-only timestamp such as `status.md`'s.
+
 ## v0.51.0 — 2026-10-22
 
 - **One terminal, a session per project.** Two new top-level keys in `projects.yaml`, `terminal:` and `tmux_session_per_project: true`, set machine-wide defaults. Every project without its own value inherits them.

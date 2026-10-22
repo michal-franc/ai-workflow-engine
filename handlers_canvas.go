@@ -61,7 +61,6 @@ type CanvasLane struct {
 	Title       string
 	ShortTitle  string // epic name on the Highlight chip
 	Status      string
-	Base        string
 	ParentTitle string
 	Depth       int
 	Summary     string
@@ -141,16 +140,6 @@ func epicParentSlug(issue *tracker.Issue) string {
 		}
 	}
 	return umbrella
-}
-
-// extraField returns a scalar custom frontmatter field, or "".
-func extraField(issue *tracker.Issue, key string) string {
-	for _, f := range issue.ExtraFields {
-		if f.Key == key && !f.IsList {
-			return strings.TrimSpace(f.Value)
-		}
-	}
-	return ""
 }
 
 // epicIndex resolves the parent links of a project's issues.
@@ -730,7 +719,6 @@ func epicLane(e *tracker.Issue, depth int, idx *epicIndex, cs *canvasStatuses, h
 		Title:      e.Title,
 		ShortTitle: epicShortName(e.Title),
 		Status:     e.Status,
-		Base:       extraField(e, "base"),
 		Depth:      depth,
 		Summary:    summary,
 		Bar:        cs.bar(kids),

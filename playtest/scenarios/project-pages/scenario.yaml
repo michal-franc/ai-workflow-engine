@@ -1,0 +1,13 @@
+# Project pages: workbench.status_page (docs/status/index.html, with its
+# own style.css and app.js) and one pages: entry (docs/reports/balance.html).
+# The status page's script marks that it ran, tries a POST to the viewer
+# (which must be refused) and shows the open count the frame posts to it.
+# docs/private/notes.json sits outside the page folders and must not be
+# served. Three UI issues: an epic, a ready gate and an open design.
+title: Project pages - custom status page and sidebar pages
+project:
+  name: Atlas
+  slug: atlas
+issues: tracker
+workflow: workflow.yaml
+root: root

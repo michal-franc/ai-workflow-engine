@@ -133,17 +133,10 @@
 
                 <div class="sidebar-section" id="lead-section" data-testid="detail.lead">
                     <h3>Lead</h3>
-                    {{if and .Lead.IsEpic .Lead.SubLeadLive}}
-                    <div class="active-session-item">
-                        <div class="active-session-name" data-testid="detail.lead.name">{{.Lead.SubLead}}</div>
-                        <div class="active-session-time" data-testid="detail.lead.state">sub-lead · {{if .Lead.SubLeadLive}}live{{else}}not running{{end}} · base {{.Lead.Base}}</div>
-                    </div>
-                    {{else}}
                     <div class="active-session-item">
                         <div class="active-session-name" data-testid="detail.lead.name">{{.Lead.Route.Lead}}</div>
                         <div class="active-session-time" data-testid="detail.lead.state">{{if .Lead.Route.Live}}live{{else}}not running{{end}}{{if .Lead.Route.Epic}} · epic <a href="{{.Prefix}}/issue/{{.Lead.Route.Epic}}">{{.Lead.Route.Epic}}</a>{{end}}</div>
                     </div>
-                    {{end}}
                     <a href="{{.Prefix}}/agents" style="font-size:12px">Agents canvas</a>
                 </div>
 

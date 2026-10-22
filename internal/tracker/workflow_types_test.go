@@ -153,7 +153,7 @@ func TestForType_ReplaceDropsBaseActions(t *testing.T) {
 	if len(titles) != 1 || titles[0] != "Implementation" {
 		t.Fatalf("epic backlog → in progress appends %v, want one Implementation", titles)
 	}
-	if !strings.Contains(tr.Actions[len(tr.Actions)-1].Body, "Base branch created") {
+	if !strings.Contains(tr.Actions[len(tr.Actions)-1].Body, "Every child shipped to master") {
 		t.Errorf("epic Implementation body = %q, want the epic's checklist", tr.Actions[len(tr.Actions)-1].Body)
 	}
 
@@ -352,5 +352,18 @@ func TestParseIssue_Type(t *testing.T) {
 	}
 	if issue.Type != "" {
 		t.Errorf("list-valued Type = %q, want empty", issue.Type)
+	}
+}
+
+// leads.epic still loads (TestLeadBrief_CustomPromptsAndPlaceholders), but
+// lint calls it obsolete, with or without types.
+func TestLint_ObsoleteLeadsEpic(t *testing.T) {
+	wf := WorkflowConfig{Leads: LeadsConfig{Project: "p", Epic: "old brief"}}
+	if got := wf.Lint(); len(got) != 1 || !strings.Contains(got[0], "leads.epic is obsolete and ignored") {
+		t.Errorf("lint = %q", got)
+	}
+	wf.Leads.Epic = ""
+	if got := wf.Lint(); got != nil {
+		t.Errorf("no leads.epic: lint = %q", got)
 	}
 }

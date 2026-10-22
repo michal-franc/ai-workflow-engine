@@ -2988,8 +2988,8 @@ a.balance-pass:hover { text-decoration: none; border-color: var(--text-secondary
 }
 .agent-node.selected { outline: 2px solid var(--text-link); outline-offset: 1px; }
 .agent-human { cursor: default; font-weight: 600; }
-.agent-project-lead, .agent-sub-lead { font-weight: 600; }
-.agent-worker { font-weight: 400; }
+.agent-project-lead { font-weight: 600; }
+.agent-worker, .agent-other { font-weight: 400; }
 .agent-name { font-family: var(--font-mono); }
 .agent-state { color: var(--text-secondary); font-size: 12px; }
 .agent-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); flex: none; }
@@ -3282,20 +3282,6 @@ body.canvas-page { overflow: hidden; }
     font-weight: 600;
     line-height: 20px;
     color: var(--text);
-}
-
-.canvas-base {
-    align-self: flex-start;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 1px 6px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--text-secondary);
 }
 
 .canvas-hl-btn,
@@ -3704,4 +3690,77 @@ a.chip { text-decoration: none; }
 .btn-small { white-space: nowrap; }
 @media (max-width: 600px) {
     .status-slug { display: none; }
+}
+
+/* Project pages (handlers_pages.go): the project's own HTML in a sandboxed
+   iframe that fills the column; only the iframe scrolls. */
+.nav-sub {
+    display: flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 6px 12px 6px 26px;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+.nav-sub:hover { background: var(--bg-tertiary); color: var(--text); text-decoration: none; }
+.nav-sub.active { background: var(--bg-active); color: var(--text); font-weight: 600; }
+
+.status-tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid var(--border-subtle); }
+.project-page-head .status-tabs { margin-bottom: 0; border-bottom: 0; }
+.status-tab {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 8px 14px;
+    margin-bottom: -1px;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+}
+.status-tab:hover { color: var(--text); text-decoration: none; }
+.status-tab.active { color: var(--text); border-bottom-color: var(--amber); }
+
+.app-main.project-page {
+    padding-top: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+.project-page-head {
+    flex: 0 0 auto;
+    padding: 20px 32px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.project-page-head.with-tabs { padding-bottom: 0; }
+.project-page-head.with-tabs .project-page-title-row { margin-bottom: 10px; }
+.project-page-title-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px 16px;
+}
+.project-page-source { font-size: 12px; color: var(--text-secondary); }
+.project-page-source .mono { color: var(--text-link); }
+.project-page-frame {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    border: 0;
+    display: block;
+    /* A page without its own background reads as it would in a browser tab. */
+    background: #fff;
+}
+.project-page-body { padding: 28px 32px; overflow-y: auto; }
+.project-page-missing { max-width: 720px; border-color: var(--amber-border); }
+.project-page-missing h2 { font-size: 20px; font-weight: 800; font-stretch: 80%; }
+.project-page-missing p { margin: 0; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+    .app-main.project-page { height: auto; }
+    .project-page-frame { flex: none; height: 80vh; }
+    .project-page-head { padding: 16px 16px 12px; }
+    .nav-sub { padding-left: 12px; }
 }

@@ -154,14 +154,14 @@ func Diff(a, b *Results) string {
 
 // volatile matches what differs between two runs of the same build in a
 // check's actual text: clock times (an RFC3339 stamp in a JSON body, a tmux
-// session's start time) and the scenario's temp dir (/tmp/pt-<n>, in CLI
+// session's start time, status.md's minute stamp) and the scenario's temp dir (/tmp/pt-<n>, in CLI
 // output and prompts). canonical masks them so REPEAT compares what the page
 // and the CLI said, not when or where.
 var volatile = []struct {
 	re   *regexp.Regexp
 	mask string
 }{
-	{regexp.MustCompile(`\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?`), "<time>"},
+	{regexp.MustCompile(`\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?`), "<time>"},
 	{regexp.MustCompile(`/pt-\d+\b`), "/pt-<n>"},
 }
 

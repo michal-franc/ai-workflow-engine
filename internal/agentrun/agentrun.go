@@ -39,7 +39,7 @@ type Response struct {
 // Spec describes one agent launch.
 type Spec struct {
 	// Session is the tmux session (or shared-session window) name:
-	// agent-<slug> for workers, lead-<scope> for leads.
+	// agent-<slug> for workers, lead-<project> for leads.
 	Session   string
 	Prompt    string
 	AgentType string
@@ -68,13 +68,13 @@ type Spec struct {
 var validModelName = regexp.MustCompile(`^[A-Za-z0-9._:/\[\]-]+$`)
 
 // validSessionName limits the -n value to characters that are safe to type
-// into a tmux shell unquoted; agent-<slug> and lead-<scope> names always are.
+// into a tmux shell unquoted; agent-<slug> and lead-<project> names always are.
 var validSessionName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // LaunchCommand builds the shell command typed into tmux. The prompt is
 // passed as the agent's positional argument (both claude and codex accept
 // one and start interactive with it). Claude is named after its tmux session
-// (-n agent-<slug>, -n lead-<scope>), so the tmux name is also its address
+// (-n agent-<slug>, -n lead-<project>), so the tmux name is also its address
 // for Claude Code's cross-session messaging (ListAgents / SendMessage). A
 // --model flag is added only when the project enforces one
 // (agent_model_source: project).

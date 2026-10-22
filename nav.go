@@ -99,6 +99,8 @@ type Nav struct {
 	Systems        []NavCount // the screen panel on the Board and the systems pages
 	Legend         bool       // the workboard's card legend panel
 	Panel          *NavPanel  // another page's screen panel
+	// Pages are the workbench.pages entries, indented under Status.
+	Pages []NavItem
 }
 
 // sidebarNav builds the sidebar for the project behind prefix, with active
@@ -140,6 +142,10 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 		ActiveBots:     activeBots,
 		CreateInPage:   active == "list" || active == "board",
 		ProjectActions: proj.LoadWorkflow().ProjectActions,
+	}
+	for i, p := range proj.LoadWorkflow().Workbench.Pages {
+		key := fmt.Sprintf("page/%d", i)
+		nav.Pages = append(nav.Pages, NavItem{Key: fmt.Sprint(i), Label: p.Title, Href: fmt.Sprintf("%s/pages/%d", prefix, i), Active: active == key})
 	}
 	if nav.Version != "" && !strings.HasPrefix(nav.Version, "v") {
 		nav.Version = "v" + nav.Version

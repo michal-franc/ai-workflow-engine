@@ -133,6 +133,7 @@ func runProcessWorkflow(ctx *Context, args []string) error {
 	} else {
 		fmt.Fprintln(ctx.Stdout, "== Status Lifecycle ==")
 	}
+	fmt.Fprintf(ctx.Stdout, "Workflow file: %s\n", workflowFileLabel(ctx.Project))
 	statusOrder := wf.GetStatusOrder()
 	statusDescs := wf.GetStatusDescriptions()
 	for i, s := range statusOrder {
@@ -190,7 +191,7 @@ func printTypesBlock(w io.Writer, wf *tracker.WorkflowConfig) {
 	fmt.Fprintln(w, "An issue's type: frontmatter picks its path. Details: issue-cli process workflow --type <name>; create with --type; change with set-type (first status only).")
 }
 
-// printLintBlock prints workflow.yaml type-configuration warnings.
+// printLintBlock prints workflow.yaml warnings: types: and workbench: problems.
 func printLintBlock(w io.Writer, wf *tracker.WorkflowConfig) {
 	warnings := wf.Lint()
 	if len(warnings) == 0 {
@@ -314,6 +315,7 @@ func runProcessTransitions(ctx *Context, args []string) error {
 		header = fmt.Sprintf("== Transition Rules — system %q ==", system)
 	}
 	fmt.Fprintln(ctx.Stdout, header)
+	fmt.Fprintf(ctx.Stdout, "Workflow file: %s\n", workflowFileLabel(proj))
 	if wf.HasTypes() && scoped.ActiveType == "" {
 		fmt.Fprintf(ctx.Stdout, "(base rules with no type applied; types: %s — pass --type <name> or an issue slug)\n", strings.Join(wf.TypeNames(), ", "))
 	}

@@ -273,7 +273,7 @@ func buildStatus(proj *tracker.Project, issues []*tracker.Issue, agents *AgentsM
 
 	m.Waiting = waitingOnOwner(proj, sorted)
 	root := projectRoot(proj)
-	m.Next = leadNextSteps(root, tracker.LeadSessionName(proj, tracker.LeadScopeProject), now)
+	m.Next = leadNextSteps(root, tracker.LeadSessionName(proj), now)
 	m.Releases, m.ReleaseSource = recentReleases(root, wf.Workbench.Changelog, statusReleases)
 	return m
 }
@@ -367,7 +367,7 @@ func shortDuration(d time.Duration) string {
 // leadNextSteps reads the ## Next section of the project lead's newest
 // handoff note under <root>/sessions.
 func leadNextSteps(root, lead string, now time.Time) NextSteps {
-	path := tracker.NewestHandoffNote(filepath.Join(root, "sessions"), lead, true)
+	path := tracker.NewestHandoffNote(filepath.Join(root, "sessions"), lead)
 	if path == "" {
 		return NextSteps{}
 	}

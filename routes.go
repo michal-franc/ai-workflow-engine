@@ -88,6 +88,12 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 
 	prefix := "/p/" + projectSlug
 
+	// A sandboxed project page has origin null; it may read, never write.
+	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Header.Get("Origin") == "null" {
+		http.Error(w, "cross-origin request refused", http.StatusForbidden)
+		return
+	}
+
 	switch {
 	case rest == "" || rest == "/":
 		s.handleList(w, r, proj, prefix)
@@ -103,6 +109,12 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleStatus(w, r, proj, prefix)
 	case rest == "status.md" && r.Method == http.MethodGet:
 		s.handleStatusMD(w, r, proj, prefix)
+	case rest == "status.json" && r.Method == http.MethodGet:
+		s.handleStatusJSON(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "pages/") && r.Method == http.MethodGet:
+		s.handleProjectPage(w, r, proj, prefix, rest)
+	case strings.HasPrefix(rest, "page-raw/") && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+		s.handlePageRaw(w, r, proj, prefix)
 	case rest == "github" && r.Method == http.MethodGet:
 		s.handleGitHub(w, r, proj, prefix)
 	case rest == "github/fetch" && r.Method == http.MethodPost:

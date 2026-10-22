@@ -39,7 +39,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli decide <slug>`        | Record a decision as a `D-n` line under `## Decisions`; `--replaces <slug>#D-n` lists the open issues still citing the old one |
 | `issue-cli balance <slug>`       | Add a typed balance note (`--metric`, `--state`, `--hypothesis`, `--change`, `--evidence`, `--verdict`, `--pass`); `balance --list` prints the current notes |
 | `issue-cli decisions`            | List the project's decisions (active, deferred, replaced, stale) with `--system`, `--state`, `--issue`, `--json` |
-| `issue-cli lead <sub>`           | Lead agents: `spawn [--epic <slug>]`, `whoami`, `list`, `message <target> "text"`. See [`lead`](#lead) |
+| `issue-cli lead <sub>`           | The project lead: `spawn`, `whoami`, `list`, `message <target> "text"`. See [`lead`](#lead) |
 | `issue-cli approve <slug>`       | Record a human approval with the human's words (leads only). See [`approve`](#approve) |
 | `issue-cli check <slug> <id>...` | Tick checkboxes by id (several at once), whole section (`--section X --all`), text, or `--section` + `--index` |
 | `issue-cli checklist <slug>`     | List checkboxes grouped by section, each with its id (`D3`, `AC2`) |
@@ -47,7 +47,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli replace <slug>`       | Replace content of an existing section   |
 | `issue-cli set-meta <slug>`      | Set or clear a frontmatter field (refuses `type` in projects with types — use `set-type`; checks every slug in `depends_on`) |
 | `issue-cli set-type <slug> <t>`  | Change an issue's type of work; agents only while it is at its type's first status. See [Types of Work](../Workflow/types.md) |
-| `issue-cli process workflow`     | Print the active workflow, the `== Types ==` block and `workflow.yaml` lint warnings; `--type <t>` prints one type's lifecycle |
+| `issue-cli process workflow`     | Print the workflow file in use (`Workflow file:`), the active workflow, the `== Types ==` block and `workflow.yaml` lint warnings; `--type <t>` prints one type's lifecycle |
 | `issue-cli process transitions`  | Print transition rules (default workflow, or scoped via `--system <name>`, `--type <t>` or `<issue-slug>`) |
 | `issue-cli process schema`       | Print the `workflow.yaml` schema (fields, action types, validation rules) |
 | `issue-cli process changes`      | Print the release history (last 20 versions) |
@@ -273,19 +273,18 @@ The output names the note and the board URL. When the note replaces an earlier o
 
 ### `lead`
 
-Lead agents supervise workers: one project lead per project (`lead-<project>`) and at most one sub-lead per epic (`lead-<epic-slug>`). [The lead session](../patterns/lead-session.md) covers the roles; this is the command reference.
+The project lead supervises workers: one lead per project (`lead-<project>`), and every worker reports to it. [The lead session](../patterns/lead-session.md) covers the roles; this is the command reference.
 
 | Subcommand | Does |
 |:--|:--|
-| `lead spawn [--epic <slug>] [--attach] [--agent claude\|codex]` | Starts the project lead, or the epic's sub-lead. A live lead is re-attached, never started twice. `--epic` creates the base branch (the epic's `base:`, else `base/<slug>`, from `main`) and `.worktrees/<slug>` on it, records `base:` and `lead:` on the epic, then starts the lead there. Headless unless `--attach`. `--json` prints the launch response |
-| `lead whoami` | Your role (`project lead`, `sub-lead`, `worker`, `unmanaged`), scope, guarded branch, your lead and whether it is live, how to reach it, and what you may tick |
-| `lead list` | `== Leads ==`: one row per lead with scope, session, live/dead, base, commits on `main` not in the base, children running/total. Then the epics with no sub-lead, and a start hint when the project lead isn't running |
-| `lead message <target> "text"` | Pastes `[from <your session>] text` into the target's tmux session (load-buffer + paste-buffer + Enter). `target`: `project`, a `lead-`/`agent-` session name, an epic slug (its sub-lead) or an issue slug (its worker) |
+| `lead spawn [--attach] [--agent claude\|codex]` | Starts the project lead in the project checkout. A live lead is re-attached, never started twice. Headless unless `--attach`. `--json` prints the launch response. `--epic` fails with one line: there is one lead per project |
+| `lead whoami` | Your role (`project lead`, `worker`, `unmanaged`), guarded branch, your lead and whether it is live, how to reach it, and what you may tick |
+| `lead list` | `== Lead ==`: the project lead, live or not. `== Epics ==`: each open epic with its children running/total. A start hint when the lead isn't running. `--json` gives `{lead, epics}` |
+| `lead message <target> "text"` | Pastes `[from <your session>] text` into the target's tmux session (load-buffer + paste-buffer + Enter). `target`: `project`, a `lead-`/`agent-` session name, or an issue slug (its worker) |
 
 The CLI works out who is asking from `ISSUE_VIEWER_LEAD_SCOPE`, `ISSUE_VIEWER_ISSUE_SLUG` and the tmux session/window name. It doesn't need the viewer running. Refusals name who can do it instead:
 
-- `lead spawn` from a worker or a sub-lead (the depth is fixed at project lead → sub-lead → worker);
-- `lead spawn --epic` on an issue that is not an epic (no child names it as `parent:`/`umbrella:`, and it has no `type: epic`, `lead:` or `base:`);
+- `lead spawn` from a worker;
 - `lead message` from a worker, which posts a `question:` comment instead.
 
 `show` also prints, under the header:
@@ -297,24 +296,25 @@ When the issue's `work/<slug>` branch is open, `show` also prints `== Shared fil
 
 `show` and `start` print a `Lead:` line naming the issue's lead and whether it is live. On an issue linked with the legacy `umbrella:` key they also print the `set-meta … --key parent` rename hint.
 
-Lead briefs come from the `leads:` block in `workflow.yaml` (`project:` and `epic:`, see `issue-cli process schema`), else built-in defaults, plus a fixed footer with the role, authority and handoff note.
+The lead's brief comes from `leads.project` in `workflow.yaml` (see `issue-cli process schema`), else a built-in default, plus a fixed footer with the role, authority and handoff note. An old `leads.epic` is ignored, and `process workflow` warns about it.
 
 ### `approve`
 
 `issue-cli approve <slug> --to <status> --quote "<the human's words>" [--how "<where>"]` is how a lead records a gate the human approved in chat:
 
-1. It writes an `approval: "<quote>" (<how>, <date>) — recorded by <session>` comment. `--how` defaults to `in the lead chat`, or `relayed by lead-<project>` for a sub-lead.
+1. It writes an `approval: "<quote>" (<how>, <date>) — recorded by <session>` comment. `--how` defaults to `in the lead chat`.
 2. It sets `human_approval` to the status. It never toggles an existing approval off, unlike the viewer's button.
 
 `--to` and `--quote` are required. It is refused:
 
 - from a worker session (the error suggests a `question:` comment to its lead);
-- from a sub-lead, for an issue outside its epic and the epic's children;
 - for Human Testing, always: the human approves that in the viewer.
 
 These checks read the environment and the session name; they are guardrails for agents, not security.
 
 ### `process transitions`
+
+**Workflow file line.** `process workflow`, `process transitions` and `show` print `Workflow file: <absolute path>` under their header (`built-in default` when the project has no workflow file), so an agent can see which workflow it is being walked through. `show --json` carries it as `workflow_file`.
 
 Rules are rendered from the loaded workflow rather than a hardcoded list. Each
 row lists the validation rules, human-approval gates, and side effects
@@ -463,6 +463,7 @@ issue-cli --project cli projects   # marks "cli" as active
 
 1. **Explicit `--project <slug>` always wins.** A bot inside one project workdir (with its own `./issues/`) can still query a sibling project by passing `--project`. The bootstrap auto-detection on cwd yields to an explicit flag.
 2. **No `--project` + a local `./issues/`** → bootstrap mode synthesizes a single project from cwd. `--project` is unused; `len(allProjects) == 1`.
+   The workflow file comes from, in order: `workflow:` in `./project.yaml`, then `./workflow.yaml`, then the one `projects.yaml` entry whose `workdir` is cwd or whose `issues` is `cwd/issues` (paths compared absolute, symlinks resolved). `version` comes from `./project.yaml` or that same entry. An entry for any other directory contributes nothing. When no local file sets the workflow and several entries match cwd, it returns `errAmbiguousProject` and lists only the matching slugs. With no match and no local file, the project runs on the built-in default workflow.
 3. **No `--project` + no local `./issues/`** → consult `projects.yaml`. With `>1` project this returns `errAmbiguousProject` (exit non-zero) and lists configured slugs so the bot retries with the right `--project`. Single-project setups silently use `projects[0]` — byte-identical to pre-multiproject behaviour.
 
 **Error message contract.** When an issue isn't found in a multi-project setup, the error appends `Searched project: <slug>` and an `Available projects:` enumeration with a `Retry with: issue-cli --project <slug> ...` hint. Single-project setups keep the historical `issue not found: <slug>\n\nRun: issue-cli list` message verbatim — this is the regression guard for bots that already grep for it.
@@ -485,9 +486,11 @@ next to the switch statements that handle them.
 `//go:embed` and prints it newest-first, capped to the 20 most recent `## v`
 entries. The CHANGELOG lives under `cmd/issue-cli/` (not the project root)
 because Go's `//go:embed` cannot reference files outside the embedding
-package's directory. When cutting a release, add a new `## vX.Y.Z — YYYY-MM-DD`
-section to the top of that file; the annotated tag message should mirror the
-bullet list.
+package's directory. Shipped changes collect under `## Unreleased` at the
+top. To cut a release (once per milestone, see docs/roadmap.md), rename that
+heading to `## vX.Y.Z — YYYY-MM-DD` and push main to origin; the release-marker
+Action tags, writes the GitHub Release and builds the binaries. A push with
+`## Unreleased` on top releases nothing.
 
 ## Design Considerations
 

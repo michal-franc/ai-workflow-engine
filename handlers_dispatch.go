@@ -35,29 +35,18 @@ func ensureWorktree(workdir, slug string, wf *tracker.WorkflowConfig) (string, [
 	return agentrun.EnsureWorktree(workdir, tracker.WorktreeSpec{Path: wtPath, Branch: branch}, wf)
 }
 
-// issueWorktreeSpec resolves the worktree a dispatch for issueSlug runs in,
-// including the epic base branch it starts from (see tracker.IssueWorktree).
-func issueWorktreeSpec(proj *tracker.Project, workDir, issueSlug string, wf *tracker.WorkflowConfig) tracker.WorktreeSpec {
+// issueWorktreeSpec resolves the worktree a dispatch for issueSlug runs in:
+// work/<slug> from HEAD (see tracker.IssueWorktree).
+func issueWorktreeSpec(workDir, issueSlug string, wf *tracker.WorkflowConfig) tracker.WorktreeSpec {
 	wtPath, branch, enabled := resolveWorktree(workDir, issueSlug, wf)
 	if !enabled {
 		return tracker.WorktreeSpec{}
 	}
-	spec := tracker.WorktreeSpec{Path: wtPath, Branch: branch}
-	if proj == nil || proj.IssueDir == "" {
-		return spec
-	}
-	issues, err := tracker.LoadIssues(proj.IssueDir)
-	if err != nil {
-		return spec
-	}
-	if issue := tracker.FindIssue(issues, issueSlug); issue != nil {
-		return tracker.IssueWorktree(workDir, issue, issues, wf)
-	}
-	return spec
+	return tracker.WorktreeSpec{Path: wtPath, Branch: branch}
 }
 
 // leadLive reports whether proj's agent or lead called name is running. It
-// is what dispatch prompts use to pick the lead a worker reports to.
+// is what dispatch prompts use to say whether the project lead is live.
 func leadLive(proj *tracker.Project) func(string) bool {
 	return func(name string) bool { return agentrun.IsLive(proj, name) }
 }
@@ -131,8 +120,7 @@ func attachAgentStep(proj *tracker.Project, name string, steps *[]DispatchStep) 
 }
 
 // startAgentSession launches (or re-attaches to) the agent called session.
-// With wf and an issue slug it runs in the issue's worktree, created from the
-// epic base branch for children of an epic.
+// With wf and an issue slug it runs in the issue's worktree.
 func startAgentSession(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string, viewerURL string, wf *tracker.WorkflowConfig) DispatchResponse {
 	workDir := resolveProjectWorkDir(proj)
 	return agentrun.Start(proj, agentrun.Spec{
@@ -142,7 +130,7 @@ func startAgentSession(proj *tracker.Project, session string, prompt string, iss
 		IssueSlug:   issueSlug,
 		ViewerURL:   viewerURL,
 		WorkDir:     workDir,
-		Worktree:    issueWorktreeSpec(proj, workDir, issueSlug, wf),
+		Worktree:    issueWorktreeSpec(workDir, issueSlug, wf),
 		Workflow:    wf,
 		RepromptURL: repromptURL(proj, session, issueSlug),
 	})

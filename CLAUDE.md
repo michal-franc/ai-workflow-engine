@@ -59,6 +59,7 @@ handlers_agents.go          — /agents canvas, agents.json, agent detail, open-
 handlers_systems.go         — /systems index and system / family pages (model in systems.go, design-doc panel in docsections.go)
 handlers_metrics.go         — /metrics view (guard metrics, knobs, branches), metrics.json; handlers_metrics_panels.go feeds the system-page partials
 handlers_status.go          — /status page and /status.md (model in status.go: buildStatus, statusMarkdown)
+handlers_pages.go           — project pages (workbench.status_page / pages): frame, /pages/<n>, sandboxed /page-raw/, /status.json
 attention.go                — what waits on the owner (ownerAttention, waitingOnOwner): Status page, sidebar count, system pages, board markers
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
@@ -109,7 +110,7 @@ Markdown body here. Supports `[x]` checkboxes.
 - `created` — date string for sorting (newest first)
 - `number` — GitHub issue number (used in board card display as `#number`)
 - `repo` — GitHub repo in `owner/repo` format
-- `parent` — slug of the epic this issue belongs to (`umbrella` is a legacy alias); an epic may carry `base` (its base branch) and `lead` (its sub-lead session)
+- `parent` — slug of the epic this issue belongs to (`umbrella` is a legacy alias). Old `base`/`lead` fields on epics are plain custom fields; nothing reads or writes them
 - `type` — type of work when `workflow.yaml` defines `types:` (picks the issue's path; see docs/Workflow/types.md)
 
 ### Custom fields
@@ -152,17 +153,18 @@ Page content in markdown.
 Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI:
 
 - [Why a Workflow Harness](docs/why.md) — the argument behind the tool
+- [Roadmap](docs/roadmap.md) — goals, epics and phase order (set 2026-10-22); the board's epics are the source of truth
 - [Getting Started](docs/getting-started.md) — install, server flags, first issue, docs page format
 - [Issue File Format](docs/issue-format.md) — frontmatter fields, custom fields, file organization
 - [Workflow](docs/workflow.md) — lifecycle, prompts, side-effects, system overlays
 - [Agent Workflow Flow](docs/agent-workflow-flow.md) — full dispatch-to-done agent flow
 - [Board Configuration](docs/board-configuration.md) — columns, card fields
-- [Agent Dispatch](docs/agent-dispatch.md) — terminal config, approval notifications, lead sessions, epic worktrees
+- [Agent Dispatch](docs/agent-dispatch.md) — terminal config, approval notifications, the lead session, worktrees
 - [GitHub Integration](docs/github-integration.md) — sync, issue reference, auto-close
 - [Per-issue Data Store](docs/data-store.md) — sidecar JSON, `<!-- data -->` marker, `issue-cli data` commands
-- [Workbench Files](docs/workbench-files.md) — metric runs, targets and knob exports the Metrics view reads, branch matching, hot files, `depends_on`
+- [Workbench Files](docs/workbench-files.md) — metric runs, targets and knob exports the Metrics view reads, branch matching, hot files, `depends_on`; project pages (`status_page`, `pages`: sandboxed HTML, postMessage status)
 - [Workflow Stats](docs/workflow-stats.md) — `/stats` tab, per-issue stats sidecar, token-cost estimation
-- [The Lead Session](docs/patterns/lead-session.md) — lead agents: project lead and per-epic sub-leads (`issue-cli lead`, `approve`), routing, authority, handoff, epics on a base branch, agents canvas
+- [The Lead Session](docs/patterns/lead-session.md) — the project lead, one per project (`issue-cli lead`, `approve`), routing, authority, handoff, epics, agents canvas
 - [Playtest Sessions](docs/patterns/playtest/README.md) — an issue's manual checks as YAML sessions: shared contract, [web app example](docs/patterns/playtest/web-app.md) (this repo, chromedp), [game example](docs/patterns/playtest/game.md); `issue-cli process playtest`
 
 Per-system docs:

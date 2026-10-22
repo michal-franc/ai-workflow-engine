@@ -2,6 +2,10 @@ package main
 
 import (
 	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/michal-franc/issue-viewer/internal/testids"
@@ -39,6 +43,37 @@ func TestTemplateTestIDs(t *testing.T) {
 		}
 		if !found {
 			t.Errorf("internal/testids lists %q but no template uses it", entry)
+		}
+	}
+}
+
+// TestFixtureTestIDs does the same for testids.FixtureIDs against the
+// scenario project pages (playtest/scenarios/*/root/**/*.html), which
+// sessions check by opening the raw page.
+func TestFixtureTestIDs(t *testing.T) {
+	var used []string
+	err := filepath.WalkDir("playtest/scenarios", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".html") || !strings.Contains(filepath.ToSlash(path), "/root/") {
+			return err
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, id := range testids.ScanTemplate(string(src)) {
+			used = append(used, id)
+			if !slices.Contains(testids.FixtureIDs, id) {
+				t.Errorf("%s: data-testid %q is not listed in testids.FixtureIDs", path, id)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range testids.FixtureIDs {
+		if !slices.Contains(used, entry) {
+			t.Errorf("testids.FixtureIDs lists %q but no scenario page uses it", entry)
 		}
 	}
 }

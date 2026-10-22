@@ -8,4 +8,4 @@ created: "2026-01-01"
 
 ## Goal
 
-A feature built in pieces on its own base branch.
+A feature built in pieces, each child shipped to main.

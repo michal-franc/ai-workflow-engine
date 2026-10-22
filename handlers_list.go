@@ -128,7 +128,13 @@ func (s *Server) handleHash(w http.ResponseWriter, r *http.Request, proj *tracke
 	issues, _ := tracker.LoadIssues(proj.IssueDir)
 	sessionMap, activeBots := sessionsByIssueSlug(proj, issues)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"hash": issuesHash(issues, sessionMap, activeBots)})
+	out := map[string]string{"hash": issuesHash(issues, sessionMap, activeBots)}
+	// Project pages reload their iframe on "pages" alone, so a rewritten
+	// report doesn't reload the other views.
+	if pages := pagesHash(proj); pages != "" {
+		out["pages"] = pages
+	}
+	json.NewEncoder(w).Encode(out)
 }
 
 // issuesHash is the /hash value: it changes when any issue file, status,

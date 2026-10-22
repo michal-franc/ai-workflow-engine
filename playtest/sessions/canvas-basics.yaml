@@ -30,7 +30,6 @@ steps:
       - text_equals: { target: canvas.column.0_2.progress, text: 0/4 done }
       - count: { pattern: canvas.lane.*, equals: 5 }
       - text_equals: { target: canvas.lane.core/search-everywhere.kind, text: EPIC }
-      - text_equals: { target: canvas.lane.core/search-everywhere.base, text: ⎇ base/search-everywhere }
       - text_equals: { target: canvas.lane.core/search-everywhere.summary, text: 3 children · 1/3 done · 1 without a version }
       - text_equals: { target: canvas.lane.core/saved-searches.parent, text: ↳ in Search everywhere }
       - text_equals: { target: canvas.lane.core/faster-startup.kind, text: UMBRELLA }

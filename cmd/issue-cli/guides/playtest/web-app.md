@@ -186,7 +186,8 @@ branches:
 | `drag` | `drag: { target: board.card.ui/x, to: board.column.backlog.cards }`. A real mouse drag (native HTML5 drag and drop) when both ends are on screen, else synthetic drag events. |
 | `wait_for` | `wait_for: board.toast`, `wait_for: { hidden: board.transition_modal, ms: 8000 }`, `wait_for: { url: { contains: status=backlog } }` |
 | `wait` | `wait: 500` (ms; prefer `wait_for`) |
-| `post` | `post: { path: /p/{project}/issue/x/approve, json: {status: done}, status: 200 }` |
+| `post` | `post: { path: /p/{project}/issue/x/approve, json: {status: done}, status: 200 }`. `headers: {Origin: "null"}` sends extra headers. |
+| `write` | `write: { path: docs/status/index.html, text: "<p>v2</p>" }`. Replaces a file under the scenario's project root (a page an agent rewrites). |
 | `cli` | `cli: [transition, cli/x, --to, backlog]` or `{ args: […], exit: 1 }`. Runs the scenario's issue-cli. |
 | `tmux` | `tmux: [new-session, -d, -s, lead]`. Runs on the private server. |
 | `snapshot` | `snapshot: { name: before, target: board.column.backlog.count }` |

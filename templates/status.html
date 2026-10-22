@@ -26,6 +26,7 @@
                 <a class="btn mono" href="{{.Prefix}}/status.md" data-testid="status.raw_md">status.md</a>
             </div>
         </div>
+        {{if .HasProjectPage}}{{template "status-tabs" (statusTabs .Prefix true)}}{{end}}
 
         <div class="status-cols">
             <div class="status-col status-col-main">

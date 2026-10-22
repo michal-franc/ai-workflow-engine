@@ -35,7 +35,7 @@ var (
 type OpenBranch struct {
 	Name      string // "work/ui/x"
 	Worktree  string // absolute path; "" for a branch without a worktree
-	Base      string // the epic's base branch, else the main branch
+	Base      string // what Ahead is counted from: the main branch, or the open branch it is stacked on
 	MergeBase string // sha
 	Head      string // sha
 	IssueSlug string // "" when no issue matches work/<slug>
@@ -137,11 +137,6 @@ func OpenBranchesErr(root, mainBranch string, issues []*Issue) ([]OpenBranch, er
 	for i := range out {
 		b := &out[i]
 		b.Base = mainBranch
-		if issue := FindIssue(issues, b.IssueSlug); issue != nil {
-			if base := ChildBase(issue, issues); base != "" && base != b.Name && refExists(root, base) {
-				b.Base = base
-			}
-		}
 		baseSha, err := runGit(root, "rev-parse", "--verify", "--quiet", b.Base+"^{commit}")
 		if err != nil {
 			return out, err
@@ -302,7 +297,7 @@ func HotFiles(root string, branches []OpenBranch, hideShared bool) []HotFile {
 		sharedOnly[a.Name] = so
 	}
 
-	// A branch other open branches are stacked on (an epic's base) is not in
+	// A branch other open branches are stacked on is not in
 	// conflict with them: they build on its change.
 	baseOf := map[string]map[string]bool{} // base → branches built on it
 	for _, b := range branches {

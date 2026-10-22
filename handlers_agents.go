@@ -14,8 +14,8 @@ import (
 )
 
 // The agents canvas (/p/<project>/agents) shows the human → project lead →
-// sub-lead → worker hierarchy built from tmux and the issues' parent links,
-// plus the jobs that have work in flight but no live agent.
+// worker hierarchy built from tmux and the issues' parent links, plus the
+// jobs that have work in flight but no live agent.
 
 // AgentIssue is the issue card an agent node links to.
 type AgentIssue struct {
@@ -32,8 +32,8 @@ type AgentNode struct {
 	Name string `json:"name"`
 	// Display is where it lives in tmux (shared:name in shared mode).
 	Display string `json:"display"`
-	// Kind is project-lead, sub-lead, worker or other (an agent session not
-	// bound to an issue, e.g. a project action).
+	// Kind is project-lead, worker or other (an agent session not bound to an
+	// issue, e.g. a project action).
 	Kind string `json:"kind"`
 	Live bool   `json:"live"`
 	// State is working, idle, at-gate, question or stopped for workers; live
@@ -55,17 +55,12 @@ type AgentNode struct {
 	StartTime string `json:"start_time,omitempty"`
 }
 
-// EpicGroup is one epic box: its sub-lead and how its children are doing.
+// EpicGroup is one open epic under the project lead and how its children
+// are doing.
 type EpicGroup struct {
 	Issue           AgentIssue `json:"issue"`
-	Base            string     `json:"base,omitempty"`
-	MainAhead       int        `json:"main_ahead"`
-	MainAheadKnown  bool       `json:"main_ahead_known"`
 	ChildrenRunning int        `json:"children_running"`
 	ChildrenTotal   int        `json:"children_total"`
-	SubLead         AgentNode  `json:"sub_lead"`
-	// HasSubLead is false for epics nobody has spawned a sub-lead for yet.
-	HasSubLead bool `json:"has_sub_lead"`
 }
 
 // AgentsModel is the whole canvas, also served as /p/<project>/agents.json.
@@ -87,10 +82,6 @@ type AgentsModel struct {
 	// Others are live agent sessions not bound to an issue.
 	Others []AgentNode `json:"others"`
 }
-
-// mainAhead counts commits on main not yet in base. A var so tests don't run
-// git.
-var mainAhead = agentrun.MainAhead
 
 func statusColorOf(status string) string {
 	return funcMap["statusColor"].(func(string) string)(status)
@@ -147,7 +138,7 @@ func (s *Server) buildAgentsModel(proj *tracker.Project, prefix string) (*Agents
 	node := func(name, kind string) AgentNode {
 		sess, ok := live[name]
 		n := AgentNode{Name: name, Display: agentDisplayName(proj, name), Kind: kind, Live: ok, AttachCmd: agentAttachCmd(proj, name), SwitchCmd: agentrun.SwitchCmd(proj, name), StartTime: sess.StartTime}
-		if kind == "project-lead" || kind == "sub-lead" {
+		if kind == "project-lead" {
 			n.State = "not-running"
 			if ok {
 				n.State = "live"
@@ -161,7 +152,7 @@ func (s *Server) buildAgentsModel(proj *tracker.Project, prefix string) (*Agents
 		Prefix:       prefix,
 		ListedAt:     time.Now().Format(time.RFC3339),
 		TerminalNone: agentrun.TerminalNone(proj),
-		ProjectLead:  node(tracker.LeadSessionName(proj, tracker.LeadScopeProject), "project-lead"),
+		ProjectLead:  node(tracker.LeadSessionName(proj), "project-lead"),
 	}
 	claimed := map[string]bool{model.ProjectLead.Name: true}
 
@@ -170,15 +161,6 @@ func (s *Server) buildAgentsModel(proj *tracker.Project, prefix string) (*Agents
 			continue
 		}
 		g := EpicGroup{Issue: *agentIssueOf(prefix, issue)}
-		g.SubLead = node(tracker.LeadSessionName(proj, issue.Slug), "sub-lead")
-		g.SubLead.Epic = issue.Slug
-		g.SubLead.Issue = agentIssueOf(prefix, issue)
-		claimed[g.SubLead.Name] = true
-		g.HasSubLead = issue.Field("lead") != "" || g.SubLead.Live
-		if g.HasSubLead || issue.Field("base") != "" {
-			g.Base = tracker.EpicBase(issue)
-			g.MainAhead, _, g.MainAheadKnown = mainAhead(workDir, g.Base)
-		}
 		for _, child := range tracker.EpicChildren(issues, issue.Slug) {
 			g.ChildrenTotal++
 			if _, ok := live[tracker.AgentSessionName(child.Slug)]; ok {
@@ -303,16 +285,11 @@ func (s *Server) handleAgentDetail(w http.ResponseWriter, r *http.Request, proj 
 				comments = comments[len(comments)-5:]
 			}
 			detail.Comments = comments
-			issues, _ := tracker.LoadIssues(proj.IssueDir)
 			workDir := resolveProjectWorkDir(proj)
 			wf := proj.LoadWorkflowForIssue(issue)
-			if strings.HasPrefix(name, "lead-") {
-				detail.Branch = tracker.EpicBase(issue)
-				detail.Against = mainBranch(workDir)
-			} else if wt := tracker.IssueWorktree(workDir, issue, issues, wf); wt.Branch != "" {
-				detail.Branch = wt.Branch
-				detail.Against = tracker.ChildBase(issue, issues)
-				if detail.Against == "" {
+			if !strings.HasPrefix(name, "lead-") {
+				if wt := tracker.IssueWorktree(workDir, issue, wf); wt.Branch != "" {
+					detail.Branch = wt.Branch
 					detail.Against = mainBranch(workDir)
 				}
 			}
@@ -402,42 +379,27 @@ var attachAgent = agentrun.AttachStep
 // startLead is a seam over agentrun for tests.
 var startLead = agentrun.Start
 
-// handleLeadSpawn starts the project lead, or with {"epic": slug} an epic's
-// sub-lead, exactly like `issue-cli lead spawn [--epic]`.
+// handleLeadSpawn starts the project lead, exactly like `issue-cli lead
+// spawn`. A request naming an epic is refused: sub-leads were removed.
 func (s *Server) handleLeadSpawn(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
 	var body struct {
 		Epic  string `json:"epic"`
 		Agent string `json:"agent"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
-	issues, err := tracker.LoadIssues(proj.IssueDir)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	var epic *tracker.Issue
-	if slug := strings.TrimSpace(body.Epic); slug != "" {
-		if epic = tracker.FindIssue(issues, slug); epic == nil {
-			http.NotFound(w, r)
-			return
-		}
-	}
-	spec, err := agentrun.LeadSpec(proj, proj.LoadWorkflow(), issues, epic, projectRoot(proj), time.Now())
-	if err != nil {
+	if strings.TrimSpace(body.Epic) != "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		json.NewEncoder(w).Encode(DispatchResponse{Status: "error", Steps: []DispatchStep{{Name: "Spawn lead", Status: "error", Detail: err.Error()}}})
+		json.NewEncoder(w).Encode(DispatchResponse{Status: "error", Steps: []DispatchStep{{Name: "Spawn lead", Status: "error", Detail: "sub-leads were removed (one lead per project)"}}})
 		return
 	}
+	spec := agentrun.LeadSpec(proj, proj.LoadWorkflow(), projectRoot(proj), time.Now())
 	spec.AgentType = strings.TrimSpace(body.Agent)
 	if spec.AgentType == "" {
 		spec.AgentType = "claude"
 	}
 	spec.ViewerURL = viewerURLFromRequest(r)
 	resp := startLead(proj, spec)
-	if err := agentrun.RecordLead(epic, resp, spec.Session); err != nil {
-		resp.Steps = append(resp.Steps, DispatchStep{Name: "Record lead: on the epic", Status: "error", Detail: err.Error()})
-	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }

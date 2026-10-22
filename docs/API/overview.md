@@ -14,7 +14,8 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 - `helpers.go` — `projectRoot`, `fileExists`, `resolveProjectWorkDir`, `valueOrDash`, `trimSnippet`
 - `images.go` — `rewriteRelativeImages` (relative `<img src>` → `/files/`), `handleProjectFile` (image-only, root-confined `/p/<project>/files/` route)
 - `tmux.go` — agent session listing (`listTmuxSessions`), matching (`sessionMatchesIssue`), notification (`tmuxSendKeys`), existence probe (`tmuxHasSession`)
-- `handlers_list.go` — list view, filters, `IssueView`, `attachScores`, `/hash` polling, `/issues.json`
+- `handlers_list.go` — list view, filters, `IssueView`, `attachScores`, `/hash` polling (plus the `pages` value from `pagesHash`), `/issues.json`
+- `handlers_pages.go` — project pages: the frame (`pageView`), `/pages/<n>`, the sandboxed `/page-raw/` route (`resolvePageFile`: page folders only, extension allowlist, no symlink escape), `pagesHash`, `/status.json` (`statusJSON`). See [Workbench Files](../workbench-files.md#project-pages-status_page-pages)
 - `handlers_board.go` — board and graph views
 - `handlers_detail.go` — detail page, `renderBodyWithDataTable`, `renderDataTable`, transition preview, `findIssueBySlug`
 - `handlers_issue_mutate.go` — update/create/delete/approve/upload, edit-in-nvim full-file editor goroutine (writes the entire markdown file to a temp, parse-validates on save, calls `tracker.RewriteIssueFile`)
@@ -43,6 +44,7 @@ When working on API changes:
 
 - If the change affects UI-visible state, identify the source of truth (server-side file vs. client state)
 - Server-side polling uses the `/hash` endpoint for cache invalidation — check whether your change affects the hash
+- Every non-GET/HEAD request with `Origin: null` (a sandboxed project page) gets a 403 in `handleProjectRoutes`, before any handler runs
 - Changes to issue update endpoints must preserve the atomic write + file lock pattern in `issue.go`
 - JSON responses should include a `status` field for consistency
 - Tmux-backed flows (`startAgentSession`, `startIssueBodyEditor`) probe `tmuxHasSession` before `tmux new-session`. When a session with the target name already exists they skip setup (no re-prompt of the agent, no nvim relaunch, no save-on-exit goroutine) and just open a terminal attached to the existing session. The `/dispatch` response uses `status: "reattached"` with a single step of the same status; `edit-in-nvim` adds `reattached: true`. The UI renders both as a yellow warning banner/toast distinct from the normal success/error styling. When the project sets `tmux_session`, these flows address the window `=<tmux_session>:=<name>` instead of a session (`agentTmuxTarget`), create it with `new-window` in the shared session, and only open a terminal if no client is attached to it (`attachAgentStep`).
@@ -67,12 +69,15 @@ When working on API changes:
 | POST   | `/issue/<slug>/data/<id>/tier`                | Set a row's tier (second axis; pass empty string to clear) — body `{tier}` |
 | POST   | `/issue/<slug>/data/<id>/comment`             | Set a row's comment — body `{comment}` |
 | DELETE | `/issue/<slug>/data/<id>`                     | Remove a row (id is not reused) |
-| GET    | `/hash`                                       | Content hash for polling       |
+| GET    | `/hash`                                       | Content hash for polling: `{hash}`, plus `pages` when the project has project pages (changes when a page file changes) |
+| GET    | `/status.json`                                | The Status model project pages receive by postMessage |
+| GET    | `/pages/<n>`                                  | A `workbench.pages` entry in the viewer frame |
+| GET    | `/page-raw/<path>`                            | A project page or asset under a configured page's folder, with CSP `sandbox`, `nosniff`; 404 otherwise |
 | GET    | `/agents`                                     | Agents canvas (see [UI](../UI/overview.md#agents-canvas)) |
-| GET    | `/agents.json`                                | Canvas model: `project_lead`, `epics` (sub-lead, base, `main_ahead`, children running/total), `workers`, `unfinished`, `others`, `listed_at` |
+| GET    | `/agents.json`                                | Canvas model: `project_lead`, `epics` (each open epic's issue and children running/total), `workers`, `unfinished`, `others`, `listed_at` |
 | GET    | `/agents/detail?session=<name>&issue=<slug>`  | Selected-agent panel: the issue's last 5 comments, `branch`/`against`/`diff_stat`. `400` unless `session` is an `agent-*`/`lead-*` name |
 | POST   | `/agents/open`                                | Open a live session in a terminal, like a dispatch re-attach — body `{session}`. Returns `{status: "opened", steps, attach_cmd, switch_cmd}`. When a terminal is already attached it opens none: `status: "focused"` when i3 brought the window titled with the session name to the front, else `"already-open"`. With `terminal: none` it opens nothing: in `tmux_session` mode it selects the agent's window (`"selected"`); `409` with `status: "no-session"` when it isn't running, `400` for a name that isn't `agent-*`/`lead-*` |
-| POST   | `/lead/spawn`                                 | Start (or re-attach) the project lead, or with `{"epic": "<slug>"}` that epic's sub-lead; optional `agent`. Returns the dispatch `{status, session, steps}`; `422` for a non-epic, `404` for an unknown slug |
+| POST   | `/lead/spawn`                                 | Start (or re-attach) the project lead; optional `agent`. Returns the dispatch `{status, session, steps}`. A body with `epic` gets `422`: one lead per project |
 
 ## Edit in nvim
 

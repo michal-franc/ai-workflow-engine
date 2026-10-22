@@ -22,7 +22,7 @@
             <label><input type="checkbox" id="opt-issues" data-testid="agents.opt.issues" checked> Show issues</label>
             <label><input type="checkbox" id="opt-stopped" data-testid="agents.opt.stopped" checked> Show stopped</label>
             <span class="agents-live" id="agents-live" data-testid="agents.live">loading…</span>
-            <button type="button" class="dispatch-btn" id="spawn-project-lead" data-testid="agents.spawn_lead" onclick="spawnLead('')">Spawn lead</button>
+            <button type="button" class="dispatch-btn" id="spawn-project-lead" data-testid="agents.spawn_lead" onclick="spawnLead()">Spawn lead</button>
         </div>
 
         <div class="agents-body">
@@ -88,7 +88,7 @@
             + '<button type="button" class="' + cls + '" data-name="' + esc(n.name) + '" title="' + esc(n.name) + '" data-testid="agents.node.' + tid(n.name) + '">'
             + '<span class="agent-dot"></span><span class="agent-name">' + esc(shortName(n.name, 32)) + '</span>'
             + '<span class="agent-state" data-testid="agents.node.' + tid(n.name) + '.state">' + meta + '</span></button>';
-        if (opts.issues && n.issue && n.kind !== 'sub-lead') {
+        if (opts.issues && n.issue) {
             html += '<span class="agent-link" style="border-color:' + esc(n.issue.color) + '"></span>'
                 + '<a class="agent-issue-card" data-testid="agents.node.' + tid(n.name) + '.issue" href="' + esc(n.issue.url) + '" style="border-left-color:' + esc(n.issue.color) + '">'
                 + '<span class="agent-issue-status" style="background:' + esc(n.issue.color) + '">' + esc(n.issue.status) + '</span>'
@@ -97,20 +97,12 @@
         return html + '</div>';
     }
 
-    // liveSubLeads lists sub-leads that are running. The view shows the
-    // hierarchy, not epics: one lead per project for now, so these only
-    // appear when one was started from the CLI.
-    function liveSubLeads() {
-        return (model.epics || []).filter(function(g) { return g.sub_lead.live; }).map(function(g) { return g.sub_lead; });
-    }
-
     function renderTree() {
         var html = '<div data-testid="agents.tree"><div class="agent-row"><span class="agent-node agent-human" data-testid="agents.you">You</span></div>'
             + '<div class="agents-level">' + nodeHTML(model.project_lead) + '<div class="agents-level">';
-        liveSubLeads().forEach(function(n) { html += nodeHTML(n); });
         (model.workers || []).forEach(function(w) { html += nodeHTML(w); });
         (model.others || []).forEach(function(w) { html += nodeHTML(w); });
-        if (!(model.workers || []).length && !(model.others || []).length && !liveSubLeads().length) {
+        if (!(model.workers || []).length && !(model.others || []).length) {
             html += '<p class="agents-none">No agents running.</p>';
         }
         html += '</div></div></div>';
@@ -133,9 +125,9 @@
         var lead = model.project_lead;
         nodes.push({ id: lead.name, label: shortName(lead.name, 24), full: lead.name, x: cx, y: cy, kind: 'project-lead', state: lead.state });
         edges.push({ from: 'you', to: lead.name });
-        // One ring around the lead: live sub-leads, workers, and (when shown)
-        // unfinished jobs. No epic grouping in this view.
-        var all = liveSubLeads().concat(model.workers || [], opts.stopped ? (model.unfinished || []) : [], model.others || []);
+        // One ring around the lead: workers and (when shown) unfinished jobs.
+        // No epic grouping in this view.
+        var all = (model.workers || []).concat(opts.stopped ? (model.unfinished || []) : [], model.others || []);
         var sectors = all.length ? [{ hub: null, members: all }] : [];
         sectors.forEach(function(s, i) {
             var a = (2 * Math.PI * i) / Math.max(sectors.length, 1) - Math.PI / 2;
@@ -187,7 +179,6 @@
     function allNodes() {
         if (!model) return [];
         var list = [model.project_lead];
-        list = list.concat(liveSubLeads());
         return list.concat(model.workers || [], model.unfinished || [], model.others || []);
     }
 
@@ -270,7 +261,7 @@
             html += '<button type="button" class="dispatch-btn" id="panel-approve" data-testid="agents.panel.approve">Approve gate: ' + esc(n.gate) + '</button>';
         }
         if (!n.live && n.kind === 'project-lead') {
-            html += '<button type="button" class="dispatch-btn" data-testid="agents.panel.spawn" onclick="spawnLead(\'\')">Spawn lead</button>';
+            html += '<button type="button" class="dispatch-btn" data-testid="agents.panel.spawn" onclick="spawnLead()">Spawn lead</button>';
         }
         if (n.live) {
             html += '<button type="button" class="btn" id="panel-open" data-testid="agents.panel.open">Open in tmux</button>';
@@ -325,7 +316,7 @@
         });
     }
 
-    window.spawnLead = function(epic) {
+    window.spawnLead = function() {
         var modal = document.getElementById('lead-spawn-modal');
         var steps = document.getElementById('lead-spawn-steps');
         document.getElementById('lead-spawn-title').textContent = 'Spawn project lead';
@@ -334,7 +325,7 @@
         modal.style.display = '';
         fetch(prefix + '/lead/spawn', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ epic: epic })
+            body: JSON.stringify({})
         }).then(function(r) { return r.json(); }).then(function(d) {
             if (d.session) document.getElementById('lead-spawn-session').textContent = 'tmux: ' + d.session;
             steps.innerHTML = (d.steps || []).map(function(s) {

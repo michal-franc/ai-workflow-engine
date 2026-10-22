@@ -26,6 +26,13 @@ release nothing.
 
 - **issue-cli loads the right workflow without `--project`.** Run from a project root with `./issues/`, issue-cli used to take the workflow of the *last* project in `projects.yaml`. From `~/Work/issue-viewer`, that was Demo's. It now uses `./project.yaml`, then `./workflow.yaml`, then the configured project whose `workdir` or `issues` is that directory. If several match, it fails with the `--project` hint.
 - `process workflow`, `process transitions` and `show` print `Workflow file: <path>`, and `show --json` adds `workflow_file`.
+- **Project status pages.** Two new optional `workbench:` keys in `workflow.yaml` let a project show its own HTML in the viewer. See "Project pages" in `docs/workbench-files.md`.
+  - `status_page: docs/status/index.html` makes `/status` show the project's page by default, with **Project status** / **Built-in** tabs. `/status?view=builtin` and `/status.md` stay built-in.
+  - `pages:` (each with a `title` and `path`) adds indented rows under Status in the sidebar, at `/pages/<n>`.
+  - Pages run in an iframe sandboxed without `allow-same-origin`. `/page-raw/` serves only files under a configured page's folder, with CSP `sandbox` and `nosniff`. Any non-GET request with `Origin: null` gets a 403, so a page can't approve or dispatch.
+  - An open page reloads when its files change. It gets live counts from the viewer through `postMessage({type: "issue-viewer.status", project, status})`, with the same model at `/status.json`.
+  - `process workflow` now warns about bad `workbench:` paths, and `help schema` lists `workbench.pages[]`.
+- Playtest sessions: `post` takes `headers:`, and a new `write` action replaces a file under the scenario's project. REPEAT runs no longer differ on a minute-only timestamp such as `status.md`'s.
 
 ## v0.51.0 — 2026-10-22
 

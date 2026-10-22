@@ -108,7 +108,7 @@
                         <td>{{range $m.Systems}}<span class="chip">{{.}}</span> {{end}}</td>
                         <td class="mono nowrap">{{bandText $m.Band}}</td>
                         <td class="mono num nowrap">{{masterValue $m}}</td>
-                        <td class="metric-branches" data-testid="metrics.row.{{tid $m.ID}}.branch">
+                        <td data-testid="metrics.row.{{tid $m.ID}}.branch">
                             {{range $b := $m.Branches}}
                             <div class="metric-branch">
                                 {{if $b.Missing}}<span class="muted">not measured on <span class="mono">{{shortBranch $b.Branch}}</span></span>

@@ -61,7 +61,7 @@
                 <thead><tr><th>ID</th><th>Date</th><th>Decision</th><th>Recorded in</th><th>Cited by</th><th>State</th></tr></thead>
                 <tbody>
                 {{range .Rows}}
-                <tr class="decision-row{{if .ReplacedBy}} dim{{end}}" data-ref="{{.Ref}}" data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}">
+                <tr{{if .ReplacedBy}} class="decision-replaced"{{end}} data-ref="{{.Ref}}" data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}">
                     <td><span class="decision-id">{{.ID}}</span><button type="button" class="decision-copy" data-testid="decisions.row.{{tid .Slug}}.{{tid .ID}}.copy" data-ref="{{.Ref}}" title="Copy {{.Ref}}">copy ref</button></td>
                     <td class="decision-date">{{.DateLabel}}</td>
                     <td>

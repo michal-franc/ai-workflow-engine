@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -204,4 +205,57 @@ func TestOverlayEndToEnd(t *testing.T) {
 			t.Errorf("missing comment %q in:\n%s", want, comments)
 		}
 	}
+}
+
+// TestStylesAppliedCatchesV048 replays the v0.48.0 break: a lost `}`
+// left the rest of style.css inside a max-width: 900px block, so the status
+// page rendered unstyled on desktop while every content check passed. With
+// that stylesheet swapped in, styles_applied fails the status page at
+// 1440x900; with the current one it passes.
+func TestStylesAppliedCatchesV048(t *testing.T) {
+	old, err := os.ReadFile(filepath.Join("testdata", "style-v0.48.0.css"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := func(swap bool) []LayoutViolation {
+		r, b := newTestRunner(t)
+		if swap {
+			css, _ := json.Marshal(string(old))
+			r.pageScripts = []string{`document.addEventListener('DOMContentLoaded', function () {
+  var l = document.querySelector('link[href="/static/style.css"]');
+  if (!l) return;
+  var s = document.createElement('style');
+  s.textContent = ` + string(css) + `;
+  l.replaceWith(s);
+});`}
+		}
+		s := loadRepoSession(t, "status-page")
+		s.Checks.Viewports = []string{"1440x900"}
+		s.Checks.Layout = []string{"styles_applied"}
+		res, _, err := r.UXTest(b, s, map[string]bool{"TP5": true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		st := res.Step("TP5")
+		if st == nil || len(st.Viewports) != 1 {
+			t.Fatalf("TP5 = %+v", st)
+		}
+		for _, c := range st.Viewports[0].Checks {
+			if !c.Pass {
+				t.Errorf("content check %s failed (%s): the swap should break only the styling", c.Check, c.Actual)
+			}
+		}
+		return st.Viewports[0].Layout
+	}
+	if v := run(false); len(v) != 0 {
+		t.Errorf("current style.css: want no styles_applied violations, got %+v", v)
+	}
+	v := run(true)
+	if len(v) == 0 {
+		t.Fatal("v0.48.0 style.css: styles_applied found nothing")
+	}
+	if !strings.Contains(v[0].Detail, "has no CSS rule active at 1440x900") {
+		t.Errorf("first violation = %+v", v[0])
+	}
+	t.Logf("v0.48.0: %d violations, first %s: %s", len(v), v[0].ID, v[0].Detail)
 }

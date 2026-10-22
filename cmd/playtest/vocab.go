@@ -21,6 +21,7 @@ var (
 		"enabled": true, "disabled": true, "selected": true,
 		"text_equals": true, "text_contains": true, "value_equals": true,
 		"count": true, "url": true, "changed": true, "unchanged": true,
+		"beside": true, "below": true, "css": true, "size": true,
 	}
 	runnerChecks = map[string]bool{"issue": true, "cli": true, "tmux": true, "http": true}
 	actionKinds  = map[string]bool{
@@ -35,6 +36,7 @@ var (
 	}
 	layoutRules = map[string]bool{
 		"inside_viewport": true, "no_clipping": true, "no_overlap": true, "no_zero_size_text": true,
+		"styles_applied": true,
 	}
 	keyNames = map[string]bool{
 		"Enter": true, "Escape": true, "Tab": true, "Backspace": true, "Delete": true,
@@ -353,6 +355,50 @@ func (v *Validator) check(c Check, at errAt) {
 		}
 	case "changed", "unchanged":
 		need(str("target") != "" && str("since") != "", "{target, since: <snapshot name>}")
+	case "beside", "below":
+		form := "[a, b] or {a, b}"
+		if c.Kind == "beside" {
+			form = "[a, b] or {a, b, gap_max?} (b to the right of a, on the same row)"
+		}
+		need(str("a") != "" && str("b") != "", form)
+		for _, k := range []string{"a", "b"} {
+			if t := str(k); t != "" {
+				v.target(t, c.Line, at)
+			}
+		}
+		if g, ok := c.Arg["gap_max"]; ok {
+			_, isNum := number(g)
+			need(c.Kind == "beside" && isNum, "gap_max: a number of px (beside only)")
+		}
+	case "css":
+		n := 0
+		for _, k := range []string{"equals", "in", "not"} {
+			if c.Arg[k] != nil {
+				n++
+			}
+		}
+		need(str("target") != "" && str("property") != "" && n == 1, "{target, property, equals | in: [..] | not}")
+		if in, ok := c.Arg["in"]; ok {
+			_, isList := in.([]any)
+			need(isList, "in: a list of values")
+		}
+	case "size":
+		bounds := map[string]float64{}
+		for _, k := range []string{"min_width", "max_width", "min_height", "max_height"} {
+			if x, ok := c.Arg[k]; ok {
+				f, isNum := number(x)
+				need(isNum && f >= 0, k+": a number of CSS px")
+				bounds[k] = f
+			}
+		}
+		need(str("target") != "" && len(bounds) > 0, "{target, min_width?, max_width?, min_height?, max_height?} with at least one bound")
+		for _, d := range []string{"width", "height"} {
+			lo, hasLo := bounds["min_"+d]
+			hi, hasHi := bounds["max_"+d]
+			if hasLo && hasHi && lo > hi {
+				at(c.Line, "size: min_%s %v is above max_%s %v", d, lo, d, hi)
+			}
+		}
 	case "issue":
 		need(str("slug") != "" && has("field", "checkbox", "comment_contains", "body_contains"),
 			"{slug, field+equals | checkbox+checked | comment_contains | body_contains}")
@@ -380,4 +426,15 @@ func (v *Validator) check(c Check, at errAt) {
 	if t := str("target"); t != "" && c.Kind != "url" && domChecks[c.Kind] {
 		v.target(t, c.Line, at)
 	}
+}
+
+// number reads a YAML number (int or float) as float64.
+func number(x any) (float64, bool) {
+	switch n := x.(type) {
+	case int:
+		return float64(n), true
+	case float64:
+		return n, true
+	}
+	return 0, false
 }

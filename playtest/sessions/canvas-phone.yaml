@@ -5,7 +5,7 @@ scenario: canvas
 
 session_checks:
   viewports: [390x844]
-  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
   console: no_errors
   # canvas.world is the pan surface: it is meant to extend
   # past the screen and is moved with drag and zoom, not page scroll.

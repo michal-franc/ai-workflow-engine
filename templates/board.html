@@ -278,9 +278,9 @@
         });
 
         card.addEventListener('click', function(e) {
-            if (this.classList.contains('just-dropped')) {
+            if (this.classList.contains('js-just-dropped')) {
                 e.preventDefault();
-                this.classList.remove('just-dropped');
+                this.classList.remove('js-just-dropped');
             }
         });
     });
@@ -302,7 +302,7 @@
 
         // Optimistic move — we'll revert if the server blocks or the user cancels.
         cardArea.appendChild(wrapper);
-        wrapper.querySelector('.board-card').classList.add('just-dropped');
+        wrapper.querySelector('.board-card').classList.add('js-just-dropped');
         updateColumnCounts();
 
         startTransition(slug, newStatus, wrapper, sourceColumn);
@@ -352,7 +352,7 @@
 
     function revertCard(wrapper, sourceColumn) {
         sourceColumn.appendChild(wrapper);
-        wrapper.querySelector('.board-card').classList.remove('just-dropped');
+        wrapper.querySelector('.board-card').classList.remove('js-just-dropped');
         updateColumnCounts();
     }
 

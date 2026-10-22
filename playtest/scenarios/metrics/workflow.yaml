@@ -1,0 +1,36 @@
+statuses:
+  - name: "idea"
+    description: "Raw idea"
+  - name: "in progress"
+    description: "Being built"
+  - name: "testing"
+    description: "Being checked"
+  - name: "done"
+    description: "Finished"
+
+transitions:
+  - from: "idea"
+    to: "in progress"
+  - from: "in progress"
+    to: "testing"
+  - from: "testing"
+    to: "done"
+
+workbench:
+  metrics:
+    targets: targets.json
+    probe_results: probe/*.json
+  tuning:
+    - build/knobs.json
+  balance:
+    comment_prefix: "balance:"
+  systems:
+    Sim:
+      summary: "How the siege plays out"
+      metrics: [full-holds, stage-share, open-*, stuck, spawn-kills]
+      knobs: [OpeningPrep, PrepTime, RunSpeed]
+    AI:
+      metrics: [dominant-plays]
+      knobs: ["*Noise"]
+    Economy:
+      metrics: [tier2-wait, richest-share, gold-later]

@@ -1,0 +1,48 @@
+{{/*
+Compact panels for a system (or family) page. Data comes from
+systemMetricsPanels (handlers_metrics_panels.go):
+  {{with .Metrics}}{{template "system-guard-metrics" .}}{{end}}
+  {{with .Knobs}}{{template "system-knobs" .}}{{end}}
+*/}}
+{{define "system-guard-metrics"}}
+<section class="card wb-panel" data-testid="panel.guard_metrics" aria-label="Guard metrics">
+    <div class="wb-panel-head">
+        <h2>Guard metrics</h2>
+        {{with .Run}}<span class="muted wb-panel-meta">{{$.Scope}} · <span class="mono">{{.File}}</span>{{if .Date}} · {{.Date}}{{end}}{{if .Commit}} · <span class="mono">{{shortSha .Commit}}</span>{{end}}{{if .N}} · N = {{.N}}{{end}}</span>{{end}}
+    </div>
+    <table class="metrics-table wb-panel-table">
+        <thead><tr><th>Metric</th><th>Target</th><th class="num">Master</th><th>Branch</th><th>Verdict</th></tr></thead>
+        <tbody>
+        {{range $m := .Rows}}
+        <tr data-testid="panel.guard_metrics.row.{{tid $m.ID}}">
+            <td><div class="metric-name">{{$m.Name}}</div>{{if ne $m.Name $m.ID}}<div class="mono metric-id">{{$m.ID}}</div>{{end}}</td>
+            <td class="mono nowrap">{{bandText $m.Band}}</td>
+            <td class="mono num nowrap">{{masterValue $m}}</td>
+            <td class="metric-branches">{{range $b := $m.Branches}}<div class="metric-branch">{{if $b.Missing}}<span class="muted">not measured on {{shortBranch $b.Branch}}</span>{{else}}<span class="mono tone-{{$b.Verdict}}">{{metricValue $m $b.MetricValue}}</span> <span class="mono muted">· {{shortBranch $b.Branch}}</span>{{end}}</div>{{else}}<span class="muted">—</span>{{end}}</td>
+            <td>{{if $m.Master}}{{verdictChip $m.Master.Verdict}}{{else}}{{verdictChip ""}}{{end}}</td>
+        </tr>
+        {{end}}
+        </tbody>
+    </table>
+    <div class="wb-panel-foot"><span class="muted">{{len .Rows}} of {{.Total}} {{.Scope}} metric{{pluralS .Total}}{{if .Off}} · {{.Off}} off{{end}}</span><a href="{{.Link}}">All metrics</a></div>
+</section>
+{{end}}
+
+{{define "system-knobs"}}
+<section class="card wb-panel" data-testid="panel.knobs" aria-label="Knobs this system moves">
+    <div class="wb-panel-head">
+        <h2>Knobs this system moves</h2>
+        <span class="muted wb-panel-meta">{{.Scope}}</span>
+    </div>
+    <div class="wb-panel-knobs">
+        {{range $k := .Rows}}
+        <div class="wb-panel-knob" data-testid="panel.knobs.row.{{tid $k.Name}}">
+            <div class="wb-panel-knob-top"><span><span class="mono knob-name">{{$k.Name}}</span> <span class="mono muted">=</span> <span class="mono knob-name">{{$k.Value}}</span></span>{{if $k.File}}<span class="mono muted">{{$k.File}}{{if $k.Line}}:{{$k.Line}}{{end}}</span>{{end}}</div>
+            {{if $k.Comment}}<div class="knob-comment">{{$k.Comment}}</div>{{end}}
+            <div class="wb-panel-knob-change">{{with $k.Last}}<span class="mono tone-amber knob-change">{{.Label}}</span> <span class="muted">· {{.Subject}} · {{.Date}}</span>{{else}}<span class="muted">unchanged</span>{{end}}{{if $k.Edits}} <span class="chip chip-blue">also edited on {{len $k.Edits}} branch{{if ne (len $k.Edits) 1}}es{{end}}</span>{{end}}</div>
+        </div>
+        {{end}}
+    </div>
+    <div class="wb-panel-foot"><span class="muted">{{len .Rows}} of {{.Total}} {{.Scope}} knob{{pluralS .Total}} · recently changed first</span><a href="{{.Link}}">All knobs</a></div>
+</section>
+{{end}}

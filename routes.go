@@ -129,6 +129,10 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleUpdateBugStatus(w, r, proj, prefix)
 	case rest == "decisions" && r.Method == http.MethodGet:
 		s.handleDecisions(w, r, proj, prefix)
+	case rest == "metrics" && r.Method == http.MethodGet:
+		s.handleMetrics(w, r, proj, prefix, false)
+	case rest == "metrics.json" && r.Method == http.MethodGet:
+		s.handleMetrics(w, r, proj, prefix, true)
 	case rest == "balance" && r.Method == http.MethodGet:
 		s.handleBalance(w, r, proj, prefix)
 	case rest == "hash":

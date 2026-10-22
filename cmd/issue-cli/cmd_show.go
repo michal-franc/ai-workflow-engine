@@ -56,6 +56,7 @@ func runShow(ctx *Context, args []string) error {
 	}
 	printTypeWarnings(ctx.Stdout, wf, issue)
 	printLeadLines(ctx, issue)
+	printDepLines(ctx, issue, issues)
 	fmt.Fprintln(ctx.Stdout)
 
 	fmt.Fprintln(ctx.Stdout, "== Body ==")
@@ -71,6 +72,7 @@ func runShow(ctx *Context, args []string) error {
 	}
 
 	printReplacedCitations(ctx, issue, issues)
+	printSharedFiles(ctx.Stdout, ctx.Project, issue, issues)
 
 	hasAuto, hasManual := tracker.HasTestPlan(issue.BodyRaw)
 	if hasAuto || hasManual {

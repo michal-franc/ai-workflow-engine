@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — {{if or .HasMetrics .HasKnobs}}Metrics{{else}}Branches{{end}}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M1 14h14v1.5H1zM2 9h2.5v4H2zm4.5-4H9v8H6.5zm4.5 2h2.5v6H11z' fill='%2358a6ff'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="app">
+{{template "sidebar" (withPanel (sidebar .Prefix "metrics") .Panel)}}
+<div class="app-main">
+    <main class="container wb-page metrics" data-testid="metrics.page">
+        <div class="page-head metrics-head">
+            <div>
+                <h1 class="page-title">{{if or .HasMetrics .HasKnobs}}Metrics{{else}}Branches{{end}}</h1>
+                <p class="page-sub">{{if or .HasMetrics .HasKnobs}}Guard metrics, tuning knobs and branch overlap, read from the files the project keeps. Nothing here is stored by the viewer: change the files in the repo.{{else}}Open branches and the files more than one of them changes, read from git. Add <code>workbench.metrics</code> or <code>workbench.tuning</code> to workflow.yaml for metrics and knobs.{{end}}</p>
+            </div>
+            <div class="wb-stats metrics-counts" data-testid="metrics.counts">
+                {{if eq .Tab "metrics"}}
+                <div class="wb-stat"><span class="wb-stat-num tone-green">{{.OK}}</span><span class="wb-stat-label">OK</span></div>
+                <div class="wb-stat"><span class="wb-stat-num tone-amber">{{.Near}}</span><span class="wb-stat-label">Near</span></div>
+                <div class="wb-stat"><span class="wb-stat-num tone-red">{{.Off}}</span><span class="wb-stat-label">Off</span></div>
+                {{else if eq .Tab "knobs"}}
+                <div class="wb-stat"><span class="wb-stat-num">{{len .Knobs}}</span><span class="wb-stat-label">Knobs</span></div>
+                <div class="wb-stat"><span class="wb-stat-num tone-blue">{{.EditedKnobs}}</span><span class="wb-stat-label">Edited on a branch</span></div>
+                {{else}}
+                <div class="wb-stat"><span class="wb-stat-num">{{.OpenCount}}</span><span class="wb-stat-label">Open branches</span></div>
+                <div class="wb-stat"><span class="wb-stat-num tone-amber">{{.Hot3}}</span><span class="wb-stat-label">Hot files</span></div>
+                <div class="wb-stat"><span class="wb-stat-num tone-blue">{{.Hot2}}</span><span class="wb-stat-label">On two branches</span></div>
+                {{end}}
+            </div>
+        </div>
+
+        <nav class="metrics-tabs" aria-label="Metrics tabs">
+            {{if .HasMetrics}}<a href="{{.TabURL "metrics"}}" class="metrics-tab{{if eq .Tab "metrics"}} active{{end}}" data-testid="metrics.tab.metrics"{{if eq .Tab "metrics"}} aria-current="page"{{end}}>Guard metrics <span>{{len .Report.Metrics}}</span></a>{{end}}
+            {{if .HasKnobs}}<a href="{{.TabURL "knobs"}}" class="metrics-tab{{if eq .Tab "knobs"}} active{{end}}" data-testid="metrics.tab.knobs"{{if eq .Tab "knobs"}} aria-current="page"{{end}}>Knobs <span>{{len .Knobs}}</span></a>{{end}}
+            <a href="{{.TabURL "branches"}}" class="metrics-tab{{if eq .Tab "branches"}} active{{end}}" data-testid="metrics.tab.branches"{{if eq .Tab "branches"}} aria-current="page"{{end}}>Branches <span>{{.OpenCount}} open · {{.Hot3}} hot file{{pluralS .Hot3}}</span></a>
+        </nav>
+
+        {{if .GitProblem}}<div class="metrics-banner" data-testid="metrics.git_problem">{{.GitProblem}}</div>{{end}}
+
+        {{if eq .Tab "metrics"}}
+        {{if .Report.Problems}}
+        <div class="metrics-banner warn" data-testid="metrics.problems">
+            {{range .Report.Problems}}<div>{{.}}</div>{{end}}
+        </div>
+        {{end}}
+
+        <section class="metrics-runs" aria-label="Probe runs">
+            <div class="card metrics-run" data-testid="metrics.run.master">
+                <span class="label">Master run</span>
+                {{with .Report.Run}}
+                <div class="metrics-run-line"><span class="mono">{{.File}}</span>{{if .Date}}<span class="sep">·</span>{{.Date}}{{end}}{{if .Commit}}<span class="sep">·</span><span class="mono">{{shortSha .Commit}}</span>{{end}}{{if .N}}<span class="sep">·</span>N = {{.N}}{{end}}{{if .Dirty}}<span class="sep">·</span>dirty{{end}}</div>
+                <div class="metrics-run-chips">
+                    {{if $.RunSince}}<span class="chip chip-amber" data-testid="metrics.run.since">{{$.RunSince}} commit{{pluralS $.RunSince}} to {{$.RunSinceDirs}} since this run</span>{{end}}
+                    {{if .Command}}<span class="chip">re-run: {{.Command}}</span>{{end}}
+                </div>
+                {{else}}
+                <div class="metrics-run-line muted">No run file found.</div>
+                {{end}}
+            </div>
+            <div class="card metrics-run" data-testid="metrics.run.branches">
+                <span class="label">Branch runs</span>
+                <div class="metrics-run-line">{{len .Report.BranchRuns}} of {{.OpenCount}} open branch{{if ne .OpenCount 1}}es{{end}} {{if eq (len .Report.BranchRuns) 1}}has{{else}}have{{end}} a run that differs from master</div>
+                <div class="metrics-run-chips">
+                    {{range .Report.BranchRuns}}
+                    <span class="chip chip-blue mono" title="{{.File}}">{{shortBranch .Branch}}{{if .Date}} · {{.Date}}{{end}}{{if .N}} · N = {{.N}}{{end}}{{if eq .Source "commit"}} · committed{{end}}</span>
+                    {{if gt .Behind 0}}<span class="chip chip-amber">run {{.Behind}} commit{{pluralS .Behind}} behind</span>{{else if lt .Behind 0}}<span class="chip chip-amber">run from another branch</span>{{end}}
+                    {{end}}
+                </div>
+            </div>
+        </section>
+
+        <form class="metrics-filters" method="get" action="{{.Prefix}}/metrics">
+            <input type="hidden" name="tab" value="metrics">
+            {{if .Systems}}
+            <label class="metrics-field"><span class="label">System</span>
+                <select name="system" data-testid="metrics.filter.system" onchange="this.form.submit()">
+                    <option value="">All systems</option>
+                    {{range .Systems}}<option value="{{.}}"{{if eq . $.Filter.System}} selected{{end}}>{{.}}</option>{{end}}
+                </select>
+            </label>
+            {{end}}
+            {{if gt (len .Groups) 1}}
+            <span class="label">Group</span>
+            <a href="{{.URL (kv "group" "")}}" class="chip{{if eq .Filter.Group ""}} chip-on{{end}}">All</a>
+            {{range .Groups}}<a href="{{$.URL (kv "group" .Name)}}" class="chip{{if eq $.Filter.Group .Name}} chip-on{{end}}">{{.Name}} {{.Count}}</a>{{end}}
+            {{end}}
+            <label class="metrics-check"><input type="checkbox" name="only" value="off" data-testid="metrics.filter.offonly"{{if .Filter.Only}} checked{{end}} onchange="this.form.submit()"> Near or off only</label>
+            {{if .Filter.Group}}<input type="hidden" name="group" value="{{.Filter.Group}}">{{end}}
+            <input type="search" name="q" value="{{.Filter.Q}}" placeholder="Filter by name or id…" aria-label="Filter metrics" class="metrics-search">
+        </form>
+
+        {{if .Report.Metrics}}
+        <div class="card metrics-table-wrap">
+            <table class="metrics-table" data-testid="metrics.table">
+                <thead><tr><th>Metric</th><th>System</th><th>Target</th><th class="num">Master</th><th>Branch</th><th>Verdict</th><th class="num">n</th><th>Probe</th></tr></thead>
+                {{range .Groups}}
+                {{if .Rows}}
+                <tbody>
+                    {{if gt (len $.Groups) 1}}<tr class="metrics-group"><td colspan="8"><span class="label">{{.Name}}</span> <span class="muted">{{.Count}}</span></td></tr>{{end}}
+                    {{range $m := .Rows}}
+                    <tr data-testid="metrics.row.{{tid $m.ID}}">
+                        <td><div class="metric-name">{{$m.Name}}{{if $m.BranchOnly}} <span class="chip chip-blue">branch only</span>{{end}}</div>{{if ne $m.Name $m.ID}}<div class="mono metric-id">{{$m.ID}}</div>{{end}}</td>
+                        <td>{{range $m.Systems}}<span class="chip">{{.}}</span> {{end}}</td>
+                        <td class="mono nowrap">{{bandText $m.Band}}</td>
+                        <td class="mono num nowrap">{{masterValue $m}}</td>
+                        <td class="metric-branches" data-testid="metrics.row.{{tid $m.ID}}.branch">
+                            {{range $b := $m.Branches}}
+                            <div class="metric-branch">
+                                {{if $b.Missing}}<span class="muted">not measured on <span class="mono">{{shortBranch $b.Branch}}</span></span>
+                                {{else}}<span class="mono tone-{{$b.Verdict}}">{{metricValue $m $b.MetricValue}} {{verdictMark $b.Verdict}}</span> <span class="mono muted">· {{shortBranch $b.Branch}}</span>{{end}}
+                                {{if $b.Band}}<span class="metric-branch-note">band {{bandText $b.Band}} on branch</span>{{end}}
+                                {{if eq $b.Source "commit"}}<span class="metric-branch-note">committed</span>{{end}}
+                                {{if gt $b.Behind 0}}<span class="metric-branch-note tone-amber">run {{$b.Behind}} commit{{pluralS $b.Behind}} behind</span>{{else if lt $b.Behind 0}}<span class="metric-branch-note tone-amber">run from another branch</span>{{end}}
+                            </div>
+                            {{else}}<span class="muted">—</span>{{end}}
+                        </td>
+                        <td data-testid="metrics.row.{{tid $m.ID}}.verdict">{{if $m.Master}}{{verdictChip $m.Master.Verdict}}{{else}}{{verdictChip ""}}{{end}}</td>
+                        <td class="num muted">{{if $m.Master}}{{nText $m.Master.N}}{{else}}–{{end}}</td>
+                        <td class="muted">{{$m.Probe}}</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+                {{end}}
+                {{end}}
+            </table>
+        </div>
+        <p class="wb-footnote">Verdicts come from the file (else from the band). Branch = the same file in each open worktree, or committed on a branch without one; "—" when no branch differs from master. Systems come from <code>workbench.systems.&lt;name&gt;.metrics</code>.</p>
+        {{end}}
+
+        {{else if eq .Tab "knobs"}}
+        {{if .KnobProblems}}
+        <div class="metrics-banner warn" data-testid="metrics.problems">
+            {{range .KnobProblems}}<div>{{.}}</div>{{end}}
+        </div>
+        {{end}}
+        <form class="metrics-filters" method="get" action="{{.Prefix}}/metrics">
+            <input type="hidden" name="tab" value="knobs">
+            {{if .Systems}}
+            <label class="metrics-field"><span class="label">System</span>
+                <select name="system" onchange="this.form.submit()">
+                    <option value="">All systems</option>
+                    {{range .Systems}}<option value="{{.}}"{{if eq . $.Filter.System}} selected{{end}}>{{.}}</option>{{end}}
+                </select>
+            </label>
+            {{end}}
+            {{if gt (len .KnobFiles) 1}}
+            <label class="metrics-field"><span class="label">File</span>
+                <select name="file" onchange="this.form.submit()">
+                    <option value="">All files</option>
+                    {{range .KnobFiles}}<option value="{{.}}"{{if eq . $.Filter.File}} selected{{end}}>{{.}}</option>{{end}}
+                </select>
+            </label>
+            {{end}}
+            <label class="metrics-check"><input type="checkbox" name="edited" value="1" data-testid="knobs.filter.edited"{{if .Filter.Edited}} checked{{end}} onchange="this.form.submit()"> Edited on a branch only</label>
+            <label class="metrics-check"><input type="checkbox" name="recent" value="1"{{if .Filter.Recent}} checked{{end}} onchange="this.form.submit()"> Changed in the last 30 days</label>
+            <input type="search" name="q" value="{{.Filter.Q}}" placeholder="Filter by name or comment…" aria-label="Filter knobs" class="metrics-search">
+        </form>
+
+        {{range .KnobGroups}}
+        <div class="card metrics-table-wrap">
+            <div class="knob-file-head"><span class="mono">{{.File}}</span> <span class="muted">{{.Count}} knob{{pluralS .Count}}</span></div>
+            <table class="metrics-table knobs-table">
+                <thead><tr><th>Knob</th><th>Value</th><th>Comment</th><th>Last change</th><th>System</th></tr></thead>
+                <tbody>
+                {{range $k := .Knobs}}
+                <tr class="knob-row" data-testid="knobs.row.{{tid $k.Name}}" onclick="toggleKnob(this, event)">
+                    <td>
+                        <button type="button" class="knob-toggle" aria-expanded="false" aria-controls="knob-{{tid $k.Name}}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg><span class="mono knob-name">{{$k.Name}}</span></button>
+                        {{if $k.Line}}<div class="mono muted knob-line">line {{$k.Line}}</div>{{end}}
+                    </td>
+                    <td class="mono knob-value">{{$k.Value}}</td>
+                    <td class="knob-comment">{{$k.Comment}}</td>
+                    <td>
+                        {{with $k.Last}}<div><span class="mono tone-amber knob-change">{{.Label}}</span> <span>· {{.Subject}}</span></div><div class="mono muted knob-line">{{.Commit}} · {{.Date}}</div>{{else}}<span class="muted">{{if $k.File}}no change found{{else}}no file in the export{{end}}</span>{{end}}
+                        {{if $k.Edits}}<span class="chip chip-blue">also edited on {{len $k.Edits}} branch{{if ne (len $k.Edits) 1}}es{{end}}</span>{{end}}
+                    </td>
+                    <td>{{range $k.Systems}}<span class="chip">{{.}}</span> {{end}}</td>
+                </tr>
+                <tr class="knob-detail" id="knob-{{tid $k.Name}}" hidden>
+                    <td colspan="5">
+                        <div class="knob-detail-cols">
+                            <div data-testid="knobs.row.{{tid $k.Name}}.history">
+                                <span class="label">History on master</span>
+                                {{range $k.History}}<div class="knob-hist"><span class="mono muted">{{.Commit}} · {{.Date}}</span><span class="mono knob-change">{{.Label}}</span><span>{{.Subject}}</span></div>{{else}}<div class="muted">No change found in the file's history.</div>{{end}}
+                            </div>
+                            <div data-testid="knobs.row.{{tid $k.Name}}.edits">
+                                <span class="label">On open branches</span>
+                                {{range $k.Edits}}<div class="knob-edit"><a href="{{$.TabURL "branches"}}" class="mono">{{.Branch}}</a><span><span class="mono tone-blue knob-change">{{.Label}}</span>{{if .IssueSlug}} <span class="muted">· <a href="{{$.Prefix}}/issue/{{.IssueSlug}}">{{.IssueSlug}}</a></span>{{end}}</span></div>{{else}}<div class="muted">No open branch changes it.</div>{{end}}
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {{end}}
+                </tbody>
+            </table>
+        </div>
+        {{else}}
+        <p class="muted metrics-none">No knobs match these filters.</p>
+        {{end}}
+        <p class="wb-footnote">Name, value, comment and line come from the project's knob export. History and branch edits are found by the knob's name in the changed lines of its file. Click a knob for its full history.</p>
+
+        {{else}}
+        <section class="metrics-section" aria-label="Open branches">
+            <div class="metrics-section-head"><h2>Open branches</h2><span class="muted">worktrees, plus unmerged <code>work/*</code> branches whose issue is still open</span></div>
+            <div class="card metrics-table-wrap">
+                <table class="metrics-table branches-table">
+                    <thead><tr><th>Branch and issue</th><th>Base</th><th class="num">Ahead</th><th class="num">Files</th><th>Depends on · decided by</th></tr></thead>
+                    <tbody>
+                    {{range .Branches}}
+                    <tr data-testid="branches.row.{{tid .Name}}">
+                        <td>
+                            <div class="mono branch-name">{{.Name}}</div>
+                            <div class="branch-issue">{{if .IssueSlug}}<a href="{{$.Prefix}}/issue/{{.IssueSlug}}">{{.Title}}</a> <span class="chip chip-blue">{{.Status}}</span>{{else if .BaseOf}}<span class="chip">base of {{.BaseOf}} open branch{{if ne .BaseOf 1}}es{{end}}</span>{{else}}<span>No issue file for this branch</span> <span class="chip chip-red">no issue</span>{{end}}</div>
+                            {{if .Shares}}<span class="chip">{{.Shares}}</span>{{end}}
+                        </td>
+                        <td class="mono muted branch-base">{{.Base}}</td>
+                        <td class="num">{{.Ahead}}</td>
+                        <td class="num">{{.Files}}</td>
+                        <td class="branch-deps">
+                            {{range .Deps}}<div><span class="label">{{.Kind}}</span> {{if .Slug}}<a href="{{$.Prefix}}/issue/{{.Slug}}" class="mono">{{.Target}}</a>{{else}}<span class="mono">{{.Target}}</span>{{end}} <span class="chip {{depChipClass .}}">{{.State}}</span></div>{{end}}
+                            {{range .Hints}}<div class="tone-amber branch-hint">{{.Text}}{{if .Command}} <code class="branch-hint-cmd">{{.Command}}</code>{{end}}</div>{{end}}
+                        </td>
+                    </tr>
+                    {{else}}
+                    <tr><td colspan="5" class="muted">No open branch has commits of its own.</td></tr>
+                    {{end}}
+                    {{if .Idle}}
+                    <tr><td colspan="5" class="muted" data-testid="branches.idle">{{len .Idle}} branch{{if ne (len .Idle) 1}}es have{{else}} has{{end}} no commits on top of its base yet: {{range $i, $b := .Idle}}{{if $i}}, {{end}}<span class="mono">{{shortBranch $b.Name}}</span>{{end}}</td></tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="metrics-section" aria-label="Files changed on more than one branch">
+            <div class="metrics-section-head">
+                <h2>Hot files</h2>
+                <span class="metrics-chips">
+                    <a href="{{.URL (kv "hot" "")}}" class="chip{{if not .Filter.Two}} chip-on{{end}}" data-testid="branches.filter.hot3">3+ branches · {{.Hot3}}</a>
+                    <a href="{{.URL (kv "hot" "2")}}" class="chip{{if .Filter.Two}} chip-on{{end}}" data-testid="branches.filter.hot2">2 branches · {{.Hot2}}</a>
+                    <a href="{{if .Filter.ShowShared}}{{.URL (kv "shared" "")}}{{else}}{{.URL (kv "shared" "1")}}{{end}}" class="metrics-check" data-testid="branches.hide_shared"><input type="checkbox" tabindex="-1" aria-hidden="true"{{if not .Filter.ShowShared}} checked{{end}}> Hide shared-commit overlap</a>
+                </span>
+            </div>
+            <div class="card metrics-table-wrap">
+                <table class="metrics-table hot-table">
+                    <thead><tr><th>File</th><th>Branches</th><th>Changed on</th></tr></thead>
+                    <tbody>
+                    {{range .HotFiles}}
+                    <tr data-testid="branches.hot.{{tid .Path}}">
+                        <td class="mono hot-path">{{.Path}}</td>
+                        <td>{{$n := .Branches}}{{if $.Filter.ShowShared}}{{$n = len .Changes}}{{end}}<span class="chip {{if ge $n 3}}chip-amber{{else}}chip-blue{{end}}">{{if ge $n 3}}hot · {{end}}{{$n}}</span></td>
+                        <td class="hot-changes">{{range .Changes}}<span class="chip mono{{if .Shared}} muted{{end}}" title="{{.Branch}}">{{shortBranch .Branch}} <span class="tone-green">+{{.Added}}</span> <span class="tone-red">−{{.Removed}}</span>{{if .Shared}} · shared{{end}}</span>{{end}}</td>
+                    </tr>
+                    {{else}}
+                    <tr><td colspan="3" class="muted">No file is changed on {{if .Filter.Two}}exactly two{{else}}three or more{{end}} open branches.</td></tr>
+                    {{end}}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <p class="wb-footnote">Depends on comes from the issue's <code>depends_on:</code> frontmatter (<code>issue-cli set-meta &lt;slug&gt; --key depends_on --value "a/b, c/d"</code>). Decided by lists the decisions the issue cites (<code>slug#D-n</code>), with their state from the Decisions index.</p>
+        {{end}}
+    </main>
+</div>
+</div>
+<script>
+// A click anywhere on a knob row (the chevron button included) opens it;
+// links inside the row keep their own click.
+function toggleKnob(tr, ev) {
+    if (ev && ev.target.closest('a')) return;
+    var btn = tr.querySelector('.knob-toggle');
+    var row = document.getElementById(btn.getAttribute('aria-controls'));
+    var open = btn.getAttribute('aria-expanded') !== 'true';
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    row.hidden = !open;
+    tr.classList.toggle('open', open);
+}
+(function() {
+    var prefix = {{.Prefix}};
+    var hash = {{.Hash}}, sig = {{.Sig}};
+    setInterval(function() {
+        Promise.all([
+            fetch(prefix + '/hash').then(function(r) { return r.json(); }),
+            fetch(prefix + '/metrics.json?sig=1').then(function(r) { return r.json(); })
+        ]).then(function(res) {
+            if (res[0].hash !== hash || res[1].sig !== sig) location.reload();
+        }).catch(function() {});
+    }, 10000);
+})();
+</script>
+</body>
+</html>

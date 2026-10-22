@@ -447,6 +447,25 @@ func TestRunChecklistShowsIDsAndHint(t *testing.T) {
 	assertContains(t, out, "Tick done boxes by id, several at once: issue-cli check cli/sample <id> [<id>...]")
 }
 
+func TestRunChecklistDoesNotRepeatIDInText(t *testing.T) {
+	proj, slug, issuePath := makeSimpleProject(t, "in progress")
+	data, _ := os.ReadFile(issuePath)
+	body := strings.Replace(string(data), "- [ ] second task", "- [ ] D2: second task", 1)
+	if err := os.WriteFile(issuePath, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runChecklist(ctx, []string{slug}); err != nil {
+		t.Fatalf("runChecklist: %v", err)
+	}
+	assertContains(t, stdout.String(), "  D2 [ ] second task\n")
+	stdout.Reset()
+	if err := runCheck(ctx, []string{slug, "D2"}); err != nil {
+		t.Fatalf("runCheck: %v", err)
+	}
+	assertContains(t, stdout.String(), "D2 [Design #2] second task")
+}
+
 func TestRunChecklistJSONIncludesID(t *testing.T) {
 	proj, slug, _ := makeSimpleProject(t, "in progress")
 	ctx, stdout, _ := newTestContext(proj, true)

@@ -340,7 +340,7 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 				mark = "x"
 			}
 			if item.ID != "" {
-				fmt.Fprintf(w, "  %s [%s] %s\n", item.ID, mark, item.Text)
+				fmt.Fprintf(w, "  %s [%s] %s\n", item.ID, mark, tracker.StripCheckboxID(item.ID, item.Text))
 				hint = hint || !item.Checked
 			} else {
 				fmt.Fprintf(w, "  %d. [%s] %s\n", item.Index, mark, item.Text)

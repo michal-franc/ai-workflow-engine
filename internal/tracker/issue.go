@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
@@ -973,6 +974,31 @@ type CheckboxItem struct {
 	// followed by Index ("D3", "AC2"). Empty for boxes before any "## "
 	// heading, and for a section whose abbreviation could not be made unique.
 	ID string
+}
+
+// Label is the box's text for display next to its id: a leading copy of
+// the id that the author wrote into the text ("MV1: …") is dropped so the
+// box doesn't read "MV1 [ ] MV1: …". The body is never changed.
+func (it CheckboxItem) Label() string {
+	return StripCheckboxID(it.ID, it.Text)
+}
+
+// StripCheckboxID returns text without a leading copy of id (any case)
+// followed by a separator (space, ":", ".", ")", "-", "–", "—"). Text that
+// is only the id, or that starts with another box's id, is returned as is.
+func StripCheckboxID(id, text string) string {
+	if id == "" || len(text) <= len(id) || !strings.EqualFold(text[:len(id)], id) {
+		return text
+	}
+	const seps = " \t:.)-–—"
+	rest := text[len(id):]
+	if r, _ := utf8.DecodeRuneInString(rest); !strings.ContainsRune(seps, r) {
+		return text
+	}
+	if r := strings.TrimLeft(rest, seps); r != "" {
+		return r
+	}
+	return text
 }
 
 // ListCheckboxes enumerates every checkbox in body, skipping those inside

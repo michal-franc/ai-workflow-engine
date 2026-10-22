@@ -113,9 +113,9 @@ func looksLikeRefs(body string, args []string) bool {
 // "[#index] text" when the box sits before any section heading).
 func checkboxLabel(it tracker.CheckboxItem) string {
 	if it.Section == "" {
-		return fmt.Sprintf("[#%d] %s", it.Index, it.Text)
+		return fmt.Sprintf("[#%d] %s", it.Index, it.Label())
 	}
-	label := fmt.Sprintf("[%s #%d] %s", it.Section, it.Index, it.Text)
+	label := fmt.Sprintf("[%s #%d] %s", it.Section, it.Index, it.Label())
 	if it.ID != "" {
 		label = it.ID + " " + label
 	}

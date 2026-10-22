@@ -5,7 +5,7 @@
     {
       "name": "issue-approve",
       "source": "./issue-approve",
-      "description": "Approve buttons above the prompt for a dispatched agent's issue, the same approvals as the board"
+      "description": "Approve and Playtest buttons above the prompt for a dispatched agent's issue, the same approvals as the board"
     }
   ]
 }

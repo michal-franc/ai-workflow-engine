@@ -22,6 +22,10 @@ renames `## Unreleased` to `## vX.Y.Z — YYYY-MM-DD` and pushes, and the
 release-marker Action tags and builds it. Pushes with `## Unreleased` on top
 release nothing.
 
+## Unreleased
+
+- **`issue-approve` mod 0.2.1:** the Playtest button also shows at `testing` behind an owner gate, so a tweak (whose path has no human-testing) can be playtested from the agent's session. Update with `claude plugin update issue-approve@ai-workflow-engine`, then `/reload-plugins` in running sessions.
+
 ## v0.52.0 — 2026-10-22
 
 Focus: project status pages. Two Safe core (0.53) fixes that landed early ship with it: one lead per project, and the bootstrap workflow lookup.

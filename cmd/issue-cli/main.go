@@ -153,7 +153,15 @@ func resolveAgentClilog(args []string) string {
 			break
 		}
 	}
-	if issue == nil || strings.TrimSpace(issue.Assignee) == "" {
+	if issue == nil {
+		return ""
+	}
+	return agentClilogPath(proj, issue)
+}
+
+// agentClilogPath is the clilog of issue's assignee, "" without one.
+func agentClilogPath(proj *tracker.Project, issue *tracker.Issue) string {
+	if strings.TrimSpace(issue.Assignee) == "" {
 		return ""
 	}
 	workDir := proj.WorkDir
@@ -265,8 +273,24 @@ func main() {
 		if retries := countRecentRetries(); retries >= 2 {
 			printRetryHint(os.Stderr, retries+1, err)
 		}
-		os.Exit(1)
+		os.Exit(processExitCode(err))
 	}
+}
+
+// processExitCode maps a run error to the process exit code: an exitCodeError's own
+// code, 2 for a malformed invocation (unknown or removed flag, bad flag
+// value, stray argument), and 1 for every other failure.
+func processExitCode(err error) int {
+	var codeErr *exitCodeError
+	if errors.As(err, &codeErr) {
+		return codeErr.Code
+	}
+	var ue *usageError
+	var removed *removedFlagError
+	if errors.As(err, &ue) || errors.As(err, &removed) {
+		return 2
+	}
+	return 1
 }
 
 // printRetryHint nudges an agent stuck re-running the same failing command.
@@ -338,10 +362,18 @@ func runTraced(args []string, in io.Reader, out, errw io.Writer, inv *invocation
 		return fmt.Errorf("unknown command: %s\n\nRun: issue-cli help", rest.command)
 	}
 
+	inv.cmd = cmd
+	if rest.command != "help" && wantsHelp(rest.args) {
+		ctx := &Context{Stdout: out, Stderr: errw, Stdin: in, Now: time.Now}
+		inv.ctx = ctx
+		return printCommandHelp(ctx, cmd, rest.command)
+	}
+
 	proj, allProjects, projErr := loadProjectOrErr(*configPath, *projectSlug)
 	// Help, process, and projects are project-agnostic surfaces (top-level
 	// help, releases, workflow reference, project listing); init/workflow/
-	// upgrade fall back to ./workflow.yaml in the current directory. Every other
+	// upgrade fall back to ./workflow.yaml in the current directory; report-bug
+	// files to the engine project whatever this one is. Every other
 	// command must surface project-resolution errors so a nil project doesn't
 	// propagate into a downstream nil-pointer panic — covers ambiguous
 	// multi-project, missing config file, and unknown --project slug.
@@ -349,7 +381,7 @@ func runTraced(args []string, in io.Reader, out, errw io.Writer, inv *invocation
 	// always surface the error — the project-agnostic bypass is only for
 	// discovery without --project.
 	inv.cmd = cmd
-	bypassProjErr := rest.command == "help" || rest.command == "process" || rest.command == "projects" || rest.command == "version" || rest.command == "init" || rest.command == "workflow" || rest.command == "upgrade" || rest.command == "telemetry"
+	bypassProjErr := rest.command == "help" || rest.command == "process" || rest.command == "projects" || rest.command == "version" || rest.command == "init" || rest.command == "workflow" || rest.command == "upgrade" || rest.command == "telemetry" || rest.command == "report-bug"
 	if projErr != nil && (!bypassProjErr || *projectSlug != "") {
 		inv.phase = phaseProject
 		return projErr

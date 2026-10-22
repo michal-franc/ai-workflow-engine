@@ -136,7 +136,7 @@ participants:                                  # renders as a list
 
 - For GitHub issues: `<number>.md` (e.g., `42.md`)
 - For draft issues: slugified title (e.g., `my-feature-idea.md`)
-- The filename without `.md` becomes the slug used in URLs (`/issue/<slug>`)
+- The slug used in URLs (`/issue/<slug>`) comes from the title (with the system folder in front), not the filename; a `slug:` field pins it. `issue-cli update --title` keeps the slug by writing that pin
 
 ## Doc Page Format
 

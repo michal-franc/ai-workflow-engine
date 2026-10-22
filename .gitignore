@@ -1,6 +1,7 @@
 # Binaries and build output
 /issue-viewer
 /issue-cli
+/cmd/issue-cli/issue-cli
 cover.out
 
 # User-specific config

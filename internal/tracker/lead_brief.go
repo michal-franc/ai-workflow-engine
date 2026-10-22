@@ -77,7 +77,7 @@ func LeadBrief(wf *WorkflowConfig, in LeadBriefInput) string {
 		now = time.Now()
 	}
 	fmt.Fprintf(&b, "- Before you exit, or before the human takes a long break, write %s: what is live, what waits on whom, the decisions made, and a ## Next section with the ordered next steps.", filepath.Join(notesDir, HandoffNoteName(now, lead)))
-	b.WriteString(" The viewer's Status page shows that ## Next list; its text form, /p/<project>/status.md, is a ready-made stand-up. Its Waiting for release block says what is merged and not released, what is not pushed, and when the current milestone is ready to cut (and what blocks it).")
+	b.WriteString(" The viewer's Status page shows that ## Next list; its text form, /p/<project>/status.md, is a ready-made stand-up. Its Waiting for release block says what is merged and not released, what is not pushed, and when the current milestone is ready to cut (and what blocks it). Its lists are capped: a \"+K more\" line names the issue-cli list command that shows the rest.")
 	b.WriteString("\n- issue-cli lead whoami shows this role again; issue-cli lead list shows the lead and its epics.\n")
 	return InjectProject(proj, b.String())
 }

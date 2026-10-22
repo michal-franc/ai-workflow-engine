@@ -22,29 +22,40 @@ steps:
       - wait_for: { url: { contains: /status } }
     checks:
       - selected: nav.tab.status
-      - visible: [status.page, status.where, status.working, status.next, status.waiting, status.shipped]
+      - visible: [status.page, status.strip, status.waiting.pop, status.working.pop, status.next.pop, status.milestone, status.epics, status.shipped, status.versions, status.released]
 
   - id: TP5
-    title: Where we are shows overall and epic progress, and the no-version hint
+    title: Where we are shows overall progress and the no-version hint; the epic sits under its area
     setup:
       - open: /p/{project}/status
+    act:
+      # No versions: one "all" panel and no Version select. The ui area has
+      # nothing done, so Active keeps it folded; open it.
+      - check: { absent: [status.epics.version, status.epic.ui/atlas-redesign] }
+      - click: status.epics.area.ui
     checks:
       - text_contains: { target: status.all_progress, text: 1/9 done }
       - visible: status.no_versions
+      - text_contains: { target: status.epics.area.ui, text: 0/3 }
       - text_contains: { target: status.epic.ui/atlas-redesign, text: Atlas redesign }
       - text_contains: { target: status.epic.ui/atlas-redesign, text: 0/3 }
       - count: { pattern: status.epic.*, equals: 1 }
-      # The page's shape: sidebar beside it, two columns, a filled bar.
+      # The page's shape: sidebar beside it, one shared grid, a filled bar.
       - beside: [nav.sidebar, status.page]
-      - beside: [status.where, status.waiting]
-      - below: [status.where, status.working]
-      - below: [status.waiting, status.shipped]
+      - beside: [status.waiting.pop, status.working.pop]
+      - beside: [status.working.pop, status.next.pop]
+      - below: [status.strip, status.milestone]
+      - below: [status.milestone, status.epics]
+      - below: [status.epics, status.shipped]
+      - beside: [status.shipped, status.versions]
+      - size: { target: status.versions, min_width: 318, max_width: 322 }
       - size: { target: status.all_progress.bar, min_width: 30, max_width: 200, min_height: 4 }
 
   - id: TP6
     title: Working on lists the issues in flight with status, agent and time in status
     setup:
       - open: /p/{project}/status
+      - click: status.working.pop
     checks:
       - count: { pattern: status.working.row.*, equals: 4 }
       - text_contains: { target: status.working.row.cli/export-routes-as-gpx, text: shipping }
@@ -64,6 +75,7 @@ steps:
     title: What's next shows the lead's list, the backlog by priority and the parked issue
     setup:
       - open: /p/{project}/status
+      - click: status.next.pop
     checks:
       - text_contains: { target: status.next.source, text: sessions/2026-10-21-lead-atlas.md }
       - text_contains: { target: status.next, text: Owner approves ui/route-planner-panel; then build it. }
@@ -77,6 +89,7 @@ steps:
     title: Waiting on you holds the ready gate, the playtest and the question, not the open gate
     setup:
       - open: /p/{project}/status
+      - click: status.waiting.pop
     checks:
       - text_equals: { target: status.waiting.count, text: "3" }
       - text_contains: { target: status.waiting.gate.ui/route-planner-panel, text: in design → backlog }
@@ -86,19 +99,20 @@ steps:
       - text_contains: { target: status.waiting.not_ready, text: 1 more issue is at a gate }
 
   - id: TP9
-    title: Recently shipped shows 3 releases; an issue taken to done appears under the last 7 days
+    title: Recently released shows 3 releases; an issue taken to done appears in Recently shipped under its area
     setup:
       - open: /p/{project}/status
     act:
       - check: { visible: [status.release.v1_4_0, status.release.v1_3_0, status.release.v1_2_0] }
       - check: { absent: status.release.v1_1_0 }
       - check: { text_contains: { target: status.release.v1_4_0, text: Route planner shows travel time per leg. } }
-      - check: { text_contains: { target: status.done_recent, text: "DONE IN THE LAST 7 DAYS · 0" } }
+      - check: { text_contains: { target: status.shipped, text: "Recently shipped · 0 in 7 days" } }
       - cli: [transition, cli/export-routes-as-gpx, --to, done]
       - reload: true
-      - wait_for: { visible: status.done_recent }
+      - wait_for: { visible: status.shipped.area.cli }
     checks:
-      - text_contains: { target: status.done_recent, text: Export routes as GPX }
+      - text_contains: { target: status.shipped, text: "Recently shipped · 1 in 7 days" }
+      - text_contains: { target: status.shipped.area.cli, text: cli/export-routes-as-gpx }
       - absent: status.working.row.cli/export-routes-as-gpx
       - text_contains: { target: status.all_progress, text: 2/9 done }
 
@@ -111,12 +125,13 @@ steps:
       - http: { path: "/p/{project}/status.md", contains: "- Approve ui/route-planner-panel: in design → backlog" }
       - http: { path: "/p/{project}/status.md", contains: "1. Owner approves `ui/route-planner-panel`; then build it." }
       - http: { path: "/p/{project}/status.md", contains: "- v1.4.0 (2026-10-20): Route planner shows travel time per leg." }
-      - http: { path: "/p/{project}/status.md", contains: "Parked:\n- cli/voice-directions: Blocked on the speech licence." }
+      - http: { path: "/p/{project}/status.md", contains: "Parked (1):\n- cli/voice-directions: Blocked on the speech licence." }
     do: Click "Copy as markdown", then paste into any text editor.
     expect: |
       The button reads "✓ Copied" for about two seconds. The pasted text
-      starts with "# Atlas status," and has the sections Where we are,
-      Recently shipped, Working on, Next and Waiting on you (3).
+      starts with "# Atlas status," and has, in order, the sections
+      Waiting on you (3), Working on, Where we are, Epics, Next, Recently
+      shipped and Recently released.
     why: the clipboard needs a real user gesture and permission; headless Chrome can't read it back.
 
   - id: TP11
@@ -125,9 +140,12 @@ steps:
       - open: /p/{project}/status
     do: Read the page top to bottom, then switch to the Dracula and light themes.
     expect: |
-      It looks like the approved mockup: Where we are, Working on and
-      What's next on the left; Waiting on you (amber border) and Recently
-      shipped on the right. Without opening another view you can say what
-      is in flight, what is next and what needs you. Every theme keeps the
-      bars, chips and amber/red ages readable.
+      Three tiles on top: Needs you (amber, 3), Working on and What's
+      next, each with a one-line summary; clicking one opens its card over
+      the page without moving anything, and a click elsewhere folds it.
+      Then Where we are, Epics, and Recently shipped beside Versions and
+      Recently released.
+      Without opening another view you can say what is in flight, what is
+      next and what needs you. Every theme keeps the bars, chips and
+      amber/red ages readable.
     why: whether the page answers the question is the owner's call.

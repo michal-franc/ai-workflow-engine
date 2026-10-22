@@ -232,14 +232,16 @@ func TestStatusMarkdownEndpoint(t *testing.T) {
 	}
 	for _, want := range []string{
 		"# Status status, ",
-		"## Where we are\n- All issues: 2/10 done (no versions set)\n- Epics:\n  - ui/epic (in progress): 0/2",
-		"- v0.4.0 (2026-10-21): **Breaking:** ask is gone, questions stay in chat.",
-		"- Done in the last 7 days (1):\n  - ui/shipped",
+		"2/10 done · 1 epic in 1 area\n",
+		"## Where we are\n- All issues: 2/10 done (no versions set)\n",
+		"## Epics: 0 active, 1 not started, in 1 area\n- Not started: ui 0/2 (1)\n",
+		"## Recently released\n- v0.4.0 (2026-10-21): Breaking: ask is gone, questions stay in chat.",
+		"## Recently shipped: 1 in 7 days\n- ui 1: ui/shipped\n",
 		"Lead: lead-status (not running)",
 		"] ui/tested (agent stopped)",
 		"From sessions/2026-10-21-lead-status.md:\n1. Approve `ui/ready`.",
-		"Backlog:\n- ui/high (high)\n- ui/low (low)",
-		"Parked:\n- ui/parked: Blocked on the sidebar.",
+		"Backlog (2):\n- ui/high (high)\n- ui/low (low)",
+		"Parked (1):\n- ui/parked: Blocked on the sidebar.",
 		"## Waiting on you (3)",
 		"- Approve ui/ready: in design → backlog",
 		"- Playtest ui/tested: session tested-basics, no judge run",
@@ -327,7 +329,7 @@ func TestStatusPageRenders(t *testing.T) {
 		`data-testid="status.no_versions"`,
 		`data-testid="status.epic.ui/epic"`,
 		`data-testid="status.working.row.ui/tested"`,
-		`3d</td>`,
+		`>3d</span>`,
 		`From <span class="mono">sessions/2026-10-21-lead-status.md</span>`,
 		`<li>Approve <a href="/p/status/issue/ui/ready"><code>ui/ready</code></a>.</li>`,
 		`data-testid="status.waiting.gate.ui/ready"`,
@@ -360,5 +362,32 @@ func TestLinkCodeSlugs(t *testing.T) {
 	}
 	if strings.Contains(got, "<script>") {
 		t.Errorf("raw HTML must be dropped: %s", got)
+	}
+}
+
+func TestStatusUnsentBugReports(t *testing.T) {
+	proj := setupStatusProject(t, time.Now())
+	withMockTmuxSessions(t, nil)
+	stubAgentsGit(t)
+	prev := unsentBugReports
+	unsentBugReports = func() int { return 2 }
+	t.Cleanup(func() { unsentBugReports = prev })
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	_, body := getResp(t, ts.URL+"/p/status/status")
+	for _, want := range []string{
+		`data-testid="status.waiting.cli_bugs"`,
+		`2 issue-cli bug reports not sent`,
+		`issue-cli report-bug --send`,
+		`data-testid="nav.tab.status.count">4</span>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("status page missing %q", want)
+		}
+	}
+	_, md := getResp(t, ts.URL+"/p/status/status.md")
+	if !strings.Contains(md, "## Waiting on you (4)") || !strings.Contains(md, "- 2 issue-cli bug report(s) not sent (issue-cli report-bug --send)") {
+		t.Errorf("status.md:\n%s", md)
 	}
 }

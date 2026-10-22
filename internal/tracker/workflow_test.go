@@ -238,6 +238,35 @@ func TestDefaultNextStatus(t *testing.T) {
 	}
 }
 
+func TestIsSideStatus(t *testing.T) {
+	wf := &WorkflowConfig{
+		Statuses: []WorkflowStatus{
+			{Name: "done"},
+			{Name: "parked", Optional: true, Global: true},
+			{Name: "blocked", Optional: true},
+			{Name: "archived", Optional: true},
+			{Name: "review", Optional: true},
+		},
+		Transitions: []WorkflowTransition{
+			{From: "*", To: "blocked"},
+			{From: "done", To: "archived"},
+			{From: "*", To: "archived"},
+		},
+	}
+	for name, want := range map[string]bool{
+		"done":     false, // not optional
+		"parked":   true,  // optional + global
+		"blocked":  true,  // optional, reached only by "*"
+		"archived": false, // has its own lifecycle edge
+		"review":   false, // optional, no edges: plain ordering
+		"unknown":  false,
+	} {
+		if got := wf.IsSideStatus(name); got != want {
+			t.Errorf("IsSideStatus(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
 func TestApplyTransitionToFile_ErrorPointsAtRequiredNext(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "1.md")

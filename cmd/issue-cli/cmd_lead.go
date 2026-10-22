@@ -297,14 +297,16 @@ func runLeadList(ctx *Context, args []string) error {
 }
 
 func runLeadMessage(ctx *Context, args []string) error {
+	fs := newFlagSet("lead message", ctx)
+	if err := parseFlagsArgs(ctx, fs, args); err != nil {
+		return err
+	}
+	args = fs.Args()
 	if len(args) < 2 {
 		return fmt.Errorf("lead message requires <target> and \"text\"\n\nExample:\n  issue-cli lead message <slug> \"please rebase on main\"")
 	}
-	target, text := args[0], normalizeEscapedText(strings.Join(args[1:], " "))
-	fs := newFlagSet("lead message", ctx)
-	if err := parseFlags(ctx, fs, nil); err != nil {
-		return err
-	}
+	target := args[0]
+	text := normalizeEscapedText(strings.Join(args[1:], " "))
 	if strings.TrimSpace(text) == "" {
 		return fmt.Errorf("lead message: text is empty")
 	}

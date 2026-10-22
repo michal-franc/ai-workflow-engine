@@ -1,0 +1,31 @@
+session: report-bug-queue
+issue: cli/bugs-reported-by-the-cli-tool-should-land-in-the-project-not-in-agent-logs-but-botss-can-direclty-send-issue-cli-bugs-to-issue-viewer-if-bug-is-directly-related-to-the-issue-cli
+title: report-bug - reports from a machine without the engine project wait on the Status page
+# The status scenario has one project (atlas) and no engine project, so
+# report-bug queues in the scenario's own ~/.local/share.
+scenario: status
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: Queued issue-cli bug reports show under Needs you, with the command that sends them
+    setup:
+      - open: /p/{project}/status
+      - check: { absent: [status.waiting.cli_bugs] }
+      - cli: [report-bug, "Check ticks the wrong box when ids repeat"]
+      - cli: [report-bug, "Approve drops the queued approval"]
+      - reload: true
+      - click: status.waiting.pop
+    checks:
+      - visible: [status.waiting, status.waiting.cli_bugs]
+      - text_contains: { target: status.waiting.cli_bugs, text: "2 issue-cli bug reports not sent" }
+      - text_contains: { target: status.waiting.cli_bugs, text: "issue-cli report-bug --send" }
+      - http: { path: "/p/{project}/status.md", contains: "- 2 issue-cli bug report(s) not sent (issue-cli report-bug --send)" }
+      - cli: { args: [report-bug, --send], contains: "2 report(s) still queued" }
+    expect: Needs you has an "issue-cli bugs" row saying 2 reports are not sent, with the --send command on the right. It reads like the other rows and fits on a phone.
+    do: Open the Needs you tile on the Status page.
+    why: Reports saved on a machine without the engine board would otherwise sit unseen, as the 48 bugs/*.json files did.

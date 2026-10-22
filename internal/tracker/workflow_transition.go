@@ -683,6 +683,31 @@ func (w *WorkflowConfig) NextRequiredStatus(current string) string {
 	return ""
 }
 
+// IsSideStatus reports whether name is an optional escape hatch off the
+// lifecycle rather than a step on it: optional and either global or reached
+// only by a from: "*" edge (like parked). Side statuses are never offered as
+// the next step.
+func (w *WorkflowConfig) IsSideStatus(name string) bool {
+	s := w.GetStatus(name)
+	if s == nil || !s.Optional {
+		return false
+	}
+	if s.Global {
+		return true
+	}
+	wildcard := false
+	for _, t := range w.Transitions {
+		if t.To != name {
+			continue
+		}
+		if t.From != "*" {
+			return false
+		}
+		wildcard = true
+	}
+	return wildcard
+}
+
 // DefaultNextStatus returns the default forward suggestion for current, plus any
 // optional statuses that sit between current and that default (reachable side-paths).
 // The required target is the first non-optional status after current; the optionals

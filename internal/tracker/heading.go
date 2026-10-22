@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -146,6 +147,70 @@ func findAllHeadings(body string) []headingMatch {
 		})
 	}
 	return matches
+}
+
+// ReplaceSectionLine replaces one line of a section's body with text. The
+// line is chosen by its 1-based number counted from the line after the
+// heading, blank lines included (line > 0), or as the one line re matches
+// (re != nil). It returns the new body and the line it replaced. When the
+// line can't be chosen (out of range, no match, several matches) the error
+// lists the section's lines with their numbers so the caller can retry.
+func ReplaceSectionLine(body, section string, line int, re *regexp.Regexp, text string) (string, string, error) {
+	if strings.Contains(text, "\n") {
+		return body, "", fmt.Errorf("the replacement must be a single line (use replace --section without --line/--match for more)")
+	}
+	matches := findHeadingMatches(body, section)
+	if len(matches) == 0 {
+		return body, "", fmt.Errorf("no section matching %q in issue body", section)
+	}
+	if len(matches) > 1 {
+		return body, "", fmt.Errorf("multiple matching sections for %q: rename one so the line is unambiguous", section)
+	}
+	m := matches[0]
+	lines := strings.Split(body, "\n")
+	content := lines[m.StartLine+1 : m.EndLine]
+	idx := -1
+	if re != nil {
+		var hits []int
+		for i, l := range content {
+			if re.MatchString(l) {
+				hits = append(hits, i)
+			}
+		}
+		switch len(hits) {
+		case 1:
+			idx = hits[0]
+		case 0:
+			return body, "", fmt.Errorf("--match %q matches no line in section %q:\n%s", re.String(), section, numberLines(content, nil))
+		default:
+			return body, "", fmt.Errorf("--match %q matches %d lines in section %q; narrow it or pass --line:\n%s", re.String(), len(hits), section, numberLines(content, hits))
+		}
+	} else {
+		if line < 1 || line > len(content) {
+			return body, "", fmt.Errorf("section %q has %d lines, no line %d:\n%s", section, len(content), line, numberLines(content, nil))
+		}
+		idx = line - 1
+	}
+	old := content[idx]
+	lines[m.StartLine+1+idx] = text
+	return strings.Join(lines, "\n"), old, nil
+}
+
+// numberLines renders lines as "  N | text" for an error message; when only
+// is non-nil, just those indexes are shown.
+func numberLines(lines []string, only []int) string {
+	var b strings.Builder
+	show := func(i int) { fmt.Fprintf(&b, "  %3d | %s\n", i+1, lines[i]) }
+	if only != nil {
+		for _, i := range only {
+			show(i)
+		}
+	} else {
+		for i := range lines {
+			show(i)
+		}
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func appendContentToMatch(body string, match headingMatch, content string) (string, bool) {

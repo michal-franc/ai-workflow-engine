@@ -48,6 +48,7 @@ type transitionOutput struct {
 	To                   string                    `json:"to"`
 	Status               string                    `json:"status"`
 	StatusOptional       bool                      `json:"status_optional,omitempty"`
+	Done                 bool                      `json:"done,omitempty"`
 	Slug                 string                    `json:"slug"`
 	File                 string                    `json:"file"`
 	SideEffects          []string                  `json:"side_effects"`
@@ -86,7 +87,7 @@ func runTransition(ctx *Context, args []string) error {
 	if err := rejectRemovedWaitFlags(rest); err != nil {
 		return err
 	}
-	if err := parseFlags(ctx, fs, rest); err != nil {
+	if err := parseFlagsArgs(ctx, fs, rest); err != nil {
 		return err
 	}
 	to := *toFlag
@@ -199,21 +200,13 @@ func stripFieldFlags(args []string) []string {
 }
 
 func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, from, to string, result tracker.TransitionResult) transitionOutput {
-	required, optionals := wf.DefaultNextStatus(issue.Status)
-	next := required
-	nextOptional := false
-	if next == "" && len(optionals) > 0 {
-		next = optionals[0]
-		nextOptional = true
-		optionals = optionals[1:]
-	}
+	next, nextOptional, optionals := defaultNextStep(wf, issue.Status)
 
 	guidance := []string{}
 	if prompt := strings.TrimSpace(wf.StatusPrompt(issue.Status)); prompt != "" {
 		guidance = append(guidance, prompt)
 	}
 	guidance = append(guidance, result.InjectedPrompts...)
-	guidance = append(guidance, wf.EntryPrompts(issue.Status, next)...)
 
 	statusOptional := false
 	if s := wf.GetStatus(issue.Status); s != nil {
@@ -222,6 +215,7 @@ func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, fro
 	var nextRequires, nextSideEffects []string
 	var nextCommand, nextNote string
 	if next != "" {
+		guidance = append(guidance, wf.EntryPrompts(issue.Status, next)...)
 		nextRequires, nextSideEffects = nextTransitionContract(wf, issue.Status, next)
 		nextCommand, nextNote = nextStepCommand(wf, issue.Slug, issue.Status, next)
 	}
@@ -230,6 +224,7 @@ func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, fro
 		To:                   to,
 		Status:               issue.Status,
 		StatusOptional:       statusOptional,
+		Done:                 next == "" && !statusOptional,
 		Slug:                 issue.Slug,
 		File:                 issue.FilePath,
 		SideEffects:          transitionSideEffects(result),
@@ -247,6 +242,27 @@ func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, fro
 		NextCommandNote:      nextNote,
 		Guidance:             guidance,
 	}
+}
+
+// defaultNextStep picks the status to suggest after status: the next required
+// one, else the first remaining optional one (allOptional), plus the optional
+// side-paths. Side statuses (parked) are dropped when nothing required is
+// left, so a finished issue gets no next step.
+func defaultNextStep(wf *tracker.WorkflowConfig, status string) (next string, allOptional bool, optionals []string) {
+	required, optionals := wf.DefaultNextStatus(status)
+	if required != "" {
+		return required, false, optionals
+	}
+	var onPath []string
+	for _, o := range optionals {
+		if !wf.IsSideStatus(o) {
+			onPath = append(onPath, o)
+		}
+	}
+	if len(onPath) == 0 {
+		return "", false, nil
+	}
+	return onPath[0], true, onPath[1:]
 }
 
 func transitionSideEffects(result tracker.TransitionResult) []string {
@@ -389,7 +405,7 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 				mark = "x"
 			}
 			if item.ID != "" {
-				fmt.Fprintf(w, "  %s [%s] %s\n", item.ID, mark, item.Text)
+				fmt.Fprintf(w, "  %s [%s] %s\n", item.ID, mark, tracker.StripCheckboxID(item.ID, item.Text))
 				hint = hint || !item.Checked
 			} else {
 				fmt.Fprintf(w, "  %d. [%s] %s\n", item.Index, mark, item.Text)
@@ -397,6 +413,7 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 		}
 		if hint {
 			fmt.Fprintf(w, "Tick done boxes by id, several at once: issue-cli check %s <id> [<id>...]\n", slug)
+			fmt.Fprintf(w, "Box text wrong? issue-cli check-edit %s <id> --text \"...\"\n", slug)
 		}
 		fmt.Fprintln(w)
 	}
@@ -406,6 +423,10 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 			fmt.Fprintf(w, "- %s\n", prompt)
 		}
 		fmt.Fprintln(w)
+	}
+	if output.Done {
+		fmt.Fprintln(w, "== Done ==")
+		fmt.Fprintf(w, "  %s is the end of the workflow: nothing is left to do on this issue.\n", output.Status)
 	}
 	if nextStatus != "" {
 		fmt.Fprintln(w, "== Next ==")

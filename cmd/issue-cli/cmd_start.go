@@ -169,14 +169,7 @@ func printWorkflowNextSteps(w io.Writer, wf *tracker.WorkflowConfig, issue *trac
 		}
 	}
 
-	required, optionals := wf.DefaultNextStatus(issue.Status)
-	next := required
-	allOptional := false
-	if next == "" && len(optionals) > 0 {
-		next = optionals[0]
-		optionals = optionals[1:]
-		allOptional = true
-	}
+	next, allOptional, optionals := defaultNextStep(wf, issue.Status)
 	if next != "" {
 		fmt.Fprintln(w, "== Next ==")
 		suffix := ""

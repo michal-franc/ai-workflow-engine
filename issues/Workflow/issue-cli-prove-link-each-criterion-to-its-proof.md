@@ -24,7 +24,7 @@ Owner, 2026-10-22: a command, yes; but "we don't want to have 20 screenshots in 
 3. **Screenshots come from playtest runs, at most one per step.** The Evidence gallery shows the latest run's shot of
    each step a criterion points to (`.playtest/runs/…/results.yaml`, gitignored). Three visual criteria show about
    three shots.
-4. **A hand-picked shot only where no playtest runner exists** (game projects such as RogueTech): one per criterion,
+4. **A hand-picked shot only where no playtest runner exists** (RogueTech has one, so it gets none): one per criterion,
    only for a criterion marked visual, stored as a path.
 5. **No proof stays "unproven".** A screenshot can't stand in for a missing test or step.
 

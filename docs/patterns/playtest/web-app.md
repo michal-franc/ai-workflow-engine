@@ -56,8 +56,8 @@ Each step at each viewport starts a fresh scenario:
 
 - **Its own project:** a temp dir under `/tmp/pt-…`, with a marker file in
   it. The fixtures are copied into `proj/issues/` and committed to a new git
-  repo. Fixtures live under `tracker/`, never under `issues/`, because the
-  sparse-checkout rule `!issues/` would hide them in dispatched worktrees.
+  repo. Fixtures live under `tracker/`, never under `issues/`, so they never
+  read as a real issues tree.
 - **Files beside the issues:** with `root: <folder>` in `scenario.yaml`,
   that folder is copied into the project root as is: `sessions/` handoff
   notes, a `CHANGELOG.md`, `playtest/sessions/` and `.playtest/runs/`

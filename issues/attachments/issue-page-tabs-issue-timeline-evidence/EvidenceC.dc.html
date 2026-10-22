@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Issue page, Evidence tab</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0e1116}
+a{color:#58a6ff}a:hover{color:#79c0ff}
+.card{background:#161b22;border:1px solid #2a313c;border-radius:10px}
+.head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:14px 18px;border-bottom:1px solid #222831}
+.head h2{margin:0;font-size:15px;color:#f0f3f6;font-weight:700}
+.body{padding:14px 18px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid;white-space:nowrap;line-height:18px}
+.chip-green{color:#56d364;background:#12261a;border-color:#23502f}
+.chip-blue{color:#58a6ff;background:#0f2134;border-color:#1f4470}
+.chip-amber{color:#e3b341;background:#2a2112;border-color:#5a4520}
+.chip-purple{color:#bc8cff;background:#221a33;border-color:#47336b}
+.chip-red{color:#ff7b72;background:#2d1517;border-color:#5f2a2c}
+.chip-gray{color:#a5aeb8;background:#1c222b;border-color:#2a313c}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.muted{color:#8b949e}
+.btn{font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:6px 12px;min-height:36px;cursor:pointer;border:1px solid #2a313c;background:#1c222b;color:#d6dde6;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.nav a{display:block;padding:7px 10px;border-radius:6px;color:#8b949e;text-decoration:none;font-size:14px}
+.shot{border:1px dashed #3b4554;border-radius:8px;background:#11161d;display:flex;align-items:center;justify-content:center;text-align:center;padding:12px;color:#8b949e;font-size:12.5px;line-height:1.45;box-sizing:border-box}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:13.5px;line-height:1.45}
+th{text-align:left;font-size:12px;font-weight:700;color:#8b949e;padding:10px 12px;border-bottom:1px solid #2a313c}
+td{padding:12px;border-top:1px solid #222831;vertical-align:top}
+.p{display:inline-flex;margin:0 4px 4px 0}
+.step{display:flex;align-items:center;gap:10px;font-size:13.5px;padding:4px 0}
+.dot{width:12px;height:12px;border-radius:50%;flex:0 0 12px;box-sizing:border-box}
+.tabs{display:flex;flex-wrap:wrap;align-items:flex-end;gap:4px 20px;border-bottom:1px solid #2a313c}
+.tab{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 4px;margin-bottom:-1px;font-size:14.5px;font-weight:600;color:#8b949e;text-decoration:none;border-bottom:2px solid transparent}
+.tab:hover{color:#d6dde6}
+.tab-on{color:#f0f3f6;border-bottom-color:#58a6ff}
+.tab-on:hover{color:#f0f3f6}
+.lk{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid #2a313c;border-radius:6px;background:#11161d;font-size:12.5px;line-height:20px;color:#d6dde6}
+.lt{font-family:'JetBrains Mono',monospace;font-size:11px;color:#8b949e}
+.ok{font-size:11.5px;font-weight:600;color:#56d364}
+.rp{font-size:11.5px;font-weight:600;color:#a5aeb8}
+</style>
+</helmet>
+<div style="font-family: Archivo, system-ui, sans-serif; color: #d6dde6; background: #0e1116; min-height: 100%; display: flex; flex-wrap: wrap">
+
+<nav class="nav" aria-label="Project sidebar (existing, unchanged)" style="flex: 0 0 232px; box-sizing: border-box; padding: 20px 12px; background: #12161c; border-right: 1px solid #222831; display: flex; flex-direction: column; gap: 2px">
+<div class="muted" style="font-size: 12px; padding: 0 10px 4px">Project</div>
+<div style="color: #f0f3f6; font-weight: 700; padding: 0 10px 14px">RogueTech.X</div>
+<a href="#">Status</a><a href="#">Systems</a><a href="#">Board</a><a href="#">List</a><a href="#">Branches</a><a href="#">Decisions</a><a href="#">Docs</a><a href="#">More</a>
+<div class="muted" style="font-size: 11.5px; padding: 18px 10px 0; line-height: 1.4">Existing sidebar, unchanged</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 24px 28px 48px; display: flex; flex-direction: column; gap: 20px">
+
+<header style="display: flex; flex-direction: column; gap: 8px">
+<div class="mono muted" style="font-size: 12.5px"><a href="#" style="color: #8b949e">Campaign</a> / campaign/eldritch-boss-unit-for-lost-earth</div>
+<h1 style="margin: 0; font-size: 26px; line-height: 1.25; color: #f0f3f6; font-weight: 800">Eldritch boss unit for Lost Earth</h1>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center">
+<span class="chip chip-green">done</span><span class="chip chip-gray">feature</span><span class="chip chip-amber">high</span><span class="chip chip-gray">v0.1</span><span class="chip chip-gray">Campaign</span>
+<span class="muted" style="font-size: 13px; margin-left: 6px">Epic <a href="#" class="mono" style="font-size: 12px">campaign/run-structure-and-saving</a> · split out of <a href="#" class="mono" style="font-size: 12px">campaign/campaign-goal-retake-lost-earth-from-the-eldritch-boss</a> #D-10</span>
+</div>
+<p style="margin: 4px 0 0; max-width: 980px; font-size: 15px; line-height: 1.5; color: #c9d1d9">The Last Directive: Earth's last Hegemony AI core with an Old One rift grown through it. A ~200 t one-hex hexapod siege walker, about twice a Hierophant, built through the unit pipeline as the 0.1 campaign's final enemy.</p>
+</header>
+
+<nav class="tabs" aria-label="Issue page tabs">
+<a class="tab" href="#">Issue</a>
+<a class="tab" href="#">Timeline <span class="chip chip-gray">3h 43m</span></a>
+<a class="tab tab-on" href="#" aria-current="page">Evidence <span class="chip chip-green">8 / 8 proven</span></a>
+</nav>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch">
+<section class="card" aria-labelledby="shots" style="flex: 999 1 560px; min-width: 0">
+<div class="head"><h2 id="shots">Shots · 2</h2><span class="muted" style="font-size: 12.5px">one per playtest step a criterion points to</span></div>
+<div class="body" style="display: flex; flex-direction: column; gap: 12px">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px">
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 8px">
+<div class="shot" style="height: 280px; font-size: 13.5px">[step MV1: The Last Directive with four Nexus escorts on arena_large, isometric battle map]</div>
+<figcaption style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px"><span class="chip chip-gray">step MV1</span><span class="chip chip-green">proves AC1</span><span>Reads as the final enemy: biggest unit on the field.</span></figcaption>
+</figure>
+<figure style="margin: 0; display: flex; flex-direction: column; gap: 8px">
+<div class="shot" style="height: 280px; font-size: 13.5px">[step MV2: the boss after a kill, legs and cockpit gone, lying as a wreck]</div>
+<figcaption style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px"><span class="chip chip-gray">step MV2</span><span class="chip chip-green">proves AC2</span><span class="chip chip-green">proves AC5</span><span>Loses parts, never ejects, dies into a wreck.</span></figcaption>
+</figure>
+</div>
+<p class="muted" style="margin: 0; font-size: 12.5px">From the latest run of session lost-earth-boss (ux-test at <span class="mono" style="font-size: 11.5px">53ca6a5</span>). Nothing is copied into the issue. The bench and destruction shots from the unit pipeline stay with your approvals D-12 and D-13 on the Issue tab.</p>
+</div>
+</section>
+
+<aside style="flex: 1 1 320px; max-width: 100%; display: flex; flex-direction: column; gap: 20px">
+<section class="card" aria-labelledby="verdict">
+<div class="head"><h2 id="verdict">Verdict</h2><span class="chip chip-green">shipped</span></div>
+<div class="body" style="display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; line-height: 1.5">
+<div style="font-size: 26px; font-weight: 800; color: #56d364">8 / 8 <span style="font-size: 14px; font-weight: 600; color: #c9d1d9">criteria proven</span></div>
+<div>Merged <span class="mono" style="font-size: 12px">81f7fd3</span> into master 17:11</div>
+<div><span class="chip chip-gray">tests:</span> 4310/4310, posted 17:09, after the last commit</div>
+<div>3h 43m from dispatch · 1h 51m waiting on you</div>
+</div>
+</section>
+<section class="card" aria-labelledby="checks">
+<div class="head"><h2 id="checks">How links are checked</h2></div>
+<div class="body" style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.45">
+<div><b style="color: #f0f3f6">test</b> <span class="muted">exists on the branch, and a tests: comment came after the last commit; else</span> <span style="color: #e3b341">stale</span></div>
+<div><b style="color: #f0f3f6">step</b> <span class="muted">passed in the latest playtest run; else</span> <span style="color: #e3b341">not run</span> <span class="muted">or</span> <span style="color: #ff7b72">failed</span></div>
+<div><b style="color: #f0f3f6">commit</b> <span class="muted">reachable from the branch or the merge</span></div>
+<div><b style="color: #f0f3f6">value</b> <span class="muted">shown as written, marked reported</span></div>
+</div>
+</section>
+</aside>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+<div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+
+<section class="card" aria-labelledby="matrix">
+<div class="head"><h2 id="matrix">Criteria → proof</h2><span class="chip chip-green">8 / 8 proven</span></div>
+<div style="overflow-x: auto">
+<table>
+<thead><tr><th scope="col" style="width: 38%">Criterion</th><th scope="col">Links from issue-cli prove, with the engine's check</th><th scope="col" style="width: 90px">State</th></tr></thead>
+<tbody>
+<tr><td><span class="mono muted" style="font-size: 12px">AC1</span> <span class="chip chip-gray" style="font-size: 11px">visual</span> In the Unit 3D Bench: hexapod, ≤ 20,000 triangles, 8 locations, bigger than the Colossus, amber sensor among violet eyes</td><td><span class="p lk"><span class="lt">test</span>LostEarthDesignTests<span class="ok">reported</span></span><span class="p lk"><span class="lt">step</span>MV1<span class="ok">passed</span></span><span class="p lk"><span class="lt">value</span>18,348 triangles<span class="rp">reported</span></span></td><td><span class="chip chip-green">proven</span></td></tr>
+<tr><td><span class="mono muted" style="font-size: 12px">AC2</span> <span class="chip chip-gray" style="font-size: 11px">visual</span> Loses parts and dies into a wreck</td><td><span class="p lk"><span class="lt">step</span>MV2<span class="ok">passed</span></span><span class="p lk"><span class="lt">commit</span>be96268<span class="ok">found</span></span></td><td><span class="chip chip-green">proven</span></td></tr>
+<tr><td><span class="mono muted" style="font-size: 12px">AC3</span> Mech_Template_Nexus_LastDirective: 200 t Colossal, armour 2× the Hierophant's, 9-weapon fixed loadout, out of random pools</td><td><span class="p lk"><span class="lt">test</span>LostEarthBossTests<span class="ok">reported</span></span><span class="p lk"><span class="lt">commit</span>461cf98<span class="ok">found</span></span></td><td><span class="chip chip-green">proven</span></td></tr>
+<tr><td><span class="mono muted" style="font-size: 12px">AC4</span> --enemy-pack boss spawns the boss with a Nexus escort</td><td><span class="p lk"><span class="lt">test</span>LostEarthBossTests.Pack<span class="ok">reported</span></span><span class="p lk"><span class="lt">commit</span>461cf98<span class="ok">found</span></span></td><td><span class="chip chip-green">proven</span></td></tr>
+<tr><td><span class="mono muted" style="font-size: 12px">AC5</span> No Eldritch-faction unit ever ejects; human-piloted enemies still can</td><td><span class="p lk"><span class="lt">test</span>EldritchMachinePilotTests<span class="ok">reported</span></span><span class="p lk"><span class="lt">step</span>MV2<span class="ok">passed</span></span><span class="p lk"><span class="lt">commit</span>0a2793c<span class="ok">found</span></span></td><td><span class="chip chip-green">proven</span></td></tr>
+<tr><td><span class="mono muted" style="font-size: 12px">AC6</span> Four 100 t assaults take 3–8 turns; alpha ≥ 1.8× the Hierophant's</td><td><span class="p lk"><span class="lt">test</span>LostEarthBossTests.TimeToKill<span class="ok">reported</span></span><span class="p lk"><span class="lt">value</span>alpha 690 vs 380 (1.82×), median 3 turns<span class="rp">reported</span></span></td><td><span class="chip chip-green">proven</span></td></tr>
+<tr><td><span class="mono muted" style="font-size: 12px">AC7</span> make test passes incl. EnemyDesignTests; make ux-test passes</td><td><span class="p lk"><span class="lt">test</span>EnemyDesignTests<span class="ok">reported</span></span><span class="p lk"><span class="lt">step</span>MV1, MV2 ux-test<span class="ok">passed</span></span></td><td><span class="chip chip-green">proven</span></td></tr>
+<tr><td><span class="mono muted" style="font-size: 12px">AC8</span> docs/combat/3d-enemy-units.md lists the boss and the Fused rule</td><td><span class="p lk"><span class="lt">commit</span>48a078a<span class="ok">found</span></span></td><td><span class="chip chip-green">proven</span></td></tr>
+</tbody>
+</table>
+</div>
+<p class="muted" style="margin: 0; padding: 12px 18px 16px; font-size: 12.5px; border-top: 1px solid #222831">Before this tab, the boss's criteria were plain bullets and the only ticked box was the template placeholder. With the design-gate rule they are AC1–AC8 checkboxes, and testing can't end until each has a link that passes its check.</p>
+</section>
+
+<section class="card" aria-labelledby="diff">
+<div class="head"><h2 id="diff">Change · 12 commits, 43 files, +2249 −65</h2><a href="#" style="font-size: 13px">Branch diff</a></div>
+<div class="body" style="display: flex; flex-direction: column; gap: 6px; font-size: 13.5px">
+<div style="display: flex; flex-wrap: wrap; gap: 4px 12px"><span style="flex: 0 0 110px" class="muted">rules</span><span><span class="mono" style="font-size: 12px">0a2793c</span> Eldritch units never eject</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 4px 12px"><span style="flex: 0 0 110px" class="muted">data</span><span><span class="mono" style="font-size: 12px">461cf98</span> The Last Directive boss template</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 4px 12px"><span style="flex: 0 0 110px" class="muted">model</span><span><span class="mono" style="font-size: 12px">11ef1bc</span> siege kit and fused enemy look · <span class="mono" style="font-size: 12px">8ba1c73</span> gait shots · <span class="mono" style="font-size: 12px">c667353</span> promote the model</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 4px 12px"><span style="flex: 0 0 110px" class="muted">destruction</span><span><span class="mono" style="font-size: 12px">be96268</span> profile · <span class="mono" style="font-size: 12px">0ac020a</span> shoot any unit named in full · <span class="chip chip-amber">shared</span> <span class="mono" style="font-size: 12px">b6c87c9</span> prone feet · <span class="mono" style="font-size: 12px">d09cb3e</span> thrown parts lie flat</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 4px 12px"><span style="flex: 0 0 110px" class="muted">tests · docs</span><span><span class="mono" style="font-size: 12px">53ca6a5</span> playtest session · <span class="mono" style="font-size: 12px">48a078a</span> docs</span></div>
+</div>
+</section>
+</div>
+
+<aside style="flex: 1 1 320px; max-width: 100%; display: flex; flex-direction: column; gap: 20px">
+<section class="card" aria-labelledby="pt">
+<div class="head"><h2 id="pt">Playtest, per step</h2><span class="chip chip-amber">judged in chat</span></div>
+<div class="body" style="font-size: 13.5px; line-height: 1.5; display: flex; flex-direction: column; gap: 8px">
+<div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center"><span class="chip chip-gray">MV1</span><span class="muted">machine</span><span class="chip chip-green">passed</span><span class="muted">you</span><span class="chip chip-green">"All good"</span></div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center"><span class="chip chip-gray">MV2</span><span class="muted">machine</span><span class="chip chip-green">passed</span><span class="muted">you</span><span class="chip chip-green">"All good"</span></div>
+<div class="muted" style="font-size: 12.5px">Your verdict came from chat; no judge run was recorded, so the agent ticked MV1 and MV2.</div>
+</div>
+</section>
+<section class="card" aria-labelledby="risk">
+<div class="head"><h2 id="risk">Watch</h2><span class="chip chip-gray">3 risk: comments</span></div>
+<div class="body" style="font-size: 13.5px; line-height: 1.5; display: flex; flex-direction: column; gap: 8px">
+<div>Time to kill sits at the low edge (3 turns of 3–8).</div>
+<div>Two destruction fixes change every unit with feet or thrown parts.</div>
+<div>Armour and weapon numbers are a first pass, "tuned later with headless battles" (D-3).</div>
+</div>
+</section>
+<section class="card" aria-labelledby="stale">
+<div class="head"><h2 id="stale">Stale text in the body</h2><span class="chip chip-amber">2</span></div>
+<div class="body" style="display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; line-height: 1.5">
+<div>Human Input still lists "Open (asked in chat, waiting for the owner)": variant, eject, head kill. <span class="muted">Answered by D-9, D-10, D-11.</span></div>
+<div>Artifacts still says "Owner pick: pending". <span class="muted">Answered by D-9.</span></div>
+</div>
+</section>
+</aside>
+</div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1950}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

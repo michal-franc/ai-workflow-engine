@@ -157,7 +157,7 @@
                     {{if .Red}}
                     <div class="status-list" data-testid="status.ci.failed">
                         <span class="label">Failing</span>
-                        <span class="mono">{{.Failed}}</span>
+                        <span class="mono status-ci-cmd">{{.Failed}}</span>
                         {{if .Failures}}<span class="status-meta">{{.Failures}}</span>{{end}}
                     </div>
                     <div class="status-list status-divided" data-testid="status.ci.blamed">

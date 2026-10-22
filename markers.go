@@ -131,7 +131,7 @@ func ciMarkers(ctx *markerCtx, issue *tracker.Issue) []Marker {
 		return nil
 	}
 	st := ctx.ciState
-	return []Marker{{Kind: "ci-red", Tone: "red", Label: "CI red · " + st.Failed,
+	return []Marker{{Kind: "ci-red", Tone: "red", Label: "CI red · " + clip(st.Failed, 28),
 		Title: fmt.Sprintf("Local CI went red on %s at %s; this issue landed since the last green run (%s). issue-cli ci status", st.Branch, ci.Short(st.RedSince), ci.Short(st.GreenSha))}}
 }
 

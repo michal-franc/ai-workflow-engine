@@ -1,0 +1,13 @@
+statuses:
+  - name: "idea"
+  - name: "in progress"
+  - name: "done"
+transitions:
+  - from: "in progress"
+    to: "done"
+ci:
+  nice: 0
+  timeout: 1m
+  run:
+    - cmd: sh check.sh
+      failures: '--- FAIL: (\S+)'

@@ -3644,7 +3644,12 @@ a.chip { text-decoration: none; }
 .status-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .status-card-head > a, .status-card > a { font-size: 13px; }
 .status-waiting.has-items { border-color: var(--amber-border); }
+.status-waiting { border-color: var(--border); }
+.status-ci { gap: 12px; }
+.status-ci-green { border-color: var(--green-border); }
+.status-ci-none { border-style: dashed; }
 .status-ci-red { border-color: var(--red-border); }
+.status-ci-cmd { font-size: 13px; overflow-wrap: anywhere; }
 .status-ci-error { border-color: var(--amber-border); }
 .status-ci-line { font-size: 12px; overflow-wrap: anywhere; }
 .status-ci-log summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); }

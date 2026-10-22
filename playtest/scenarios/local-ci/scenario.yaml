@@ -1,0 +1,18 @@
+# Local CI: the workflow's ci: block runs check.sh, which fails while
+# broken.txt is committed. main starts green; work/ui/route-planner-panel
+# (issue ui/route-planner-panel, done) adds broken.txt, so fast-forwarding
+# main to it turns CI red. ui/offline-map-tiles is in progress (an agent's
+# issue for the dispatch prompt). The viewer's watcher starts the runs
+# itself, in tmux session ci-orbit on the private server.
+title: Local CI - runs on main by itself, reports red
+project:
+  name: Orbit
+  slug: orbit
+issues: tracker
+workflow: workflow.yaml
+root: files
+branches:
+  - name: work/ui/route-planner-panel
+    commits:
+      - files: branches/broken
+        message: "Route planner panel (breaks TestRoutePlanner)"

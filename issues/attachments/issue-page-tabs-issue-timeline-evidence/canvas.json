@@ -1,0 +1,19 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-22T22:05:00Z"},
+  "title": "Issue page: 30 ideas and mockups",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 4300, "expand": "fill", "title": "Ideas: 30 ways to make the issue page worth opening"},
+    "BriefA.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 2150, "expand": "fill", "title": "A · Brief (ui/project-status-pages, at the design gate)"},
+    "TimelineB.dc.html": {"x": 3040, "y": 0, "w": 1440, "h": 2350, "expand": "fill", "title": "B · Timeline tab: the issue page's second tab, replaces Agent Timeline (workflow/local-ci, done)"},
+    "EvidenceC.dc.html": {"x": 4560, "y": 0, "w": 1440, "h": 1950, "expand": "fill", "title": "C · Evidence tab: the issue page's third tab (RogueTech: Eldritch boss, done)"},
+    "SinceD.dc.html": {"x": 6080, "y": 0, "w": 390, "h": 1700, "title": "D · Phone (cli config lookup, in flight)"}
+  },
+  "order": ["Main.dc.html", "BriefA.dc.html", "TimelineB.dc.html", "EvidenceC.dc.html", "SinceD.dc.html"],
+  "notes": {
+    "rowtitle": {"x": 0, "y": -320, "text": "Issue page redesign: 30 ideas, three directions, one phone view", "kind": "title1", "maxW": 6470}
+  },
+  "designSystems": []
+}

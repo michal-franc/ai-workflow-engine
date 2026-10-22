@@ -421,6 +421,12 @@ func TestStartIssueBodyEditor_ReattachWhenSessionExists(t *testing.T) {
 	if resp.Session != expectedSession {
 		t.Errorf("response.Session = %q, want %q", resp.Session, expectedSession)
 	}
+	// terminal: none hands back both ways in: from inside tmux and from a shell.
+	for _, want := range []string{"inside tmux: tmux switch-client -t " + expectedSession, "from a shell: ", "tmux attach -t " + expectedSession} {
+		if !strings.Contains(resp.Message, want) {
+			t.Errorf("response.Message = %q, want it to contain %q", resp.Message, want)
+		}
+	}
 
 	currentBody, err := os.ReadFile(target.FilePath)
 	if err != nil {

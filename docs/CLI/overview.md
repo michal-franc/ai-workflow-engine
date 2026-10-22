@@ -485,9 +485,11 @@ next to the switch statements that handle them.
 `//go:embed` and prints it newest-first, capped to the 20 most recent `## v`
 entries. The CHANGELOG lives under `cmd/issue-cli/` (not the project root)
 because Go's `//go:embed` cannot reference files outside the embedding
-package's directory. When cutting a release, add a new `## vX.Y.Z — YYYY-MM-DD`
-section to the top of that file; the annotated tag message should mirror the
-bullet list.
+package's directory. Shipped changes collect under `## Unreleased` at the
+top. To cut a release (once per milestone, see docs/roadmap.md), rename that
+heading to `## vX.Y.Z — YYYY-MM-DD` and push to main; the release-marker
+Action tags, writes the GitHub Release and builds the binaries. A push with
+`## Unreleased` on top releases nothing.
 
 ## Design Considerations
 

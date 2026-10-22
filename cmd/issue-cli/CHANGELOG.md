@@ -16,6 +16,14 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+Shipped changes collect under `## Unreleased` at the top. A release is cut
+per milestone (the `version:` on issues, see docs/roadmap.md): the lead
+renames `## Unreleased` to `## vX.Y.Z — YYYY-MM-DD` and pushes, and the
+release-marker Action tags and builds it. Pushes with `## Unreleased` on top
+release nothing.
+
+## Unreleased
+
 ## v0.51.0 — 2026-10-22
 
 - **One terminal, a session per project.** Two new top-level keys in `projects.yaml`, `terminal:` and `tmux_session_per_project: true`, set machine-wide defaults. Every project without its own value inherits them.

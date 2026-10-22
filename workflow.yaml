@@ -130,14 +130,10 @@ statuses:
     prompt: |
       Ship straight to main. There are no pull requests: never open one.
       You reach shipping only after the owner has run your playtest and approved documentation, so pushing to main is part of your job here: do it without asking first.
-      1. Add a `## vX.Y.Z — YYYY-MM-DD` entry to `cmd/issue-cli/CHANGELOG.md` with the user-facing change summary. The release-marker GitHub Action reads the version from this entry and creates the tag + GitHub Release when your commit lands on main; do not create or push tags yourself.
+      1. Add your user-facing change summary under `## Unreleased` at the top of `cmd/issue-cli/CHANGELOG.md` (create the heading if a release just took it). Do not add a version heading or bump the version: releases are cut per milestone by the lead (docs/roadmap.md), and the release-marker Action only tags when the top heading is a version. Never create or push tags yourself.
       2. Commit on your branch with a message referencing the issue.
-      3. `git fetch origin && git merge origin/main`, resolve any conflicts, and run `make validate`. If main already has your version in the CHANGELOG, bump yours above it.
+      3. `git fetch origin && git merge origin/main`, resolve any conflicts, and run `make validate`. Keep both sides' entries under `## Unreleased` when the CHANGELOG conflicts.
       4. `git push origin HEAD:main`. If it is rejected because main moved, repeat step 3 and push again. Never force-push.
-      Pick the version bump by the nature of the change (semver):
-        - Bugfix only → patch bump (e.g. v0.1.0 → v0.1.1, the `x.y.Z` digit).
-        - New feature, backwards-compatible → minor bump (e.g. v0.1.1 → v0.2.0, the `x.Y.z` digit).
-        - Breaking change (CLI contract, workflow.yaml schema, or API) → major bump (e.g. v0.2.0 → v1.0.0, the `X.y.z` digit).
       Once your commit is on main and the Shipping boxes are ticked, move the issue to `done` yourself (`issue-cli transition <slug> --to "done"`); it needs no human approval. Polishing the GitHub release description is the human's responsibility. Leave the worktree as it is: nobody has to remove it.
   - name: "done"
     description: "Completed"
@@ -287,7 +283,7 @@ transitions:
         title: "Shipping"
         body: |
           - [ ] Changes committed with a message referencing the issue
-          - [ ] `cmd/issue-cli/CHANGELOG.md` updated with `## vX.Y.Z — YYYY-MM-DD` entry (release-marker reads version from this)
+          - [ ] `cmd/issue-cli/CHANGELOG.md` entry added under `## Unreleased` (no version bump; the lead cuts releases per milestone)
           - [ ] `origin/main` merged into the branch and `make validate` green after the merge
           - [ ] Pushed straight to main (`git push origin HEAD:main`, no pull request)
   - from: "shipping"
@@ -539,7 +535,7 @@ types:
             title: "Shipping"
             body: |
               - [ ] Changes committed with a message referencing the issue
-              - [ ] `cmd/issue-cli/CHANGELOG.md` updated with `## vX.Y.Z — YYYY-MM-DD` entry (release-marker reads version from this)
+              - [ ] `cmd/issue-cli/CHANGELOG.md` entry added under `## Unreleased` (no version bump; the lead cuts releases per milestone)
               - [ ] `origin/main` merged into the branch and `make validate` green after the merge
               - [ ] Pushed straight to main (`git push origin HEAD:main`, no pull request)
 

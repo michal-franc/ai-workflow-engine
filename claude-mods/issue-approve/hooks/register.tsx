@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Approvals } from '../types'
+import type { Approvals, PlaytestStep } from '../types'
 
 // Approve buttons above the prompt of a dispatched agent's session: the same
 // approvals the AI Workflow Engine board's Human Approval box offers for the
@@ -16,6 +16,8 @@ import type { Approvals } from '../types'
 
 const approvals = atom({ plugin: 'issue-approve', key: 'approvals' } as const, null)
 const sending = atom({ plugin: 'issue-approve', key: 'sending' } as const, '')
+const hasPlaytest = atom({ plugin: 'issue-approve', key: 'hasPlaytest' } as const, false)
+const playtest = atom({ plugin: 'issue-approve', key: 'playtest' } as const, 'idle' as PlaytestStep)
 
 const REFRESH_MS = 15000
 
@@ -45,6 +47,52 @@ async function projectFor($: EngineInterface, url: string, cwd: string): Promise
   return ''
 }
 
+// readyForPlaytest: the issue waits on the owner's playtest (human-testing,
+// or a project's own "playtest…" status).
+function readyForPlaytest(status: string): boolean {
+  return /human-testing|playtest/.test(status.toLowerCase())
+}
+
+// runPlaytest runs `make playtest ISSUE=<slug>` in the session's worktree: the
+// overlay opens on a scenario board and the owner judges the steps. It runs as
+// long as the owner needs; the end of its output goes in the toast if it fails.
+async function runPlaytest($: EngineInterface, slug: string) {
+  await update($, playtest, () => 'running')
+  let tail = ''
+  let code: number | null = null
+  try {
+    const child = $.process.spawn({ argv: ['make', 'playtest', `ISSUE=${slug}`] })
+    for await (const piece of child) {
+      tail = (tail + piece.text).slice(-400)
+    }
+    code = (await child.result).code
+  } catch (err) {
+    tail = String(err)
+  }
+  if (code === 0) {
+    $.ui.toast('Playtest finished: press Report to tick the boxes that passed')
+    await update($, playtest, () => 'ran')
+  } else {
+    $.ui.toast(`Playtest ended with ${code ?? 'an error'}: ${tail.trim().split('\n').pop() ?? ''}`)
+    await update($, playtest, () => 'idle')
+  }
+}
+
+// runReport runs `make playtest-report ISSUE=<slug> APPLY=1`: it ticks the
+// Manual boxes that passed and comments failures and notes on the issue.
+async function runReport($: EngineInterface, slug: string, base: string) {
+  await update($, playtest, () => 'reporting')
+  try {
+    const r = await $.process.run(['make', 'playtest-report', `ISSUE=${slug}`, 'APPLY=1'], { timeoutMs: 120000 })
+    const last = (r.stdout + r.stderr).trim().split('\n').pop() ?? ''
+    $.ui.toast(r.exitCode === 0 ? `Playtest report applied. ${last}` : `playtest-report failed (${r.exitCode}): ${last}`)
+  } catch (err) {
+    $.ui.toast(`playtest-report failed: ${String(err)}`)
+  }
+  await update($, playtest, () => 'idle')
+  await refresh($, base)
+}
+
 // press toggles one approval, like the board's checkbox, then re-reads.
 async function press($: EngineInterface, base: string, status: string, approved: boolean) {
   await update($, sending, () => status)
@@ -71,15 +119,22 @@ async function press($: EngineInterface, base: string, status: string, approved:
 export const register: Register = on => {
   // http://host/p/<project>/issue/<slug>; '' outside a dispatched agent.
   let base = ''
+  let slug = ''
 
   on('session.start', async ($, e, next) => {
-    const slug = await $.env.get('ISSUE_VIEWER_ISSUE_SLUG')
+    slug = (await $.env.get('ISSUE_VIEWER_ISSUE_SLUG')) ?? ''
     const url = ((await $.env.get('ISSUE_VIEWER_URL')) || 'http://localhost:8080').replace(/\/+$/, '')
     let project = await $.env.get('ISSUE_VIEWER_PROJECT')
     if (slug && !project) project = await projectFor($, url, e.cwd)
     if (slug && project) {
       base = `${url}/p/${project}/issue/${slug}`
       await refresh($, base)
+      try {
+        const probe = await $.process.run(['make', '-n', 'playtest', `ISSUE=${slug}`], { timeoutMs: 10000 })
+        await update($, hasPlaytest, () => probe.exitCode === 0)
+      } catch {
+        await update($, hasPlaytest, () => false)
+      }
       $.clock.every(REFRESH_MS, () => {
         void refresh($, base)
       })
@@ -95,7 +150,9 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const a = await read($, approvals)
-    if (e.props.hasSurvey || !a || a.approvals.length === 0) {
+    const step = await read($, playtest)
+    const canPlaytest = !!a && (await read($, hasPlaytest)) && (readyForPlaytest(a.status) || step !== 'idle')
+    if (e.props.hasSurvey || !a || (a.approvals.length === 0 && !canPlaytest)) {
       return next(e)
     }
     const busy = await read($, sending)
@@ -104,6 +161,18 @@ export const register: Register = on => {
     return (
       <Box>
         <Text dimColor>Human approval · {a.status}: </Text>
+        {canPlaytest && step === 'idle' && (
+          <Button key="playtest" variant="primary" onPress={() => runPlaytest($, slug)}>
+            ▶ Playtest
+          </Button>
+        )}
+        {step === 'running' && <Text>⏳ playtest running… </Text>}
+        {step === 'ran' && (
+          <Button key="report" variant="primary" onPress={() => runReport($, slug, base)}>
+            ✓ Report
+          </Button>
+        )}
+        {step === 'reporting' && <Text>⏳ reporting… </Text>}
         {a.approvals.map(x => (
           <Button
             key={x.status}

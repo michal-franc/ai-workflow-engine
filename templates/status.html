@@ -147,11 +147,60 @@
             </div>
 
             <div class="status-col status-col-side">
-                <section class="card status-card status-waiting{{if .Waiting}} has-items{{end}}" data-testid="status.waiting" aria-labelledby="status-waiting-h">
+                {{with .CI}}
+                <section class="card status-card status-ci status-ci-{{if .State}}{{.State}}{{else}}none{{end}}" data-testid="status.ci" aria-labelledby="status-ci-h">
+                    <div class="status-card-head">
+                        <h2 id="status-ci-h">Local CI</h2>
+                        <span class="chip{{if eq .State "green"}} chip-green{{else if eq .State "red"}} chip-red{{else if eq .State "error"}} chip-amber{{end}}" data-testid="status.ci.state">{{if .State}}{{.State}}{{else}}no run yet{{end}}</span>
+                    </div>
+                    <span class="mono status-ci-line" data-testid="status.ci.line">{{.Line}}</span>
+                    {{if .Red}}
+                    <div class="status-list" data-testid="status.ci.failed">
+                        <span class="label">Failing</span>
+                        <span class="mono">{{.Failed}}</span>
+                        {{if .Failures}}<span class="status-meta">{{.Failures}}</span>{{end}}
+                    </div>
+                    <div class="status-list status-divided" data-testid="status.ci.blamed">
+                        <span class="label">Landed since the last green run</span>
+                        {{range .Blamed}}
+                        <a href="{{$.IssueURL .Slug}}" class="status-title">{{.Title}}</a>
+                        {{else}}
+                        <span class="status-meta">No issue matched{{if .Others}}; see <code>issue-cli ci status</code>{{end}}</span>
+                        {{end}}
+                        {{if and .Blamed .Others}}<span class="status-meta">and {{plural .Others "commit" "commits"}} without an issue</span>{{end}}
+                        {{with .RedIssue}}<span class="status-meta">Fix tracked in <a href="{{$.IssueURL .Slug}}">{{.Title}}</a></span>{{end}}
+                    </div>
+                    {{else if eq .State "error"}}
+                    <p class="status-hint" data-testid="status.ci.error">CI could not run: {{.Error}}. Fix it, or run <code>issue-cli ci reset</code> to rebuild the CI worktree.</p>
+                    {{else if not .State}}
+                    <p class="status-hint">The first run starts when the viewer sees the branch, or with <code>issue-cli ci run</code>.</p>
+                    {{end}}
+                    {{if .LogTail}}
+                    <details class="status-ci-log" data-testid="status.ci.log">
+                        <summary>Log tail <span class="mono status-meta">{{.Log}}</span></summary>
+                        <pre>{{range .LogTail}}{{.}}
+{{end}}</pre>
+                    </details>
+                    {{end}}
+                </section>
+                {{end}}
+                <section class="card status-card status-waiting{{if .WaitingCount}} has-items{{end}}" data-testid="status.waiting" aria-labelledby="status-waiting-h">
                     <div class="status-card-head">
                         <h2 id="status-waiting-h">Waiting on you</h2>
-                        <span class="chip{{if .Waiting}} chip-amber{{end}}" data-testid="status.waiting.count">{{len .Waiting}}</span>
+                        <span class="chip{{if .WaitingCount}} chip-amber{{end}}" data-testid="status.waiting.count">{{.WaitingCount}}</span>
                     </div>
+                    {{if .CI.Red}}
+                    <div class="status-list">
+                        <span class="label">Local CI</span>
+                        <div class="status-row" data-testid="status.waiting.ci">
+                            <div class="status-row-stack">
+                                <span class="status-title">{{.CI.Branch}} red since <span class="mono">{{.CI.Sha}}</span></span>
+                                <span class="status-meta mono">{{.CI.Failed}}</span>
+                            </div>
+                            <span class="mono status-meta">issue-cli ci status</span>
+                        </div>
+                    </div>
+                    {{end}}
                     {{with .WaitingOf "gate"}}
                     <div class="status-list">
                         <span class="label">Approve</span>

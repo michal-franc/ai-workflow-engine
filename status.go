@@ -141,10 +141,19 @@ type StatusModel struct {
 	Releases      []Release
 	ReleaseSource string
 	DoneRecent    []DoneRow
+	// CI is the Local CI card; nil without a ci: block.
+	CI *CIRow
 }
 
-// WaitingCount is the number shown on the sidebar's Status entry.
-func (m *StatusModel) WaitingCount() int { return len(m.Waiting) }
+// WaitingCount is the number shown on the sidebar's Status entry: the
+// waiting items, plus one while local CI is red.
+func (m *StatusModel) WaitingCount() int {
+	n := len(m.Waiting)
+	if m.CI.Red() {
+		n++
+	}
+	return n
+}
 
 // AgeOf is how long ago t was, as of the page: 25m, 1h 30m, 13d.
 func (m *StatusModel) AgeOf(t time.Time) string { return shortDuration(m.AsOf.Sub(t)) }
@@ -272,6 +281,7 @@ func buildStatus(proj *tracker.Project, issues []*tracker.Issue, agents *AgentsM
 	sort.Slice(m.DoneRecent, func(i, j int) bool { return m.DoneRecent[i].At.After(m.DoneRecent[j].At) })
 
 	m.Waiting = waitingOnOwner(proj, sorted)
+	m.CI = ciRow(proj, issues, now)
 	root := projectRoot(proj)
 	m.Next = leadNextSteps(root, tracker.LeadSessionName(proj), now)
 	m.Releases, m.ReleaseSource = recentReleases(root, wf.Workbench.Changelog, statusReleases)
@@ -486,6 +496,26 @@ func statusMarkdown(m *StatusModel) string {
 		}
 	}
 
+	if m.CI != nil {
+		fmt.Fprintf(&b, "- Local CI: %s\n", m.CI.Line)
+		if m.CI.Red() {
+			if len(m.CI.Blamed) > 0 {
+				var slugs []string
+				for _, issue := range m.CI.Blamed {
+					slugs = append(slugs, issue.Slug)
+				}
+				fmt.Fprintf(&b, "  - Landed since green: %s\n", strings.Join(slugs, ", "))
+			}
+			if len(m.CI.LogTail) > 0 {
+				tail := m.CI.LogTail
+				if len(tail) > 20 {
+					tail = tail[len(tail)-20:]
+				}
+				fmt.Fprintf(&b, "\n```\n%s\n```\n", strings.Join(tail, "\n"))
+			}
+		}
+	}
+
 	b.WriteString("\n## Recently shipped\n")
 	for _, r := range m.Releases {
 		date := ""
@@ -558,7 +588,10 @@ func statusMarkdown(m *StatusModel) string {
 		}
 	}
 
-	fmt.Fprintf(&b, "\n## Waiting on you (%d)\n", len(m.Waiting))
+	fmt.Fprintf(&b, "\n## Waiting on you (%d)\n", m.WaitingCount())
+	if m.CI.Red() {
+		fmt.Fprintf(&b, "- Local CI red on %s since %s: %s (issue-cli ci status)\n", m.CI.Branch, m.CI.Sha, m.CI.Failed)
+	}
 	for _, it := range m.Waiting {
 		switch it.Kind {
 		case "gate":
@@ -569,7 +602,7 @@ func statusMarkdown(m *StatusModel) string {
 			fmt.Fprintf(&b, "- Answer %s: open question: comment\n", it.Issue.Slug)
 		}
 	}
-	if len(m.Waiting) == 0 {
+	if m.WaitingCount() == 0 {
 		b.WriteString("- Nothing\n")
 	}
 	return b.String()

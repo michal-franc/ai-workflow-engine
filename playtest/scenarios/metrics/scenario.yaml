@@ -11,7 +11,7 @@ project:
   slug: sd
 issues: tracker
 workflow: workflow.yaml
-files: files
+root: files
 commits:
   - files: commits/pass1
     message: "Play calls balance pass 1: CallNoise 0.4 -> 0.6"

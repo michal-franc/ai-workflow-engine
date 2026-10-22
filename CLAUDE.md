@@ -54,6 +54,8 @@ handlers_github.go          — github page, fetch, import
 handlers_stats.go           — /stats workflow token-cost view
 handlers_agents.go          — /agents canvas, agents.json, agent detail, open-in-tmux and lead spawn endpoints
 handlers_metrics.go         — /metrics view (guard metrics, knobs, branches), metrics.json; handlers_metrics_panels.go feeds the system-page partials
+handlers_status.go          — /status page and /status.md (model in status.go: buildStatus, statusMarkdown)
+attention.go                — what waits on the owner (ownerAttention, waitingOnOwner): Status page, sidebar count, system pages, board markers
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
 internal/agentrun/          — shared tmux/worktree launcher used by the server and issue-cli (leads, dispatch)

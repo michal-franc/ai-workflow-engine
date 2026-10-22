@@ -22,9 +22,10 @@ type navView struct {
 	Show func(s *Server, proj *tracker.Project) bool
 }
 
-// navViews in display order. Status and Systems (D-2) join the main group when
-// their pages exist; until then they are not listed (D-7).
+// navViews in display order. Systems (D-2) joins the main group when its page
+// exists; until then it is not listed (D-7).
 var navViews = []navView{
+	{Key: "status", Label: "Status", Path: "/status"},
 	{Key: "board", Label: "Board", Path: "/board"},
 	{Key: "list", Label: "List", Path: "/"},
 	{Key: "balance", Label: "Balance", Path: "/balance", Show: func(s *Server, p *tracker.Project) bool {
@@ -54,6 +55,8 @@ type NavItem struct {
 	Note   string // muted text on the right: a count, "1 running"
 	Live   bool   // Note is a running-agents count (green)
 	Alert  bool   // Note is a problem count (red), e.g. "3 off"
+	// Attention marks Note as things waiting on the owner (amber chip).
+	Attention bool
 }
 
 // NavCount is a name with an open-issue count (the Board's systems panel).
@@ -102,12 +105,14 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 
 	open := 0
 	bySystem := map[string]int{}
+	var openIssues []*tracker.Issue
 	for _, issue := range issues {
 		if issue.Status == "done" {
 			continue
 		}
 		open++
 		bySystem[issue.System]++
+		openIssues = append(openIssues, issue)
 	}
 
 	nav := Nav{
@@ -129,6 +134,10 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 		}
 		item := NavItem{Key: v.Key, Label: v.Label, Href: prefix + v.Path, Active: v.Key == active}
 		switch v.Key {
+		case "status":
+			if n := len(waitingOnOwner(proj, openIssues)); n > 0 {
+				item.Note, item.Attention = fmt.Sprint(n), true
+			}
 		case "list":
 			item.Note = fmt.Sprint(open)
 		case "agents":

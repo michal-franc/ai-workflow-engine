@@ -16,6 +16,9 @@ type WorkbenchConfig struct {
 	Metrics WorkbenchMetrics           `yaml:"metrics,omitempty" desc:"Read-only metric files (JSON, see docs/workbench-files.md): probe results and optional targets"`
 	Tuning  []string                   `yaml:"tuning,omitempty" desc:"Knob export files (JSON, see docs/workbench-files.md), relative to the project root"`
 	Balance WorkbenchBalance           `yaml:"balance,omitempty" desc:"Balance board config; enables the Balance view"`
+	// Changelog is the release history the Status page lists recent releases
+	// from; empty means CHANGELOG.md when the project root has one.
+	Changelog string `yaml:"changelog,omitempty" desc:"Changelog file the Status page reads recent releases from (default CHANGELOG.md), relative to the project root"`
 }
 
 // WorkbenchSystem describes one system page. Every key is optional: a system
@@ -89,7 +92,7 @@ type WorkbenchBalance struct {
 
 // IsZero reports whether the block was left out.
 func (c WorkbenchConfig) IsZero() bool {
-	return len(c.Systems) == 0 && c.Metrics == (WorkbenchMetrics{}) && len(c.Tuning) == 0 && c.Balance == (WorkbenchBalance{})
+	return len(c.Systems) == 0 && c.Metrics == (WorkbenchMetrics{}) && len(c.Tuning) == 0 && c.Balance == (WorkbenchBalance{}) && c.Changelog == ""
 }
 
 // HasSystems reports whether the Systems view should be shown.
@@ -136,6 +139,7 @@ func (c WorkbenchConfig) Validate() []string {
 	}
 	check("metrics.targets", c.Metrics.Targets)
 	check("metrics.probe_results", c.Metrics.ProbeResults)
+	check("changelog", c.Changelog)
 	for i, path := range c.Tuning {
 		check(fmt.Sprintf("tuning[%d]", i), path)
 	}

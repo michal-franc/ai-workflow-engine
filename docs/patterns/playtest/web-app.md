@@ -15,7 +15,7 @@ internal/testids/testids.go     every data-testid id and pattern, one list
 templates/*.html                data-testid="board.card.{{tid .Slug}}" on what steps point at
 testids_test.go                 fails when templates and the list drift apart
 playtest/sessions/<name>.yaml   sessions (step id = checkbox id)
-playtest/scenarios/<name>/      scenario.yaml, workflow.yaml, tracker/<System>/*.md fixtures
+playtest/scenarios/<name>/      scenario.yaml, workflow.yaml, tracker/<System>/*.md fixtures, optional root/
 cmd/playtest/                   the runner: check | ux-test | playtest | report
 cmd/playtest/assets/checks.js   DOM checks, layout rules, action helpers (both modes)
 cmd/playtest/assets/overlay.js  the owner's overlay (injected; the board has none)
@@ -58,6 +58,10 @@ Each step at each viewport starts a fresh scenario:
   it. The fixtures are copied into `proj/issues/` and committed to a new git
   repo. Fixtures live under `tracker/`, never under `issues/`, because the
   sparse-checkout rule `!issues/` would hide them in dispatched worktrees.
+- **Files beside the issues:** with `root: <folder>` in `scenario.yaml`,
+  that folder is copied into the project root as is: `sessions/` handoff
+  notes, a `CHANGELOG.md`, `playtest/sessions/` and `.playtest/runs/`
+  (the `status` scenario uses it).
 - **Its own config:** a `projects.yaml` that points only at that project.
 - **Fresh binaries:** `issue-viewer` and `issue-cli` built from the
   checkout, once per run, and put first on `PATH`.
@@ -75,12 +79,12 @@ Each step at each viewport starts a fresh scenario:
 Slugs come from the issue title (`card-titles-overflow-on-a-phone`), with
 the system folder lower-cased (`ui/…`), not from the file name.
 
-### Files, history and branches
+### Git history and branches
 
-A scenario that needs more than issues (a view over project files, or git branches) can add these keys to `scenario.yaml`. Each one names a folder in the scenario:
+A scenario that needs git history or open branches (a view over branches, knob history) adds these keys to `scenario.yaml`, next to `root:`. Each `files:` names a folder in the scenario:
 
 ```yaml
-files: files                  # copied into the project root, in the first commit
+root: files                   # copied into the project root, in the first commit
 commits:                      # applied on main afterwards, in order
   - files: commits/pass1
     message: "Play calls balance pass 1"

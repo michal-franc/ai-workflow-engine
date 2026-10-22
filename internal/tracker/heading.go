@@ -221,3 +221,16 @@ func appendToSection(body, title, content string) (string, bool) {
 		return body, false
 	}
 }
+
+// SectionText returns the content under the first heading named title (a bare
+// title is a "## " heading), without the heading line, up to the next heading
+// of the same or a higher level. ok is false when there is no such heading.
+func SectionText(body, title string) (text string, ok bool) {
+	matches := findHeadingMatches(body, normalizeHeading(title))
+	if len(matches) == 0 {
+		return "", false
+	}
+	lines := strings.Split(body, "\n")
+	m := matches[0]
+	return strings.TrimSpace(strings.Join(lines[m.StartLine+1:m.EndLine], "\n")), true
+}

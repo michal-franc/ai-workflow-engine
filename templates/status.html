@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Project}} — Status</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M2 13h12v1.5H2zM3 8h2v4H3zm4-3h2v7H7zm4-3h2v10h-2z' fill='%2358a6ff'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="app">
+{{template "sidebar" (sidebar .Prefix "status")}}
+<div class="app-main">
+    <main class="container wb-page status-page" data-testid="status.page">
+        <div class="page-head status-head">
+            <div>
+                <h1 class="page-title">Status</h1>
+                <p class="page-sub">Where {{.Project}} stands, as of {{.AsOf.Format "Mon 2 Jan, 15:04"}}. Read from the issues, the changelog, tmux and the lead's handoff note.</p>
+            </div>
+            <div class="status-actions">
+                <button type="button" class="btn" data-testid="status.copy_md" onclick="copyStatusMarkdown(this)">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>
+                    <span class="status-copy-label">Copy as markdown</span>
+                </button>
+                <a class="btn mono" href="{{.Prefix}}/status.md" data-testid="status.raw_md">status.md</a>
+            </div>
+        </div>
+
+        <div class="status-cols">
+            <div class="status-col status-col-main">
+
+                <section class="card status-card" data-testid="status.where" aria-labelledby="status-where-h">
+                    <div class="status-card-head">
+                        <h2 id="status-where-h">Where we are</h2>
+                        <a href="{{.Prefix}}/canvas">Issues canvas</a>
+                    </div>
+                    <div class="status-progress" data-testid="status.all_progress">
+                        <div class="status-progress-row"><span class="status-strong">All issues</span><span class="mono">{{.All.Done}}/{{.All.Total}} done</span></div>
+                        <div class="status-bar"><span style="width: {{.All.Pct}}%"></span></div>
+                    </div>
+                    {{range .Versions}}
+                    <div class="status-progress" data-testid="status.version.{{tid .Label}}">
+                        <div class="status-progress-row"><span class="status-strong">{{.Label}}</span><span class="mono">{{.Done}}/{{.Total}} done</span></div>
+                        <div class="status-bar"><span style="width: {{.Pct}}%"></span></div>
+                    </div>
+                    {{else}}
+                    <p class="status-hint" data-testid="status.no_versions">No issue sets a version, so there is one row. Set one with <code>issue-cli set-meta &lt;slug&gt; --key version --value 0.41</code> to get a row per version.</p>
+                    {{end}}
+                    {{if .Epics}}
+                    <div class="status-list">
+                        <span class="label">Open epics</span>
+                        {{range .Epics}}
+                        <div class="status-epic" data-testid="status.epic.{{tid .Issue.Slug}}">
+                            <div class="status-epic-text">
+                                <a href="{{$.IssueURL .Issue.Slug}}" class="status-title">{{.Issue.Title}}</a>
+                                <span class="status-meta">{{.Issue.Status}} · {{.Note}}</span>
+                            </div>
+                            <div class="status-bar"><span style="width: {{.Progress.Pct}}%"></span></div>
+                            <span class="mono status-count">{{.Progress.Done}}/{{.Progress.Total}}</span>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+                </section>
+
+                <section class="card status-card" data-testid="status.working" aria-labelledby="status-working-h">
+                    <div class="status-card-head">
+                        <h2 id="status-working-h">What we are working on</h2>
+                        <a href="{{.Prefix}}/agents">Agents canvas</a>
+                    </div>
+                    {{if .LeadName}}
+                    <div class="status-lead" data-testid="status.lead">
+                        <span class="label">Lead</span>
+                        <span class="mono">{{.LeadName}}</span>
+                        <span class="chip{{if eq .LeadState "live"}} chip-green{{end}}">{{if eq .LeadState "live"}}live{{else}}not running{{end}}</span>
+                    </div>
+                    {{end}}
+                    {{if .Active}}
+                    <div class="status-table-wrap">
+                        <table class="status-table">
+                            <thead><tr><th scope="col">Issue</th><th scope="col">Status</th><th scope="col">Agent</th><th scope="col" class="num">In status</th></tr></thead>
+                            <tbody>
+                            {{range .Active}}
+                            <tr data-testid="status.working.row.{{tid .Issue.Slug}}">
+                                <td>
+                                    <a href="{{$.IssueURL .Issue.Slug}}" class="status-title">{{.Issue.Title}}</a>
+                                    <span class="mono status-slug">{{.Issue.Slug}}</span>
+                                </td>
+                                <td><span class="badge status-chip" style="--c: {{statusColor .Issue.Status}}">{{.Issue.Status}}</span></td>
+                                <td>{{if .Agent}}<span class="chip {{agentTone .Agent}}">{{.Agent}}{{if .Gate}} → {{.Gate}}{{end}}</span>{{else}}<span class="status-meta">none</span>{{end}}</td>
+                                <td class="num mono status-age {{.Age.Level}}" title="{{if .Age.Approx}}No transition recorded: the file's last change{{else}}Since {{.Age.Since.Format "2 Jan 15:04"}}{{end}}">{{if .Age.Approx}}≈ {{end}}{{.Age.Text}}</td>
+                            </tr>
+                            {{end}}
+                            </tbody>
+                        </table>
+                    </div>
+                    {{else}}
+                    <p class="status-hint">Nothing between in progress and shipping.</p>
+                    {{end}}
+                    {{if .InDesign}}
+                    <div class="status-list status-divided" data-testid="status.design_agents">
+                        <span class="label">Agents on issues not yet in progress</span>
+                        <div class="status-chips">
+                            {{range .InDesign}}<a href="{{$.IssueURL .Issue.Slug}}" class="chip {{agentTone .State}}">{{.Issue.Title}} · {{.State}}</a>{{end}}
+                        </div>
+                    </div>
+                    {{end}}
+                </section>
+
+                <section class="card status-card" data-testid="status.next" aria-labelledby="status-next-h">
+                    <div class="status-card-head">
+                        <h2 id="status-next-h">What's next</h2>
+                        <span class="status-meta{{if and .Next.Found .Next.Age.Level}} status-old{{end}}" data-testid="status.next.source">
+                            {{if .Next.Found}}From <span class="mono">{{.Next.File}}</span> · ## Next · {{if eq .Next.Age.Text "now"}}just now{{else}}{{.Next.Age.Text}} ago{{end}}{{else}}Backlog by priority{{end}}
+                        </span>
+                    </div>
+                    {{if .Next.Found}}
+                    <div class="status-next markdown-body">{{.NextHTML}}</div>
+                    {{else}}
+                    <p class="status-hint">{{if .Next.File}}The project lead's newest handoff note (<span class="mono">{{.Next.File}}</span>) has no <code>## Next</code> section{{else}}The project lead has no handoff note yet{{end}}, so this lists the backlog. The lead's brief asks for a <code>## Next</code> section in every handoff note.</p>
+                    {{end}}
+                    <div class="status-list status-divided" data-testid="status.backlog">
+                        <span class="label">Backlog, by priority</span>
+                        {{range .Backlog}}
+                        <div class="status-row">
+                            <a href="{{$.IssueURL .Slug}}" class="status-title">{{.Title}}</a>
+                            <span class="status-prio" style="color: {{priorityColor .Priority}}">{{if .Priority}}{{.Priority}}{{else}}—{{end}}</span>
+                        </div>
+                        {{else}}
+                        <span class="status-meta">Empty</span>
+                        {{end}}
+                    </div>
+                    <div class="status-list status-divided" data-testid="status.parked">
+                        <span class="label">Parked</span>
+                        {{range .Parked}}
+                        <div class="status-row status-row-stack">
+                            <a href="{{$.IssueURL .Issue.Slug}}" class="status-title">{{.Issue.Title}}</a>
+                            {{if .Reason}}<span class="status-meta">{{.Reason}}</span>{{end}}
+                        </div>
+                        {{else}}
+                        <span class="status-meta">None</span>
+                        {{end}}
+                    </div>
+                </section>
+            </div>
+
+            <div class="status-col status-col-side">
+                <section class="card status-card status-waiting{{if .Waiting}} has-items{{end}}" data-testid="status.waiting" aria-labelledby="status-waiting-h">
+                    <div class="status-card-head">
+                        <h2 id="status-waiting-h">Waiting on you</h2>
+                        <span class="chip{{if .Waiting}} chip-amber{{end}}" data-testid="status.waiting.count">{{len .Waiting}}</span>
+                    </div>
+                    {{with .WaitingOf "gate"}}
+                    <div class="status-list">
+                        <span class="label">Approve</span>
+                        {{range .}}
+                        <div class="status-row" data-testid="status.waiting.gate.{{tid .Issue.Slug}}">
+                            <div class="status-row-stack">
+                                <a href="{{$.IssueURL .Issue.Slug}}" class="status-title">{{.Issue.Title}}</a>
+                                <span class="status-meta">{{.Issue.Status}} → <strong class="status-target">{{.Target}}</strong> · waiting {{if .Approx}}≈ {{end}}{{$.AgeOf .Since}}</span>
+                            </div>
+                            <a class="btn btn-small" href="{{$.IssueURL .Issue.Slug}}">Review</a>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+                    {{with .WaitingOf "playtest"}}
+                    <div class="status-list">
+                        <span class="label">Playtest</span>
+                        {{range .}}
+                        <div class="status-row" data-testid="status.waiting.playtest.{{tid .Issue.Slug}}">
+                            <div class="status-row-stack">
+                                <a href="{{$.IssueURL .Issue.Slug}}" class="status-title">{{.Issue.Title}}</a>
+                                <span class="status-meta">session <span class="mono">{{range $i, $s := .Sessions}}{{if $i}}, {{end}}{{$s}}{{end}}</span> · no judge run</span>
+                            </div>
+                            <span class="mono status-meta">make playtest</span>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+                    <div class="status-list">
+                        <span class="label">Questions</span>
+                        {{range .WaitingOf "question"}}
+                        <div class="status-row" data-testid="status.waiting.question.{{tid .Issue.Slug}}">
+                            <a href="{{$.IssueURL .Issue.Slug}}" class="status-title">{{.Issue.Title}}</a>
+                            <span class="status-meta">waiting {{if .Approx}}≈ {{end}}{{$.AgeOf .Since}}</span>
+                        </div>
+                        {{else}}
+                        <span class="status-meta">No open <code>question:</code> comments.</span>
+                        {{end}}
+                    </div>
+                    {{if .NotReady}}
+                    <p class="status-hint" data-testid="status.waiting.not_ready">{{plural .NotReady "more issue is" "more issues are"}} at a gate with their checklist still open. <a href="{{.Prefix}}/board">See the board</a></p>
+                    {{end}}
+                </section>
+
+                <section class="card status-card" data-testid="status.shipped" aria-labelledby="status-shipped-h">
+                    <div class="status-card-head">
+                        <h2 id="status-shipped-h">Recently shipped</h2>
+                        {{if .ReleaseSource}}<span class="status-meta mono">{{.ReleaseSource}}</span>{{end}}
+                    </div>
+                    {{range .Releases}}
+                    <div class="status-release" data-testid="status.release.{{tid .Version}}">
+                        <div><span class="mono status-version">{{.Version}}</span>{{if .Date}} <span class="status-meta">{{.Date}}</span>{{end}}</div>
+                        {{if .Summary}}<span class="status-summary">{{.Summary}}</span>{{end}}
+                    </div>
+                    {{else}}
+                    <p class="status-hint">No changelog or tags. Point <code>workbench.changelog</code> in workflow.yaml at your changelog.</p>
+                    {{end}}
+                    {{if .ReleasesURL}}<a href="{{.ReleasesURL}}">Full changelog</a>{{end}}
+                    <div class="status-list status-divided" data-testid="status.done_recent">
+                        <span class="label">Done in the last 7 days · {{len .DoneRecent}}</span>
+                        {{range .DoneRecent}}
+                        <div class="status-row">
+                            <a href="{{$.IssueURL .Issue.Slug}}" class="status-title">{{.Issue.Title}}</a>
+                            <span class="mono status-meta" title="{{if .Approx}}No transition recorded: the file's last change{{end}}">{{if .Approx}}≈ {{end}}{{.At.Format "2 Jan"}}</span>
+                        </div>
+                        {{else}}
+                        <span class="status-meta">Nothing</span>
+                        {{end}}
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+</div>
+</div>
+<script>
+// Copy as markdown: fetch status.md and put it on the clipboard. Without a
+// clipboard (plain http on another host), open the text instead.
+function copyStatusMarkdown(btn) {
+    var url = '{{.Prefix}}/status.md';
+    var label = btn.querySelector('.status-copy-label');
+    if (!navigator.clipboard) { window.open(url, '_blank'); return; }
+    fetch(url).then(function(r) { return r.text(); })
+        .then(function(text) { return navigator.clipboard.writeText(text); })
+        .then(function() {
+            label.textContent = '✓ Copied';
+            btn.classList.add('copied');
+            setTimeout(function() { label.textContent = 'Copy as markdown'; btn.classList.remove('copied'); }, 2000);
+        })
+        .catch(function() { window.open(url, '_blank'); });
+}
+</script>
+</body>
+</html>

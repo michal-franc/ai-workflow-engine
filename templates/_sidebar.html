@@ -101,4 +101,4 @@ A page with a screen panel renders "sidebar-open", its panel, then
 </script>
 {{end}}
 
-{{define "sidebar-item"}}<a href="{{.Href}}" class="nav-item{{if .Active}} active{{end}}" data-testid="nav.tab.{{.Key}}"{{if .Active}} aria-current="page"{{end}}>{{.Label}}{{if .Note}} <span class="nav-note{{if .Live}} live{{end}}{{if .Alert}} alert{{end}}">{{.Note}}</span>{{end}}</a>{{end}}
+{{define "sidebar-item"}}<a href="{{.Href}}" class="nav-item{{if .Active}} active{{end}}" data-testid="nav.tab.{{.Key}}"{{if .Active}} aria-current="page"{{end}}>{{.Label}}{{if .Attention}} <span class="chip chip-amber nav-count" data-testid="nav.tab.{{.Key}}.count">{{.Note}}</span>{{else if .Note}} <span class="nav-note{{if .Live}} live{{end}}{{if .Alert}} alert{{end}}">{{.Note}}</span>{{end}}</a>{{end}}

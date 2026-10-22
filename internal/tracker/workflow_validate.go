@@ -273,3 +273,19 @@ func openCheckboxesError(slug, section string, open []CheckboxItem, total int) e
 	}
 	return fmt.Errorf("%s", b.String())
 }
+
+// ReadyForApproval reports whether every validate rule of fromStatus →
+// toStatus passes, so the human's approval is all the transition still needs.
+// command_succeeds rules are skipped: callers render pages and must not run
+// shell commands.
+func (w *WorkflowConfig) ReadyForApproval(issue *Issue, fromStatus, toStatus string, comments []Comment) bool {
+	for _, action := range w.transitionActions(fromStatus, toStatus) {
+		if action.Type != "validate" || action.Rule == "command_succeeds" {
+			continue
+		}
+		if err := w.checkValidateAction(action, issue, comments); err != nil {
+			return false
+		}
+	}
+	return true
+}

@@ -16,6 +16,15 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.45.0 — 2026-10-21
+
+- **Status page** (`/p/<project>/status`), the first sidebar entry. It shows where the project stands without asking the lead: overall, per-version and per-epic progress; the issues in flight with their agent and time in status (amber at 7 days, red at 14); the project lead's `## Next` list, the backlog by priority and parked issues with their reason; what waits on you; and the newest 3 releases plus issues done in the last 7 days.
+- "Waiting on you" is one rule for every view: gates where your approval is the only thing missing, human-testing issues with a playtest session and no judge run, and issues whose newest comment is a `question:`. The sidebar's Status entry shows the count on every page.
+- **Copy as markdown** and `/p/<project>/status.md` give the same summary as text, a stand-up to paste.
+- `workflow.yaml` gains `workbench.changelog` (default `CHANGELOG.md`) for the releases the Status page lists; without one it falls back to git tags. issue-viewer points it at `cmd/issue-cli/CHANGELOG.md`.
+- The project lead's brief asks for a `## Next` section in every handoff note and names `status.md` as the stand-up.
+- Playtest scenarios take `root:`, a folder copied into the project root (handoff notes, a changelog, playtest sessions).
+
 ## v0.44.0 — 2026-10-21
 
 - **Breaking:** the read-only `/workflow-flow` page ("Agent Execution Flow") is removed. It was hand-written, not built from `workflow.yaml`, out of date, and unlinked since the designer went. [docs/agent-workflow-flow.md](../../docs/agent-workflow-flow.md) is the current description of the agent flow.

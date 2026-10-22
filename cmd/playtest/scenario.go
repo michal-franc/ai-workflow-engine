@@ -33,9 +33,10 @@ type ScenarioSpec struct {
 	Issues   string `yaml:"issues"`
 	Workflow string `yaml:"workflow"`
 	Docs     string `yaml:"docs"`
-	// Files is a folder copied into the project root and committed with the
-	// issues (metric and knob files, source files a view reads).
-	Files string `yaml:"files"`
+	// Root, when set, is a folder copied into the project root as is: files a
+	// view reads beside the issues (sessions/ handoff notes, a changelog,
+	// playtest/ sessions and .playtest/ runs).
+	Root string `yaml:"root"`
 	// Commits are applied on main after the first commit, in order: each
 	// overlays its folder on the project and commits it.
 	Commits []ScenarioCommit `yaml:"commits"`
@@ -177,9 +178,9 @@ func StartScenario(scenarioDir, name string, bins *Binaries, log io.Writer) (*Sc
 			return fail(fmt.Errorf("scenario %s: docs: %v", name, err))
 		}
 	}
-	if spec.Files != "" {
-		if err := copyTree(filepath.Join(src, spec.Files), s.Proj); err != nil {
-			return fail(fmt.Errorf("scenario %s: files: %v", name, err))
+	if spec.Root != "" {
+		if err := copyTree(filepath.Join(src, spec.Root), s.Proj); err != nil {
+			return fail(fmt.Errorf("scenario %s: root: %v", name, err))
 		}
 	}
 	// terminal: none keeps dispatch and lead spawns headless: otherwise the

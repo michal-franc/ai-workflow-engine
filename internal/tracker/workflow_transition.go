@@ -18,6 +18,9 @@ type TransitionResult struct {
 	// human_approval during this transition ("" when none).
 	PromotedApproval string   `json:"promoted_approval,omitempty"`
 	InjectedPrompts  []string `json:"injected_prompts"`
+	// Sections lists each gate section a transition appended or topped up
+	// with missing boxes, in action order.
+	Sections []SectionAppend `json:"sections,omitempty"`
 }
 
 // ErrApprovalMissing is the sentinel returned when StartIssueOnce or a

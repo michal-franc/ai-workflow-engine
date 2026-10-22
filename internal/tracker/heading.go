@@ -273,3 +273,14 @@ func SplitSections(body string) []MarkdownSection {
 	flush(len(lines))
 	return out
 }
+
+// SectionAppend reports what a gate section append did to one section.
+type SectionAppend struct {
+	Title      string `json:"title"`
+	Created    bool   `json:"created,omitempty"`
+	BoxesAdded int    `json:"boxes_added,omitempty"`
+}
+
+func appendGateSection(body, heading, content string) (string, SectionAppend) {
+	return body, SectionAppend{}
+}

@@ -105,7 +105,7 @@
     }
 
     function renderTree() {
-        var html = '<div class="agents-tree" data-testid="agents.tree"><div class="agent-row"><span class="agent-node agent-human" data-testid="agents.you">You</span></div>'
+        var html = '<div data-testid="agents.tree"><div class="agent-row"><span class="agent-node agent-human" data-testid="agents.you">You</span></div>'
             + '<div class="agents-level">' + nodeHTML(model.project_lead) + '<div class="agents-level">';
         liveSubLeads().forEach(function(n) { html += nodeHTML(n); });
         (model.workers || []).forEach(function(w) { html += nodeHTML(w); });

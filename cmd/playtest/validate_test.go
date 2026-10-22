@@ -195,3 +195,87 @@ steps:
 		t.Errorf("chain = %q, want %q", got, want)
 	}
 }
+
+// TestValidateShapeChecks: beside/below/css/size and styles_applied in
+// their good forms pass; each bad form names the form it wants.
+func TestValidateShapeChecks(t *testing.T) {
+	good := writeSession(t, `session: bad
+issue: x/y
+scenario: basic
+session_checks:
+  layout: [no_overlap, styles_applied]
+steps:
+  - id: A1
+    title: shapes
+    act:
+      - wait_for: { beside: [board.search, board.column.backlog] }
+    checks:
+      - beside: [board.column.backlog, board.column.done]
+      - beside: { a: board.column.backlog, b: board.column.done, gap_max: 24 }
+      - below: [board.search, board.column.backlog]
+      - css: { target: board.column.backlog, property: display, equals: flex }
+      - css: { target: board.column.backlog, property: display, in: [flex, grid] }
+      - css: { target: board.column.backlog, property: display, not: none }
+      - size: { target: board.column.backlog, min_width: 200, max_width: 400.5 }
+      - size: { target: board.column.backlog, min_height: 1 }
+`)
+	s, errs := LoadSession(good)
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	v := &Validator{ScenarioDir: filepath.Join(repoDir(t), "playtest", "scenarios")}
+	if errs := v.Validate(s); len(errs) != 0 {
+		t.Errorf("good shapes: %v", errs)
+	}
+	if got := s.Steps[0].checks[0].Label(); got != "beside [board.column.backlog, board.column.done]" {
+		t.Errorf("label = %q", got)
+	}
+
+	bad := writeSession(t, `session: bad
+issue: x/y
+scenario: basic
+steps:
+  - id: A1
+    title: shapes
+    checks:
+      - beside: [board.search]
+      - below: { a: board.search }
+      - beside: [board.search, board.colum.backlog]
+      - below: { a: board.search, b: board.column.backlog, gap_max: 3 }
+      - beside: { a: board.search, b: board.column.backlog, gap_max: wide }
+      - css: { target: board.search, property: display }
+      - css: { target: board.search, property: display, equals: flex, not: none }
+      - css: { target: board.search, equals: flex }
+      - css: { target: board.search, property: display, in: flex }
+      - size: { target: board.search }
+      - size: { target: board.search, min_width: wide }
+      - size: { target: board.search, min_height: 50, max_height: 10 }
+`)
+	s, errs = LoadSession(bad)
+	var all []string
+	for _, e := range errs {
+		all = append(all, e.Error())
+	}
+	for _, e := range v.Validate(s) {
+		all = append(all, e.Error())
+	}
+	text := strings.Join(all, "\n")
+	for _, want := range []string{
+		`bad.yaml:8: beside: want two target ids, [a, b]`,
+		`bad.yaml:9: below: want [a, b] or {a, b}`,
+		`bad.yaml:10: unknown target "board.colum.backlog"`,
+		`bad.yaml:11: below: want gap_max: a number of px (beside only)`,
+		`bad.yaml:12: beside: want gap_max: a number of px (beside only)`,
+		`bad.yaml:13: css: want {target, property, equals | in: [..] | not}`,
+		`bad.yaml:14: css: want {target, property, equals | in: [..] | not}`,
+		`bad.yaml:15: css: want {target, property, equals | in: [..] | not}`,
+		`bad.yaml:16: css: want in: a list of values`,
+		`bad.yaml:17: size: want {target, min_width?, max_width?, min_height?, max_height?} with at least one bound`,
+		`bad.yaml:18: size: want min_width: a number of CSS px`,
+		`bad.yaml:19: size: min_height 50 is above max_height 10`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Errorf("missing error %q in:\n%s", want, text)
+		}
+	}
+}

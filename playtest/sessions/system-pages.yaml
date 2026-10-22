@@ -5,7 +5,7 @@ scenario: systems
 
 session_checks:
   viewports: [1440x900, 1280x800]
-  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
   console: no_errors
 
 steps:
@@ -23,6 +23,9 @@ steps:
       # AI has 11 open issues, Sim 2: most open first.
       - text_contains: { target: nav.panel.system.ai, text: "11" }
       - http: { path: "/p/{project}/systems", contains: "systems.card.ai" }
+      # Cards two to a row, the no-system line under them.
+      - beside: [systems.card.ai, systems.card.sim]
+      - below: [systems.card.ai, systems.nosystem]
 
   - id: TP5
     title: The AI header has the summary, counts, family chip and filtered links; rows go furthest along first and end with the footer
@@ -39,6 +42,13 @@ steps:
       - http: { path: "/p/{project}/systems/AI", contains: "href=\"/p/rl/board?system=AI\"" }
       - http: { path: "/p/{project}/systems/AI", contains: "<li class=\"sys-row\" data-testid=\"system.issue.ai/caller-fit\">" }
       - selected: nav.panel.system.ai
+      # Header across the top; issues on the left, families and the
+      # design doc stacked on the right; a status bar with width.
+      - beside: [nav.sidebar, system.header]
+      - below: [system.header, system.issues]
+      - beside: [system.issues, system.families]
+      - below: [system.families, system.doc]
+      - size: { target: system.statusbar, min_width: 200, min_height: 4 }
 
   - id: TP6
     title: Play calls links to its family page, and the Sim epic shows as spanning two systems

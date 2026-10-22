@@ -62,6 +62,10 @@ The rules:
 - The actions and checks are each project's own vocabulary. Name them after
   what your app has (a web app clicks targets; a game also has probes and
   rigs).
+- Check shape as well as content. A screen whose styles failed to load
+  still has all its text, so give the vocabulary a way to say where things
+  are and that styling applied (the web runner's `beside`, `below`, `size`
+  and `styles_applied`; a game's `primary`).
 
 ### A run's results.yaml
 

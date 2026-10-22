@@ -154,6 +154,19 @@ branches:
     - `no_clipping`: text fits its box.
     - `no_overlap`: sibling ids don't overlap.
     - `no_zero_size_text`: no text in a 0-wide or 0-high box.
+    - `styles_applied`: every class on a visible test id element is
+      matched by a style rule that is active at this viewport: a top-level
+      rule, or one inside an `@media` that matches or an `@supports` that
+      holds. A class counts when the element matches the rule's selector
+      up to the class's compound, so `.ctx .title` styles a `.ctx` that
+      wraps a title, while `.row.dim .x` doesn't style a plain `.row`.
+      Pseudo-classes are ignored (`.btn:hover` styles `.btn`). A class only
+      JS reads gets a `js-` prefix; otherwise add the rule or waive the id
+      with `layout_ignore`. The error reads `class "status-epic" has no CSS
+      rule active at 1440x900`. The first 25 are listed, then a count.
+      It caught v0.48.0: a lost `}` put the rest of `style.css` inside a
+      `max-width: 900px` block, the desktop pages rendered unstyled, and
+      every content check and the four rules above still passed.
 - **On failure:** the log holds the actions, the processes' output, and
   every test id on the page with its rect, visible and enabled state and
   text.
@@ -196,6 +209,16 @@ branches:
 | `cli` | `{ args, exit?, contains?, not_contains? }` |
 | `tmux` | `{ session, present }` or `{ pane, contains }` on the private server |
 | `http` | `{ path, status?, contains?, json: { "a.0.b": value } }` |
+| `beside` | `[a, b]` or `{ a, b, gap_max? }`: b starts right of a's right edge and their vertical extents overlap (one row); `gap_max` caps the gap in px |
+| `below` | `[a, b]` or `{ a, b }`: b starts below a's bottom edge |
+| `css` | `{ target, property, equals \| in: [..] \| not }` on the computed value, e.g. `{ target: board.column.backlog, property: display, equals: flex }` |
+| `size` | `{ target, min_width?, max_width?, min_height?, max_height? }` in CSS px, from the element's box |
+
+Content checks pass on an unstyled page that stacks top to bottom, and so do
+the layout rules. Give each view a few shape checks for its main
+structure: the sidebar `beside` the page, columns `beside` each other,
+sections `below` the header, a progress bar with a `size`. A failure shows
+both boxes (`x 260..976 y 130..388`) or the measured value.
 
 A list such as `visible: [a, b]` becomes one check per item.
 
@@ -247,6 +270,12 @@ A list such as `visible: [a, b]` becomes one check per item.
   block first.
 - A popover that closes after submit can't be checked by its text. Check the
   state it leaves behind (a count, the file).
+- A class that only marks state for JS (`just-dropped`) fails
+  `styles_applied`; name it `js-just-dropped`. A marker class nothing reads
+  is dead: drop it.
+- Shape checks run at every viewport of the session. A check that holds
+  only on desktop (two columns) goes in a desktop session, not one that
+  also runs at phone width.
 - Waive a known layout bug with `layout_ignore` on its container and a
   comment naming the bug; remove the waiver when it is fixed. A pan surface
   (`canvas.world`) is waived for good: it is meant to run past the screen.

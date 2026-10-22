@@ -5,7 +5,7 @@ scenario: workboard-scale
 
 session_checks:
   viewports: [1440x900, 1280x800]
-  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
   console: no_errors
 
 steps:
@@ -26,6 +26,11 @@ steps:
       - text_contains: { target: workboard.filter.waiting, text: Waiting on you · 5 }
       - text_contains: { target: workboard.filter.all, text: 95 quiet }
       - count: { pattern: workboard.card.*, max: 27 }
+      # At volume the columns keep their width and stay side by side.
+      - beside: [workboard.column.idea, workboard.column.in_design]
+      - beside: [workboard.column.backlog, workboard.column.in_progress]
+      - size: { target: workboard.column.in_design, min_width: 200, max_width: 320 }
+      - size: { target: workboard.column.idea, max_height: 200 }
 
   - id: TP12
     title: "Owner's eye: with ~520 issues the board is readable and points at what needs you"

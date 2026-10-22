@@ -18,7 +18,7 @@ systemMetricsPanels (handlers_metrics_panels.go):
             <td><div class="metric-name">{{$m.Name}}</div>{{if ne $m.Name $m.ID}}<div class="mono metric-id">{{$m.ID}}</div>{{end}}</td>
             <td class="mono nowrap">{{bandText $m.Band}}</td>
             <td class="mono num nowrap">{{masterValue $m}}</td>
-            <td class="metric-branches">{{range $b := $m.Branches}}<div class="metric-branch">{{if $b.Missing}}<span class="muted">not measured on {{shortBranch $b.Branch}}</span>{{else}}<span class="mono tone-{{$b.Verdict}}">{{metricValue $m $b.MetricValue}}</span> <span class="mono muted">· {{shortBranch $b.Branch}}</span>{{end}}</div>{{else}}<span class="muted">—</span>{{end}}</td>
+            <td>{{range $b := $m.Branches}}<div class="metric-branch">{{if $b.Missing}}<span class="muted">not measured on {{shortBranch $b.Branch}}</span>{{else}}<span class="mono tone-{{$b.Verdict}}">{{metricValue $m $b.MetricValue}}</span> <span class="mono muted">· {{shortBranch $b.Branch}}</span>{{end}}</div>{{else}}<span class="muted">—</span>{{end}}</td>
             <td>{{if $m.Master}}{{verdictChip $m.Master.Verdict}}{{else}}{{verdictChip ""}}{{end}}</td>
         </tr>
         {{end}}

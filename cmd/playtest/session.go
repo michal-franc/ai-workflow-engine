@@ -81,6 +81,9 @@ func (c Check) Label() string {
 	if t, ok := c.Arg["target"].(string); ok && len(c.Arg) == 1 {
 		return c.Kind + " " + t
 	}
+	if pairCheck[c.Kind] && len(c.Arg) == 2 {
+		return fmt.Sprintf("%s [%v, %v]", c.Kind, c.Arg["a"], c.Arg["b"])
+	}
 	parts := make([]string, 0, len(c.Arg))
 	keys := make([]string, 0, len(c.Arg))
 	for k := range c.Arg {
@@ -228,6 +231,10 @@ func parseChecks(nodes []yaml.Node, at errAt) []Check {
 	return out
 }
 
+// pairCheck marks the checks whose list form is one pair of targets
+// (`beside: [a, b]`) rather than one check per target.
+var pairCheck = map[string]bool{"beside": true, "below": true}
+
 // checksFromNode turns `visible: x`, `visible: [x, y]` and
 // `text_equals: {target: x, text: y}` into canonical checks. A bare string
 // argument becomes {target: <string>}.
@@ -241,6 +248,13 @@ func checksFromNode(n *yaml.Node, at errAt) []Check {
 	case yaml.ScalarNode:
 		return []Check{{Kind: kind, Arg: map[string]any{"target": arg.Value}, Line: n.Line}}
 	case yaml.SequenceNode:
+		if pairCheck[kind] {
+			if len(arg.Content) != 2 || arg.Content[0].Kind != yaml.ScalarNode || arg.Content[1].Kind != yaml.ScalarNode {
+				at(arg.Line, "%s: want two target ids, [a, b]", kind)
+				return nil
+			}
+			return []Check{{Kind: kind, Arg: map[string]any{"a": arg.Content[0].Value, "b": arg.Content[1].Value}, Line: n.Line}}
+		}
 		var out []Check
 		for _, item := range arg.Content {
 			if item.Kind != yaml.ScalarNode {

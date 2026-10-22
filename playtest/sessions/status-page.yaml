@@ -5,7 +5,7 @@ scenario: status
 
 session_checks:
   viewports: [1440x900, 1280x800]
-  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
   console: no_errors
 
 steps:
@@ -34,6 +34,12 @@ steps:
       - text_contains: { target: status.epic.ui/atlas-redesign, text: Atlas redesign }
       - text_contains: { target: status.epic.ui/atlas-redesign, text: 0/3 }
       - count: { pattern: status.epic.*, equals: 1 }
+      # The page's shape: sidebar beside it, two columns, a filled bar.
+      - beside: [nav.sidebar, status.page]
+      - beside: [status.where, status.waiting]
+      - below: [status.where, status.working]
+      - below: [status.waiting, status.shipped]
+      - size: { target: status.all_progress.bar, min_width: 30, max_width: 200, min_height: 4 }
 
   - id: TP6
     title: Working on lists the issues in flight with status, agent and time in status

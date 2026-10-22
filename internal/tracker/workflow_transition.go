@@ -214,8 +214,11 @@ func (w *WorkflowConfig) ApplyTransitionWithFields(issue *Issue, fromStatus, toS
 	for _, action := range w.transitionActions(fromStatus, toStatus) {
 		switch action.Type {
 		case "append_section":
-			newBody, changed := appendToSection(issue.BodyRaw, action.Title, action.Body)
-			if changed {
+			newBody, sec := appendGateSection(issue.BodyRaw, action.Title, action.Body)
+			if sec.Title != "" {
+				result.Sections = append(result.Sections, sec)
+			}
+			if sec.Changed() {
 				result.Update.Body = &newBody
 				issue.BodyRaw = newBody
 				result.BodyChanged = true
@@ -239,7 +242,11 @@ func (w *WorkflowConfig) ApplyTransitionWithFields(issue *Issue, fromStatus, toS
 		}
 	}
 
-	if tmplBody, appended := w.AppendTemplate(issue.BodyRaw, toStatus); appended {
+	tmplBody, tmplSec, appended := w.appendTemplate(issue.BodyRaw, toStatus)
+	if tmplSec.Title != "" {
+		result.Sections = append(result.Sections, tmplSec)
+	}
+	if appended {
 		result.Update.Body = &tmplBody
 		issue.BodyRaw = tmplBody
 		result.BodyChanged = true

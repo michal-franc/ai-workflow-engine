@@ -362,6 +362,7 @@ func AppendIssueBody(body, text string) (string, bool, error) {
 }
 
 func AppendIssueBodyToSection(body, section, text string, force bool) (string, bool, error) {
+	text = stripLeadingHeading(text, section)
 	matches := findHeadingMatches(body, section)
 	if len(matches) > 1 && !force {
 		var labels []string
@@ -381,6 +382,18 @@ func AppendIssueBodyToSection(body, section, text string, force bool) (string, b
 
 	nextBody, changed := appendToSection(body, section, text)
 	return nextBody, changed, nil
+}
+
+// stripLeadingHeading drops text's first non-blank line when it is a heading
+// titled section, so `append --section X` with a body that opens with "## X"
+// does not write the heading a second time.
+func stripLeadingHeading(text, section string) string {
+	trimmed := strings.TrimLeft(text, " \t\r\n")
+	first, rest, _ := strings.Cut(trimmed, "\n")
+	if _, title, ok := parseHeadingLine(first); ok && normalizeHeadingKey(title) == normalizeHeadingKey(section) {
+		return rest
+	}
+	return text
 }
 
 // ReplaceIssueBodySection replaces the content of an existing section with text.

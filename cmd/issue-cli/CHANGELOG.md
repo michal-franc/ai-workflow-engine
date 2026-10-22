@@ -18,6 +18,24 @@ Entries are newest-first. Each entry has the form:
 
 ## v0.49.0 — 2026-10-22
 
+- New **Board** in the sidebar: `/workboard`, a read-only kanban whose cards carry coordination state. The old board moves to More as **Classic board** and keeps drag-and-drop.
+  - Each card shows its time in status (amber after a day) and its epic's progress.
+  - **Marker chips:** amber for waiting on you (a ready gate, a playtest due, an open `question:`); red for `blocked on <slug>` and needs revision; grey for parked.
+  - **Agent footer:** working, idle, waiting on you, or stopped.
+  - **Grouping and filters:** group by status, system or epic; filter by version, system and "Waiting on you".
+  - **A card legend** in the sidebar.
+- **Readable at hundreds of issues.**
+  - Idea, parked and done fold to count tiles that link to the list.
+  - The board opens on the cards that need attention. **Show all** adds the quiet ones as one-line rows, and each column links its hidden ones (+N quiet).
+  - A column longer than 12 cards links to the list.
+- **New frontmatter:** `blocked_on: <slug or list>` and `needs_revision: "<why>"`, plus the `needs-revision` label, show as markers on the board and on system-page rows. They don't gate transitions yet.
+- **Agents canvas:**
+  - A live agent with no issue-cli call for 15 minutes is **idle**.
+  - agents.json gains `last_call` and `last_cmd`.
+  - `/agents?agent=<session>` selects an agent.
+- **Playtest runner:**
+  - Scenarios take `generate:` to write hundreds of issues without a fixture per issue.
+  - `make playtest` over several sessions now moves on to the next session after the last verdict, opening a fresh tab. It used to stop with `__ptSend` already in use.
 - **Breaking:** `--wait`, `--timeout` and `--interval` are removed from `issue-cli transition` and `issue-cli start`. At a human-approval gate an agent tells the human what to approve, then stops and ends its turn; the viewer's approve button nudges its tmux session to resume. Passing one of the flags fails with `--wait was removed in v0.49.0: stop and end your turn; the approval nudge resumes you`. Exit code 3 and the `wait_timeout` telemetry class are gone, `transition --dry-run` suggests stopping instead of a `--wait` command, and `transition --json` no longer has a `wait` object.
 - The stats sidecar no longer writes `pending_wait` or per-row `wait_started_at`. Older sidecars that hold them still load; the fields are dropped on the next save.
 

@@ -24,6 +24,7 @@ release nothing.
 
 ## Unreleased
 
+- **Frontmatter values save exactly.** `set-meta`, `update --title` and the detail page edits no longer drop `$1` or `${x}` from a value. A title with `"` or `\`, or any value with a newline, no longer breaks the issue file on that write or the next one.
 - **Local CI.** An opt-in `ci:` block in `workflow.yaml` makes the viewer re-test the integration branch after every move (merge, pull, hotfix), so a break between parallel merges is caught and reported. Details: docs/workflow.md, "Local CI".
   - Runs live in tmux `ci-<project>` and survive a viewer restart; the viewer catches up on an untested head when it starts. Merges that land during a run give one more run, of the newest head. The worktree `.worktrees/.ci` is kept between runs, so builds stay incremental. Results go to `.ci/` in the main checkout.
   - When main goes red: a Local CI card on the Status page (state, Last runs boxes, failing command and tests, issues merged since green, log tail), an entry under Waiting on you, `status.md`, a `ci-red` chip and a `ci:` comment on each merged issue, and a `[from ci]` message to a live lead. `on_red: file_issue` also files one bugfix issue per red streak.

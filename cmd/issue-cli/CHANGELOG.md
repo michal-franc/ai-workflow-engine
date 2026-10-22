@@ -16,6 +16,19 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.47.0 — 2026-10-22
+
+- **Metrics view** (`/p/<project>/metrics`). It is read-only over JSON files the project writes, documented in `docs/workbench-files.md`.
+  - **Guard metrics** (`workbench.metrics.probe_results`, optional `targets`): band, master value, verdict and each open branch's value. Metrics are matched by id. A branch value comes from the branch's worktree file, or from the copy committed on a branch with no worktree. A branch value notes when its run is behind the branch, when the branch changes the band, when a metric exists only on the branch, and when the branch run doesn't measure it.
+  - **Knobs** (`workbench.tuning`, now a list of knob export files): each knob's value, its comment, its history on main (`30 → 20 · Play calls balance pass 2`) and the open branches that change it.
+  - **Branches** (any git project): open worktrees and `work/*` branches, each compared with its epic's base or the branch it was forked from, plus the files several branches change.
+  - In the sidebar, the view comes after Balance and shows "N off" in red. A git project without metric or knob files gets it as **Branches**.
+- **`workbench.systems`** (and their families) take `metrics:` and `knobs:` lists. A system page can embed the new `system-guard-metrics` and `system-knobs` panels.
+- **Balance board:** metric groups show their band and master value.
+- **`depends_on` frontmatter:** `issue-cli set-meta <slug> --key depends_on --value "a/b, c/d"` sets it, and refuses unknown slugs, suggesting close ones. The detail page shows Depends on, Depended on by, Decided by (cited decisions with their state) and Shared files.
+- **`issue-cli show`** prints the same links, a "Guard metrics for <system>" line and `== Shared files ==` for the issue's open branch.
+- **Playtest scenarios** take `commits:` and `branches:` (worktrees, uncommitted files). Scenario commits have fixed dates, so `REPEAT=2` runs match.
+
 ## v0.46.0 — 2026-10-22
 
 - The `issue-approve` Claude Code mod (0.2.0) adds **▶ Playtest** beside the approve buttons when the issue waits on the owner's playtest and the worktree has a `make playtest` target: it runs the playtest in the agent's worktree, then **✓ Report** runs `make playtest-report APPLY=1`. Running sessions pick it up with `/reload-plugins`.

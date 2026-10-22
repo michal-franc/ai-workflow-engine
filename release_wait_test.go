@@ -265,7 +265,7 @@ func TestReleaseWaitNotReady(t *testing.T) {
 		`data-testid="status.release_wait.open.row.ui/fresh"`,
 		`no assignee`,
 		`Unreleased · 2`,
-		`**Local CI.** Runs on every merge, wrapped onto a second line.`,
+		`<strong>Local CI.</strong> Runs on every merge, wrapped onto a second line.`,
 		`14 commits on main not on origin/main`,
 		`newest 17m ago`,
 	)
@@ -281,8 +281,9 @@ func TestReleaseWaitNotReady(t *testing.T) {
 		"- Unreleased in CHANGELOG.md (2):\n  - **Local CI.** Runs on every merge, wrapped onto a second line.\n  - Canvas lanes fold.\n",
 		"- Not pushed: 14 commits on main not on origin/main, newest 17m ago\n",
 	)
-	if strings.Index(md, "## Recently shipped") > strings.Index(md, "## Waiting for release") {
-		t.Error("Waiting for release should follow Recently shipped in status.md")
+	// The milestone and its release wait come before history.
+	if strings.Index(md, "## Waiting for release") > strings.Index(md, "## Recently shipped") {
+		t.Error("Waiting for release should come before Recently shipped in status.md")
 	}
 }
 

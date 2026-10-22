@@ -246,6 +246,7 @@ Error: --wait was removed in v0.49.0: stop and end your turn; the approval nudge
 The CLI gives this guidance itself, so it does not depend on any project's `workflow.yaml`:
 
 - When the next step needs a human approval, the `== Next ==` block from `transition` and `start` prints the plain command. That is `start <slug>` from a handoff status, otherwise `transition …`. A one-line note follows it: tell the human what to approve, then stop and end your turn. It is never shown for `done`. `--json` carries this as `next_command` / `next_command_note`.
+- After a move to the last status (`done`), `transition` prints `== Done ==` and the local CI line, never a `== Next ==` or the guidance of a side status like `parked`. `--json` carries `"done": true`.
 - A missing-approval error from `transition` or `start` ends with the approve link and tells the agent to stop and end its turn, and to re-run only after the human says it is approved.
 - `--dry-run` lists the approval with the approve link and the same stop-and-end-turn fix.
 - When the same command fails 3+ times in a row on a missing approval, the retry hint says retrying cannot help and the agent should stop and end its turn, instead of the generic "try a different approach".
@@ -353,7 +354,7 @@ The `## Repro` section is left for triage, so the bugfix gate still needs a huma
 
 **Dedupe.** If an open `cli-bug` issue has the same title after normalizing (lowercase, punctuation dropped, spaces collapsed), the report becomes a `report:` comment on it instead. If the only match is closed (done or parked), a new issue `<title> (again)` is filed, linking the old one. A lock makes two agents reporting at once produce one issue.
 
-**No engine project, or its issues directory is missing.** The report is saved in `${XDG_DATA_HOME:-~/.local/share}/issue-cli/bug-reports/` (per user) and the output says `saved locally, not sent` and why. The next report-bug that finds the engine sends the queue, oldest first, and so does `issue-cli report-bug --send`. Until then, the Status page shows *N issue-cli bug reports not sent* under Waiting on you.
+**No engine project, or its issues directory is missing.** The report is saved in `${XDG_DATA_HOME:-~/.local/share}/issue-cli/bug-reports/` (per user) and the output says `saved locally, not sent` and why. The next report-bug that finds the engine sends the queue, oldest first, and so does `issue-cli report-bug --send`. Until then, the Status page shows *N issue-cli bug reports not sent* under Needs you.
 
 **Old reports.** `issue-cli report-bug --import ~/Work/bugs/*.json` files the old JSON reports with the same dedupe. It finds the reporter's project from the `issue_slug`, and moves each filed file into `imported/` next to it, which the Retros page skips.
 

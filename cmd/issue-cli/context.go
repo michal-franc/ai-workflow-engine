@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -148,9 +149,11 @@ func flagWasSet(fs *flag.FlagSet, name string) bool {
 }
 
 // findIssueOrErr is the error-returning replacement for findIssue. It searches
-// the active project's issue directory by exact slug (case-insensitive),
-// falling back to suffix/contains matching, and returns a not-found error
-// when nothing matches.
+// the active project's issue directory by exact slug (case-insensitive), then
+// by a unique "/<slug>" suffix, then by a unique substring. A substring match
+// is noted on stderr so a write never lands on a guessed issue silently. When
+// a tier matches several issues it fails with the candidates listed instead of
+// picking one, and when nothing matches it returns a not-found error.
 //
 // In multi-project setups the not-found error additionally enumerates the
 // configured project slugs and points at --project, so a bot that ran the
@@ -175,14 +178,53 @@ func findIssueOrErr(ctx *Context, slug string) (*tracker.Issue, []*tracker.Issue
 			return issue, issues, nil
 		}
 	}
+	var suffix, contains []*tracker.Issue
 	for _, issue := range issues {
 		slugLower := strings.ToLower(issue.Slug)
-		if strings.HasSuffix(slugLower, "/"+normalizedLower) || strings.Contains(slugLower, normalizedLower) {
-			ctx.issue = issue
-			return issue, issues, nil
+		if strings.HasSuffix(slugLower, "/"+normalizedLower) {
+			suffix = append(suffix, issue)
+		}
+		if strings.Contains(slugLower, normalizedLower) {
+			contains = append(contains, issue)
 		}
 	}
-	return nil, issues, notFoundError(ctx, slug)
+	matches := suffix
+	if len(matches) == 0 {
+		matches = contains
+	}
+	switch {
+	case len(matches) == 0:
+		return nil, issues, notFoundError(ctx, slug)
+	case len(matches) > 1:
+		return nil, issues, ambiguousSlugError(slug, matches)
+	}
+	issue := matches[0]
+	if len(suffix) == 0 {
+		fmt.Fprintf(ctx.Stderr, "note: resolved %q to %s (partial match)\n", slug, issue.Slug)
+	}
+	ctx.issue = issue
+	return issue, issues, nil
+}
+
+// ambiguousSlugListMax caps the candidates an ambiguity error lists; a system
+// name can match dozens of issues.
+const ambiguousSlugListMax = 10
+
+// ambiguousSlugError lists the issues a partial slug matched, so the caller
+// can retry with the full slug instead of acting on whichever loaded first.
+func ambiguousSlugError(slug string, matches []*tracker.Issue) error {
+	slugs := make([]string, len(matches))
+	for i, m := range matches {
+		slugs[i] = m.Slug
+	}
+	sort.Strings(slugs)
+	shown := slugs
+	more := ""
+	if len(shown) > ambiguousSlugListMax {
+		shown = shown[:ambiguousSlugListMax]
+		more = fmt.Sprintf("\n  … and %d more (issue-cli list)", len(slugs)-ambiguousSlugListMax)
+	}
+	return fmt.Errorf("ambiguous slug %q: %d issues match:\n  %s%s\n\nRetry with the full slug.", slug, len(slugs), strings.Join(shown, "\n  "), more)
 }
 
 // issueNotFoundError is the "issue not found" error; typed so telemetry can

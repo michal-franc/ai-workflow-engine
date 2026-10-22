@@ -9,25 +9,58 @@ parent: "ui/issue-page-tabs-issue-timeline-evidence"
 created: "2026-10-22"
 ---
 
-Nothing records which test, playtest step, screenshot or commit proves which acceptance criterion. Agents write
-`tests:` comments as free text, criteria are often plain bullets (the Eldritch boss ticked only the template
-placeholder), and proof screenshots sit unlinked in the worktree's `screenshots/`. The Evidence tab's centre,
-criterion → proof, has nothing to read.
+Nothing records which test, playtest step or commit proves which acceptance criterion. Agents write `tests:`
+comments as free text, criteria are often plain bullets (the Eldritch boss ticked only the template placeholder),
+and proof screenshots sit unlinked in the worktree's `screenshots/`. The Evidence tab's centre, criterion → proof,
+has nothing to read.
 
-This is the one part of the epic that asks agents for something new.
+Owner, 2026-10-22: a command, yes; but "we don't want to have 20 screenshots in there for each change".
 
-## Idea
+## Rules
 
-1. `issue-cli prove <slug> <criterion-id> --by test:<name> | step:<session step id> | shot:<path> | commit:<sha>
-   [--value "690 vs 380"]`, repeatable, stored in the data sidecar. `--by shot:` copies the file into the issue's
-   files so the viewer can serve it.
-2. A validation at the design gate: acceptance criteria are checkboxes with ids.
-3. The testing status prompt asks for one `prove` per criterion before `testing → human-testing`; a validation
-   checks every criterion has at least one proof.
-4. The shipping prompt asks for `risk:` comments for anything to watch after the ship.
+1. **Proof is a link to something that exists, never a copy.** Nothing is copied into the issue or the repo.
+2. **The engine checks every link.** The agent says where the proof is; the viewer verifies it. This keeps 0.54's
+   "agents don't self-report" rule.
+3. **Screenshots come from playtest runs, at most one per step.** The Evidence gallery shows the latest run's shot of
+   each step a criterion points to (`.playtest/runs/…/results.yaml`, gitignored). Three visual criteria show about
+   three shots.
+4. **A hand-picked shot only where no playtest runner exists** (game projects such as RogueTech): one per criterion,
+   only for a criterion marked visual, stored as a path.
+5. **No proof stays "unproven".** A screenshot can't stand in for a missing test or step.
+
+## Command
+
+```
+issue-cli prove <slug> <criterion-id> --test <TestName>       # repeatable
+issue-cli prove <slug> <criterion-id> --step <TP3>            # a playtest session step id
+issue-cli prove <slug> <criterion-id> --commit <sha>
+issue-cli prove <slug> <criterion-id> --value "690 vs 380 (1.82×)"
+issue-cli prove <slug> <criterion-id> --shot <path>           # only when the project has no playtest runner
+issue-cli prove <slug> --list                                 # each criterion with its proof and its check result
+```
+
+Links are stored in the data sidecar. Running `prove` again on a criterion adds to its links; `--clear` removes them.
+
+## What the engine checks
+
+| Link | Check | Shown as |
+|:--|:--|:--|
+| `--test` | the test exists in the branch and passed in the last recorded `make validate` / local CI run | passed · failed · not found |
+| `--step` | the step exists in a session for this issue and passed in its latest `results.yaml` (`ux-test` or judge) | passed · failed · not run |
+| `--commit` | reachable from the work branch or the merge | found · not found |
+| `--value` | none; shown as the agent wrote it, marked "reported" | reported |
+| `--shot` | the file exists; refused when the project has a playtest runner or the criterion isn't marked visual | shown · missing |
+
+## Agent asks (workflow.yaml)
+
+- Design gate: acceptance criteria are checkboxes with ids; a validation checks it. Visual criteria carry a marker
+  (for example `(visual)`).
+- Testing prompt: one `prove` per criterion before `testing → human-testing`; a validation requires every criterion
+  to have at least one link that passes its check.
+- Shipping prompt: `risk:` comments for anything to watch after the ship.
 
 ## Open questions
 
-- Data sidecar or a generated `## Evidence` section in the body?
-- 0.54's rule is "agents don't self-report". This is self-reported proof; can the viewer verify part of it (the test
-  exists and passed in the last `make validate`, the step passed in `results.yaml`)? If not, does this move to 0.57?
+- Where does "the test passed" come from: the `tests:` comment's run, local CI's run on the branch, or a test report
+  `make validate` writes?
+- Is a criterion with only `--value` proven, or does it need a test or step as well?

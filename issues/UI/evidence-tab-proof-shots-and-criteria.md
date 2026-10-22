@@ -17,9 +17,9 @@ short).
 
 | Part | Source |
 |:--|:--|
-| Screenshot hero and gallery, each tagged with what it proves | body images, `results.yaml` screenshots, `prove --by shot:` |
+| Screenshot hero and gallery, each tagged with what it proves | the latest playtest run's shot of each step a criterion points to (one per step); body images; `prove --shot` paths only where no playtest runner exists |
 | Verdict: shipped, merge, suite count, time, wait | status, stats, merge sha, `tests:` comment |
-| Criteria → proof matrix, unproven rows amber | `prove` records; text match as a fallback |
+| Criteria → proof matrix with each link's check result, unproven rows amber | `prove` links and the engine's checks; text match as a fallback |
 | Change summary: commits by area, files, +/− | git on `work/<slug>` or the recorded merge sha |
 | Playtest verdict per step, yours and the machine's | `results.yaml` per step; `approval:` / `playtest:` comments |
 | Stale text in the body | `Open …` / `pending` lines answered by a D-n |

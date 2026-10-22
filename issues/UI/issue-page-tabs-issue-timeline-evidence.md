@@ -52,7 +52,7 @@ sidecar, comments, decisions, git and playtest `results.yaml`. The rest:
 | `cli/clilog-and-stats-record-what-the-timeline-needs` | S | Exit code in the clilog, `waiting_since`, branch head and merge sha, comment timestamps, `dispatched_at` |
 | `ui/approve-button-takes-your-words` | S | Optional words on the viewer's approve button, saved like `issue-cli approve --quote` |
 | `ui/issue-tab-brief-needs-you-bar-and-a-folded-body` | M | Needs-you bar, brief, what you're approving, decisions, folded body, agent card, relations; phone layout |
-| `workflow/issue-cli-prove-link-each-criterion-to-its-proof` | M | `issue-cli prove`, criteria as checkboxes with ids, proof shots, `risk:` comments; prompt changes |
+| `workflow/issue-cli-prove-link-each-criterion-to-its-proof` | M | `issue-cli prove` links each criterion to a test, playtest step or commit and the engine checks the link; no copied screenshots; criteria with ids, `risk:` comments |
 | `ui/evidence-tab-proof-shots-and-criteria` | M | The Evidence tab on top of `prove` and `results.yaml` |
 
 ## Overlap with 0.54 Project health
@@ -64,9 +64,9 @@ view of the same data. Build the recording once (`cli/clilog-and-stats-…`) and
 Dropped on 2026-10-22: an agent heartbeat (the raw log is being removed; the agent-vs-you split comes from gates and
 approvals, and gaps of 15 min or more with no CLI call show as idle) and tokens by step.
 
-0.54's rule is "agents don't self-report". Everything here follows it except
-`workflow/issue-cli-prove-link-each-criterion-to-its-proof`, which asks agents to link proof. It may fit 0.57
-(Gates you can trust) better; the owner decides.
+0.54's rule is "agents don't self-report". `workflow/issue-cli-prove-link-each-criterion-to-its-proof` asks agents
+where the proof is, and the engine checks each link (test passed, step passed, commit reachable), so the claim is
+verified rather than trusted.
 
 ## Order
 

@@ -1,0 +1,45 @@
+session: workboard-scale
+issue: ui/workbench-board-card-markers-and-agent-footer
+title: The workboard stays readable with about 520 issues
+scenario: workboard-scale
+
+session_checks:
+  viewports: [1440x900, 1280x800]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+
+steps:
+  - id: TP11
+    title: At ~520 issues the idle piles are tiles, only what needs attention is drawn, and long columns link to the list
+    setup:
+      - open: /p/{project}/workboard
+    checks:
+      - text_equals: { target: workboard.column.idea.count, text: "300" }
+      - text_equals: { target: workboard.column.done.count, text: "60" }
+      - text_equals: { target: workboard.column.parked.count, text: "10" }
+      - count: { pattern: workboard.card.*, within: workboard.column.in_design, equals: 5 }
+      - text_equals: { target: workboard.column.in_design.quiet, text: +25 quiet }
+      - count: { pattern: workboard.card.*, within: workboard.column.backlog, equals: 10 }
+      - text_equals: { target: workboard.column.backlog.quiet, text: +70 quiet }
+      - count: { pattern: workboard.card.*, within: workboard.column.in_progress, equals: 12 }
+      - text_contains: { target: workboard.column.in_progress.more, text: 29 more in the list }
+      - text_contains: { target: workboard.filter.waiting, text: Waiting on you · 5 }
+      - text_contains: { target: workboard.filter.all, text: 95 quiet }
+      - count: { pattern: workboard.card.*, max: 27 }
+
+  - id: TP12
+    title: "Owner's eye: with ~520 issues the board is readable and points at what needs you"
+    from: TP11
+    targets:
+      - { id: workboard.column.idea, note: 300 ideas folded to one tile }
+      - { id: workboard.column.backlog.quiet, note: Quiet backlog cards behind one link }
+      - { id: workboard.filter.all, note: Show all draws the quiet cards as one line }
+    do: |
+      1. Scan the board: can you tell in a few seconds what waits on you and what is stuck?
+      2. Click Show all, then Group by System and Epic, and back
+      3. Open a "N more in the list" link and an idle tile
+    expect: |
+      The default board fits on a screen or two and points at the 5 gates, the
+      blocked and needs-revision cards, and the old in-progress work.
+      Show all stays scannable as one-line rows.
+    why: Whether it reads well at volume needs the owner's eye; the counts are machine-checked.

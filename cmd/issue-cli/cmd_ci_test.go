@@ -159,7 +159,9 @@ func TestCIRunRedGreenReporting(t *testing.T) {
 		t.Fatalf("comments = %+v", cs)
 	}
 	assertContains(t, cs[0].Text, "(TestBroken)")
+	assertContains(t, cs[0].Text, "Landed since the last green run (")
 	assertContains(t, cs[0].Text, "ui/a (work/ui/a)")
+	assertContains(t, cs[0].Text, "issue-cli --project test ci status")
 	if len(nudges) != 1 || !strings.Contains(nudges[0], "[from ci] local CI red on main") || !strings.Contains(nudges[0], "Merged since green: ui/a") {
 		t.Fatalf("nudges = %v", nudges)
 	}

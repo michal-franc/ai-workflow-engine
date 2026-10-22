@@ -52,7 +52,7 @@ func ciReporter(ctx *Context, proj *tracker.Project, wf *tracker.WorkflowConfig,
 					ciComment(ctx, issues, next.RedIssue, fmt.Sprintf("ci: %s still red at %s, now failing `%s`%s. Log: %s", branch, ci.Short(run.Sha), run.Failed, failuresNote(run.Failures), run.Log))
 				}
 			}
-			text := redComment(run, next)
+			text := tracker.InjectProject(proj, redComment(run, next))
 			for _, slug := range next.Blamed {
 				ciComment(ctx, issues, slug, text)
 			}
@@ -96,7 +96,7 @@ func redComment(run *ci.Run, st *ci.State) string {
 	for _, m := range st.Merged {
 		landed = append(landed, mergedLabel(m))
 	}
-	fmt.Fprintf(&b, "This issue landed since the last green run (%s), with: %s", ci.Short(st.GreenSha), strings.Join(landed, ", "))
+	fmt.Fprintf(&b, "Landed since the last green run (%s): %s", ci.Short(st.GreenSha), strings.Join(landed, ", "))
 	fmt.Fprintf(&b, ". Log: %s. The lead decides whether to revert, fix forward or dispatch a fix", run.Log)
 	if st.RedIssue != "" {
 		fmt.Fprintf(&b, "; tracked in %s", st.RedIssue)

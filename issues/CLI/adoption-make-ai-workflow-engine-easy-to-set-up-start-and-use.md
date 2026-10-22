@@ -13,7 +13,6 @@ children:
   - cli/agent-led-onboarding-claude-sets-the-project-up-and-explains-it
   - workflow/issue-cli-doctor-check-workflow-yaml-and-suggest-improvements
 ---
-
 Umbrella for the adoption work. The core idea of the engine works: markdown issues, one `workflow.yaml`, agents
 that can't skip a step, and a human who ticks the gates. What holds adoption back is everything before the first
 tick. A new user has to:
@@ -64,3 +63,13 @@ the children above are designed.
   different files and each one is useful alone, so `main` seems fine. If so, leave the `base` field unset.
 - This repo's `workflow.yaml` has no `types:` block yet, so `type:` on these issues is a plain custom field. Add
   `types:` (at least `feature` and `epic`) so the umbrella gets the epic path, or keep it as a convention?
+## Roadmap 2026-10-22
+
+Refreshed in the roadmap cleanup. Run by the project lead, children ship straight to main.
+
+- **Open questions answered:** children branch from main and ship to main with no `base:` (workbench D-13, no PRs). workflow.yaml has `types:` (feature/tweak/bugfix).
+- **Obsolete ideas:** #15 (approval inbox; the inbox was removed), #18 (what the agent sees in the designer; the designer was removed in v0.42). **Done:** #17, as `issue-cli approve` (cmd_approve.go, leads only). Ignore any Designer tab, inbox, `ask`/`answer` or `--wait` references in the children; those features are gone.
+- **Salvage:** the remote branch `origin/claude/project-adoption-ideas-gtw1bo` (2026-10-07) has 2 unmerged commits, terminal auto-detect and `init` writing projects.yaml. Those are slices 2–3 of `cli/easier-setup-install-config-and-agent-wiring`. Rebase or cherry-pick them, don't redo them.
+- **Order:** setup (slices) → doctor tier 1 → onboarding → first run → one binary. `doctor --json` is also needed by the RigOne epic's preflight and health children, so tier 1 goes early.
+- **CLI papercuts now children of this epic:** `cli/comment-help-errors-instead-of-showing-help` (widen it: `--help` must never need a project or required flags), `cli/create-should-accept-body-body-file-and-metadata`, `issue-cli-body-mangles-backtick-code-via-shell-add-body-file-or-stdin` (narrowed to replace/update/retrospective `--body-file`), `cli/issue-cli-should-work-from-inside-a-project-worktree`, `cli/issue-cli-uncheck-untick-a-checkbox-by-text-or-section-index`.
+

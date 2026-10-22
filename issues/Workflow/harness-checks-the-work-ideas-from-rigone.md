@@ -13,7 +13,6 @@ children:
   - ui/health-section-on-the-status-page
   - cli/agent-process-safety-prompt-off-the-command-line-clean-stop-env-allowlist
 ---
-
 Umbrella for ideas taken from RigOne, a closed-source macOS control room for coding agents (Claude Code, Codex,
 OpenCode). Its app code is not public; the ideas come from its user guide and README (`source`). We already share
 its core: a lead agent, an isolated copy of the code per worker, one list of what waits on the human
@@ -48,3 +47,9 @@ after these land.
 2. Process safety next: the prompt-on-argv fix is a few lines in `internal/agentrun`.
 3. Preflight and the health section together, after `doctor --json` exists.
 4. Lessons last: it touches the retro command, the Status page and the dispatch prompt, and needs a design.
+## Roadmap 2026-10-22
+
+- Cross-epic dependency: preflight and the health section need `doctor --json` from the adoption epic (`workflow/issue-cli-doctor-check-workflow-yaml-and-suggest-improvements` tier 1). Start them after it.
+- Owner decision (cli/agent-process-safety-…#D-1): the prompt moves off argv to a file or stdin. That replaces the argv launch from the dispatch-prompt fix, and delivery must stay verified.
+- Gate *bugs* (existing checks measuring the wrong thing) live in `workflow/gate-correctness-checks-an-agent-cannot-satisfy-by-accident`. This epic adds new checks.
+

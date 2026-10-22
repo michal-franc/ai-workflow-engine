@@ -152,6 +152,7 @@ Page content in markdown.
 Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI:
 
 - [Why a Workflow Harness](docs/why.md) — the argument behind the tool
+- [Roadmap](docs/roadmap.md) — goals, epics and phase order (set 2026-10-22); the board's epics are the source of truth
 - [Getting Started](docs/getting-started.md) — install, server flags, first issue, docs page format
 - [Issue File Format](docs/issue-format.md) — frontmatter fields, custom fields, file organization
 - [Workflow](docs/workflow.md) — lifecycle, prompts, side-effects, system overlays

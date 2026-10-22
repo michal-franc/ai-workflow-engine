@@ -7,7 +7,6 @@ type: "feature"
 parent: "workflow/harness-checks-the-work-ideas-from-rigone"
 created: "2026-10-22"
 ---
-
 RigOne's safety model, the parts that apply to us:
 
 - prompts and secrets go through stdin, never command-line arguments;
@@ -39,3 +38,8 @@ Where we stand:
 4. Launch env from an allowlist in `workflow.yaml` / `projects.yaml` (PATH, HOME, TERM, the agent's own auth vars,
    plus what the project names).
 5. Refuse a dispatch whose worktree or branch is already held by another live agent session, naming that session.
+
+## Decisions
+
+- **D-1** · 2026-10-22 · lead chat: Dispatch moves the prompt off argv to a file or stdin; this replaces the argv launch from the dispatch-prompt fix, delivery must stay verified, "Move it to a file / stdin"
+

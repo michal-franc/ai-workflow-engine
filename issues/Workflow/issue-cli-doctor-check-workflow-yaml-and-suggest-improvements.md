@@ -8,7 +8,6 @@ parent: "cli/adoption-make-ai-workflow-engine-easy-to-set-up-start-and-use"
 created: "2026-10-06"
 ideas: "https://claude.ai/artifact/EQ1ttCchKDkjnC8M4Mi3o1"
 ---
-
 `workflow.yaml` is the product's main interface, and today nothing checks it. Mistakes show up later, in the middle
 of an agent's run, as a blocked transition the agent can't fix. Nothing tells the author that a workflow which works
 could still be better: lighter for agents, faster for the human, or with fewer steps that fail.
@@ -146,3 +145,10 @@ workflow.yaml
   falls back to the default workflow (docs/Workflow/types.md), which is worse than either.
 - Does `--suggest` need git history (`git log -p workflow.yaml`) to avoid suggesting a change the human just
   reverted?
+## Roadmap 2026-10-22
+
+- It absorbs `add-command-to-validate-the-workflow-file` (33.md) and `self-healing-system-…` (both parked as merged). Tier 1 is the validate command.
+- Add to tier 1: unknown or wrongly cased status values on issues (`UI/agent-schedule-view` had `Idea`), a `closed:` field on a non-terminal status, `parent:` pointing at a missing issue, and a check that the workflow file issue-cli loaded is the project's own (see `cli/bootstrap-mode-loads-the-last-projects-workflow-from-projects-yaml`).
+- Drop the designer integration from slice 2, and any "approve from the inbox" suggestion. `--wait` was removed (D-2); don't recommend it.
+- `doctor --json` is a dependency of `cli/dispatch-preflight-check-the-run-before-an-agent-starts` and `ui/health-section-on-the-status-page`.
+

@@ -487,7 +487,7 @@ entries. The CHANGELOG lives under `cmd/issue-cli/` (not the project root)
 because Go's `//go:embed` cannot reference files outside the embedding
 package's directory. Shipped changes collect under `## Unreleased` at the
 top. To cut a release (once per milestone, see docs/roadmap.md), rename that
-heading to `## vX.Y.Z — YYYY-MM-DD` and push to main; the release-marker
+heading to `## vX.Y.Z — YYYY-MM-DD` and push main to origin; the release-marker
 Action tags, writes the GitHub Release and builds the binaries. A push with
 `## Unreleased` on top releases nothing.
 

@@ -47,8 +47,9 @@ Small issues from a later version can be picked up early when an agent is free. 
 Until 2026-10-22 every push to main cut a release (v0.34 → v0.50 in two days). Now:
 
 - Agents add their change under `## Unreleased` at the top of `cmd/issue-cli/CHANGELOG.md` and never bump the version.
-- The release-marker Action releases nothing while `## Unreleased` is the top heading.
-- When a version's last issue ships, the lead renames `## Unreleased` to `## v0.N.0 — YYYY-MM-DD`, adds a one-line focus summary, and pushes. The Action tags it, writes the GitHub Release and builds the binaries.
+- Agents never push. Shipping merges local `main` into the branch, runs `make validate`, and fast-forwards the main checkout (`git merge --ff-only`). Local main is the integration branch; origin/main moves only when the lead pushes.
+- The lead pushes main to origin when the owner asks. The release-marker Action releases nothing while `## Unreleased` is the top heading.
+- When a version's last issue ships, the lead renames `## Unreleased` to `## v0.N.0 — YYYY-MM-DD`, adds a one-line focus summary, and pushes (with the owner's go-ahead). The Action tags it, writes the GitHub Release and builds the binaries.
 - An urgent fix can be released alone as a patch (`v0.N.1`) the same way.
 
 ## Later
@@ -67,3 +68,4 @@ Until 2026-10-22 every push to main cut a release (v0.34 → v0.50 in two days).
 - The dispatch prompt moves off argv to a file or stdin (`cli/agent-process-safety-prompt-off-the-command-line-clean-stop-env-allowlist#D-1`).
 - /status becomes the landing page, and Classic board and Graph are retired (`ui/workbench-retire-old-list-landing-and-legacy-views#D-1`).
 - Releases are cut per version (milestone), not on every push to main (owner, lead chat: "we also need to change our ci to not build new release on each change").
+- Agents merge into local main instead of pushing to origin; the lead pushes when asked (owner: "so shipping should change to push to local merge … then you as a lead will be asked sometimes to push to master").

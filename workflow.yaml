@@ -126,15 +126,15 @@ statuses:
     prompt: |
       Update the relevant docs for the change and record the documentation work clearly.
   - name: "shipping"
-    description: "Committing and pushing changes"
+    description: "Committing and merging into local main"
     prompt: |
-      Ship straight to main. There are no pull requests: never open one.
-      You reach shipping only after the owner has run your playtest and approved documentation, so pushing to main is part of your job here: do it without asking first.
-      1. Add your user-facing change summary under `## Unreleased` at the top of `cmd/issue-cli/CHANGELOG.md` (create the heading if a release just took it). Do not add a version heading or bump the version: releases are cut per milestone by the lead (docs/roadmap.md), and the release-marker Action only tags when the top heading is a version. Never create or push tags yourself.
+      Ship by merging into the local main checkout. There are no pull requests (never open one) and you never push: the lead pushes main to origin when the owner asks, usually to cut a release.
+      You reach shipping only after the owner has run your playtest and approved documentation, so merging into local main is part of your job here: do it without asking first.
+      1. Add your user-facing change summary under `## Unreleased` at the top of `cmd/issue-cli/CHANGELOG.md` (create the heading if a release just took it). Do not add a version heading or bump the version: the lead cuts releases per milestone (docs/roadmap.md). Never create or push tags.
       2. Commit on your branch with a message referencing the issue.
-      3. `git fetch origin && git merge origin/main`, resolve any conflicts, and run `make validate`. Keep both sides' entries under `## Unreleased` when the CHANGELOG conflicts.
-      4. `git push origin HEAD:main`. If it is rejected because main moved, repeat step 3 and push again. Never force-push.
-      Once your commit is on main and the Shipping boxes are ticked, move the issue to `done` yourself (`issue-cli transition <slug> --to "done"`); it needs no human approval. Polishing the GitHub release description is the human's responsibility. Leave the worktree as it is: nobody has to remove it.
+      3. `git merge main` (the local branch, not origin/main), resolve any conflicts, and run `make validate`. Keep both sides' entries under `## Unreleased` when the CHANGELOG conflicts.
+      4. Fast-forward the main checkout (the first path in `git worktree list`) to your branch: `git -C <main checkout> merge --ff-only <your branch>`. If it refuses because main moved, repeat step 3. If it refuses because the main checkout has uncommitted changes in files you touch, stop and tell the lead. Never force anything and never `git push`.
+      Once your commit is on local main and the Shipping boxes are ticked, move the issue to `done` yourself (`issue-cli transition <slug> --to "done"`); it needs no human approval. Polishing the GitHub release description is the human's responsibility. Leave the worktree as it is: nobody has to remove it.
   - name: "done"
     description: "Completed"
   - name: "parked"
@@ -284,8 +284,8 @@ transitions:
         body: |
           - [ ] Changes committed with a message referencing the issue
           - [ ] `cmd/issue-cli/CHANGELOG.md` entry added under `## Unreleased` (no version bump; the lead cuts releases per milestone)
-          - [ ] `origin/main` merged into the branch and `make validate` green after the merge
-          - [ ] Pushed straight to main (`git push origin HEAD:main`, no pull request)
+          - [ ] Local `main` merged into the branch and `make validate` green after the merge
+          - [ ] Local main fast-forwarded to the branch (`git -C <main checkout> merge --ff-only <branch>`; no push, no pull request)
   - from: "shipping"
     to: "done"
     actions:
@@ -536,8 +536,8 @@ types:
             body: |
               - [ ] Changes committed with a message referencing the issue
               - [ ] `cmd/issue-cli/CHANGELOG.md` entry added under `## Unreleased` (no version bump; the lead cuts releases per milestone)
-              - [ ] `origin/main` merged into the branch and `make validate` green after the merge
-              - [ ] Pushed straight to main (`git push origin HEAD:main`, no pull request)
+              - [ ] Local `main` merged into the branch and `make validate` green after the merge
+              - [ ] Local main fast-forwarded to the branch (`git -C <main checkout> merge --ff-only <branch>`; no push, no pull request)
 
   bugfix:
     description: "Something that worked is broken: a repro and a failing test first, then the fix"

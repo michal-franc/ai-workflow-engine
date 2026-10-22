@@ -1,9 +1,10 @@
 name: Release Marker
 
 on:
-  # Agents ship by pushing straight to main (no pull requests) and add their
-  # changes under `## Unreleased`. A push releases only when the CHANGELOG's
-  # top heading is a version the lead has just cut (`## vX.Y.Z — date`).
+  # Agents merge into the local main and add their changes under
+  # `## Unreleased`; the lead pushes main when the owner asks. A push releases
+  # only when the CHANGELOG's top heading is a version the lead has just cut
+  # (`## vX.Y.Z — date`).
   push:
     branches:
       - main

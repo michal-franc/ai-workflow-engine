@@ -1,0 +1,116 @@
+session: system-pages
+issue: ui/workbench-sidebar-and-system-pages
+title: Systems index, a configured system page, a family page and an unconfigured system
+scenario: systems
+
+session_checks:
+  viewports: [1440x900, 1280x800]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: The index lists AI before Sim, with AI's summary, doc and family; the sidebar marks Systems and lists the systems
+    setup:
+      - open: /p/{project}/systems
+    checks:
+      - visible: [systems.index, systems.card.ai, systems.card.sim, systems.nosystem, nav.panel, nav.panel.system.ai, nav.panel.family.play_calls, nav.panel.system.sim]
+      - selected: nav.tab.systems
+      - text_contains: { target: systems.card.ai, text: "How teams choose their plays" }
+      - text_contains: { target: systems.card.ai, text: docs/ai/play-calls.md }
+      - text_contains: { target: systems.card.ai, text: "Play calls · 1 of 2 done" }
+      - text_contains: { target: systems.nosystem, text: "No system: 1 open" }
+      # AI has 11 open issues, Sim 2: most open first.
+      - text_contains: { target: nav.panel.system.ai, text: "11" }
+      - http: { path: "/p/{project}/systems", contains: "systems.card.ai" }
+
+  - id: TP5
+    title: The AI header has the summary, counts, family chip and filtered links; rows go furthest along first and end with the footer
+    setup:
+      - open: /p/{project}/systems/AI
+    checks:
+      - visible: [system.header, system.summary, system.chip.counts, system.links, system.statusbar, system.issues, system.issues.more]
+      - text_contains: { target: system.chip.counts, text: "11 open · 2 done · 1 obsolete" }
+      - text_contains: { target: system.header, text: "Play calls · 1 of 2 done" }
+      - text_contains: { target: system.issues.more, text: "not shown" }
+      - text_contains: { target: system.issues.more, text: "All 14 in the list" }
+      - absent: system.hint
+      # The testing child is the furthest along, so it is the first row.
+      - http: { path: "/p/{project}/systems/AI", contains: "href=\"/p/rl/board?system=AI\"" }
+      - http: { path: "/p/{project}/systems/AI", contains: "<li class=\"sys-row\" data-testid=\"system.issue.ai/caller-fit\">" }
+      - selected: nav.panel.system.ai
+
+  - id: TP6
+    title: Play calls links to its family page, and the Sim epic shows as spanning two systems
+    setup:
+      - open: /p/{project}/systems/AI
+    act:
+      - check: { text_contains: { target: system.epic.sim/siege, text: "children in 2 systems" } }
+      - click: system.family.play_calls
+      - wait_for: { url: { contains: /systems/AI/Play%20calls } }
+    checks:
+      - visible: system.header
+      - text_contains: { target: system.header, text: Play calls }
+
+  - id: TP7
+    title: The stale doc section, the replacing decision and the balance note
+    setup:
+      - open: /p/{project}/systems/AI
+    checks:
+      - visible: [system.doc, system.doc.section.rules, system.doc.section.shouts_and_tempo, system.decisions, system.decision.d-2, system.balance]
+      - text_contains: { target: system.doc.section.shouts_and_tempo, text: "cites D-1, replaced by D-2" }
+      - text_contains: { target: system.doc.section.shouts_and_tempo, text: stale }
+      - text_contains: { target: system.doc.section.rules, text: current }
+      - text_contains: { target: system.decision.d-2, text: "replaces D-1" }
+      - text_contains: { target: system.balance, text: dominant-plays }
+      - http: { path: "/p/{project}/systems/AI", contains: "data-testid=\"system.doc.section.shouts_and_tempo\" data-state=\"stale\"" }
+      - http: { path: "/p/{project}/systems/AI", contains: "href=\"/p/rl/docs/ai/play-calls#shouts-and-tempo\"" }
+      - http: { path: "/p/{project}/systems/AI", contains: "href=\"/p/rl/balance?system=AI\"" }
+      - http: { path: "/p/{project}/docs/ai/play-calls", contains: "id=\"shouts-and-tempo\"" }
+
+  - id: TP8
+    title: The family page lists only the umbrella's children and the sidebar marks the family
+    setup:
+      - open: /p/{project}/systems/AI/Play%20calls
+    checks:
+      - visible: [system.issue.ai/caller-fit, system.issue.ai/call-modal, system.chip.umbrella]
+      - absent: [system.issue.ai/scouting, system.issue.ai/play-calls, system.families]
+      - text_contains: { target: system.header, text: "Systems / AI / Play calls" }
+      - text_contains: { target: system.chip.umbrella, text: "umbrella · 1 of 2 done" }
+      - selected: nav.panel.family.play_calls
+
+  - id: TP9
+    title: The unconfigured Sim page shows the config hint and its epic, and no summary or design doc
+    setup:
+      - open: /p/{project}/systems/Sim
+    checks:
+      - visible: [system.hint, system.families, system.epic.sim/siege, system.decisions]
+      - absent: [system.summary, system.doc]
+      - text_contains: { target: system.hint, text: workbench.systems.Sim }
+      - text_contains: { target: system.decisions, text: "issue-cli decide" }
+
+  - id: TP10
+    title: An unknown system is a 404 that lists the systems
+    setup:
+      - open: /p/{project}/systems
+    checks:
+      - http: { path: "/p/{project}/systems/Nope", status: 404, contains: "systems.notfound" }
+      - http: { path: "/p/{project}/systems/AI/Nope", status: 404, contains: "systems.card.ai" }
+
+  - id: TP11
+    title: The pages read like the mockups in all three themes
+    from: TP5
+    targets:
+      - { id: system.header, note: Header, chips and links }
+      - { id: system.issues, note: Issues with the status bar }
+      - { id: system.doc, note: Design doc sections }
+    do: |
+      1. Compare /systems, the AI page and the Play calls page with the mockups
+         (issues/attachments/workbench-sidebar-and-system-pages/: Index, Main, Family).
+      2. Switch the theme to Dracula, then Light, and look at the same three pages.
+    expect: |
+      The pages read like the mockups: condensed titles, mono slugs, chips in
+      the four tones, the status bar, panels in two columns, the stale section
+      in red. Every theme keeps all text readable, the bar segments stay
+      distinct, and nothing overlaps or looks out of place.
+    why: ux-test checks the structure and the data; only you can judge whether the pages look right.

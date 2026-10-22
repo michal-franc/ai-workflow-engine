@@ -10,7 +10,10 @@ import (
 	"unicode"
 
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/text"
 )
 
 type DocPage struct {
@@ -51,7 +54,7 @@ func ParseDocPage(relPath string, data []byte) (*DocPage, error) {
 		page.Title = titleCase(page.Title)
 	}
 
-	md := goldmark.New(goldmark.WithExtensions(extension.TaskList, extension.Table))
+	md := newDocMarkdown()
 	var buf bytes.Buffer
 	if err := md.Convert([]byte(body), &buf); err != nil {
 		return nil, fmt.Errorf("rendering markdown in %s: %w", relPath, err)
@@ -153,4 +156,32 @@ func titleCase(s string) string {
 		prev = r
 		return r
 	}, s)
+}
+
+// newDocMarkdown renders doc pages. Headings get ids, so a system page can
+// link to one section of its design doc.
+func newDocMarkdown() goldmark.Markdown {
+	return goldmark.New(
+		goldmark.WithExtensions(extension.TaskList, extension.Table),
+		goldmark.WithParserOptions(parser.WithAutoHeadingID()),
+	)
+}
+
+// SectionAnchors returns the id a doc page gives each "## " heading of body,
+// in document order (the same order SplitSections returns them).
+func SectionAnchors(body string) []string {
+	src := []byte(body)
+	doc := newDocMarkdown().Parser().Parse(text.NewReader(src))
+	var ids []string
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		h, ok := n.(*ast.Heading)
+		if !entering || !ok || h.Level != 2 {
+			return ast.WalkContinue, nil
+		}
+		id, _ := h.AttributeString("id")
+		b, _ := id.([]byte)
+		ids = append(ids, string(b))
+		return ast.WalkSkipChildren, nil
+	})
+	return ids
 }

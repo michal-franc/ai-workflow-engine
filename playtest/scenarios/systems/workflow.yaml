@@ -1,0 +1,39 @@
+statuses:
+  - name: "idea"
+    description: "Raw idea"
+  - name: "in design"
+    description: "Being designed"
+  - name: "in progress"
+    description: "Being built"
+  - name: "testing"
+    description: "Being checked"
+  - name: "done"
+    description: "Finished"
+  - name: "obsolete"
+    description: "Dropped"
+    optional: true
+
+transitions:
+  - from: "idea"
+    to: "in design"
+  - from: "in design"
+    to: "in progress"
+    actions:
+      - type: "require_human_approval"
+        status: "in progress"
+  - from: "in progress"
+    to: "testing"
+  - from: "testing"
+    to: "done"
+
+workbench:
+  balance:
+    comment_prefix: "balance:"
+  systems:
+    AI:
+      summary: "How teams choose their plays during a match."
+      design_doc: docs/ai/play-calls.md
+      families:
+        Play calls:
+          summary: "Authored cards per map and stage, called every few minutes."
+          umbrella: ai/play-calls

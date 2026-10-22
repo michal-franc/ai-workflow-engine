@@ -135,6 +135,8 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleMetrics(w, r, proj, prefix, true)
 	case rest == "balance" && r.Method == http.MethodGet:
 		s.handleBalance(w, r, proj, prefix)
+	case (rest == "systems" || strings.HasPrefix(rest, "systems/")) && r.Method == http.MethodGet:
+		s.handleSystems(w, r, proj, prefix, rest)
 	case rest == "hash":
 		s.handleHash(w, r, proj)
 	case rest == "issues.json":

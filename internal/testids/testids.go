@@ -184,6 +184,8 @@ var IDs = []string{
 	// Detail (/p/<project>/issue/<slug>).
 	"detail.back",
 	"detail.title",
+	"detail.title.input",
+	"detail.title.save",
 	"detail.tab.preview",
 	"detail.tab.edit",
 	"detail.body",

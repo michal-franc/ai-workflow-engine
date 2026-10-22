@@ -1718,3 +1718,39 @@ func TestRewriteIssueFile_HoldsLockSerially(t *testing.T) {
 		t.Errorf("final title %q is not from any writer — possible torn write", issue.Title)
 	}
 }
+
+func TestParseIssueSlugPin(t *testing.T) {
+	iss, err := ParseIssue("x.md", []byte("---\ntitle: \"A New Title\"\nslug: \"Old Name\"\n---\nbody\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if iss.Slug != "old-name" {
+		t.Fatalf("slug = %q, want the pin slugified (old-name)", iss.Slug)
+	}
+	for _, f := range iss.ExtraFields {
+		if f.Key == "slug" {
+			t.Fatal("slug: shows as a custom field")
+		}
+	}
+	iss, _ = ParseIssue("x.md", []byte("---\ntitle: \"A New Title\"\n---\n"))
+	if iss.Slug != "a-new-title" {
+		t.Fatalf("without a pin the slug comes from the title, got %q", iss.Slug)
+	}
+}
+
+func TestRetitleUpdate(t *testing.T) {
+	iss := &Issue{Title: "old", Slug: "cli/old"}
+	if u := RetitleUpdate(iss, "new", false); u.Slug == nil || *u.Slug != "old" {
+		t.Fatalf("retitle should pin the current slug, got %v", u.Slug)
+	}
+	if u := RetitleUpdate(iss, "Old", false); u.Slug != nil {
+		t.Fatal("a title with the same slug needs no pin")
+	}
+	iss.SlugPin = "old"
+	if u := RetitleUpdate(iss, "newer", false); u.Slug != nil {
+		t.Fatal("an existing pin is kept as is")
+	}
+	if u := RetitleUpdate(iss, "newer", true); u.Slug == nil || *u.Slug != "" {
+		t.Fatal("--rename removes the pin")
+	}
+}

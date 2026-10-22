@@ -69,7 +69,7 @@ func runReportBug(ctx *Context, args []string) error {
 	cmdFlag := fs.String("cmd", "", "the issue-cli command line that hit the bug (default: your last issue-cli call)")
 	sendFlag := fs.Bool("send", false, "send the locally queued reports, nothing else")
 	importFlag := fs.Bool("import", false, "turn old bugs/*.json reports (the files given) into issues")
-	if err := parseFlags(ctx, fs, args); err != nil {
+	if err := parseFlagsArgs(ctx, fs, args); err != nil {
 		return err
 	}
 	rest := fs.Args()

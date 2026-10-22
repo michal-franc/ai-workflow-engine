@@ -1,0 +1,78 @@
+session: cli-ergonomics
+issue: cli/issue-cli-ergonomics-from-roguetech-retros-edit-a-box-or-line-retitle-keeps-slug-list-all-loud-unknown-flags
+title: issue-cli ergonomics - loud flags, --help, edit a box or line, retitle keeps the slug
+scenario: basic
+
+# Desktop only: the one judgement step is the detail page's title editor,
+# which has nothing phone-specific.
+session_checks:
+  viewports: [1440x900]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: Unknown flags and stray arguments fail with exit 2 wherever they are; --help works on every command
+    setup:
+      - open: /p/{project}/
+    checks:
+      # Before: Go's flag parsing stopped at "done", so a flag after it was
+      # silently dropped (the RogueTech `list done --all`).
+      - cli: { args: [list, done, --bogus], exit: 2, contains: "unknown flag --bogus for 'list'" }
+      - cli: { args: [list, done, --all], exit: 2, contains: "unexpected argument \"done\" for 'list'" }
+      - cli: { args: [list, --status, done, extra], exit: 2, contains: "unexpected argument \"extra\" for 'list'" }
+      - cli: { args: [show, cli/faster-list-command, --bogus], exit: 2, contains: "unknown flag --bogus for 'context'" }
+      - cli: { args: [comment, --text, hi, cli/faster-list-command], exit: 2, contains: "comment takes <slug> first" }
+      - cli: { args: [decide, --help], exit: 0, contains: "Flags:" }
+      - cli: { args: [comment, cli/faster-list-command, --help], exit: 0, contains: "--body-file <string>" }
+      - cli: { args: [list, --all, --status, done], exit: 0, not_contains: "unknown flag" }
+
+  - id: TP5
+    title: check-edit rewrites one box's text and keeps its tick; replace --line / --match rewrite one line
+    setup:
+      - open: /p/{project}/issue/cli/faster-list-command
+    act:
+      - cli: [check-edit, cli/faster-list-command, P1, --text, "P1: Profile the loader with pprof"]
+      - cli: [replace, cli/faster-list-command, --section, Plan, --match, "^- \\[ \\] Cache", --text, "- [ ] Cache parsed frontmatter by mtime"]
+      - reload: true
+    checks:
+      - issue: { slug: cli/faster-list-command, body_contains: "- [x] Profile the loader with pprof" }
+      - issue: { slug: cli/faster-list-command, checkbox: P1, checked: true }
+      - issue: { slug: cli/faster-list-command, body_contains: "- [ ] Cache parsed frontmatter by mtime" }
+      - text_contains: { target: detail.body, text: Profile the loader with pprof }
+      - cli: { args: [checklist, cli/faster-list-command], contains: "P1 [x] Profile the loader with pprof" }
+      - cli: { args: [replace, cli/faster-list-command, --section, Plan, --line, "9", --text, x], exit: 1, contains: "has 2 lines, no line 9" }
+
+  - id: TP6
+    title: A CLI retitle keeps the slug and the page; --rename moves both and the old page is gone
+    setup:
+      - open: /p/{project}/
+    act:
+      - cli: [update, cli/export-issues-as-csv, --title, "Export issues as CSV and TSV"]
+      - open: /p/{project}/issue/cli/export-issues-as-csv
+    checks:
+      - text_contains: { target: detail.title, text: Export issues as CSV and TSV }
+      - issue: { slug: cli/export-issues-as-csv, field: slug, equals: export-issues-as-csv }
+      - cli: { args: [update, cli/export-issues-as-csv, --title, "Export issues as CSV and TSV", --rename], contains: "Renamed: cli/export-issues-as-csv → cli/export-issues-as-csv-and-tsv" }
+      - http: { path: "/p/{project}/issue/cli/export-issues-as-csv-and-tsv", status: 200, contains: Export issues as CSV and TSV }
+      - http: { path: "/p/{project}/issue/cli/export-issues-as-csv", status: 404 }
+
+  - id: TP7
+    title: Editing the title on the detail page keeps you on the same page, under the same slug
+    setup:
+      - open: /p/{project}/issue/ui/dark-mode-toggle
+    act:
+      - click: detail.title
+      - type: { target: detail.title.input, text: "Dark mode toggle in the header" }
+      - click: detail.title.save
+      - wait_for: { text_contains: { target: detail.title, text: in the header } }
+      # In act, not checks: the owner types their own title in a playtest.
+      - check: { text_contains: { target: detail.title, text: Dark mode toggle in the header } }
+    checks:
+      - url: { contains: /issue/ui/dark-mode-toggle }
+      - issue: { slug: ui/dark-mode-toggle, field: slug, equals: dark-mode-toggle }
+      - http: { path: "/p/{project}/issue/ui/dark-mode-toggle", status: 200 }
+    targets:
+      - { id: detail.title, note: "Click the title, change it, then Save" }
+    do: Click the title, change it to anything, and press Save.
+    expect: The page reloads with the new title at the same address; the issue keeps its slug, so links to it still work.
+    why: "A retitle used to rename the file and move the issue to a new slug, which broke links, parent:/depends_on: references and agents holding the old slug."

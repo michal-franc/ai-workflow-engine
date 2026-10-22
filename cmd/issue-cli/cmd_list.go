@@ -12,7 +12,11 @@ var listCommand = &Command{
 	Name:      "list",
 	ShortHelp: "List issues with filters",
 	LongHelp: `List issues. Filters: --status (open|closed|<name>), --system, --assignee,
---version, --type (projects with types of work), --sort score.`,
+--version, --type (projects with types of work), --sort score.
+
+When the project sets a version, list shows only that version by default.
+--all drops that default and lists every issue in every status and version;
+filters you pass still apply (list --all --status done).`,
 	Run: runList,
 }
 
@@ -39,6 +43,7 @@ func runList(ctx *Context, args []string) error {
 	versionFlag := fs.String("version", "", "filter by version (defaults to project version)")
 	sortFlag := fs.String("sort", "", "sort key (score)")
 	typeFlag := fs.String("type", "", "filter by type of work (untyped issues count as default_type)")
+	allFlag := fs.Bool("all", false, "every status and version: drop the default project-version filter")
 	if err := parseFlags(ctx, fs, args); err != nil {
 		return err
 	}
@@ -56,8 +61,10 @@ func runList(ctx *Context, args []string) error {
 	}
 	assignee := *assigneeFlag
 	version := *versionFlag
-	if version == "" && proj.Version != "" {
+	defaultVersion := false
+	if version == "" && proj.Version != "" && !*allFlag {
 		version = proj.Version
+		defaultVersion = true
 	}
 	sortBy := *sortFlag
 	wf := proj.LoadWorkflow()
@@ -69,6 +76,7 @@ func runList(ctx *Context, args []string) error {
 	}
 
 	var filtered []*tracker.Issue
+	hiddenByVersion := 0
 	for _, issue := range issues {
 		if status != "" {
 			switch strings.ToLower(status) {
@@ -86,9 +94,6 @@ func runList(ctx *Context, args []string) error {
 				}
 			}
 		}
-		if version != "" && issue.Version != version {
-			continue
-		}
 		if system != "" && !strings.EqualFold(issue.System, system) {
 			continue
 		}
@@ -99,6 +104,13 @@ func runList(ctx *Context, args []string) error {
 			if t, _ := wf.ResolveType(issue.Type); t != typeFilter {
 				continue
 			}
+		}
+		// Last, so the footer counts only issues the version alone hid.
+		if version != "" && issue.Version != version {
+			if defaultVersion {
+				hiddenByVersion++
+			}
+			continue
 		}
 		filtered = append(filtered, issue)
 	}
@@ -152,6 +164,10 @@ func runList(ctx *Context, args []string) error {
 			continue
 		}
 		fmt.Fprintf(ctx.Stdout, "  [%-13s] %-45s %-10s%s\n", issue.Status, issue.Slug, issue.System, a)
+	}
+	if hiddenByVersion > 0 {
+		fmt.Fprintf(ctx.Stdout, "\n%d issues (version %s; %d more in other versions: issue-cli list --all)\n", len(filtered), version, hiddenByVersion)
+		return nil
 	}
 	fmt.Fprintf(ctx.Stdout, "\n%d issues\n", len(filtered))
 	return nil

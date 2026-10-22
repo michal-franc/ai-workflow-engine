@@ -184,3 +184,25 @@ func TestAllCheckboxesGateMessage(t *testing.T) {
 		}
 	}
 }
+
+func TestStripCheckboxID(t *testing.T) {
+	cases := []struct{ id, text, want string }{
+		{"MV1", "MV1 move the unit", "move the unit"},
+		{"MV1", "MV1: move the unit", "move the unit"},
+		{"TP4", "tp4. lowercase id", "lowercase id"},
+		{"D2", "D2) paren", "paren"},
+		{"D2", "D2 — dash", "dash"},
+		{"D2", "D2-hyphen", "hyphen"},
+		{"D2", "D3 another box's id is content", "D3 another box's id is content"},
+		{"D2", "D21 longer id", "D21 longer id"},
+		{"D2", "D2", "D2"},
+		{"D2", "D2:", "D2:"},
+		{"", "D2 no id", "D2 no id"},
+		{"AC1", "plain text", "plain text"},
+	}
+	for _, c := range cases {
+		if got := StripCheckboxID(c.id, c.text); got != c.want {
+			t.Errorf("StripCheckboxID(%q, %q) = %q, want %q", c.id, c.text, got, c.want)
+		}
+	}
+}

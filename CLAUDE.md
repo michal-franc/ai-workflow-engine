@@ -60,9 +60,12 @@ handlers_systems.go         — /systems index and system / family pages (model 
 handlers_metrics.go         — /metrics view (guard metrics, knobs, branches), metrics.json; handlers_metrics_panels.go feeds the system-page partials
 handlers_status.go          — /status page and /status.md (model in status.go: buildStatus, statusMarkdown)
 handlers_pages.go           — project pages (workbench.status_page / pages): frame, /pages/<n>, sandboxed /page-raw/, /status.json
+ci_watch.go                 — local CI watcher: polls each project's CI branch, starts detached `issue-cli ci run`
+ci_view.go                  — local CI on the pages: Status card (last runs boxes), waiting entry, ci-red markers
 attention.go                — what waits on the owner (ownerAttention, waitingOnOwner): Status page, sidebar count, system pages, board markers
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
+internal/ci/                — local CI runner: .ci/ state and run records, lock, persistent .worktrees/.ci, blame, watcher, one-liner
 internal/agentrun/          — shared tmux/worktree launcher used by the server and issue-cli (leads, dispatch)
 templates/                  — Go HTML templates (list.html, board.html, detail.html, docs.html); _sidebar.html on every project page
 internal/testids/           — every data-testid the templates carry; TestTemplateTestIDs keeps them in step
@@ -163,6 +166,7 @@ Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI
 - [GitHub Integration](docs/github-integration.md) — sync, issue reference, auto-close
 - [Per-issue Data Store](docs/data-store.md) — sidecar JSON, `<!-- data -->` marker, `issue-cli data` commands
 - [Workbench Files](docs/workbench-files.md) — metric runs, targets and knob exports the Metrics view reads, branch matching, hot files, `depends_on`; project pages (`status_page`, `pages`: sandboxed HTML, postMessage status)
+- [Local CI](docs/workflow.md#local-ci) — opt-in `ci:` block: commands run on local main after every merge in `.worktrees/.ci`, results in `.ci/`, red reported to Status, markers, `ci:` comments and the lead; `issue-cli ci status|run|reset|watch`
 - [Workflow Stats](docs/workflow-stats.md) — `/stats` tab, per-issue stats sidecar, token-cost estimation
 - [The Lead Session](docs/patterns/lead-session.md) — the project lead, one per project (`issue-cli lead`, `approve`), routing, authority, handoff, epics, agents canvas
 - [Playtest Sessions](docs/patterns/playtest/README.md) — an issue's manual checks as YAML sessions: shared contract, [web app example](docs/patterns/playtest/web-app.md) (this repo, chromedp), [game example](docs/patterns/playtest/game.md); `issue-cli process playtest`

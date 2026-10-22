@@ -17,6 +17,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 - `cmd/issue-cli/workflow_init.go` — testable `doWorkflowInit` core (the `workflow init` subcommand wraps it from `cmd_workflow.go`)
 - `cmd/issue-cli/workflow_upgrade.go` / `cmd_upgrade.go` — `buildUpgradePlan` and the `workflow upgrade` / `upgrade` command; `workflowUpgradeHint` for `start` and `process workflow`
 - `cmd/issue-cli/workflow_features.go` / `cmd_scan.go` — feature catalog, structural probes, `features:` record writer, and the `workflow scan` command
+- `cmd/issue-cli/cmd_ci.go` / `ci_report.go` — the `ci` command (detached runs in tmux) and what a run reports (`ci:` comments, the `[from ci]` lead message, `on_red: file_issue`); the runner itself is `internal/ci/`
 
 ### Adding a new subcommand
 
@@ -40,6 +41,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli balance <slug>`       | Add a typed balance note (`--metric`, `--state`, `--hypothesis`, `--change`, `--evidence`, `--verdict`, `--pass`); `balance --list` prints the current notes |
 | `issue-cli decisions`            | List the project's decisions (active, deferred, replaced, stale) with `--system`, `--state`, `--issue`, `--json` |
 | `issue-cli lead <sub>`           | The project lead: `spawn`, `whoami`, `list`, `message <target> "text"`. See [`lead`](#lead) |
+| `issue-cli ci <sub>`             | Local CI on the integration branch: `status`, `run`, `reset`, `watch`. See [`ci`](#ci) |
 | `issue-cli approve <slug>`       | Record a human approval with the human's words (leads only). See [`approve`](#approve) |
 | `issue-cli check <slug> <id>...` | Tick checkboxes by id (several at once), whole section (`--section X --all`), text, or `--section` + `--index` |
 | `issue-cli checklist <slug>`     | List checkboxes grouped by section, each with its id (`D3`, `AC2`) |
@@ -297,6 +299,29 @@ When the issue's `work/<slug>` branch is open, `show` also prints `== Shared fil
 `show` and `start` print a `Lead:` line naming the issue's lead and whether it is live. On an issue linked with the legacy `umbrella:` key they also print the `set-meta … --key parent` rename hint.
 
 The lead's brief comes from `leads.project` in `workflow.yaml` (see `issue-cli process schema`), else a built-in default, plus a fixed footer with the role, authority and handoff note. An old `leads.epic` is ignored, and `process workflow` warns about it.
+
+### `ci`
+
+Local CI runs the `ci:` commands of `workflow.yaml` on the integration branch after every move. [Workflow: Local CI](../workflow.md#local-ci) covers the config and what it reports; this is the command reference. Without a `ci:` block, `ci status` prints `ci: not configured — add a ci: block to workflow.yaml (see docs/workflow.md, "Local CI")` and exits 0 (`--json`: `{"configured": false}`), and `ci run` fails with the same line.
+
+| Subcommand | Does |
+|:--|:--|
+| `ci status [--tier <t>]` | The first line is the one-liner (contract below). While red it then lists `Landed since green <sha>:`, the bugfix issue (`Fix tracked in:`) and the log path, then `Recent runs:` (the last 5: sha, state, age, duration, tier, what failed). `--tier slow` adds the tier's newest result. `--json`: `{configured, branch, line, state, runs, running?}` |
+| `ci run [--tier <t>] [--detach] [--if-untested]` | Runs in the foreground and streams the output. It re-tests the head, then keeps going while new commits land, testing only the newest. Exits 0 when green, 1 when red or CI can't run. A live run makes it print `already running at <sha> (pid N); it tests the newest head when done` and exit 0. `--detach` starts the same command in tmux `ci-<project>` (or a background process without tmux) and returns. `--if-untested` skips a head already tested; the watchers pass it. `--json` writes the runs to stdout and the live output to stderr |
+| `ci reset` | Removes `.worktrees/.ci`, ignored build output included; the next run creates it again (a cold build). Refuses while a run is live |
+| `ci watch [--interval 5s] [--once]` | Polls the branch head and starts a detached run when it is untested. For projects without the viewer running |
+
+The one-liner, also printed by `start` and the dispatch prompt (with a `Local CI: ` prefix):
+
+```
+main green at abc1234 (12m ago)
+main red since def5678: make validate: TestA, TestB, TestC (+4)
+main: CI can't run: <reason> — issue-cli ci reset
+main: no CI run yet
+… · running at 1234567 (3m)          # appended while a run is live
+```
+
+The test names come from the command's `failures:` regex. While red, `start` and the dispatch prompt add `— inherited from main, not caused by your branch`. `transition --to done` ends with `Local CI tests <branch> at <sha> by itself: don't wait for it, you are done…` when `ci:` is set.
 
 ### `approve`
 

@@ -249,6 +249,12 @@ If `git worktree add` fails (dirty tree, branch already exists outside the workt
 
 Dispatches without an issue slug (retros review, project-wide commands) never create a worktree regardless of the toggle.
 
+## Local CI (`ci:`)
+
+The optional `ci:` block (`tracker.CIConfig` in `internal/tracker/ci.go`) turns on local CI: its commands run on the integration branch after every move. It is project-wide like `workbench:`, so system and type overlays can't change it, and `Clone` copies it into scoped workflows. `Lint` checks it. A `ci:` entry is a plain string or `{cmd, tier, failures}`.
+
+Nothing about statuses, transitions or overlays changes. Without the block nothing runs and nothing shows. The runner is `internal/ci/` (run records, lock, persistent worktree, blame, watcher, one-liner); the viewer's watcher is `ci_watch.go` and the page model is `ci_view.go`. `tracker.CIStatusLine` is a hook `internal/ci` sets at init, so the dispatch prompt (built in `tracker`) can carry the CI line while the server and the CLI build the same prompt. User guide: [Workflow: Local CI](../workflow.md#local-ci).
+
 ## System Overlays
 
 System-specific overrides are defined under the `systems:` key. They merge with the base workflow — overriding status prompts and appending transition actions for that system:

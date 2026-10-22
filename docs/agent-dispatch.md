@@ -193,6 +193,15 @@ There is one lead per project. It runs in tmux like a worker, as `lead-<project>
 
 See [The lead session](patterns/lead-session.md) for roles, routing and authority.
 
+## Local CI and dispatched agents
+
+When `workflow.yaml` has a `ci:` block ([Workflow: Local CI](workflow.md#local-ci)):
+
+- The dispatch prompt has a `## Local CI` section with the one-line state of the integration branch. While main is red it says the failure is inherited, so the agent doesn't debug it as its own, and it tells the agent never to wait for CI after its merge.
+- `issue-cli start` prints the same line, and `transition --to done` reminds the agent that CI runs without it.
+- CI runs live in tmux as `ci-<project>`: a session of their own, or a window in the project's `tmux_session`. The name is not an agent prefix, so the agents canvas never shows it as an agent.
+- A red run sends the live lead a `[from ci]` message with `issue-cli lead message`'s paste mechanism, and the text is saved under `.agent-logs/lead-<project>/messages/`.
+
 ## Agent Model
 
 Each project chooses whether dispatched agents get a pinned model or use their own global settings:

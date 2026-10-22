@@ -210,6 +210,12 @@ workbench:
   - issues whose newest comment starts with `question:`
   - a footer counts gates whose checklist is still open
   - the sidebar's Status count is the same number
+- **Local CI** (only with a `ci:` block; `ci_view.go`), at the top of the side column:
+  - a state chip (green, red, amber when CI can't run) and the one-liner `issue-cli ci status` prints
+  - **Last runs:** the last 12 default-tier runs as boxes, oldest first (`status.ci.run.<sha>`, `data-state`), with a dashed box for a live run; each tooltip has the commit, result, age, duration and what failed
+  - while red: the failing command and tests, the issues that landed since the last green run (and how many commits had no issue), the bugfix issue with `on_red: file_issue`, and the log tail in a `<details>`
+  - red CI is the first entry under Waiting on you (`status.waiting.ci`) and adds one to the waiting count and the sidebar's Status number; `status.md` gets a `Local CI:` line, the tail while red, and the waiting entry
+  - the same state gives the merged issues a red `ci-red` card marker (`markers.go`, `ciMarkers`), which done workboard cards get too
 - **Recently shipped:** the newest 3 `## vX.Y.Z — date` entries of the changelog, then issues that reached the final status in the last 7 days.
   - The changelog is `workbench.changelog` in `workflow.yaml` (relative to the project root), or `CHANGELOG.md` when that exists.
   - Without either, the page lists the newest 3 git tags.

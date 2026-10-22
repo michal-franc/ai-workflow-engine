@@ -104,6 +104,10 @@ These checks read the environment and the session name. They are guardrails for 
 
 While workers run, the lead checks in on a schedule (Raid League uses :07, :27 and :47 past the hour) and reports only what changed: questions waiting, a gate reached, red tests, an idle agent, two branches touching the same files. On request it gives a **stand-up**: one line per dispatched issue with status, last progress and blockers, then the approvals waiting for you.
 
+### Local CI
+
+With a `ci:` block ([Workflow: Local CI](../workflow.md#local-ci)) nobody re-runs the checks on main by hand: the viewer starts a run after every merge. When main goes red the lead gets a `[from ci] local CI red on main at <sha>: <command> … Merged since green: <issues>` message. It brings it to you and you decide together whether to revert, fix forward or dispatch a fix; CI never reverts. The lead hears again when main is green. Before any push, and always before a release, the lead runs `issue-cli ci status`, and it never pushes a release while main is red. The lead brief says so when `ci:` is set.
+
 ### Relaying questions
 
 Workers that need a decision ask in chat: they message the lead (Claude Code's SendMessage, addressed by tmux name) with the options and their recommendation, say they're waiting, and stop. The lead brings questions to you **one at a time**, with the worker's recommendation and its own. It records your answer in your words with `issue-cli decide <slug> --text "…" --how "lead chat" --quote "…"`, which writes the `D-n` line under `## Decisions`, then messages the asker.

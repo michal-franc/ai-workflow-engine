@@ -483,11 +483,52 @@ func TestRunUpdateChangesTitle(t *testing.T) {
 	if err := runUpdate(ctx, []string{slug, "--title", "new title"}); err != nil {
 		t.Fatalf("runUpdate: %v", err)
 	}
-	assertContains(t, stdout.String(), "✓ Updated: cli/sample")
+	assertContains(t, stdout.String(), "✓ Retitled: cli/sample (slug kept")
+	assertContains(t, stdout.String(), `issue-cli update cli/sample --title "new title" --rename`)
 
 	got := loadIssueByPath(t, proj.IssueDir, issuePath)
-	if got.Title != "new title" {
-		t.Fatalf("title = %q, want \"new title\"", got.Title)
+	if got.Title != "new title" || got.Slug != "cli/sample" || got.SlugPin != "sample" {
+		t.Fatalf("title %q slug %q pin %q, want new title / cli/sample / sample", got.Title, got.Slug, got.SlugPin)
+	}
+
+	// A second retitle keeps the existing pin.
+	stdout.Reset()
+	if err := runUpdate(ctx, []string{slug, "--title", "newer title"}); err != nil {
+		t.Fatalf("second retitle: %v", err)
+	}
+	if got := loadIssueByPath(t, proj.IssueDir, issuePath); got.Slug != "cli/sample" {
+		t.Fatalf("second retitle moved the slug to %q", got.Slug)
+	}
+}
+
+func TestRunUpdateRenameFollowsTitle(t *testing.T) {
+	proj, slug, issuePath := makeSimpleProject(t, "in progress")
+	// Another issue that references the old slug.
+	other := filepath.Join(filepath.Dir(issuePath), "child.md")
+	mustWrite(t, other, "---\ntitle: \"child\"\nstatus: \"idea\"\nparent: \"cli/sample\"\n---\n")
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runUpdate(ctx, []string{slug, "--title", "Fresh Name"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := runUpdate(ctx, []string{slug, "--title", "Fresh Name", "--rename"}); err != nil {
+		t.Fatalf("--rename: %v", err)
+	}
+	out := stdout.String()
+	assertContains(t, out, "✓ Renamed: cli/sample → cli/fresh-name")
+	assertContains(t, out, "1 issue(s) still reference cli/sample in parent:/depends_on: — update them:\n  cli/child")
+	newPath := filepath.Join(filepath.Dir(issuePath), "fresh-name.md")
+	got := loadIssueByPath(t, proj.IssueDir, newPath)
+	if got.Slug != "cli/fresh-name" || got.SlugPin != "" {
+		t.Fatalf("slug %q pin %q after --rename", got.Slug, got.SlugPin)
+	}
+
+	// --rename onto an existing file is refused before anything is written.
+	before, _ := os.ReadFile(newPath)
+	if err := runUpdate(ctx, []string{"cli/fresh-name", "--title", "child", "--rename"}); err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("want already-exists error, got %v", err)
+	}
+	if after, _ := os.ReadFile(newPath); string(after) != string(before) {
+		t.Error("refused rename changed the file")
 	}
 }
 

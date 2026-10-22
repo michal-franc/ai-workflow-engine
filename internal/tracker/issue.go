@@ -32,7 +32,7 @@ var knownFrontmatterFields = map[string]bool{
 	"labels": true, "priority": true, "assignee": true,
 	"human_approval": true, "approved_for": true, "queued_approval": true,
 	"started_at": true, "done_at": true, "created": true,
-	"number": true, "repo": true,
+	"number": true, "repo": true, "slug": true,
 }
 
 func formatFieldLabel(key string) string {
@@ -105,6 +105,10 @@ type Issue struct {
 	Created        string   `yaml:"created"`
 	Number         int      `yaml:"number"`
 	Repo           string   `yaml:"repo"`
+	// SlugPin is the `slug:` field. When set it names the issue instead of
+	// its title, so a retitle (update --title) keeps the slug and every
+	// reference to it.
+	SlugPin string `yaml:"slug"`
 
 	// Type is the `type:` frontmatter value (type of work: feature, tweak, …).
 	// Read from the raw map rather than decoded so a non-scalar `type:` in a
@@ -143,6 +147,9 @@ func ParseIssue(filename string, data []byte) (*Issue, error) {
 	issue.BodyHTML = buf.String()
 
 	issue.Slug = Slugify(issue.Title)
+	if pin := Slugify(issue.SlugPin); pin != "" {
+		issue.Slug = pin
+	}
 
 	issue.Status = strings.ToLower(strings.TrimSpace(issue.Status))
 	issue.Priority = strings.ToLower(strings.TrimSpace(issue.Priority))
@@ -308,6 +315,33 @@ type IssueUpdate struct {
 	Labels         []string          `json:"labels,omitempty"`
 	Body           *string           `json:"body,omitempty"`
 	ExtraFields    map[string]string `json:"extra_fields,omitempty"`
+	// Slug pins the slug (slug:); "" removes the pin.
+	Slug *string `json:"slug,omitempty"`
+}
+
+// BaseSlug is the issue's slug without its subdirectory prefix: the part a
+// slug: pin or the file name holds.
+func BaseSlug(issue *Issue) string {
+	return issue.Slug[strings.LastIndex(issue.Slug, "/")+1:]
+}
+
+// RetitleUpdate builds the update that sets issue's title to title. By
+// default the slug is kept: when the new title would give a different slug
+// and the issue has no pin yet, the current slug is pinned with slug:.
+// With rename the pin is removed so the slug follows the new title.
+func RetitleUpdate(issue *Issue, title string, rename bool) IssueUpdate {
+	u := IssueUpdate{Title: &title}
+	switch {
+	case rename:
+		if issue.SlugPin != "" {
+			empty := ""
+			u.Slug = &empty
+		}
+	case issue.SlugPin == "" && Slugify(title) != BaseSlug(issue):
+		pin := BaseSlug(issue)
+		u.Slug = &pin
+	}
+	return u
 }
 
 func AppendIssueBody(body, text string) (string, bool, error) {
@@ -553,6 +587,13 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 	}
 	if update.Labels != nil {
 		fmRaw = setLabels(fmRaw, update.Labels)
+	}
+	if update.Slug != nil {
+		if *update.Slug == "" {
+			fmRaw = removeFrontmatterKey(fmRaw, "slug")
+		} else {
+			fmRaw = setFrontmatterScalar(fmRaw, "slug", *update.Slug)
+		}
 	}
 
 	if len(update.ExtraFields) > 0 {

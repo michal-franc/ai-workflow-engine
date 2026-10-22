@@ -51,6 +51,9 @@ type Browser struct {
 	ctx     context.Context
 	cancel  context.CancelFunc
 	visible bool
+	// last is the visible window's newest page: the next session opens a
+	// tab of its own, because the overlay bridge can't be added twice.
+	last *Page
 }
 
 // NewBrowser starts Chrome: headless for ux-test, a visible window for the
@@ -91,14 +94,22 @@ type Page struct {
 }
 
 // NewPage opens a tab in a fresh browser context (or, for the visible
-// browser, takes its window), sets the viewport and installs scripts that
-// run in every document it loads.
+// browser, takes its window first and a new tab in it after), sets the
+// viewport and installs scripts that run in every document it loads.
 func (b *Browser) NewPage(vp *Viewport, scripts ...string) (*Page, error) {
 	var ctx context.Context
 	var cancel context.CancelFunc
-	if b.visible {
+	switch {
+	case b.visible && b.last == nil:
 		ctx, cancel = context.WithCancel(b.ctx)
-	} else {
+	case b.visible:
+		// A later session (make playtest over several sessions): its own
+		// tab, and the previous one is blanked so its dead overlay can't
+		// be mistaken for the live one.
+		ctx, cancel = chromedp.NewContext(b.ctx)
+		prev := b.last
+		defer func() { _ = prev.Do(prev.ctx, chromedp.Navigate("about:blank")) }()
+	default:
 		ctx, cancel = chromedp.NewContext(b.ctx, chromedp.WithNewBrowserContext())
 	}
 	p := &Page{ctx: ctx, cancel: cancel}
@@ -116,6 +127,9 @@ func (b *Browser) NewPage(vp *Viewport, scripts ...string) (*Page, error) {
 	if err := chromedp.Do(ctx, steps...); err != nil {
 		cancel()
 		return nil, err
+	}
+	if b.visible {
+		b.last = p
 	}
 	msgs := chromedp.Console(ctx)
 	go func() {

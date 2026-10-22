@@ -3692,6 +3692,27 @@ a.chip { text-decoration: none; }
 .status-grid-top > .status-card { align-self: stretch; }
 .status-grid > :only-child { grid-column: 1 / -1; }
 
+/* Rows below the milestone: the side column fills the row's height and adds
+   none (height 0, min-height 100%), so the main card sets the row and there
+   are no gaps. The last side card fills what is left; when space is short
+   the cards above it shrink too (to 120px at least). A card whose content
+   doesn't fit is cut off (overflow: clip, so focus can't scroll it) with
+   "Show all", which opens it over the page. */
+@media (min-width: 901px) {
+    .status-grid-fit { grid-auto-rows: minmax(240px, auto); }
+    .status-grid-fit > .status-card { align-self: stretch; }
+    .status-grid-fit > .status-side { height: 0; min-height: 100%; position: relative; }
+    .status-grid-fit > .status-side > .status-card { flex: 0 1 auto; min-height: 120px; overflow: clip; position: relative; }
+    .status-grid-fit > .status-side > .status-card:last-child { flex: 1 1 0; }
+}
+.status-fit-more { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 20px 12px; border: 0; border-radius: 0 0 var(--radius) var(--radius); background: var(--bg-secondary); color: var(--blue); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.status-fit-more::before { content: ""; position: absolute; left: 0; right: 0; top: -32px; height: 32px; background: linear-gradient(to bottom, transparent, var(--bg-secondary)); pointer-events: none; }
+.status-card.is-open .status-fit-more::before { display: none; }
+.status-fit-more:hover { text-decoration: underline; }
+.status-fit-more[hidden] { display: none; }
+.status-grid-fit > .status-side > .status-card.is-open { position: absolute; left: 0; right: 0; z-index: 40; max-height: 80vh; overflow: auto; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); }
+.status-card.is-open .status-fit-more { position: static; padding: 4px 0 0; background: none; }
+
 /* The top row: one tile per list that waits on someone (Needs you, Working
    on, What's next). A tile shows a count and a line; its card opens over
    the page, so nothing below moves, and folds back on a click outside,

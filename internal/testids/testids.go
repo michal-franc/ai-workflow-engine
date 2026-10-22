@@ -129,13 +129,16 @@ var IDs = []string{
 	"status.release_wait.unreleased",
 	"status.release_wait.unreleased.more",
 	"status.release_wait.unpushed",
+	"status.release_wait.fit",
 	"status.shipped",
 	"status.shipped.full_list",
 	"status.shipped.area.*",
 	"status.shipped.more_areas",
 	"status.versions",
 	"status.versions.more",
+	"status.versions.fit",
 	"status.released",
+	"status.released.fit",
 	"status.release.*",
 
 	// Board (/p/<project>/board).

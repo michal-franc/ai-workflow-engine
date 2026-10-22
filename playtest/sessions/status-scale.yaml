@@ -88,6 +88,34 @@ steps:
       it back.
     why: that the card floats over the page rather than pushing it is a visual judgement.
 
+  - id: TP12
+    title: Side cards are as tall as the card beside them; one that overflows shows "Show all" and opens over the page
+    setup:
+      - open: /p/{project}/status
+    act:
+      # Unfolding the 20 open issues makes Waiting for release taller than Epics.
+      - click: status.release_wait.open.fold
+      - wait_for: status.release_wait.fit
+      - snapshot: { name: shipped_before, target: status.shipped }
+      - click: status.release_wait.fit
+      - check: { text_equals: { target: status.release_wait.fit, text: Show less } }
+      - key: Escape
+    checks:
+      - text_equals: { target: status.release_wait.fit, text: Show all }
+      - unchanged: { target: status.shipped, since: shipped_before }
+      - beside: [status.epics, status.release_wait]
+      - below: [status.epics, status.shipped]
+      - below: [status.release_wait, status.shipped]
+    do: Unfold "20 open" in Waiting for release, click "Show all", then click anywhere else.
+    expect: |
+      Before: Waiting for release ends level with Epics, its bottom faded
+      under a blue "Show all". After the click the whole card opens over
+      Recently shipped with a shadow, nothing moves, and it ends in "Show
+      less". A click outside folds it back to Epics' height. Versions and
+      Recently released fill their row to Recently shipped's bottom, with
+      no gap.
+    why: whether the cut-off and the overlay read well is a visual call.
+
   - id: TP5
     title: Current milestone splits 0.1 by status and counts its open issues by area
     setup:

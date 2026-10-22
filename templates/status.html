@@ -277,7 +277,7 @@
         </div>
 
 
-        <div class="status-grid">
+        <div class="status-grid status-grid-fit">
             <section class="card status-card status-epics" data-testid="status.epics" aria-labelledby="status-epics-h">
                 <div class="status-card-head">
                     <h2 id="status-epics-h">Epics</h2>
@@ -403,12 +403,13 @@
                     {{end}}
                 </div>
                 {{end}}
+                <button type="button" class="status-fit-more" data-testid="status.release_wait.fit" aria-expanded="false" hidden>Show all</button>
             </section>
             </div>
             {{end}}
         </div>
 
-        <div class="status-grid">
+        <div class="status-grid status-grid-fit">
             <section class="card status-card" data-testid="status.shipped" aria-labelledby="status-shipped-h">
                 <div class="status-card-head">
                     <h2 id="status-shipped-h">Recently shipped · {{len .DoneRecent}} in 7 days</h2>
@@ -455,7 +456,8 @@
                     <p class="status-hint">No issue sets a version.</p>
                     {{end}}{{if $rest}}</details>{{end}}
                     </div>
-                </section>
+                    <button type="button" class="status-fit-more" data-testid="status.versions.fit" aria-expanded="false" hidden>Show all</button>
+            </section>
 
                 <section class="card status-card" data-testid="status.released" aria-labelledby="status-released-h">
                     <div class="status-card-head status-card-head-stack">
@@ -471,7 +473,8 @@
                     <p class="status-hint">{{with .Milestone}}No releases yet: {{.Cut}} will be the first. {{end}}No changelog or tags: point <code>workbench.changelog</code> in workflow.yaml at your changelog.</p>
                     {{end}}
                     {{if .ReleasesURL}}<a href="{{.ReleasesURL}}">Full changelog</a>{{end}}
-                </section>
+                    <button type="button" class="status-fit-more" data-testid="status.released.fit" aria-expanded="false" hidden>Show all</button>
+            </section>
             </div>
         </div>
     </main>
@@ -514,6 +517,59 @@ function copyStatusMarkdown(btn) {
             if (p.open) { p.open = false; p.querySelector('summary').focus(); }
         });
     });
+})();
+
+// Side cards are as tall as the card beside them (CSS: the side column
+// takes the row's height and adds none). A card whose content doesn't fit
+// is cut off with "Show all", which opens the whole card over the page and
+// folds back on a click outside, focus leaving it, Escape, or "Show less".
+(function() {
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.status-grid-fit > .status-side > .status-card'));
+    function close(c) {
+        if (!c.classList.contains('is-open')) return;
+        c.classList.remove('is-open');
+        c.style.top = '';
+        c.scrollTop = 0;
+        var b = c.querySelector('.status-fit-more');
+        b.textContent = 'Show all';
+        b.setAttribute('aria-expanded', 'false');
+        measure();
+    }
+    function measure() {
+        cards.forEach(function(c) {
+            if (c.classList.contains('is-open')) return;
+            var b = c.querySelector('.status-fit-more');
+            var clipped = c.scrollHeight > c.clientHeight + 1;
+            b.hidden = !clipped;
+        });
+    }
+    cards.forEach(function(c) {
+        var b = c.querySelector('.status-fit-more');
+        b.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (c.classList.contains('is-open')) { close(c); return; }
+            cards.forEach(close);
+            c.style.top = c.offsetTop + 'px';
+            c.classList.add('is-open');
+            b.textContent = 'Show less';
+            b.setAttribute('aria-expanded', 'true');
+        });
+        c.addEventListener('focusout', function(e) {
+            if (e.relatedTarget && !c.contains(e.relatedTarget)) close(c);
+        });
+    });
+    document.addEventListener('click', function(e) {
+        cards.forEach(function(c) { if (!c.contains(e.target)) close(c); });
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') cards.forEach(close);
+    });
+    if (window.ResizeObserver) {
+        var ro = new ResizeObserver(function() { measure(); });
+        document.querySelectorAll('.status-grid-fit > *').forEach(function(el) { ro.observe(el); });
+        cards.forEach(function(c) { Array.prototype.forEach.call(c.children, function(ch) { ro.observe(ch); }); });
+    }
+    measure();
 })();
 
 // Folds and the Epics filters, remembered per project in localStorage under

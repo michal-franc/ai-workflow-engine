@@ -30,7 +30,7 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 - `handlers_agents.go` — agents canvas (`buildAgentsModel`, `AgentsModel`), agent detail, `handleAgentOpen` (open a session in a terminal), `handleLeadSpawn`
 - `internal/agentrun/` — the shared tmux + worktree launcher (`Start`, `Paste`, `CapturePane`) used by the server and `issue-cli`; `lead.go` holds `LeadSpec`/`RecordLead` so `POST /lead/spawn` and `issue-cli lead spawn` start identical sessions
 - `internal/tracker/lead.go`, `lead_brief.go` — epic link (`ParentSlug`, `IsEpic`, `EpicChildren`, `EpicBase`), `LeadSessionName`, `LeadFor` routing, `IssueWorktree` (children start from the epic's base), lead briefs and handoff notes
-- `internal/tracker/issue.go` — Issue struct, ParseIssue, LoadIssues, frontmatter update, `RewriteIssueFile` (parse-validated, locked, atomic full-file write)
+- `internal/tracker/issue.go` — Issue struct, ParseIssue, LoadIssues, frontmatter update (every scalar write goes through `setFrontmatterScalar`: literal replace, `escapeYAMLScalar`), `RewriteIssueFile` (parse-validated, locked, atomic full-file write)
 - `internal/tracker/doc.go` — DocPage struct, LoadDocs
 - `internal/tracker/workflow_config.go` — `WorkflowConfig`, `LoadWorkflow`, `DefaultWorkflow`, status/transition accessors, prompt + template helpers
 - `internal/tracker/workflow_transition.go` — `ApplyTransition*`, `StartIssueOnce`, `MarkIssueDoneOnce`, `IsValidTransition`, `Next*Status`

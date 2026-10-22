@@ -253,6 +253,77 @@
                     {{end}}
                 </section>
 
+                {{with .ReleaseWait}}
+                <section class="card status-card{{if and .Milestone .Milestone.Ready}} status-ready-card{{end}}" data-testid="status.release_wait" aria-labelledby="status-release-wait-h">
+                    <div class="status-card-head">
+                        <h2 id="status-release-wait-h">Waiting for release</h2>
+                        {{with .Milestone}}<span class="chip{{if .Ready}} chip-green{{else}} chip-amber{{end}}" data-testid="status.release_wait.state">{{if .Ready}}ready to cut{{else}}{{.Cut}} not ready{{end}}</span>{{end}}
+                    </div>
+                    {{with .Milestone}}
+                    <div class="status-progress" data-testid="status.release_wait.milestone">
+                        <div class="status-progress-row"><span class="status-strong">Milestone {{.Version}}</span><span class="mono status-meta">{{.Progress.Done}}/{{.Progress.Total}} done</span></div>
+                        <div class="status-bar"><span style="width: {{.Progress.Pct}}%"></span></div>
+                    </div>
+                    <div class="status-list" data-testid="status.release_wait.checks">
+                        <span class="label">Ready to cut {{.Cut}} when</span>
+                        {{range .Checks}}
+                        <div class="status-check {{if .OK}}status-check-ok{{else}}status-check-no{{end}}" data-testid="status.release_wait.check.{{.Key}}" data-ok="{{.OK}}">
+                            {{if .OK}}<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-label="met"><path d="M3 8.5l3.2 3L13 4.5"/></svg>{{else}}<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-label="not met"><path d="M4 4l8 8M12 4l-8 8"/></svg>{{end}}
+                            <div class="status-row-stack">
+                                <span>{{.Text}}</span>
+                                {{if .Detail}}<span class="mono status-check-detail">{{.Detail}}</span>{{end}}
+                            </div>
+                            {{if and (eq .Key "ci") (not .OK)}}<a href="#status-ci-h">Local CI</a>{{else}}<span class="mono status-check-meta">{{.Meta}}</span>{{end}}
+                        </div>
+                        {{end}}
+                    </div>
+                    {{if .Ready}}
+                    <div class="status-ready" data-testid="status.release_wait.ready">
+                        <span class="status-ready-title">Ready to cut {{.Cut}}</span>
+                        <ol>
+                            {{if $.ReleaseWait.Changelog}}<li>In <code>{{$.ReleaseWait.Changelog}}</code>, rename <code>## Unreleased</code> to <code>## {{.Cut}} — {{.Today}}</code> and add a one-line focus summary.</li>{{end}}
+                            <li>With the owner's go-ahead, push {{if $.ReleaseWait.Unpushed}}{{$.ReleaseWait.Unpushed.Branch}} to {{$.ReleaseWait.Unpushed.Upstream}}{{else}}the branch{{end}}. A release Action tags {{.Cut}}; without one, tag it yourself.</li>
+                        </ol>
+                    </div>
+                    {{end}}
+                    {{if .Open}}
+                    <div class="status-list status-divided" data-testid="status.release_wait.open">
+                        <span class="label">Open in {{.Version}} · {{len .Open}}</span>
+                        {{range .Open}}
+                        <div class="status-row" data-testid="status.release_wait.open.row.{{tid .Slug}}">
+                            <div class="status-row-stack">
+                                <a href="{{$.IssueURL .Slug}}" class="status-title status-ellipsis">{{.Title}}</a>
+                                <span class="mono status-meta status-ellipsis">{{if .Assignee}}{{.Assignee}}{{else}}no assignee{{end}}</span>
+                            </div>
+                            <span class="chip">{{.Status}}</span>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+                    {{end}}
+                    {{if .Changelog}}
+                    <div class="status-list{{if .Milestone}} status-divided{{end}}" data-testid="status.release_wait.unreleased">
+                        <div class="status-progress-row"><span class="label">Unreleased · {{len .Unreleased}}</span><span class="mono status-meta">{{.Changelog}}</span></div>
+                        {{range .Unreleased}}
+                        <span class="status-summary status-entry">{{.}}</span>
+                        {{else}}
+                        <span class="status-meta">Nothing under <code>## Unreleased</code>. Shipped issues add their entry there.</span>
+                        {{end}}
+                    </div>
+                    {{end}}
+                    {{with .Unpushed}}
+                    <div class="status-list status-divided" data-testid="status.release_wait.unpushed">
+                        <span class="label">Not pushed</span>
+                        {{if .Count}}
+                        <div class="status-row"><span>{{plural .Count "commit" "commits"}} on {{.Branch}} not on {{.Upstream}}</span><span class="mono status-meta">newest {{$.AgeOf .NewestAt}} ago</span></div>
+                        {{else}}
+                        <span class="status-meta">Nothing: {{.Branch}} matches {{.Upstream}}</span>
+                        {{end}}
+                    </div>
+                    {{end}}
+                </section>
+                {{end}}
+
                 <section class="card status-card" data-testid="status.shipped" aria-labelledby="status-shipped-h">
                     <div class="status-card-head">
                         <h2 id="status-shipped-h">Recently shipped</h2>

@@ -127,6 +127,7 @@ branches:
 
 - **Fixed commit dates:** scenario commits get fixed dates, an hour apart from 2026-10-01 12:00 UTC, so shas and dates match between runs and `REPEAT=2` passes.
 - **Worktrees** are excluded from the project's own commits.
+- **Upstream:** `upstream: <branch>` makes main track that branch (`git branch -u`), so views that compare main with its upstream have one. Create the branch with `from: main~N` to leave main N commits ahead. Example: `playtest/scenarios/release/`.
 - **Example:** `playtest/scenarios/metrics/` (the Metrics view).
 
 ## The runner (cmd/playtest)

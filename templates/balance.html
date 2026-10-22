@@ -79,6 +79,7 @@
         <section class="balance-group" id="metric-{{.Metric}}" data-testid="balance.group.{{tid .Metric}}">
             <div class="balance-group-head">
                 <h3 class="balance-metric">{{.Metric}}</h3>
+                {{with .Guard}}<span class="balance-guard" data-testid="balance.group.{{tid .ID}}.guard"><span class="mono">{{bandText .Band}}</span> · master <span class="mono">{{masterValue .}}</span> {{if .Master}}{{verdictChip .Master.Verdict}}{{end}} <a href="{{$.Prefix}}/metrics?q={{.ID}}">metric</a></span>{{end}}
                 <span class="balance-group-count" data-testid="balance.group.{{tid .Metric}}.count">{{.Total}} note{{if ne .Total 1}}s{{end}}{{if .Open}} · {{.Open}} open{{end}}</span>
             </div>
             <div class="balance-cards">

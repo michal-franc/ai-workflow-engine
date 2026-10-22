@@ -94,8 +94,8 @@ func TestSidebarNav(t *testing.T) {
 		return strings.Join(k, ",")
 	}
 	// Systems shows because the issues have systems (ui/workbench-sidebar-and-system-pages#D-2).
-	if got := keys(nav.Main); got != "systems,board,list,decisions,docs" {
-		t.Errorf("main = %s (Balance needs workbench.balance)", got)
+	if got := keys(nav.Main); got != "status,systems,board,list,decisions,docs" {
+		t.Errorf("main = %s (Status first; Balance needs workbench.balance)", got)
 	}
 	if got := keys(nav.More); got != "graph,canvas,agents,retros,stats" {
 		t.Errorf("more = %s (GitHub needs supports_github)", got)
@@ -125,8 +125,14 @@ func TestSidebarNav(t *testing.T) {
 	}
 
 	sys := srv.sidebarNav("/p/test-project", "systems/UI")
-	if !sys.Main[0].Active || sys.Main[0].Note == "" {
-		t.Errorf("systems entry = %+v, want active with a system count", sys.Main[0])
+	var entry NavItem
+	for _, it := range sys.Main {
+		if it.Key == "systems" {
+			entry = it
+		}
+	}
+	if !entry.Active || entry.Note == "" {
+		t.Errorf("systems entry = %+v, want active with a system count", entry)
 	}
 	var rows []string
 	for _, s := range sys.Systems {

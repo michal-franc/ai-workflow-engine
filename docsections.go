@@ -113,7 +113,7 @@ func (s *Server) docPanel(proj *tracker.Project, issues []*tracker.Issue, prefix
 		}
 		p.Branches++
 		for _, c := range changes {
-			note := shortBranch(b.Name)
+			note := docBranchLabel(b.Name)
 			if b.Ahead > 0 {
 				note += " · " + plural(b.Ahead, "commit", "commits")
 			}
@@ -148,8 +148,8 @@ func (s *Server) docPanel(proj *tracker.Project, issues []*tracker.Issue, prefix
 	return p
 }
 
-// shortBranch drops the work/<system>/ prefix and cuts long slugs.
-func shortBranch(name string) string {
+// docBranchLabel drops the work/<system>/ prefix and cuts long slugs.
+func docBranchLabel(name string) string {
 	short := name
 	if rest, ok := strings.CutPrefix(name, "work/"); ok {
 		if _, slug, ok := strings.Cut(rest, "/"); ok {

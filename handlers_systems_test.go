@@ -365,3 +365,20 @@ func TestDocPanel_BranchEditsSinceMergeBase(t *testing.T) {
 		t.Errorf("branch-only doc: missing %v on %v", m.Missing, m.OnBranches)
 	}
 }
+
+func TestSystemPage_MetricPanels(t *testing.T) {
+	r := setupMetricsRepo(t, metricsTestWorkflow)
+	withMockTmuxSessions(t, nil)
+	ts := newTestServer(t, []tracker.Project{r.proj})
+	defer ts.Close()
+
+	page := pageGet(t, ts.URL+"/p/mp/systems/Sim")
+	assertContains(t, page, `data-testid="panel.guard_metrics"`, `data-testid="panel.guard_metrics.row.stuck"`, `data-testid="panel.knobs"`)
+	// A system that lists no metrics or knobs gets neither panel (no typed nil
+	// slipping through {{with}}).
+	writeSystemIssue(t, filepath.Dir(r.proj.IssueDir), "economy/shop", "Shop", "idea", "Economy", "", "")
+	other := pageGet(t, ts.URL+"/p/mp/systems/Economy")
+	if strings.Contains(other, "panel.guard_metrics") || strings.Contains(other, "panel.knobs") {
+		t.Error("Economy lists no metrics or knobs but shows a panel")
+	}
+}

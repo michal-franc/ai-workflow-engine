@@ -161,18 +161,11 @@ func (st *statusTones) counts(items []*tracker.Issue) (open, done int, side stri
 	return open, done, st.sideCounts(items)
 }
 
-func progressOf(st *statusTones, items []*tracker.Issue) (done, total int) {
-	for _, it := range items {
-		k := statusKey(it.Status)
-		if st.side[k] {
-			continue
-		}
-		total++
-		if k == st.final {
-			done++
-		}
-	}
-	return done, total
+// doneTotal is done/total of items with side statuses left out (the status
+// page's progressOf).
+func doneTotal(st *statusTones, items []*tracker.Issue) (done, total int) {
+	p := progressOf("", st.canvasStatuses, items)
+	return p.Done, p.Total
 }
 
 func pct(done, total int) int {
@@ -267,7 +260,7 @@ func buildSystemsIndex(proj *tracker.Project, issues []*tracker.Issue, prefix st
 			kids := childrenOf(g.Members, fam.Umbrella)
 			chip := FamilyChip{Name: fname, Href: familyHref(prefix, g.Name, fname)}
 			if bySlug[strings.ToLower(fam.Umbrella)] != nil {
-				d, t := progressOf(st, kids)
+				d, t := doneTotal(st, kids)
 				chip.Progress = fmt.Sprintf("%d of %d done", d, t)
 			}
 			card.Families = append(card.Families, chip)
@@ -426,9 +419,9 @@ type SystemPageData struct {
 	Balance     []BalanceItem
 	BalanceHref string
 
-	// Metrics and Knobs feed the metric-views child's partials
-	// (system-guard-metrics, system-knobs). Nil until it lands, so the page
-	// renders nothing for them.
+	// Metrics and Knobs feed the system-guard-metrics / system-knobs partials
+	// (templates/_metrics_panels.html, built by systemMetricsPanels). Nil when
+	// the project has no such source or the system lists none.
 	Metrics any
 	Knobs   any
 }
@@ -503,6 +496,16 @@ func (s *Server) buildSystemPage(proj *tracker.Project, issues []*tracker.Issue,
 		d.Doc = s.docPanel(proj, issues, prefix, d.DesignDoc, d.DesignDocHref, index)
 	}
 
+	// A typed nil in an `any` field would still pass {{with}}, so only
+	// panels with content are set.
+	mp, kp := systemMetricsPanels(proj, issues, prefix, g.Name, familyKey)
+	if mp != nil {
+		d.Metrics = mp
+	}
+	if kp != nil {
+		d.Knobs = kp
+	}
+
 	d.Balance = recentBalance(members, wb, prefix)
 	if wb.HasBalance() {
 		d.BalanceHref = prefix + "/balance?system=" + url.QueryEscape(g.Name)
@@ -524,14 +527,14 @@ func umbrellaView(st *statusTones, prefix, slug string, bySlug map[string]*track
 		local = members
 	}
 	u.Children = len(all)
-	done, total := progressOf(st, local)
+	done, total := doneTotal(st, local)
 	name := "umbrella"
 	if !family && familyKey == "" {
 		name = epicShortName(epic.Title)
 	}
 	u.Label = fmt.Sprintf("%s · %d of %d done", name, done, total)
 	if len(all) > len(local) {
-		wd, wt := progressOf(st, all)
+		wd, wt := doneTotal(st, all)
 		u.Whole = fmt.Sprintf("%d of %d done in %d systems", wd, wt, systemCount(all))
 	}
 	return u
@@ -608,7 +611,7 @@ func systemRows(st *statusTones, prefix string, members []*tracker.Issue, bySlug
 		}
 		row := SystemRow{Issue: r.issue, Href: prefix + "/issue/" + r.issue.Slug, Tone: st.tone(r.issue.Status), Agent: len(sessions[r.issue.Slug]) > 0, Closed: r.group > 0}
 		if kids := childrenOf(issues, r.issue.Slug); len(kids) > 0 {
-			d, t := progressOf(st, kids)
+			d, t := doneTotal(st, kids)
 			row.Epic = fmt.Sprintf("%d/%d", d, t)
 		}
 		rows = append(rows, row)
@@ -645,7 +648,7 @@ func familiesAndEpics(proj *tracker.Project, st *statusTones, prefix string, g *
 			covered[u] = true
 		}
 		familyUmbrellas[strings.ToLower(fam.Umbrella)] = true
-		card.Done, card.Total = progressOf(st, kids)
+		card.Done, card.Total = doneTotal(st, kids)
 		card.Pct = pct(card.Done, card.Total)
 		card.Waiting = len(waitingOnOwner(proj, openIssues(st, kids)))
 		for _, k := range kids {
@@ -673,10 +676,10 @@ func familiesAndEpics(proj *tracker.Project, st *statusTones, prefix string, g *
 		covered[epic] = true
 		local := byParent[p]
 		e := EpicCard{Title: epic.Title, Slug: epic.Slug, Href: prefix + "/issue/" + epic.Slug, State: epic.Status, Tone: st.tone(epic.Status)}
-		e.Done, e.Total = progressOf(st, local)
+		e.Done, e.Total = doneTotal(st, local)
 		e.Pct = pct(e.Done, e.Total)
 		if all := childrenOf(issues, epic.Slug); len(all) > len(local) {
-			wd, wt := progressOf(st, all)
+			wd, wt := doneTotal(st, all)
 			e.Whole = fmt.Sprintf("The epic has %d children in %d systems (%d of %d done); %d of them are %s.", len(all), systemCount(all), wd, wt, len(local), g.Name)
 		}
 		epics = append(epics, e)

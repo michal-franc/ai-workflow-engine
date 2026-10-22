@@ -22,6 +22,9 @@ type BalanceGroupView struct {
 	Notes  []BalanceNoteView
 	Total  int
 	Open   int
+	// Guard is the metric's band and master value from workbench.metrics
+	// (nil when the metric files don't list it).
+	Guard *tracker.GuardMetric
 }
 
 type BalanceNoteView struct {
@@ -121,6 +124,13 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request, proj *tra
 		issues = scoped
 	}
 	board := tracker.BuildBalanceBoard(issues, loadIssueCommentsQuiet, data.CommentPrefix, tracker.ClosedIssueFunc(proj))
+	guards := map[string]*tracker.GuardMetric{}
+	if wb.Metrics != (tracker.WorkbenchMetrics{}) {
+		rep := tracker.LoadMetrics(projectRoot(proj), wb, nil)
+		for i := range rep.Metrics {
+			guards[strings.ToLower(rep.Metrics[i].ID)] = &rep.Metrics[i]
+		}
+	}
 	now := time.Now()
 	data.Total = len(board.Notes)
 	data.Open = board.Counts[tracker.BalanceOpen] + board.Counts[tracker.BalanceNeedsPieces]
@@ -130,7 +140,7 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request, proj *tra
 	}
 
 	for _, g := range board.Groups {
-		view := BalanceGroupView{Metric: g.Metric, Total: len(g.Notes), Open: g.Open}
+		view := BalanceGroupView{Metric: g.Metric, Total: len(g.Notes), Open: g.Open, Guard: guards[strings.ToLower(g.Metric)]}
 		for _, n := range g.Notes {
 			if data.State != "" && n.State != data.State {
 				continue

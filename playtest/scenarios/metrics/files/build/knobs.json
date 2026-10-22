@@ -1,0 +1,39 @@
+{
+  "knobs": [
+    {
+      "name": "OpeningPrep",
+      "value": "20",
+      "comment": "stage 1: the defenders' set-up before the clock starts",
+      "file": "Sim/Tuning.cs",
+      "line": 6
+    },
+    {
+      "name": "PrepTime",
+      "value": "30",
+      "comment": "stages 2-3: the objective stays locked this long",
+      "file": "Sim/Tuning.cs",
+      "line": 7
+    },
+    {
+      "name": "RunSpeed",
+      "value": "5.5",
+      "comment": "metres per second",
+      "file": "Sim/Tuning.cs",
+      "line": 8
+    },
+    {
+      "name": "CallNoise",
+      "value": "0.6",
+      "comment": "AI call scores blurred by this",
+      "file": "Sim/Tuning.cs",
+      "line": 9
+    },
+    {
+      "name": "BanNoise",
+      "value": "0.3",
+      "comment": "ban scores blurred by this",
+      "file": "Sim/Tuning.cs",
+      "line": 10
+    }
+  ]
+}

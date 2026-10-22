@@ -1,0 +1,127 @@
+session: status-page
+issue: ui/workbench-project-status-page-replaces-waiting-on-you
+title: Status page - progress, work in flight, next steps, waiting on you, shipped
+scenario: status
+
+session_checks:
+  viewports: [1440x900, 1280x800]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: Status is the first sidebar entry, with the waiting count, on every view
+    setup:
+      - open: /p/{project}/
+    act:
+      - check: { visible: nav.tab.status }
+      - check: { text_equals: { target: nav.tab.status.count, text: "3" } }
+      - open: /p/{project}/board
+      - check: { text_equals: { target: nav.tab.status.count, text: "3" } }
+      - click: nav.tab.status
+      - wait_for: { url: { contains: /status } }
+    checks:
+      - selected: nav.tab.status
+      - visible: [status.page, status.where, status.working, status.next, status.waiting, status.shipped]
+
+  - id: TP5
+    title: Where we are shows overall and epic progress, and the no-version hint
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - text_contains: { target: status.all_progress, text: 1/9 done }
+      - visible: status.no_versions
+      - text_contains: { target: status.epic.ui/atlas-redesign, text: Atlas redesign }
+      - text_contains: { target: status.epic.ui/atlas-redesign, text: 0/3 }
+      - count: { pattern: status.epic.*, equals: 1 }
+
+  - id: TP6
+    title: Working on lists the issues in flight with status, agent and time in status
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - count: { pattern: status.working.row.*, equals: 4 }
+      - text_contains: { target: status.working.row.cli/export-routes-as-gpx, text: shipping }
+      - text_contains: { target: status.working.row.ui/search-as-you-type, text: human-testing }
+      - text_contains: { target: status.working.row.ui/saved-places-sync, text: in progress }
+      - absent: status.working.row.cli/faster-tile-cache
+      - text_contains: { target: status.lead, text: lead-atlas }
+      - text_contains: { target: status.lead, text: not running }
+    do: Look at the In status column.
+    expect: |
+      The "Export routes as GPX" row's time in status is in red (it has sat
+      in shipping since January); the other rows' times are plain or marked
+      with ≈ (no recorded transition).
+    why: the colour is the stale signal; ux-test can't judge whether it reads as a warning.
+
+  - id: TP7
+    title: What's next shows the lead's list, the backlog by priority and the parked issue
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - text_contains: { target: status.next.source, text: sessions/2026-10-21-lead-atlas.md }
+      - text_contains: { target: status.next, text: Owner approves ui/route-planner-panel; then build it. }
+      - text_contains: { target: status.next, text: Ship cli/export-routes-as-gpx with v1.5.0. }
+      - text_contains: { target: status.backlog, text: "Faster tile cache high Rename config keys low" }
+      - text_contains: { target: status.parked, text: Voice directions }
+      - text_contains: { target: status.parked, text: Blocked on the speech licence. }
+      - http: { path: "/p/{project}/status", contains: "<a href=\"/p/atlas/issue/ui/route-planner-panel\"><code>ui/route-planner-panel</code></a>" }
+
+  - id: TP8
+    title: Waiting on you holds the ready gate, the playtest and the question, not the open gate
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - text_equals: { target: status.waiting.count, text: "3" }
+      - text_contains: { target: status.waiting.gate.ui/route-planner-panel, text: in design → backlog }
+      - absent: status.waiting.gate.ui/offline-map-tiles
+      - text_contains: { target: status.waiting.playtest.ui/search-as-you-type, text: tested-flow }
+      - text_contains: { target: status.waiting.question.ui/saved-places-sync, text: Saved places sync }
+      - text_contains: { target: status.waiting.not_ready, text: 1 more issue is at a gate }
+
+  - id: TP9
+    title: Recently shipped shows 3 releases; an issue taken to done appears under the last 7 days
+    setup:
+      - open: /p/{project}/status
+    act:
+      - check: { visible: [status.release.v1_4_0, status.release.v1_3_0, status.release.v1_2_0] }
+      - check: { absent: status.release.v1_1_0 }
+      - check: { text_contains: { target: status.release.v1_4_0, text: Route planner shows travel time per leg. } }
+      - check: { text_contains: { target: status.done_recent, text: "DONE IN THE LAST 7 DAYS · 0" } }
+      - cli: [transition, cli/export-routes-as-gpx, --to, done]
+      - reload: true
+      - wait_for: { visible: status.done_recent }
+    checks:
+      - text_contains: { target: status.done_recent, text: Export routes as GPX }
+      - absent: status.working.row.cli/export-routes-as-gpx
+      - text_contains: { target: status.all_progress, text: 2/9 done }
+
+  - id: TP10
+    title: status.md is the same summary as text; Copy as markdown copies it
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - http: { path: "/p/{project}/status.md", contains: "## Waiting on you (3)" }
+      - http: { path: "/p/{project}/status.md", contains: "- Approve ui/route-planner-panel: in design → backlog" }
+      - http: { path: "/p/{project}/status.md", contains: "1. Owner approves `ui/route-planner-panel`; then build it." }
+      - http: { path: "/p/{project}/status.md", contains: "- v1.4.0 (2026-10-20): Route planner shows travel time per leg." }
+      - http: { path: "/p/{project}/status.md", contains: "Parked:\n- cli/voice-directions: Blocked on the speech licence." }
+    do: Click "Copy as markdown", then paste into any text editor.
+    expect: |
+      The button reads "✓ Copied" for about two seconds. The pasted text
+      starts with "# Atlas status," and has the sections Where we are,
+      Recently shipped, Working on, Next and Waiting on you (3).
+    why: the clipboard needs a real user gesture and permission; headless Chrome can't read it back.
+
+  - id: TP11
+    title: The page reads like the mockup and answers "where are we" at a glance
+    setup:
+      - open: /p/{project}/status
+    do: Read the page top to bottom, then switch to the Dracula and light themes.
+    expect: |
+      It looks like the approved mockup: Where we are, Working on and
+      What's next on the left; Waiting on you (amber border) and Recently
+      shipped on the right. Without opening another view you can say what
+      is in flight, what is next and what needs you. Every theme keeps the
+      bars, chips and amber/red ages readable.
+    why: whether the page answers the question is the owner's call.

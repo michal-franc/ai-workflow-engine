@@ -1,0 +1,139 @@
+session: metrics-views
+issue: ui/workbench-read-only-metric-tuning-and-dependency-views
+title: Metrics view - guard metrics, knobs, branch overlap and dependency fields
+scenario: metrics
+
+# Desktop only; the sidebar stacks above the content on a phone and this view
+# adds nothing phone-specific. The scenario builds a git repo with two
+# worktrees (sim/keep-redesign has its own run, sim/bugfix-sweep has no
+# issue) and a branch without one (economy/shop-prices, a committed run).
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: The Metrics entry shows the off count; Guard metrics lists every metric with band, master value and verdict, and the filters narrow it
+    setup:
+      - open: /p/{project}/
+    act:
+      - check: { text_contains: { target: nav.tab.metrics, text: 4 off } }
+      - click: nav.tab.metrics
+      - wait_for: { url: { contains: /metrics } }
+      - check: { selected: nav.tab.metrics }
+      - check: { count: { pattern: metrics.row.*, equals: 10 } }
+      - check: { text_contains: { target: metrics.counts, text: "3 OK 1 NEAR 4 OFF" } }
+      - check: { text_contains: { target: metrics.row.full-holds, text: Full holds, first halves } }
+      - check: { text_contains: { target: metrics.row.full-holds, text: ≤ 20% } }
+      - check: { text_contains: { target: metrics.row.stuck.verdict, text: off } }
+      - check: { text_contains: { target: metrics.row.open-ladder.verdict, text: near } }
+      - check: { text_contains: { target: metrics.row.gold-later.verdict, text: not measured } }
+      - check: { text_contains: { target: metrics.problems, text: "1 of 9 metrics have no band" } }
+      - click: metrics.filter.offonly
+      - wait_for: { url: { contains: only=off } }
+    checks:
+      - count: { pattern: metrics.row.*, equals: 6 }
+      - visible: metrics.row.stuck
+      - visible: metrics.row.keep-holds
+      - visible: metrics.row.open-ladder
+
+  - id: TP5
+    title: Branch values come from the worktree's own run or the committed run, with branch bands, branch-only and not-measured markers
+    setup:
+      - open: /p/{project}/metrics
+    checks:
+      - text_contains: { target: metrics.row.stuck.branch, text: "2 ✗" }
+      - text_contains: { target: metrics.row.stuck.branch, text: sim/keep-redesign }
+      - text_contains: { target: metrics.row.open-ladder.branch, text: "band ≥ 10% on branch" }
+      - text_contains: { target: metrics.row.keep-holds, text: branch only }
+      - text_contains: { target: metrics.row.richest-share.branch, text: not measured on }
+      - text_contains: { target: metrics.row.tier2-wait.branch, text: "95 s" }
+      - text_contains: { target: metrics.row.tier2-wait.branch, text: committed }
+      - text_contains: { target: metrics.row.full-holds.branch, text: "—" }
+      - text_contains: { target: metrics.run.branches, text: "2 of 3 open branches have a run" }
+
+  - id: TP6
+    title: Knobs show value, comment and last change; a row opens to its history and the branches that edit it
+    setup:
+      - open: /p/{project}/metrics?tab=knobs
+    act:
+      - check: { count: { pattern: knobs.row.*, equals: 5 } }
+      - check: { text_contains: { target: knobs.row.openingprep, text: "30 → 20" } }
+      - check: { text_contains: { target: knobs.row.openingprep, text: Play calls balance pass 2 } }
+      - check: { text_contains: { target: knobs.row.callnoise, text: also edited on 2 branches } }
+      - click: knobs.row.callnoise
+    checks:
+      - visible: knobs.row.callnoise.history
+      - text_contains: { target: knobs.row.callnoise.history, text: "0.4 → 0.6" }
+      - text_contains: { target: knobs.row.callnoise.edits, text: "0.6 → 0.5" }
+      - text_contains: { target: knobs.row.callnoise.edits, text: "0.6 → 0.55" }
+      - text_contains: { target: knobs.row.callnoise.edits, text: sim/keep-redesign }
+
+  - id: TP7
+    title: Branches lists open branches with issue, base, depends on and decided by, and the hot files with per-branch changes
+    setup:
+      - open: /p/{project}/metrics?tab=branches
+    act:
+      - check: { visible: [branches.row.work/sim/keep-redesign, branches.row.work/sim/bugfix-sweep, branches.row.work/economy/shop-prices] }
+      - check: { text_contains: { target: branches.row.work/sim/bugfix-sweep, text: no issue } }
+      - check: { text_contains: { target: branches.row.work/sim/keep-redesign, text: economy/shop-prices } }
+      - check: { text_contains: { target: branches.row.work/sim/keep-redesign, text: replaced by D-2 } }
+      - check: { text_contains: { target: branches.row.work/sim/keep-redesign, text: Cites a replaced decision } }
+      - check: { text_contains: { target: branches.hot.targets_json, text: hot · 3 } }
+      - click: branches.filter.hot2
+      - wait_for: { url: { contains: hot=2 } }
+    checks:
+      - visible: branches.hot.sim/tuning_cs
+      - visible: branches.hot.data/cases_json
+      - text_contains: { target: branches.hot.sim/tuning_cs, text: "+1" }
+
+  - id: TP8
+    title: The detail page shows depends on, depended on by, decided by and shared files; show prints the same links
+    setup:
+      - open: /p/{project}/issue/sim/keep-redesign
+    act:
+      - check: { text_contains: { target: detail.field.depends_on, text: economy/shop-prices } }
+      - check: { text_contains: { target: detail.field.decided_by, text: replaced by D-2 } }
+      - check: { text_contains: { target: detail.field.shared_files, text: "2 hot files with 2 other branches" } }
+      - open: /p/{project}/issue/economy/shop-prices
+    checks:
+      - text_contains: { target: detail.field.depended_on_by, text: sim/keep-redesign }
+      - cli: { args: [show, sim/keep-redesign], contains: "Depends on: economy/shop-prices (in progress)" }
+      - cli: { args: [show, sim/keep-redesign], contains: "Decided by: economy/shop-prices#D-1 (replaced by D-2)" }
+      - cli: { args: [show, sim/keep-redesign], contains: "Guard metrics for Sim: 2 off (stuck, spawn-kills), 1 near" }
+      - cli: { args: [show, sim/keep-redesign], contains: "== Shared files (2, with 2 other branches) ==" }
+
+  - id: TP9
+    title: depends_on is set with set-meta, unknown slugs are refused, and the new link shows on both pages
+    setup:
+      - open: /p/{project}/issue/economy/bank-gold
+    act:
+      - cli: [set-meta, economy/bank-gold, --key, depends_on, --value, "economy/shop-prices"]
+      - reload: {}
+    checks:
+      - text_contains: { target: detail.field.depends_on, text: economy/shop-prices }
+      - cli: { args: [set-meta, economy/bank-gold, --key, depends_on, --value, economy/shop], exit: 1, contains: "Did you mean" }
+      - issue: { slug: economy/bank-gold, field: depends_on, equals: economy/shop-prices }
+
+  - id: TP10
+    title: The three tabs read well and the verdict colours keep their meaning in every theme
+    setup:
+      - open: /p/{project}/metrics
+    targets:
+      - { id: metrics.table, note: Guard metrics with master and branch values }
+      - { id: metrics.tab.knobs, note: Knobs with their history }
+      - { id: metrics.tab.branches, note: Open branches and hot files }
+    do: |
+      1. Read the Guard metrics table: find the metrics that are off, and the
+         ones a branch changes.
+      2. Open Knobs, then open CallNoise.
+      3. Open Branches: find the file most likely to conflict on merge.
+      4. Switch the theme (Dark, Dracula, Light) in the sidebar.
+    expect: |
+      Off metrics stand out at a glance, and you can tell a branch value from
+      the master value. A knob's last change and its branch edits read
+      clearly. The Branches tab tells you which branches touch the same
+      files. Green ok, amber near and red off keep their meaning in every
+      theme, and all text stays readable.
+    why: ux-test checks rows, values, filters and links; only you can say whether the view reads well.

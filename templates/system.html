@@ -90,9 +90,8 @@
                 </section>
                 {{end}}
 
-                {{/* Slot for the metric-views child: once templates/_metrics_panels.html
-                     exists, render {{with .Metrics}}{{template "system-guard-metrics" .}}{{end}}
-                     and {{with .Knobs}}{{template "system-knobs" .}}{{end}} here. */}}
+                {{with .Metrics}}{{template "system-guard-metrics" .}}{{end}}
+                {{with .Knobs}}{{template "system-knobs" .}}{{end}}
 
                 {{with .Doc}}
                 <section class="card sys-panel" data-testid="system.doc" aria-labelledby="sys-doc-h">

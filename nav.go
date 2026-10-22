@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -20,17 +22,20 @@ type navView struct {
 	Show func(s *Server, proj *tracker.Project) bool
 }
 
-// navViews in display order. Status (D-2) joins the main group when its page
-// exists; until then it is not listed (D-7). Systems shows whenever an issue
-// has a system or workbench.systems is set (ui/workbench-sidebar-and-system-pages#D-2,
-// replacing the visibility clause of this issue's D-2); sidebarNav decides,
-// since it has the issues.
+// navViews in display order. Systems shows whenever an issue has a system or
+// workbench.systems is set (ui/workbench-sidebar-and-system-pages#D-2, replacing
+// the visibility clause of this issue's D-2); sidebarNav decides, since it has
+// the issues.
 var navViews = []navView{
+	{Key: "status", Label: "Status", Path: "/status"},
 	{Key: "systems", Label: "Systems", Path: "/systems"},
 	{Key: "board", Label: "Board", Path: "/board"},
 	{Key: "list", Label: "List", Path: "/"},
 	{Key: "balance", Label: "Balance", Path: "/balance", Show: func(s *Server, p *tracker.Project) bool {
 		return p.LoadWorkflow().Workbench.HasBalance()
+	}},
+	{Key: "metrics", Label: "Metrics", Path: "/metrics", Show: func(s *Server, p *tracker.Project) bool {
+		return hasMetricsOrTuning(p) || isGitCheckout(projectRoot(p))
 	}},
 	{Key: "decisions", Label: "Decisions", Path: "/decisions"},
 	{Key: "docs", Label: "Docs", Path: "/docs"},
@@ -52,6 +57,9 @@ type NavItem struct {
 	Active bool
 	Note   string // muted text on the right: a count, "1 running"
 	Live   bool   // Note is a running-agents count (green)
+	Alert  bool   // Note is a problem count (red), e.g. "3 off"
+	// Attention marks Note as things waiting on the owner (amber chip).
+	Attention bool
 }
 
 // NavCount is a name with an open-issue count (the systems panel on the
@@ -60,8 +68,18 @@ type NavCount struct {
 	Name   string
 	Count  int
 	Href   string
-	Family bool // a family, listed indented under its system
+	Detail string // shown under the name in mono (a path) instead of a count
+	Family bool   // a family, listed indented under its system
 	Active bool
+}
+
+// NavPanel is a page's own screen panel in the sidebar: a label, rows, an
+// optional legend and a note. Pages attach it with withPanel.
+type NavPanel struct {
+	Label  string
+	Rows   []NavCount
+	Legend bool // the Branches tab's overlap legend
+	Note   string
 }
 
 // Nav is everything the sidebar partial renders for one page.
@@ -77,6 +95,7 @@ type Nav struct {
 	CreateInPage   bool // the page has the create modal; elsewhere New issue links to the list
 	ProjectActions []tracker.CustomAction
 	Systems        []NavCount // the screen panel on the Board and the systems pages
+	Panel          *NavPanel  // another page's screen panel
 }
 
 // sidebarNav builds the sidebar for the project behind prefix, with active
@@ -92,6 +111,7 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 
 	open := 0
 	bySystem := map[string]int{}
+	var openIssues []*tracker.Issue
 	systemNames := map[string]bool{}
 	for _, issue := range issues {
 		if name := strings.TrimSpace(issue.System); name != "" {
@@ -102,7 +122,9 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 		}
 		open++
 		bySystem[issue.System]++
+		openIssues = append(openIssues, issue)
 	}
+
 	for name := range proj.LoadWorkflow().Workbench.Systems {
 		systemNames[strings.ToLower(name)] = true
 	}
@@ -129,14 +151,25 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 		}
 		item := NavItem{Key: v.Key, Label: v.Label, Href: prefix + v.Path, Active: v.Key == active}
 		switch v.Key {
-		case "list":
-			item.Note = fmt.Sprint(open)
+		case "status":
+			if n := len(waitingOnOwner(proj, openIssues)); n > 0 {
+				item.Note, item.Attention = fmt.Sprint(n), true
+			}
 		case "systems":
 			item.Active = active == "systems" || strings.HasPrefix(active, "systems/")
 			item.Note = fmt.Sprint(len(systemNames))
+		case "list":
+			item.Note = fmt.Sprint(open)
 		case "agents":
 			if activeBots > 0 {
 				item.Note, item.Live = fmt.Sprintf("%d running", activeBots), true
+			}
+		case "metrics":
+			if !hasMetricsOrTuning(proj) {
+				item.Label = "Branches"
+			}
+			if note := metricsNavNote(proj); note != "" {
+				item.Note, item.Alert = note, true
 			}
 		}
 		if v.More {
@@ -176,6 +209,18 @@ func systemCounts(bySystem map[string]int, href func(name string) string) []NavC
 		out = append(out, NavCount{Name: "No system", Count: n})
 	}
 	return out
+}
+
+func hasMetricsOrTuning(p *tracker.Project) bool {
+	wb := p.LoadWorkflow().Workbench
+	return wb.Metrics != (tracker.WorkbenchMetrics{}) || len(wb.Tuning) > 0
+}
+
+// isGitCheckout reports whether root has a .git directory or file (a
+// worktree), without running git.
+func isGitCheckout(root string) bool {
+	_, err := os.Stat(filepath.Join(root, ".git"))
+	return err == nil
 }
 
 // systemsPanel is the screen panel on the systems pages: every system with

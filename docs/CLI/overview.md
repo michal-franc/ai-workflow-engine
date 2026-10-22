@@ -45,7 +45,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli checklist <slug>`     | List checkboxes grouped by section, each with its id (`D3`, `AC2`) |
 | `issue-cli append <slug>`        | Append content to issue body             |
 | `issue-cli replace <slug>`       | Replace content of an existing section   |
-| `issue-cli set-meta <slug>`      | Set or clear a frontmatter field (refuses `type` in projects with types — use `set-type`) |
+| `issue-cli set-meta <slug>`      | Set or clear a frontmatter field (refuses `type` in projects with types — use `set-type`; checks every slug in `depends_on`) |
 | `issue-cli set-type <slug> <t>`  | Change an issue's type of work; agents only while it is at its type's first status. See [Types of Work](../Workflow/types.md) |
 | `issue-cli process workflow`     | Print the active workflow, the `== Types ==` block and `workflow.yaml` lint warnings; `--type <t>` prints one type's lifecycle |
 | `issue-cli process transitions`  | Print transition rules (default workflow, or scoped via `--system <name>`, `--type <t>` or `<issue-slug>`) |
@@ -290,6 +290,13 @@ The CLI works out who is asking from `ISSUE_VIEWER_LEAD_SCOPE`, `ISSUE_VIEWER_IS
 - `lead spawn` from a worker or a sub-lead (the depth is fixed at project lead → sub-lead → worker);
 - `lead spawn --epic` on an issue that is not an epic (no child names it as `parent:`/`umbrella:`, and it has no `type: epic`, `lead:` or `base:`);
 - `lead message` from a worker, which posts a `question:` comment instead.
+
+`show` also prints, under the header:
+- `Depends on:` / `Depended on by:` lines from `depends_on`, each slug with its status;
+- `Decided by:`, the decisions the body cites, with their state;
+- `Guard metrics for <system>: N off (ids), N near. See <viewer>/metrics?system=<system>`, when `workbench.metrics` lists metrics for the issue's system.
+
+When the issue's `work/<slug>` branch is open, `show` also prints `== Shared files ==`: up to 10 files that other open branches change too, with those branches. See [Workbench Files](../workbench-files.md).
 
 `show` and `start` print a `Lead:` line naming the issue's lead and whether it is live. On an issue linked with the legacy `umbrella:` key they also print the `set-meta … --key parent` rename hint.
 

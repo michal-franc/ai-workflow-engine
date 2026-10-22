@@ -15,7 +15,7 @@
     <header class="page-head page-head-wide workboard-head">
         <div>
             <h1 class="page-title">Board</h1>
-            <p class="page-sub">What waits on you, what is blocked, how long each card has sat, and which agent is on it.</p>
+            <p class="page-sub">What waits on you, what is blocked, how long each card has sat, and which agent is on it.{{if not .ShowAll}} Quiet cards are hidden{{if .QuietCount}} ({{.QuietCount}}){{end}}.{{end}}</p>
         </div>
         <div class="workboard-controls">
             <span class="label">Group by</span>
@@ -36,6 +36,7 @@
             {{end}}
             {{if .System}}<a href="{{.Prefix}}/workboard{{if ne .Group "status"}}?group={{.Group}}{{end}}" class="chip workboard-toggle active" data-testid="workboard.filter.system" title="Clear the system filter">{{.System}} ×</a>{{end}}
             <a href="{{.WaitingHref}}" class="chip chip-amber workboard-toggle{{if .WaitingOnly}} active{{end}}" data-testid="workboard.filter.waiting"{{if .WaitingOnly}} aria-current="true"{{end}}>Waiting on you · {{.WaitingCount}}</a>
+            <a href="{{.AllHref}}" class="chip workboard-toggle{{if .ShowAll}} active{{end}}" data-testid="workboard.filter.all"{{if .ShowAll}} aria-current="true"{{end}} title="{{if .ShowAll}}Back to the cards that need attention{{else}}Also show quiet cards: no marker and no agent{{end}}">{{if .ShowAll}}Showing all{{else}}Show all · {{.QuietCount}} quiet{{end}}</a>
             <input type="search" class="workboard-search" data-testid="workboard.search" aria-label="Filter cards" placeholder="Filter cards…" oninput="filterWorkboard(this.value)">
         </div>
     </header>
@@ -52,11 +53,21 @@
                     {{if .Progress}}<span class="workboard-column-note">{{.Note}}</span>{{template "epic-progress" .Progress}}{{end}}
                 </div>
                 {{if .Folded}}
-                {{if .Count}}<a href="{{.FoldHref}}" class="workboard-fold" data-testid="workboard.column.{{.Key}}.more">{{.Count}} in the list view</a>{{end}}
+                <a href="{{.FoldHref}}" class="card workboard-fold" data-testid="workboard.column.{{.Key}}.more" title="Open the list filtered on {{.Name}}">
+                    <span class="workboard-fold-count">{{.Count}}</span>
+                    <span class="workboard-fold-label">in the list →</span>
+                    {{if .FoldWaiting}}<span class="chip marker marker-amber">{{.FoldWaiting}} waiting on you</span>{{end}}
+                </a>
                 {{else}}
                 {{$group := $.Group}}
-                {{range $i, $c := .Cards}}
-                <article class="card workboard-card{{if ge $i $.Cap}} workboard-extra{{end}}" data-testid="workboard.card.{{tid $c.Slug}}" data-search="{{$c.Search}}"{{if ge $i $.Cap}} hidden{{end}}>
+                {{range $c := .Shown}}
+                {{if $c.Quiet}}
+                <article class="workboard-card workboard-card-compact" data-testid="workboard.card.{{tid $c.Slug}}" data-search="{{$c.Search}}">
+                    <a href="{{$.Prefix}}/issue/{{$c.Slug}}?from=workboard" class="workboard-card-title">{{$c.Title}}</a>
+                    <span class="card-age{{if $c.AgeOld}} old{{end}}" data-testid="workboard.card.{{tid $c.Slug}}.age" title="{{$c.AgeTitle}}">{{$c.Age}}</span>
+                </article>
+                {{else}}
+                <article class="card workboard-card" data-testid="workboard.card.{{tid $c.Slug}}" data-search="{{$c.Search}}">
                     <div class="workboard-card-head">
                         <div class="workboard-card-chips">
                             {{if ne $group "status"}}<span class="chip workboard-status"><span class="workboard-status-dot" style="background: {{$c.StatusColor}}"></span>{{$c.Status}}</span>{{end}}
@@ -71,26 +82,22 @@
                     {{if $c.Agent}}<div class="workboard-card-foot" data-testid="workboard.card.{{tid $c.Slug}}.agent">{{template "agent-footer" $c.Agent}}</div>{{end}}
                 </article>
                 {{end}}
-                {{if .Hidden}}<button type="button" class="workboard-more" data-testid="workboard.column.{{.Key}}.more" onclick="showAllCards(this)">{{.Hidden}} more</button>{{end}}
+                {{end}}
+                {{if .Quiet}}<a href="{{.AllHref}}" class="workboard-quiet" data-testid="workboard.column.{{.Key}}.quiet" title="Cards here with no marker and no agent">+{{.Quiet}} quiet</a>{{end}}
+                {{if .Hidden}}<a href="{{.MoreHref}}" class="workboard-more" data-testid="workboard.column.{{.Key}}.more">{{.Hidden}} more in the {{if eq $group "epic"}}epic{{else}}list{{end}} →</a>{{end}}
                 {{end}}
             </section>
             {{end}}
         </div>
-        {{if not .Total}}<p class="workboard-empty" data-testid="workboard.empty">{{if .WaitingOnly}}Nothing is waiting on you.{{else}}No issues match.{{end}}</p>{{end}}
+        {{if not .Total}}<p class="workboard-empty" data-testid="workboard.empty">{{if .WaitingOnly}}Nothing is waiting on you.{{else if .QuietCount}}Nothing needs attention. Show all lists the {{.QuietCount}} quiet cards.{{else}}No issues match.{{end}}</p>{{end}}
     </div>
 
     <script>
-    // "N more" reveals the rest of its column in place.
-    function showAllCards(btn) {
-        btn.closest('.workboard-column').querySelectorAll('.workboard-extra').forEach(function(c) { c.hidden = false; c.classList.remove('workboard-extra'); });
-        btn.remove();
-    }
-    // Search filters cards in place (all of them, past the column cap too).
+    // Search filters the cards on the board in place.
     function filterWorkboard(text) {
         var q = text.trim().toLowerCase();
         document.querySelectorAll('.workboard-card').forEach(function(c) {
-            if (!q) { c.hidden = c.classList.contains('workboard-extra'); return; }
-            c.hidden = c.getAttribute('data-search').indexOf(q) < 0;
+            c.hidden = q !== '' && c.getAttribute('data-search').indexOf(q) < 0;
         });
     }
     // Read-only generated view: reload when any issue file or agent session

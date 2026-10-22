@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -15,8 +16,13 @@ import (
 // read-only cards that carry coordination state (markers, epic progress, the
 // agent on the card). The classic /board keeps drag-and-drop until the retire
 // child removes it.
+//
+// It stays readable with hundreds of issues (D-10): the idle piles (the first
+// status, parked, done) fold to count tiles, it opens on the cards that need
+// attention, quiet cards shrink to one line under Show all, and a column past
+// workboardColumnCap links to the list instead of growing.
 
-// workboardColumnCap is how many cards a column shows before "N more".
+// workboardColumnCap is how many cards a column shows before linking the rest.
 const workboardColumnCap = 12
 
 // staleAfter turns a card's time-in-status amber, outside the first status,
@@ -38,9 +44,14 @@ type WorkCard struct {
 	Markers     []Marker
 	Agent       *CardAgent
 	Search      string // lower-case title, slug and system for the search box
-	waiting     bool
-	blocked     bool
-	since       time.Time
+	// Quiet: no marker, no agent, not an epic, and not old in an active
+	// status. Quiet cards are hidden until Show all, then drawn as one line.
+	Quiet   bool
+	idle    bool   // in an idle pile: the first status, parked or done
+	parent  string // the open epic the card belongs to, if any
+	waiting bool
+	blocked bool
+	since   time.Time
 }
 
 // CardAgent is the card footer: the agent on the issue and what it is doing.
@@ -60,13 +71,30 @@ type WorkColumn struct {
 	Note  string // epic columns: "shipping · 2 of 10 done"
 	Count int
 	Cards []*WorkCard
-	// Folded columns (Done) show only the count, linking FoldHref.
-	Folded   bool
-	FoldHref string
-	Progress *EpicProgress
+	// Folded columns (the idle piles) show only a count tile linking FoldHref,
+	// with how many of them wait on the owner.
+	Folded      bool
+	FoldHref    string
+	FoldWaiting int
+	Progress    *EpicProgress
+	// MoreHref lists the whole column (the list view, or the epic's page)
+	// once it has more than workboardColumnCap cards.
+	MoreHref string
+	// Quiet is how many of the column's cards Needs attention hides; the
+	// column links them with AllHref.
+	Quiet   int
+	AllHref string
 }
 
-// Hidden is how many cards sit behind the column's "N more".
+// Shown is the cards drawn on the board: the first workboardColumnCap.
+func (c *WorkColumn) Shown() []*WorkCard {
+	if len(c.Cards) <= workboardColumnCap {
+		return c.Cards
+	}
+	return c.Cards[:workboardColumnCap]
+}
+
+// Hidden is how many cards the column's "N more" link leads to.
 func (c *WorkColumn) Hidden() int {
 	if len(c.Cards) <= workboardColumnCap {
 		return 0
@@ -86,21 +114,29 @@ type WorkboardData struct {
 	System       string
 	WaitingOnly  bool
 	WaitingCount int
-	Total        int
-	Cap          int
+	// ShowAll also draws the quiet cards; QuietCount is how many are hidden
+	// without it.
+	ShowAll    bool
+	QuietCount int
+	Total      int
 }
 
 // GroupHref is the page URL with group set and the other filters kept.
 func (d WorkboardData) GroupHref(group string) string {
-	return d.href(group, d.WaitingOnly)
+	return d.href(group, d.WaitingOnly, d.ShowAll)
 }
 
 // WaitingHref toggles the waiting-on-you filter.
 func (d WorkboardData) WaitingHref() string {
-	return d.href(d.Group, !d.WaitingOnly)
+	return d.href(d.Group, !d.WaitingOnly, d.ShowAll)
 }
 
-func (d WorkboardData) href(group string, waiting bool) string {
+// AllHref toggles Show all (quiet cards too) and Needs attention.
+func (d WorkboardData) AllHref() string {
+	return d.href(d.Group, d.WaitingOnly, !d.ShowAll)
+}
+
+func (d WorkboardData) href(group string, waiting, all bool) string {
 	var q []string
 	if group != "" && group != "status" {
 		q = append(q, "group="+group)
@@ -113,6 +149,9 @@ func (d WorkboardData) href(group string, waiting bool) string {
 	}
 	if waiting {
 		q = append(q, "waiting=1")
+	}
+	if all {
+		q = append(q, "all=1")
 	}
 	h := d.Prefix + "/workboard"
 	if len(q) > 0 {
@@ -135,7 +174,7 @@ func (s *Server) handleWorkboard(w http.ResponseWriter, r *http.Request, proj *t
 		Version:     q.Get("version"),
 		System:      q.Get("system"),
 		WaitingOnly: q.Get("waiting") == "1",
-		Cap:         workboardColumnCap,
+		ShowAll:     q.Get("all") == "1",
 	}
 	if data.Group != "system" && data.Group != "epic" {
 		data.Group = "status"
@@ -176,15 +215,38 @@ func (s *Server) handleWorkboard(w http.ResponseWriter, r *http.Request, proj *t
 		}
 		cards = append(cards, card)
 	}
-	data.Total = len(cards)
+
+	// The idle piles fold to tiles in the status view (they are counted
+	// there, quiet or not); elsewhere only their waiting cards show.
+	var shown []*WorkCard
+	quietBy := map[string]int{}
+	for _, c := range cards {
+		switch {
+		case c.idle:
+			if data.Group == "status" || !c.waiting {
+				continue
+			}
+		case c.Quiet && !data.ShowAll:
+			data.QuietCount++
+			quietBy[columnKey(data.Group, c)]++
+			continue
+		}
+		shown = append(shown, c)
+	}
+	data.Total = len(shown)
 
 	switch data.Group {
 	case "system":
-		data.Columns = columnsBySystem(cards)
+		data.Columns = columnsBySystem(prefix, shown)
 	case "epic":
-		data.Columns = columnsByEpic(prefix, cards, issues)
+		data.Columns = columnsByEpic(prefix, shown, issues)
 	default:
-		data.Columns = columnsByStatus(prefix, wf, cards)
+		data.Columns = columnsByStatus(prefix, wf, shown, cards, data.System)
+	}
+	for _, col := range data.Columns {
+		if col.Quiet = quietBy[col.Key]; col.Quiet > 0 {
+			col.AllHref = data.AllHref()
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -205,6 +267,9 @@ func buildWorkCard(proj *tracker.Project, prefix string, issue *tracker.Issue, i
 		Progress:    epicProgress(prefix, issue, issues),
 		Search:      strings.ToLower(issue.Title + " " + issue.Slug + " " + issue.System),
 	}
+	if p := tracker.FindIssue(issues, tracker.ParentSlug(issue)); p != nil && p.Status != "done" {
+		card.parent = p.Slug
+	}
 	att := mctx.attention[issue.Slug]
 	since, approx := att.Since, att.SinceApprox
 	if since.IsZero() {
@@ -216,7 +281,8 @@ func buildWorkCard(proj *tracker.Project, prefix string, issue *tracker.Issue, i
 	if approx {
 		card.AgeTitle = "Last file change " + since.Format("2006-01-02 15:04") + " (no recorded transition)"
 	}
-	card.AgeOld = now.Sub(since) >= staleAfter && ageCounts(wf, issue.Status)
+	card.idle = idleStatus(wf, issue.Status)
+	card.AgeOld = now.Sub(since) >= staleAfter && !card.idle
 	if issue.Status != "done" {
 		card.Markers = cardMarkers(mctx, issue)
 	}
@@ -225,23 +291,61 @@ func buildWorkCard(proj *tracker.Project, prefix string, issue *tracker.Issue, i
 		card.blocked = card.blocked || m.Tone == "red"
 	}
 	card.Agent = agents.footer(wf, issue, att)
+	// An old card needs attention only where work should be moving (in
+	// progress up to done); an old design or backlog item is just waiting.
+	stuck := card.AgeOld && activeStatus(wf, issue.Status)
+	card.Quiet = len(card.Markers) == 0 && card.Agent == nil && !stuck && !card.Epic
 	return card
 }
 
-// ageCounts reports whether time in status can go amber: not in the first
-// status (the idea pile), done, or a global side status such as parked.
-func ageCounts(wf *tracker.WorkflowConfig, status string) bool {
+// columnKey is the column a card lands in under group (its WorkColumn.Key).
+// An epic child's column is its parent; other cards go to "none".
+func columnKey(group string, c *WorkCard) string {
+	switch group {
+	case "system":
+		if c.System == "" {
+			return "none"
+		}
+		return testids.Segment(c.System)
+	case "epic":
+		if c.parent != "" {
+			return testids.Segment(c.parent)
+		}
+		return "none"
+	}
+	return testids.Segment(c.Status)
+}
+
+// idleStatus reports an idle pile: the first status (the idea pile), done, or
+// a global side status such as parked. Idle cards never turn amber with age,
+// and the status view folds them to a count tile.
+func idleStatus(wf *tracker.WorkflowConfig, status string) bool {
 	order := wf.GetStatusOrder()
 	if len(order) > 0 && strings.EqualFold(order[0], status) {
-		return false
+		return true
 	}
 	if strings.EqualFold(status, "done") {
-		return false
+		return true
 	}
 	if st := wf.GetStatus(status); st != nil && st.Global {
-		return false
+		return true
 	}
-	return true
+	return false
+}
+
+// listHref is the list view filtered on status and system.
+func listHref(prefix, status, system string) string {
+	var q []string
+	if status != "" {
+		q = append(q, "status="+url.QueryEscape(status))
+	}
+	if system != "" {
+		q = append(q, "system="+url.QueryEscape(system))
+	}
+	if len(q) == 0 {
+		return prefix + "/"
+	}
+	return prefix + "/?" + strings.Join(q, "&")
 }
 
 // cardAgents resolves the footer for each card from the project's tmux
@@ -339,42 +443,69 @@ func sortCards(cards []*WorkCard) {
 	})
 }
 
-func columnsByStatus(prefix string, wf *tracker.WorkflowConfig, cards []*WorkCard) []*WorkColumn {
+// columnsByStatus gives each status a column in workflow order. The idle piles
+// fold to count tiles over all (every matching card, quiet or not): the first
+// status at the start, global statuses and done at the end.
+func columnsByStatus(prefix string, wf *tracker.WorkflowConfig, shown, all []*WorkCard, system string) []*WorkColumn {
 	byStatus := map[string][]*WorkCard{}
-	for _, c := range cards {
+	for _, c := range shown {
 		byStatus[c.Status] = append(byStatus[c.Status], c)
 	}
-	var cols []*WorkColumn
-	added := map[string]bool{}
-	add := func(st string) {
-		added[st] = true
-		col := &WorkColumn{Key: testids.Segment(st), Name: statusTitle(st), Cards: byStatus[st], Count: len(byStatus[st])}
-		if strings.EqualFold(st, "done") {
-			col.Folded, col.FoldHref, col.Cards = true, prefix+"/?status=done", nil
+	idleCount, idleWaiting := map[string]int{}, map[string]int{}
+	seen := map[string]bool{}
+	for _, c := range all {
+		seen[c.Status] = true
+		if c.idle {
+			idleCount[c.Status]++
+			if c.waiting {
+				idleWaiting[c.Status]++
+			}
 		}
-		sortCards(col.Cards)
-		cols = append(cols, col)
 	}
-	for _, st := range wf.GetBoardColumns() {
-		if !strings.EqualFold(st, "done") {
-			add(st)
+	column := func(st string) *WorkColumn {
+		col := &WorkColumn{Key: testids.Segment(st), Name: statusTitle(st)}
+		if idleStatus(wf, st) {
+			col.Folded, col.Count, col.FoldWaiting = true, idleCount[st], idleWaiting[st]
+			col.FoldHref = listHref(prefix, st, system)
+			return col
 		}
+		col.Cards, col.Count = byStatus[st], len(byStatus[st])
+		col.MoreHref = listHref(prefix, st, system)
+		sortCards(col.Cards)
+		return col
+	}
+	order := wf.GetBoardColumns()
+	listed := map[string]bool{}
+	for _, st := range order {
+		listed[st] = true
 	}
 	var extra []string
-	for st := range byStatus {
-		if !added[st] && !strings.EqualFold(st, "done") {
+	for st := range seen {
+		if !listed[st] {
 			extra = append(extra, st)
 		}
 	}
 	sort.Strings(extra)
-	for _, st := range extra {
-		add(st)
+	order = append(append([]string{}, order...), extra...)
+
+	var head, body, tail, done []*WorkColumn
+	for i, st := range order {
+		col := column(st)
+		switch {
+		case !col.Folded:
+			body = append(body, col)
+		case i == 0:
+			head = append(head, col)
+		case strings.EqualFold(st, "done"):
+			done = append(done, col)
+		default:
+			tail = append(tail, col)
+		}
 	}
-	add("done")
-	return cols
+	return append(append(append(head, body...), tail...), done...)
 }
 
-func columnsBySystem(cards []*WorkCard) []*WorkColumn {
+func columnsBySystem(prefix string, cards []*WorkCard) []*WorkColumn {
 	bySystem := map[string][]*WorkCard{}
 	for _, c := range cards {
 		if c.Status == "done" {
@@ -392,11 +523,11 @@ func columnsBySystem(cards []*WorkCard) []*WorkColumn {
 	var cols []*WorkColumn
 	for _, name := range names {
 		sortCards(bySystem[name])
-		cols = append(cols, &WorkColumn{Key: testids.Segment(name), Name: name, Cards: bySystem[name], Count: len(bySystem[name])})
+		cols = append(cols, &WorkColumn{Key: testids.Segment(name), Name: name, Cards: bySystem[name], Count: len(bySystem[name]), MoreHref: listHref(prefix, "", name)})
 	}
 	if none := bySystem[""]; len(none) > 0 {
 		sortCards(none)
-		cols = append(cols, &WorkColumn{Key: "none", Name: "No system", Cards: none, Count: len(none)})
+		cols = append(cols, &WorkColumn{Key: "none", Name: "No system", Cards: none, Count: len(none), MoreHref: prefix + "/"})
 	}
 	return cols
 }
@@ -427,7 +558,7 @@ func columnsByEpic(prefix string, cards []*WorkCard, issues []*tracker.Issue) []
 		epic := tracker.FindIssue(issues, slug)
 		p := epicProgress(prefix, epic, issues)
 		sortCards(list)
-		col := &WorkColumn{Key: testids.Segment(slug), Name: epic.Title, Href: prefix + "/issue/" + epic.Slug, Cards: list, Count: len(list), Progress: p}
+		col := &WorkColumn{Key: testids.Segment(slug), Name: epic.Title, Href: prefix + "/issue/" + epic.Slug, Cards: list, Count: len(list), Progress: p, MoreHref: prefix + "/issue/" + epic.Slug}
 		col.Note = epic.Status
 		cols = append(cols, col)
 	}
@@ -439,7 +570,7 @@ func columnsByEpic(prefix string, cards []*WorkCard, issues []*tracker.Issue) []
 	})
 	if len(none) > 0 {
 		sortCards(none)
-		cols = append(cols, &WorkColumn{Key: "none", Name: "No epic", Cards: none, Count: len(none)})
+		cols = append(cols, &WorkColumn{Key: "none", Name: "No epic", Cards: none, Count: len(none), MoreHref: prefix + "/"})
 	}
 	return cols
 }

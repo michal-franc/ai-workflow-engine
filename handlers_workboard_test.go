@@ -24,6 +24,11 @@ func workboardFixture(t *testing.T, now time.Time) workbenchFixture {
 	f.paths["revise"] = writeWorkbenchIssue(t, dir, "revise", "backlog", "labels:\n  - needs-revision\n", "Pre-pivot design.")
 	f.paths["revise-why"] = writeWorkbenchIssue(t, dir, "revise-why", "backlog", "needs_revision: \"D-5\"\n", "Pre-pivot design.")
 	f.paths["other"] = writeWorkbenchIssue(t, dir, "other", "backlog", "version: \"0.2\"\n", "Other version.")
+	f.paths["someday"] = writeWorkbenchIssue(t, dir, "someday", "idea", "", "An idea.")
+	f.paths["someday-asks"] = writeWorkbenchIssue(t, dir, "someday-asks", "idea", "", "An idea with a question.")
+	if err := tracker.AddComment(f.paths["someday-asks"], 0, "question: worth it?", "agent"); err != nil {
+		t.Fatal(err)
+	}
 	if err := tracker.AddComment(f.paths["asked"], 0, "question: carry gold over?", "agent"); err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +100,6 @@ func TestWorkboard_MarkersAndFooters(t *testing.T) {
 		{"revise", []string{`data-testid="marker.needs-revision"`, ">needs revision<"}, nil},
 		{"revise-why", []string{"needs revision · D-5"}, nil},
 		{"epic", []string{"approve done", "chip-blue", "1 of 2 children done", `width: 50%`, `data-state="stopped"`, "agent stopped · not running"}, nil},
-		{"idle", nil, []string{"workboard-card-foot", "marker."}},
 	}
 	for _, c := range cases {
 		card := cardHTML(t, html, c.slug)
@@ -110,13 +114,38 @@ func TestWorkboard_MarkersAndFooters(t *testing.T) {
 			}
 		}
 	}
-	// ready and epic (no boxes left) wait on an approval, asked on an answer.
-	if m := regexp.MustCompile(`Waiting on you · (\d+)`).FindStringSubmatch(html); m == nil || m[1] != "3" {
-		t.Errorf("waiting count = %v, want 3", m)
+	// ready and epic (no boxes left) wait on an approval, asked and
+	// someday-asks on an answer.
+	if m := regexp.MustCompile(`Waiting on you · (\d+)`).FindStringSubmatch(html); m == nil || m[1] != "4" {
+		t.Errorf("waiting count = %v, want 4", m)
 	}
-	// Done folds to a count; in design is the first status, so no amber age there.
-	if !strings.Contains(html, `data-testid="workboard.column.done.more"`) || strings.Contains(cardHTML(t, html, "ready"), "card-age old") {
-		t.Error("done column folded; first status never amber")
+	// Quiet cards (idle, blocked, other, approved: no marker, agent or amber age) are
+	// hidden until Show all.
+	if strings.Contains(html, `data-testid="workboard.card.idle"`) || !strings.Contains(html, "Show all · 4 quiet") {
+		t.Error("quiet cards hidden by default, counted on the Show all chip")
+	}
+	// backlog's quiet cards: idle, blocked, other.
+	if !regexp.MustCompile(`data-testid="workboard.column.backlog.quiet"[^>]*>\+3 quiet<`).MatchString(html) {
+		t.Error("backlog column links its 3 hidden quiet cards")
+	}
+	// The idea pile folds to a tile linking the list, with its waiting count.
+	idea := html[strings.Index(html, `data-testid="workboard.column.idea"`):]
+	idea = idea[:strings.Index(idea, "</section>")]
+	if !strings.Contains(idea, `href="/p/wb/?status=idea"`) || !strings.Contains(idea, ">2<") || !strings.Contains(idea, "1 waiting on you") || strings.Contains(idea, "workboard.card.") {
+		t.Errorf("idea column should be a folded tile:\n%s", idea)
+	}
+	// Done folds to a count tile too.
+	if !strings.Contains(html, `data-testid="workboard.column.done.more"`) {
+		t.Error("done column folded")
+	}
+
+	// Show all draws the quiet cards as one line.
+	_, all := getBody(t, ts.URL+"/p/wb/workboard?all=1")
+	if !strings.Contains(all, `class="workboard-card workboard-card-compact" data-testid="workboard.card.idle"`) || strings.Contains(cardHTML(t, all, "idle"), "marker.") {
+		t.Error("quiet card under Show all should be one compact line")
+	}
+	if !strings.Contains(all, "Showing all") {
+		t.Error("Show all chip shows its active state")
 	}
 	// The sidebar shows the legend and Board (workboard) is active.
 	for _, w := range []string{`data-testid="nav.panel.legend"`, `data-testid="nav.tab.workboard" aria-current="page"`} {
@@ -131,7 +160,7 @@ func TestWorkboard_SortsWaitingThenBlockedFirst(t *testing.T) {
 	withMockTmuxSessions(t, nil)
 	ts := newTestServer(t, []tracker.Project{f.proj})
 	defer ts.Close()
-	_, html := getBody(t, ts.URL+"/p/wb/workboard")
+	_, html := getBody(t, ts.URL+"/p/wb/workboard?all=1")
 	col := html[strings.Index(html, `data-testid="workboard.column.backlog"`):]
 	col = col[:strings.Index(col, "</section>")]
 	var order []string
@@ -179,7 +208,7 @@ func TestWorkboard_GroupsAndFilters(t *testing.T) {
 		t.Error("waiting=1 drops cards that don't wait on the owner")
 	}
 
-	_, html = getBody(t, ts.URL+"/p/wb/workboard?version=0.2")
+	_, html = getBody(t, ts.URL+"/p/wb/workboard?version=0.2&all=1")
 	if !strings.Contains(html, "workboard.card.other\"") || strings.Contains(html, "workboard.card.idle\"") {
 		t.Error("version filter keeps only that version")
 	}
@@ -197,12 +226,14 @@ func TestWorkboard_ColumnCapAndNoVersionSelect(t *testing.T) {
 	withMockTmuxSessions(t, nil)
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
-	_, html := getBody(t, ts.URL+"/p/test-project/workboard")
-	if !strings.Contains(html, `data-testid="workboard.column.backlog.more"`) || !strings.Contains(html, ">4 more<") {
-		t.Error("backlog has 16 cards: 12 shown and a \"4 more\" button")
+	_, html := getBody(t, ts.URL+"/p/test-project/workboard?all=1")
+	col := html[strings.Index(html, `data-testid="workboard.column.backlog"`):]
+	col = col[:strings.Index(col, "</section>")]
+	if n := strings.Count(col, "data-search="); n != workboardColumnCap {
+		t.Errorf("backlog shows %d cards, want the first %d", n, workboardColumnCap)
 	}
-	if strings.Count(html, "workboard-extra") < 4 {
-		t.Error("cards past the cap are hidden until \"more\"")
+	if !strings.Contains(col, `href="/p/test-project/?status=backlog"`) || !strings.Contains(col, "4 more in the list") {
+		t.Errorf("past the cap the column links to the list:\n%s", col)
 	}
 }
 
@@ -280,5 +311,16 @@ func TestAgoText(t *testing.T) {
 		if got := agoText(d); got != want {
 			t.Errorf("agoText(%v) = %q, want %q", d, got, want)
 		}
+	}
+}
+
+func TestCardMarkers_Parked(t *testing.T) {
+	issue := &tracker.Issue{Slug: "sim/creeps", Status: "parked"}
+	ctx := &markerCtx{now: time.Now(), bySlug: map[string]*tracker.Issue{}, attention: map[string]Attention{
+		"sim/creeps": {Parked: true, ParkReason: "deferred until the lanes settle"},
+	}}
+	got := cardMarkers(ctx, issue)
+	if len(got) != 1 || got[0].Kind != "parked" || got[0].Tone != "grey" || got[0].Label != "parked · deferred until the lanes settle" {
+		t.Errorf("parked marker = %+v", got)
 	}
 }

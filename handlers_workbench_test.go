@@ -18,6 +18,7 @@ import (
 )
 
 const workbenchWorkflow = `statuses:
+  - name: "idea"
   - name: "in design"
   - name: "backlog"
   - name: "in progress"

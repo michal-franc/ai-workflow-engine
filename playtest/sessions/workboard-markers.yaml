@@ -22,7 +22,7 @@ steps:
       - text_contains: { target: workboard.card.sim/match-length.markers, text: sim/nope (not found) }
       - text_contains: { target: workboard.card.sim/events.markers, text: needs revision }
       - text_contains: { target: workboard.card.sim/lanes.markers, text: needs revision · D-5 }
-      - text_contains: { target: workboard.card.sim/creeps.markers, text: parked · deferred until the lanes settle }
+      - text_equals: { target: workboard.column.parked.count, text: "1" }
       - text_contains: { target: workboard.card.ui/player-card.epic, text: 1 of 2 · in Redesign }
       - text_contains: { target: workboard.card.ui/redesign.epic, text: 1 of 2 children done }
       - text_contains: { target: workboard.card.ui/player-card.age, text: d }
@@ -95,6 +95,26 @@ steps:
       - cli: { args: [transition, ui/shop-screen, --to, backlog, --wait], exit: 1, contains: "--wait was removed" }
       - cli: { args: [start, ui/lineup-panel, --wait], exit: 1, contains: "stop and end your turn" }
       - issue: { slug: ui/shop-screen, field: status, equals: in design }
+
+  - id: TP10
+    title: The board stays readable with many issues; idle piles fold, quiet cards wait behind Show all, long columns link to the list
+    setup:
+      - open: /p/{project}/workboard
+    act:
+      - check: { text_equals: { target: workboard.column.idea.count, text: "3" } }
+      - check: { absent: [workboard.card.sim/idea-a, workboard.card.sim/chore-01, workboard.card.sim/creeps] }
+      - check: { count: { pattern: workboard.card.*, within: workboard.column.backlog, equals: 3 } }
+      - check: { text_contains: { target: workboard.filter.all, text: 13 quiet } }
+      - check: { text_equals: { target: workboard.column.backlog.quiet, text: +12 quiet } }
+      - click: workboard.filter.all
+      - wait_for: { url: { contains: all=1 } }
+      - check: { selected: workboard.filter.all }
+      - check: { count: { pattern: workboard.card.*, within: workboard.column.backlog, equals: 12 } }
+      - check: { text_contains: { target: workboard.column.backlog.more, text: 3 more in the list } }
+      - click: workboard.column.backlog.more
+      - wait_for: { url: { contains: status=backlog } }
+    checks:
+      - selected: nav.tab.list
 
   - id: TP9
     title: "Owner's eye: the workboard reads like the mockups and the markers make sense on real cards"

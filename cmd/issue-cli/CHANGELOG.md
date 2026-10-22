@@ -24,6 +24,7 @@ release nothing.
 
 ## Unreleased
 
+- **`issue-approve` mod 0.2.1:** the Playtest button also shows at `testing` behind an owner gate, so a tweak (whose path has no human-testing) can be playtested from the agent's session. Update with `claude plugin update issue-approve@ai-workflow-engine`, then `/reload-plugins` in running sessions.
 - Canvas: lanes start folded, one compact row each with a count per status for every version. Click a lane head (or Expand all) to see its cards; open lanes stay in the URL (`?open=`). A new Epic select (`?epic=`) shows one epic and its sub-epics, unfolded. System rows fold the same way.
 
 ## v0.52.0 — 2026-10-22

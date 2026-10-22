@@ -1,0 +1,36 @@
+{{/*
+Card marker partials (markers.go), shared by every view that shows issue
+cards or rows: the workboard, and the system pages.
+  {{template "markers" .Markers}}       []Marker, wrapped in a .markers row
+  {{template "marker-chips" .Markers}}  the same chips, bare, for a row of chips
+  {{template "epic-progress" .Progress}} *CardProgress
+  {{template "agent-footer" .Agent}}     *CardAgent
+  {{template "card-legend"}}             the sidebar legend panel
+*/}}
+
+{{define "markers"}}{{if .}}<div class="markers">{{template "marker-chips" .}}</div>{{end}}{{end}}
+
+{{define "marker-chips"}}{{range .}}{{if .Href}}<a href="{{.Href}}"{{else}}<span{{end}} class="chip marker marker-{{.Tone}}{{if .Struck}} marker-struck{{end}}" data-testid="marker.{{.Kind}}" title="{{.Title}}">{{.Label}}{{if .Href}}</a>{{else}}</span>{{end}}{{end}}{{end}}
+
+{{define "epic-progress"}}{{if .}}<div class="epic-progress">
+    <span class="epic-progress-text">{{if .Own}}{{if .Total}}{{.Done}} of {{.Total}} children done{{else}}no children yet{{end}}{{else}}{{.Done}} of {{.Total}} · in <a href="{{.Href}}" title="{{.Title}}">{{.Title}}</a>{{end}}</span>
+    {{if .Total}}<div class="epic-progress-bar" role="img" aria-label="{{.Done}} of {{.Total}} done"><div style="width: {{.Pct}}%"></div></div>{{end}}
+</div>{{end}}{{end}}
+
+{{define "agent-footer"}}{{if .}}<a href="{{.Href}}" class="agent-footer agent-footer-{{.Tone}}" data-state="{{.State}}" title="{{.Title}}"><span class="agent-footer-dot" aria-hidden="true">{{if eq .Tone "stopped"}}○{{else}}●{{end}}</span>{{.Text}}</a>{{end}}{{end}}
+
+{{define "card-legend"}}
+<section class="sidebar-panel card-legend" data-testid="nav.panel.legend" aria-label="Card legend">
+    <span class="label">Card legend</span>
+    <p><span class="chip marker marker-amber">waiting on you</span> a gate, playtest or question needs you</p>
+    <p><span class="chip marker marker-red">blocked on</span> <span class="chip marker marker-red">needs revision</span> can't move on until fixed</p>
+    <p><span class="chip marker marker-grey">parked</span> set aside, with a reason</p>
+    <p><span class="card-age old">3 d</span> time in this status; amber after a day, except in the first status, parked and done</p>
+    <ul class="card-legend-agents">
+        <li class="agent-footer-green"><span class="agent-footer-dot" aria-hidden="true">●</span> agent working</li>
+        <li class="agent-footer-grey"><span class="agent-footer-dot" aria-hidden="true">●</span> agent idle: no issue-cli call for 15 m</li>
+        <li class="agent-footer-amber"><span class="agent-footer-dot" aria-hidden="true">●</span> agent waiting on you</li>
+        <li class="agent-footer-stopped"><span class="agent-footer-dot" aria-hidden="true">○</span> agent stopped</li>
+    </ul>
+</section>
+{{end}}

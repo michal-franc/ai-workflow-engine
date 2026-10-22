@@ -269,3 +269,78 @@ func TestStylesAppliedCatchesV048(t *testing.T) {
 	}
 	t.Logf("v0.48.0: %d violations, first %s: %s; failed shape checks: %v", len(v), v[0].ID, v[0].Detail, shapes)
 }
+
+// TestOverlayMovesOnToTheNextSession: with another session queued, the last
+// verdict ends this one without Alt+Q, so the next session's steps start.
+func TestOverlayMovesOnToTheNextSession(t *testing.T) {
+	r, b := newTestRunner(t)
+	s := loadRepoSession(t, "playtest-self")
+	auto, _, err := r.UXTest(b, s, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.moreSessions = true
+	r.judgeHook = func(j *judge) {
+		waitFor(t, j, "the dock", `document.querySelector('#__pt .dock') && document.querySelector('#__pt .dock').textContent.indexOf('EXPECT') >= 0`)
+		var ok any
+		pageEval(t, j, `window.__ptSend({type:'pass'}).then(function(){}), JSON.stringify(1)`, &ok)
+		waitFor(t, j, "step TP12", `document.querySelector('#__pt .steps li.cur') && document.querySelector('#__pt .steps li.cur').textContent.indexOf('TP12') >= 0 && !document.querySelector('#__pt .busy')`)
+		// TP12 wants the owner to drag first; skipping is a verdict too.
+		pageEval(t, j, `window.__ptSend({type:'skip'}).then(function(){}), JSON.stringify(1)`, &ok)
+	}
+	done := make(chan *Results, 1)
+	go func() {
+		res, _, err := r.Playtest(b, s, auto)
+		if err != nil {
+			t.Error(err)
+		}
+		done <- res
+	}()
+	select {
+	case res := <-done:
+		if res == nil || res.Step("TP11").Status != StatusPass || res.Step("TP12").Status != StatusSkip {
+			t.Errorf("TP11 = %+v, TP12 = %+v", res.Step("TP11"), res.Step("TP12"))
+		}
+	case <-time.After(2 * time.Minute):
+		t.Fatal("Playtest kept waiting for Alt+Q with another session queued")
+	}
+	if r.windowClosed {
+		t.Error("the window was not closed")
+	}
+}
+
+// TestOverlayTwoSessionsInTheOwnersWindow: make playtest over two sessions
+// runs both in the owner's (visible) window. The second session gets a tab
+// of its own: adding the overlay bridge to the first tab again fails.
+func TestOverlayTwoSessionsInTheOwnersWindow(t *testing.T) {
+	r, b := newTestRunner(t)
+	s := loadRepoSession(t, "playtest-self")
+	auto, _, err := r.UXTest(b, s, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b.visible = true // the owner's window: sessions share one browser target
+	skip := func(j *judge, step string) {
+		waitFor(t, j, "step "+step, `document.querySelector('#__pt .steps li.cur') && document.querySelector('#__pt .steps li.cur').textContent.indexOf('`+step+`') >= 0 && !document.querySelector('#__pt .busy')`)
+		var ok any
+		pageEval(t, j, `window.__ptSend({type:'skip'}).then(function(){}), JSON.stringify(1)`, &ok)
+	}
+	r.moreSessions = true
+	r.judgeHook = func(j *judge) { skip(j, "TP11"); skip(j, "TP12") }
+	if _, _, err := r.Playtest(b, s, auto); err != nil {
+		t.Fatal("first session:", err)
+	}
+	r.moreSessions = false
+	r.judgeHook = func(j *judge) {
+		skip(j, "TP11")
+		skip(j, "TP12")
+		pageEval(t, j, `window.__ptSend({type:'quit'}).then(function(){}), JSON.stringify(1)`, new(any))
+	}
+	res, _, err := r.Playtest(b, s, auto)
+	if err != nil {
+		t.Fatal("second session:", err)
+	}
+	if res.Step("TP11").Status != StatusSkip || res.Step("TP12").Status != StatusSkip {
+		t.Errorf("second session: TP11 %s, TP12 %s, want both skipped", res.Step("TP11").Status, res.Step("TP12").Status)
+	}
+}

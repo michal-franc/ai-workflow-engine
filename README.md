@@ -18,7 +18,7 @@ Coding agents are good at writing code and bad at knowing when to stop. Left alo
 AI Workflow Engine puts a contract around them:
 
 - **One step at a time.** An agent moves an issue forward only when that step's checks pass: a section written, its checkboxes ticked, a `tests:` comment posted, a shell command green.
-- **You own the costly moments.** Gates such as `backlog → in progress` wait for your tick on the board. The agent asks in chat, blocks with `--wait`, and carries on as soon as you approve.
+- **You own the costly moments.** Gates such as `backlog → in progress` wait for your tick on the board. The agent asks in chat and ends its turn; your approval nudges it to carry on.
 - **Guidance arrives just in time.** Each status has its own prompt, and every failed check prints the command that fixes it. There is no giant system prompt to drift from.
 - **Everything is files.** Markdown issues, a YAML workflow, git history as the audit log. No database, no SaaS, no API keys. The same workflow runs with Claude Code and Codex.
 
@@ -109,7 +109,7 @@ At each step the agent gets a small, current prompt rather than one big manual, 
 
 - **Dispatch** from a card (▶) or the issue page. Each agent gets a tmux session `agent-<slug>`, or a window in one shared session when the project sets `tmux_session`.
 - **Worktrees.** With `worktree: true` the agent works in `.worktrees/<slug>` on branch `work/<slug>`. `issues/` is left out of the worktree, so issues stay on your main checkout; `worktree_setup: "make"` bootstraps a fresh one.
-- **Approvals.** When a step needs you, the CLI error links straight to the box (`…/issue/<slug>#approve-in-progress`). Agents block on `issue-cli transition <slug> --wait --timeout 9m`, and your tick also nudges their tmux session.
+- **Approvals.** When a step needs you, the CLI error links straight to the box (`…/issue/<slug>#approve-in-progress`). The agent asks in chat and ends its turn, and your tick nudges its tmux session to resume.
 - **The trail.** Every `issue-cli` call is logged under `.agent-logs/` and shown as a timeline on the issue page, next to the exact prompt the agent was given.
 - **Retros and bug reports.** Agents leave `issue-cli retrospective` notes and `issue-cli report-bug` reports. The Retros page collects them, so you can fix the process where it hurt.
 - **Custom buttons.** `issue_actions` and `project_actions` in `workflow.yaml` add one-click agent jobs (a review, a report, a sweep) to the issue page or the board.
@@ -125,10 +125,10 @@ you    issue-cli create --title "Rate-limit the login endpoint" --system API
 agent  issue-cli start <slug>                            claims it, prints the checklist and the next step
 agent  issue-cli transition <slug> --to "in design"      body_not_empty passes; Design section appended
 agent  … writes the design, ticks its boxes: issue-cli check <slug> D1 D2 D3
-agent  issue-cli transition <slug> --to "backlog" --wait --timeout 9m
-       waiting: human approval for "backlog" is missing
+agent  issue-cli transition <slug> --to "backlog"
+       approval for "backlog" is missing: asks you in chat, ends its turn
 you    tick the approval on the issue page                       ← gate 1: the design
-agent  issue-cli start <slug> --wait --timeout 9m        waits for the go-ahead to build
+agent  nudged by the tick: moves to backlog, issue-cli start <slug>, asks for the go-ahead, ends its turn
 you    tick the next approval                                    ← gate 2: start building
 agent  builds, tests, posts "tests: go test ./... green", moves to testing, then human-testing
 you    judge the steps a machine can't (make playtest), tick the approval  ← gate 3: it works
@@ -163,8 +163,8 @@ The same rhythm on a real issue, replayed from its logs: Raid League's "Sapper t
 |---|---|
 | `issue-cli process` | Learn the project's workflow (agents run this first) |
 | `issue-cli next` | Find the next issue to work on |
-| `issue-cli start <slug>` | Claim an issue and get its checklist and next step (`--wait` at a gate) |
-| `issue-cli transition <slug> --to <status>` | Move one step (`--dry-run` lists what's missing, `--wait` blocks for approval) |
+| `issue-cli start <slug>` | Claim an issue and get its checklist and next step |
+| `issue-cli transition <slug> --to <status>` | Move one step (`--dry-run` lists what's missing) |
 | `issue-cli check <slug> D1 D2` | Tick checkboxes by id |
 | `issue-cli comment <slug> --text "…"` | Add a comment (`tests:`, `docs:`, `progress:` …) |
 | `issue-cli context <slug>` | Everything about one issue |

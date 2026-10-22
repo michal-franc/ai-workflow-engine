@@ -29,7 +29,7 @@ type navView struct {
 var navViews = []navView{
 	{Key: "status", Label: "Status", Path: "/status"},
 	{Key: "systems", Label: "Systems", Path: "/systems"},
-	{Key: "board", Label: "Board", Path: "/board"},
+	{Key: "workboard", Label: "Board", Path: "/workboard"},
 	{Key: "list", Label: "List", Path: "/"},
 	{Key: "balance", Label: "Balance", Path: "/balance", Show: func(s *Server, p *tracker.Project) bool {
 		return p.LoadWorkflow().Workbench.HasBalance()
@@ -39,6 +39,8 @@ var navViews = []navView{
 	}},
 	{Key: "decisions", Label: "Decisions", Path: "/decisions"},
 	{Key: "docs", Label: "Docs", Path: "/docs"},
+	// The classic board keeps drag-and-drop until the retire child removes it.
+	{Key: "board", Label: "Classic board", Path: "/board", More: true},
 	{Key: "graph", Label: "Graph", Path: "/graph", More: true},
 	{Key: "canvas", Label: "Canvas", Path: "/canvas", More: true},
 	{Key: "agents", Label: "Agents", Path: "/agents", More: true},
@@ -95,6 +97,7 @@ type Nav struct {
 	CreateInPage   bool // the page has the create modal; elsewhere New issue links to the list
 	ProjectActions []tracker.CustomAction
 	Systems        []NavCount // the screen panel on the Board and the systems pages
+	Legend         bool       // the workboard's card legend panel
 	Panel          *NavPanel  // another page's screen panel
 }
 
@@ -183,6 +186,9 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 	switch {
 	case active == "board":
 		nav.Systems = systemCounts(bySystem, func(name string) string { return prefix + "/board?system=" + name })
+	case active == "workboard":
+		nav.Systems = systemCounts(bySystem, func(name string) string { return prefix + "/workboard?system=" + name })
+		nav.Legend = true
 	case active == "systems" || strings.HasPrefix(active, "systems/"):
 		nav.Systems = systemsPanel(prefix, active, issues, proj.LoadWorkflow())
 	}

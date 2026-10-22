@@ -32,7 +32,7 @@ func (w *WorkflowConfig) PreviewTransition(issue *Issue, fromStatus, toStatus, s
 
 // PreviewTransitionAll is PreviewTransition without the early return: every
 // validation and approval gate is evaluated, so callers (issue-cli
-// transition --dry-run / --wait) can report all unmet requirements at once.
+// transition --dry-run) can report all unmet requirements at once.
 // ValidationError still holds the first failure.
 func (w *WorkflowConfig) PreviewTransitionAll(issue *Issue, fromStatus, toStatus, system string, comments []Comment) TransitionPreview {
 	return w.previewTransition(issue, fromStatus, toStatus, system, comments, true)

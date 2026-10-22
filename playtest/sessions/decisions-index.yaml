@@ -16,8 +16,8 @@ steps:
       - open: /p/{project}/
     act:
       - check: { selected: nav.tab.list }
-      - check: { visible: [nav.tab.board, nav.tab.docs, nav.tab.decisions] }
-      - check: { exists: [nav.tab.graph, nav.tab.canvas] }
+      - check: { visible: [nav.tab.workboard, nav.tab.docs, nav.tab.decisions] }
+      - check: { exists: [nav.tab.board, nav.tab.graph, nav.tab.canvas] }
       - open: /p/{project}/board
       - check: { visible: nav.tab.decisions }
       - open: /p/{project}/canvas
@@ -27,7 +27,7 @@ steps:
       - wait_for: { url: { contains: /decisions } }
     checks:
       - selected: nav.tab.decisions
-      - visible: [nav.tab.list, nav.tab.board]
+      - visible: [nav.tab.list, nav.tab.workboard]
       - exists: nav.tab.canvas
 
   - id: TP5

@@ -42,7 +42,10 @@ helpers.go                  — projectRoot, fileExists, small utilities
 images.go                   — relative image src rewrite, /files/ image route
 tmux.go                     — agent session listing/matching/notification
 handlers_list.go            — list view, filters, /hash, /issues.json
-handlers_board.go           — board + graph views
+handlers_board.go           — classic board + graph views
+handlers_workboard.go       — /workboard: the sidebar Board, cards with markers, epic progress, agent footer
+markers.go                  — card markers (cardMarkers, blocked_on, needs-revision) and epic progress, shared by workboard and system pages
+agent_state.go              — worker state for the agents canvas and card footers (workerState, idle from the clilog's last call)
 handlers_canvas.go          — issues canvas (/canvas): version columns × epic or system rows
 handlers_detail.go          — detail page, transition preview, data-table render
 handlers_issue_mutate.go    — update/create/delete/approve/upload, body editor

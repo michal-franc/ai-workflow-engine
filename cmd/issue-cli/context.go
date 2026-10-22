@@ -144,6 +144,11 @@ func parseFlagsArgs(ctx *Context, fs *flag.FlagSet, args []string) error {
 		panic(introspectedFlags{fs})
 	}
 	ctx.flagSets = append(ctx.flagSets, fs)
+	// The global --json also works after the command (`list --all --json`),
+	// unless the command defines its own.
+	if fs.Lookup("json") == nil {
+		fs.BoolVar(&ctx.JSONOutput, "json", ctx.JSONOutput, "output as JSON")
+	}
 	// The stdlib's message and full usage dump are replaced by usageError.
 	fs.SetOutput(io.Discard)
 	if err := fs.Parse(flagsFirst(fs, args)); err != nil {
@@ -236,8 +241,12 @@ func newFlagUsageError(fs *flag.FlagSet, err error) *usageError {
 	msg := err.Error()
 	if name, ok := strings.CutPrefix(msg, undefined); ok {
 		flagName := "--" + name
+		hint := helpHint(fs)
+		if name == "project" || name == "config" {
+			hint = fmt.Sprintf("\n\n%s is a global flag: put it before the command (issue-cli %s <value> %s ...)", flagName, flagName, fs.Name())
+		}
 		return &usageError{
-			msg:  fmt.Sprintf("unknown flag %s for '%s'\nValid flags: %s%s", flagName, fs.Name(), validFlags(fs), helpHint(fs)),
+			msg:  fmt.Sprintf("unknown flag %s for '%s'\nValid flags: %s%s", flagName, fs.Name(), validFlags(fs), hint),
 			flag: flagName,
 			err:  err,
 		}
@@ -252,7 +261,11 @@ func newFlagUsageError(fs *flag.FlagSet, err error) *usageError {
 // validFlags lists fs's flags as "--a --b", or "(none)".
 func validFlags(fs *flag.FlagSet) string {
 	var names []string
-	fs.VisitAll(func(f *flag.Flag) { names = append(names, "--"+f.Name) })
+	fs.VisitAll(func(f *flag.Flag) {
+		if f.Name != "json" || f.Usage != "output as JSON" {
+			names = append(names, "--"+f.Name)
+		}
+	})
 	if len(names) == 0 {
 		return "(none)"
 	}

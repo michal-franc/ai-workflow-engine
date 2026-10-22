@@ -103,6 +103,21 @@ func TestFlagsAfterPositionalsParse(t *testing.T) {
 	}
 }
 
+func TestGlobalJSONAfterCommand(t *testing.T) {
+	cfg, _ := registryProject(t)
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"--config", cfg, "--project", "test", "list", "--all", "--json"}, strings.NewReader(""), &stdout, &stderr); err != nil {
+		t.Fatalf("list --json: %v", err)
+	}
+	if !strings.HasPrefix(strings.TrimSpace(stdout.String()), "[") {
+		t.Fatalf("want JSON, got %q", stdout.String())
+	}
+	err := run([]string{"--config", cfg, "list", "--status", "done", "--config", cfg}, strings.NewReader(""), &stdout, &stderr)
+	if err == nil || !strings.Contains(err.Error(), "--config is a global flag: put it before the command") {
+		t.Fatalf("want global-flag hint, got %v", err)
+	}
+}
+
 func TestFlagsFirst(t *testing.T) {
 	ctx := &Context{}
 	fs := newFlagSet("x", ctx)

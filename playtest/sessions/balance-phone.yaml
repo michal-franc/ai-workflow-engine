@@ -5,7 +5,7 @@ scenario: workbench
 
 session_checks:
   viewports: [390x844]
-  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
   console: no_errors
 
 steps:

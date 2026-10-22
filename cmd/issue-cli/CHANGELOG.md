@@ -27,6 +27,14 @@ Entries are newest-first. Each entry has the form:
   - `issue-cli lead spawn`, the agents canvas panel and the nvim edit hints print both, as `Inside tmux:` and `From a shell:`.
   - The canvas button becomes **Copy switch** for `terminal: none` projects.
 
+## v0.50.0 — 2026-10-22
+
+- **Playtest layout checks:** ux-test now notices a page whose styles didn't apply. In v0.48.0 the Status and Metrics pages rendered unstyled on desktop and every session still passed.
+  - **`styles_applied` layout rule:** every class on a visible test id element must be matched by a CSS rule that is active at the viewport (top level, a matching `@media`, a holding `@supports`). A failure reads `class "status-epic" has no CSS rule active at 1440x900`. Classes only JS reads take a `js-` prefix. It is on in every session.
+  - **Shape checks:** `beside: [a, b]` (same row, b to the right), `below: [a, b]`, `css: { target, property, equals | in | not }` and `size: { target, min_width?, max_width?, min_height?, max_height? }`. They work in ux-test, `wait_for` and the overlay; a failure shows both boxes or the measured value.
+  - The status, metrics, system, workboard, canvas, agents and sidebar sessions now assert their main layout. A test replays the v0.48.0 stylesheet and expects the status page to fail.
+- Classes the new rule found unstyled are fixed: the "Not this branch" balance chip and worker nodes get their own style; unused marker classes are removed.
+
 ## v0.49.0 — 2026-10-22
 
 - New **Board** in the sidebar: `/workboard`, a read-only kanban whose cards carry coordination state. The old board moves to More as **Classic board** and keeps drag-and-drop.

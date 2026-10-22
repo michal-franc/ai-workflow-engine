@@ -2847,7 +2847,7 @@ a.wb-chip:hover { text-decoration: none; border-color: var(--text-secondary); }
 .decisions-table th { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
 .decisions-table td { padding: 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
 .decisions-table tr:last-child td { border-bottom: none; }
-.decision-row.dim .decision-text { color: var(--text-secondary); }
+.decision-replaced .decision-text { color: var(--text-secondary); }
 .decision-id { font-family: var(--font-mono); font-size: 12px; color: #d29922; white-space: nowrap; }
 .decision-copy { display: block; margin-top: 4px; padding: 0 5px; border: 1px solid var(--border); border-radius: 4px; background: none; color: var(--text-secondary); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; cursor: pointer; }
 .decision-copy:hover { color: var(--text); border-color: var(--text-secondary); }
@@ -2894,6 +2894,7 @@ a.balance-pass:hover { text-decoration: none; border-color: var(--text-secondary
 .balance-chip.s-kept { color: #3fb950; }
 .balance-chip.s-reverted { color: #f85149; }
 .balance-chip.s-needs-pieces { color: #58a6ff; }
+.balance-chip.s-not-this-branch { color: var(--text-secondary); }
 .balance-chip.active { color: var(--bg); }
 .balance-group { margin-top: 26px; }
 .balance-group-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; padding-bottom: 8px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
@@ -2988,6 +2989,7 @@ a.balance-pass:hover { text-decoration: none; border-color: var(--text-secondary
 .agent-node.selected { outline: 2px solid var(--text-link); outline-offset: 1px; }
 .agent-human { cursor: default; font-weight: 600; }
 .agent-project-lead, .agent-sub-lead { font-weight: 600; }
+.agent-worker { font-weight: 400; }
 .agent-name { font-family: var(--font-mono); }
 .agent-state { color: var(--text-secondary); font-size: 12px; }
 .agent-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); flex: none; }

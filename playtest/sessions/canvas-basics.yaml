@@ -7,7 +7,7 @@ scenario: canvas
 # map is off screen by design. canvas-phone checks the phone layout.
 session_checks:
   viewports: [1440x900]
-  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
   console: no_errors
   # canvas.world is the pan surface: beside the project sidebar a fifth
   # column runs past the screen and is reached with drag and zoom.
@@ -41,6 +41,13 @@ steps:
       - count: { pattern: canvas.card.core/cache-the-workflow-file, within: canvas.cell.core/faster-startup.0_10, equals: 1 }
       - visible: canvas.cell.no_epic.0_10.empty
       - text_equals: { target: canvas.lane.core/plugin-system.note, text: All 2 children have no version. Show no version }
+      # The map's shape: columns side by side, a lane beside its cells,
+      # the map under the toolbar.
+      - beside: [canvas.column.0_1, canvas.column.0_2]
+      - beside: [canvas.column.0_2, canvas.column.0_10]
+      - beside: [canvas.lane.core/faster-startup, canvas.cell.core/faster-startup.0_10]
+      - below: [canvas.toolbar, canvas.viewport]
+      - size: { target: canvas.column.0_1, min_width: 200 }
 
   - id: TP5
     title: Collapse done folds closed cards into a chip; the chip turns it off again

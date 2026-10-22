@@ -58,6 +58,7 @@ var IDs = []string{
 	"status.raw_md",
 	"status.where",
 	"status.all_progress",
+	"status.all_progress.bar",
 	"status.no_versions",
 	"status.version.*",
 	"status.epic.*",

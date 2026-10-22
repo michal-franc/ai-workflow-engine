@@ -87,6 +87,11 @@
     return parts.join(' > ');
   }
 
+  // box is a rect as "x L..R y T..B" for shape check failures.
+  function box(r) {
+    return 'x ' + Math.round(r.left) + '..' + Math.round(r.right) + ' y ' + Math.round(r.top) + '..' + Math.round(r.bottom);
+  }
+
   function res(pass, actual, detail) { return { pass: !!pass, actual: actual == null ? '' : String(actual), detail: detail || '' }; }
 
   function cmpCount(n, a) {
@@ -131,6 +136,36 @@
         var now = el ? text(el) : null;
         return res(c.kind === 'changed' ? now !== snap : now === snap, now == null ? 'missing' : now, 'was: ' + snap);
       }
+      case 'beside':
+      case 'below': {
+        var ea = first(a.a), eb = first(a.b);
+        if (!ea || !eb || !visible(ea) || !visible(eb)) {
+          return res(false, (!ea ? a.a + ' missing' : !visible(ea) ? a.a + ' hidden' : !eb ? a.b + ' missing' : a.b + ' hidden'));
+        }
+        var ra = ea.getBoundingClientRect(), rb = eb.getBoundingClientRect();
+        var both = a.a + ' ' + box(ra) + ', ' + a.b + ' ' + box(rb);
+        if (c.kind === 'below') return res(rb.top >= ra.bottom - 1, both);
+        var ok = rb.left >= ra.right - 1 && Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top) > 0;
+        if (ok && a.gap_max != null && rb.left - ra.right > Number(a.gap_max)) ok = false;
+        return res(ok, both);
+      }
+      case 'css': {
+        if (!el) return res(false, 'missing');
+        var cv = getComputedStyle(el).getPropertyValue(a.property).trim();
+        var cok = a.equals != null ? cv === String(a.equals) :
+          a['in'] != null ? [].concat(a['in']).map(String).indexOf(cv) >= 0 :
+          cv !== String(a.not);
+        return res(cok, cv);
+      }
+      case 'size': {
+        if (!el) return res(false, 'missing');
+        var sr = el.getBoundingClientRect();
+        var sok = (a.min_width == null || sr.width >= Number(a.min_width)) &&
+          (a.max_width == null || sr.width <= Number(a.max_width)) &&
+          (a.min_height == null || sr.height >= Number(a.min_height)) &&
+          (a.max_height == null || sr.height <= Number(a.max_height));
+        return res(sok, Math.round(sr.width) + 'x' + Math.round(sr.height));
+      }
     }
     return res(false, '', 'not a DOM check: ' + c.kind);
   }
@@ -167,6 +202,121 @@
     }
     return false;
   }
+
+  // scan calls onTop for each character of a selector that is outside (),
+  // [] and quotes.
+  function scan(s, onTop) {
+    var depth = 0, quote = '';
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (quote) { if (ch === '\\') i++; else if (ch === quote) quote = ''; continue; }
+      if (ch === '"' || ch === "'") quote = ch;
+      else if (ch === '\\') i++;
+      else if (ch === '(' || ch === '[') depth++;
+      else if (ch === ')' || ch === ']') depth--;
+      else if (depth === 0) onTop(ch, i);
+    }
+  }
+
+  function selectorList(text) {
+    var out = [], start = 0;
+    scan(text, function (ch, i) { if (ch === ',') { out.push(text.slice(start, i).trim()); start = i + 1; } });
+    out.push(text.slice(start).trim());
+    return out;
+  }
+
+  // compounds returns each compound selector of sel, stripped of pseudos,
+  // with the selector up to and including it:
+  // ".a .b > .c:hover" → own ".c", upto ".a .b > .c".
+  function compounds(sel) {
+    var parts = [], comb = ' ', start = 0;
+    scan(sel + ' ', function (ch, i) {
+      if (!/[\s>+~]/.test(ch)) return;
+      if (i > start) { parts.push({ comb: comb, own: stripPseudo(sel.slice(start, i)).trim() || '*' }); comb = ' '; }
+      if (!/\s/.test(ch)) comb = ' ' + ch + ' ';
+      start = i + 1;
+    });
+    var upto = '';
+    return parts.map(function (p, i) {
+      upto += (i ? p.comb : '') + p.own;
+      return { own: p.own, upto: upto };
+    });
+  }
+
+  // stripPseudo drops pseudo-classes and pseudo-elements (and their
+  // arguments): state such as :hover shouldn't decide whether a class is
+  // styled, and :not(.x) doesn't style .x.
+  function stripPseudo(sel) {
+    var out = '', depth = 0, skip = false, quote = '';
+    for (var i = 0; i < sel.length; i++) {
+      var ch = sel[i];
+      if (quote) { if (!skip) out += ch; if (ch === quote) quote = ''; continue; }
+      if (skip) {
+        if (ch === '(') depth++;
+        else if (ch === ')') { depth--; if (depth === 0) { skip = false; continue; } }
+        if (depth > 0) continue;
+        if (/[\w-]/.test(ch) || (ch === ':' && sel[i - 1] === ':')) continue;
+        skip = false;
+      }
+      if (ch === ':' && !inAttr(out)) { skip = true; depth = 0; continue; }
+      if (ch === '"' || ch === "'") quote = ch;
+      out += ch;
+    }
+    return out;
+  }
+
+  function inAttr(s) { return s.lastIndexOf('[') > s.lastIndexOf(']'); }
+
+  // activeClassRules maps each class to the selectors of style rules that
+  // apply at this viewport and name it, as {upto, own}: the selector cut
+  // after the compound that names the class. @media and @supports blocks
+  // count only when they match; other grouping rules (@layer, @container)
+  // count; @keyframes and @font-face don't.
+  function activeClassRules() {
+    var idx = Object.create(null);
+    function add(rule) {
+      selectorList(rule.selectorText).forEach(function (sel) {
+        compounds(sel).forEach(function (c) {
+          var re = /\.(-?[_a-zA-Z][\w-]*)/g, m;
+          while ((m = re.exec(c.own))) (idx[m[1]] = idx[m[1]] || []).push(c.upto);
+        });
+      });
+    }
+    function walk(list) {
+      for (var i = 0; i < list.length; i++) {
+        var r = list[i];
+        if (r.selectorText != null) { add(r); continue; }
+        if (!r.cssRules || (typeof CSSKeyframesRule !== 'undefined' && r instanceof CSSKeyframesRule)) continue;
+        if (typeof CSSMediaRule !== 'undefined' && r instanceof CSSMediaRule) {
+          if (!matchMedia(r.conditionText || r.media.mediaText).matches) continue;
+        } else if (typeof CSSSupportsRule !== 'undefined' && r instanceof CSSSupportsRule) {
+          if (!CSS.supports(r.conditionText)) continue;
+        }
+        walk(r.cssRules);
+      }
+    }
+    Array.prototype.forEach.call(document.styleSheets, function (sh) {
+      if (sh.disabled) return;
+      if (sh.media && sh.media.mediaText && !matchMedia(sh.media.mediaText).matches) return;
+      var rs;
+      try { rs = sh.cssRules; } catch (e) { return; }
+      walk(rs);
+    });
+    return idx;
+  }
+
+  function styled(el, cls, idx) {
+    var sels = idx[cls];
+    if (!sels) return false;
+    for (var i = 0; i < sels.length; i++) {
+      try { if (el.matches(sels[i])) return true; } catch (e) { /* selector the engine rejects */ }
+    }
+    return false;
+  }
+
+  // stylesCap bounds styles_applied's report: a page with no stylesheet
+  // would otherwise list every class on it.
+  var stylesCap = 25;
 
   function layout(rules, ignore) {
     ignore = ignore || [];
@@ -240,6 +390,17 @@
           var r = el.getBoundingClientRect();
           if (r.width === 0 || r.height === 0) v(rule, el, 'text in a ' + Math.round(r.width) + 'x' + Math.round(r.height) + ' box');
         });
+      } else if (rule === 'styles_applied') {
+        var idx = activeClassRules(), n = 0, more = 0;
+        var at = innerWidth + 'x' + innerHeight;
+        shown.forEach(function (el) {
+          Array.prototype.forEach.call(el.classList, function (cls) {
+            if (cls.indexOf('js-') === 0 || styled(el, cls, idx)) return;
+            if (n++ < stylesCap) v(rule, el, 'class "' + cls + '" has no CSS rule active at ' + at + ' (add a rule, rename a JS-only hook to js-' + cls + ', or layout_ignore the id)');
+            else more++;
+          });
+        });
+        if (more) out.push({ rule: rule, id: '(page)', detail: more + ' more classes have no CSS rule active at ' + at });
       }
     });
     return out;

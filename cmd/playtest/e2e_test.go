@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -206,6 +207,69 @@ func TestOverlayEndToEnd(t *testing.T) {
 	}
 }
 
+// TestStylesAppliedCatchesV048 replays the v0.48.0 break: a lost `}`
+// left the rest of style.css inside a max-width: 900px block, so the status
+// page rendered unstyled on desktop while every content check passed. With
+// that stylesheet swapped in, styles_applied and the step's shape checks
+// fail the status page at 1440x900 and its content checks still pass; with
+// the current one everything passes.
+func TestStylesAppliedCatchesV048(t *testing.T) {
+	old, err := os.ReadFile(filepath.Join("testdata", "style-v0.48.0.css"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := func(swap bool) ([]LayoutViolation, []string) {
+		r, b := newTestRunner(t)
+		if swap {
+			css, _ := json.Marshal(string(old))
+			r.pageScripts = []string{`document.addEventListener('DOMContentLoaded', function () {
+  var l = document.querySelector('link[href="/static/style.css"]');
+  if (!l) return;
+  var s = document.createElement('style');
+  s.textContent = ` + string(css) + `;
+  l.replaceWith(s);
+});`}
+		}
+		s := loadRepoSession(t, "status-page")
+		s.Checks.Viewports = []string{"1440x900"}
+		s.Checks.Layout = []string{"styles_applied"}
+		res, _, err := r.UXTest(b, s, map[string]bool{"TP5": true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		st := res.Step("TP5")
+		if st == nil || len(st.Viewports) != 1 {
+			t.Fatalf("TP5 = %+v", st)
+		}
+		var shapes []string
+		for _, c := range st.Viewports[0].Checks {
+			if c.Pass {
+				continue
+			}
+			kind, _, _ := strings.Cut(c.Check, " ")
+			if !map[string]bool{"beside": true, "below": true, "css": true, "size": true}[kind] {
+				t.Errorf("content check %s failed (%s): the swap should break only the styling", c.Check, c.Actual)
+			}
+			shapes = append(shapes, c.Check)
+		}
+		return st.Viewports[0].Layout, shapes
+	}
+	if v, shapes := run(false); len(v) != 0 || len(shapes) != 0 {
+		t.Errorf("current style.css: want no violations, got %+v and failed checks %v", v, shapes)
+	}
+	v, shapes := run(true)
+	if len(v) == 0 {
+		t.Fatal("v0.48.0 style.css: styles_applied found nothing")
+	}
+	if !strings.Contains(strings.Join(shapes, "\n"), "beside [status.where, status.waiting]") {
+		t.Errorf("v0.48.0 style.css: want the two-column check to fail, failed: %v", shapes)
+	}
+	if !strings.Contains(v[0].Detail, "has no CSS rule active at 1440x900") {
+		t.Errorf("first violation = %+v", v[0])
+	}
+	t.Logf("v0.48.0: %d violations, first %s: %s; failed shape checks: %v", len(v), v[0].ID, v[0].Detail, shapes)
+}
+
 // TestOverlayMovesOnToTheNextSession: with another session queued, the last
 // verdict ends this one without Alt+Q, so the next session's steps start.
 func TestOverlayMovesOnToTheNextSession(t *testing.T) {
@@ -267,7 +331,11 @@ func TestOverlayTwoSessionsInTheOwnersWindow(t *testing.T) {
 		t.Fatal("first session:", err)
 	}
 	r.moreSessions = false
-	r.judgeHook = func(j *judge) { skip(j, "TP11"); skip(j, "TP12"); pageEval(t, j, `window.__ptSend({type:'quit'}).then(function(){}), JSON.stringify(1)`, new(any)) }
+	r.judgeHook = func(j *judge) {
+		skip(j, "TP11")
+		skip(j, "TP12")
+		pageEval(t, j, `window.__ptSend({type:'quit'}).then(function(){}), JSON.stringify(1)`, new(any))
+	}
 	res, _, err := r.Playtest(b, s, auto)
 	if err != nil {
 		t.Fatal("second session:", err)

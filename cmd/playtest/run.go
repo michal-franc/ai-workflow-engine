@@ -23,6 +23,9 @@ type Runner struct {
 	bins *Binaries
 	// judgeHook lets a test drive the overlay the way the owner would.
 	judgeHook func(*judge)
+	// pageScripts run in every ux-test document after the runner's own; a
+	// test swaps the stylesheet with one.
+	pageScripts []string
 	// moreSessions: another session with judgement steps follows, so Playtest
 	// moves on once every step has a verdict instead of waiting for Alt+Q.
 	moreSessions bool
@@ -173,7 +176,7 @@ func (r *Runner) runStep(b *Browser, bins *Binaries, s *Session, st *Step, vp Vi
 	defer sc.Stop(r.Keep)
 	fmt.Fprintf(logf, "scenario %s at %s (board %s)\n", s.Scenario, sc.Root, sc.Base)
 
-	pg, err := b.NewPage(&vp, checksJS, noMotionJS)
+	pg, err := b.NewPage(&vp, append([]string{checksJS, noMotionJS}, r.pageScripts...)...)
 	if err != nil {
 		return fail("browser: %v", err)
 	}

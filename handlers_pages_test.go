@@ -71,7 +71,7 @@ func TestProjectPages_NoConfigLeavesStatusUnchanged(t *testing.T) {
 	defer ts.Close()
 
 	html := pageGet(t, ts.URL+"/p/atlas/status")
-	if !strings.Contains(html, `data-testid="status.where"`) {
+	if !strings.Contains(html, `data-testid="status.milestone"`) {
 		t.Fatal("built-in status page did not render")
 	}
 	for _, id := range []string{"status.tabs", "page.frame", "nav.page."} {
@@ -114,12 +114,12 @@ func TestProjectPages_StatusShowsProjectPageWithTabs(t *testing.T) {
 	if strings.Contains(html, "allow-same-origin") {
 		t.Error("iframe sandbox must not allow same origin")
 	}
-	if strings.Contains(html, `data-testid="status.where"`) {
+	if strings.Contains(html, `data-testid="status.milestone"`) {
 		t.Error("/status with status_page rendered the built-in page")
 	}
 
 	builtin := pageGet(t, ts.URL+"/p/atlas/status?view=builtin")
-	for _, want := range []string{`data-testid="status.where"`, `class="status-tab active" data-testid="status.tab.builtin"`} {
+	for _, want := range []string{`data-testid="status.milestone"`, `class="status-tab active" data-testid="status.tab.builtin"`} {
 		if !strings.Contains(builtin, want) {
 			t.Errorf("/status?view=builtin missing %s", want)
 		}

@@ -3686,10 +3686,76 @@ a.chip { text-decoration: none; }
 .status-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .status-actions .mono { font-size: 12px; }
 .btn.copied { color: var(--green); border-color: var(--green-border); background: var(--green-bg); }
-.status-cols { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
-.status-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
-.status-col-main { flex: 2 1 560px; }
-.status-col-side { flex: 1 1 340px; }
+/* Every row shares one grid, so the side column keeps the same width and
+   edges down the page; one column under 900px (DOM order = phone order). */
+.status-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; margin-bottom: 20px; }
+.status-grid-top > .status-card { align-self: stretch; }
+.status-grid [hidden] { display: none !important; }
+.status-side { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+@media (max-width: 900px) {
+    .status-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.status-num { color: var(--text); }
+.status-bar.status-split { display: flex; height: 10px; }
+.status-split > span { flex-shrink: 0; }
+.status-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-secondary); }
+.status-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-dot-track { box-shadow: inset 0 0 0 1px var(--border); }
+.status-areas { align-items: center; }
+.status-areas .label { margin-right: 4px; }
+.status-waiting.has-items { background: var(--amber-bg); }
+.btn-amber { background: var(--amber); color: #000; border-color: var(--amber); font-weight: 600; }
+.btn-amber:hover { text-decoration: none; filter: brightness(1.08); }
+
+/* Epics and Recently shipped share the column grid, so bars and counts line
+   up between the two cards. */
+.status-grid-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, 160px) 64px 52px; gap: 12px; align-items: center; }
+.status-grid-cols .num { text-align: right; }
+@media (max-width: 600px) {
+    .status-grid-cols { grid-template-columns: minmax(0, 1fr) 56px 52px 28px; gap: 8px; }
+    .status-epics-filter { width: 100%; }
+}
+.status-cols-head { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); padding: 0 0 6px; border-bottom: 1px solid var(--border-subtle, var(--border)); }
+.status-epics { gap: 10px; }
+.status-epics-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.status-seg { display: inline-flex; gap: 4px; }
+.status-seg-btn { font: inherit; font-size: 13px; padding: 4px 10px; min-height: 30px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; }
+.status-seg-btn[aria-pressed="true"] { color: var(--text); border-color: var(--blue-border); background: var(--blue-bg); }
+.status-seg-btn .mono { font-size: 12px; margin-left: 2px; }
+.status-epics-version { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-secondary); }
+.status-epics-version select, .status-epics-filter { font: inherit; font-size: 13px; min-height: 30px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary, var(--bg)); color: var(--text); }
+.status-epics-filter { width: 150px; }
+.status-epics-panel { display: flex; flex-direction: column; }
+.status-area { border-bottom: 1px solid var(--border-subtle, var(--border)); }
+.status-area:last-child { border-bottom: 0; }
+.status-area > summary { list-style: none; cursor: pointer; padding: 9px 0; font-size: 13px; }
+.status-area > summary::-webkit-details-marker { display: none; }
+.status-area-name { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; min-width: 0; }
+.status-chevron::before { content: "▸"; display: inline-block; width: 12px; color: var(--text-secondary); font-size: 11px; }
+.status-area[open] > summary .status-chevron::before { content: "▾"; }
+.status-epic-row { padding: 4px 0 4px 20px; font-size: 13px; }
+.status-epic-row:last-child { padding-bottom: 10px; }
+.status-epic-row .chip { font-size: 11px; padding: 0 6px; }
+.status-bar-idle { background: var(--bg-tertiary); opacity: 0.6; }
+.status-bar.status-bar-blue > span { background: var(--blue); }
+
+/* "+K more": the rest of a list, opened in place. */
+.status-more > summary { cursor: pointer; font-size: 12px; color: var(--blue); padding: 6px 0; list-style: none; }
+.status-more > summary::-webkit-details-marker { display: none; }
+.status-more > summary:hover { text-decoration: underline; }
+.status-more[open] > summary { color: var(--text-secondary); }
+.status-more-epics > summary { padding-left: 20px; }
+.status-fold > summary::before { content: "▸ "; }
+.status-fold[open] > summary::before { content: "▾ "; }
+.status-row-stack > .status-ellipsis { max-width: 100%; }
+.status-work-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.status-version-row { display: grid; grid-template-columns: 72px minmax(0, 1fr) 64px; gap: 10px; align-items: center; padding: 5px 0; font-size: 13px; color: var(--text-secondary); }
+.status-version-row.is-current { color: var(--text); font-weight: 600; }
+.status-version-row .num { text-align: right; }
+.status-card-head-stack { flex-direction: column; align-items: flex-start; gap: 2px; }
+.status-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.status-clamp code { font-size: 12px; }
 .status-card { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
 .status-card h2 { margin: 0; font-size: 20px; font-weight: 800; font-stretch: 80%; }
 .status-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }

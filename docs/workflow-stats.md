@@ -60,7 +60,7 @@ Three blocks, in order:
 
 - `internal/tokens/estimate.go` — `Estimate(s string) int = len(s) / 4`. Single function, easy to swap for a real BPE later.
 - `internal/tracker/stats.go` — `TransitionStat`, `StatsStore`, sidecar I/O (`StatsSidecarPath`, `LoadStats`, `SaveStats`, `AppendTransitionStat`), and the cost functions `StaticTransitionCost(wf, from, to)` and `DynamicTransitionCost(wf, from, to, body, comments)`.
-- `internal/tracker/dispatch.go` — `AgentDispatchPromptTemplate` constant (single source of truth shared with `handlers_dispatch.go`) and `AgentDispatchPromptStaticCost()`.
+- `internal/tracker/dispatch.go` — `AgentDispatchPromptTemplate` constant (single source of truth shared with `handlers_dispatch.go`; named `{{slug}}`, `{{system}}`, … placeholders that `BuildAgentPrompt` fills from `agentPromptFields`) and `AgentDispatchPromptStaticCost()`.
 - `internal/tracker/workflow_transition.go` — `ApplyTransitionToFileWithFields` snapshots a `TransitionStat` after a successful transition, capturing the pre-transition body and comments for the dynamic cost.
 - `handlers_stats.go` — the `/stats` route handler. Walks the project's issues and aggregates per-(from→to) and per-issue. `runTelemetryReport` (package var, stubbed in tests) and `loadCLIUsage` produce the CLI usage block.
 - `templates/stats.html` — page template. Reuses the existing `data-table` styling.

@@ -29,8 +29,8 @@
             <div>
                 <h1 class="detail-title" id="issue-title" data-testid="detail.title" onclick="editTitle()">{{.Issue.Title}} <span class="title-edit-icon">&#9998;</span></h1>
                 <div class="title-editor" id="title-editor" style="display:none">
-                    <input type="text" class="title-input" id="title-input" value="{{.Issue.Title}}">
-                    <button class="body-save-btn" onclick="saveTitle()">Save</button>
+                    <input type="text" class="title-input" id="title-input" data-testid="detail.title.input" value="{{.Issue.Title}}">
+                    <button class="body-save-btn" data-testid="detail.title.save" onclick="saveTitle()">Save</button>
                     <button class="body-tab" onclick="cancelTitleEdit()">Cancel</button>
                 </div>
                 <div class="body-toolbar">

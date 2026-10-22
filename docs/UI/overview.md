@@ -193,13 +193,16 @@ workbench:
 
 `/p/<project>/status` is the first sidebar entry. It answers "where are we" without asking the lead. It is read-only, and everything comes from repo files. `buildStatus` (`status.go`) holds the rules and is tested without HTTP; the grouping and the caps are in `status_groups.go`.
 
-**Layout.** Three rows, each on one shared grid (`.status-grid`: `minmax(0,1fr) 320px`, gap 20 px), so the side column keeps the same width and edges down the page. Under 900 px it is one column, in DOM order. Things that need the owner or are running come before progress and history.
+**Layout.** A row of three tiles, then three rows on one shared grid (`.status-grid`: `minmax(0,1fr) 320px`, gap 20 px), so the side column keeps the same width and edges down the page. A row whose side card is missing (no `ci:` block, nothing waiting for release) gives the main card the full width. Under 900 px everything is one column, in DOM order. What needs the owner or is running comes first.
 
 | Row | Main | Side (320 px) |
 |:--|:--|:--|
-| 1 | Current milestone | Needs you |
-| 2 | Epics | Working on, Local CI, Waiting for release, What's next |
+| Tiles | Needs you · Working on · What's next (`status.strip`) | |
+| 1 | Current milestone | Local CI |
+| 2 | Epics | Waiting for release |
 | 3 | Recently shipped | Versions, Recently released |
+
+**Tiles** (D-6). Each of Needs you, Working on and What's next is a `<details class="status-pop">` (`status.<card>.pop`). Its summary shows the title, a count and one line (`NeedsSummary`: "7 to approve · 1 question"; `WorkingSummary`: "3 agents working · 9 without an agent · lead not running"; `NextSummary`: "the lead's ## Next · 8 backlog · 6 parked"). Needs you is amber while anything waits. Clicking a tile opens the full card in a panel positioned over the page (absolute, `z-index` 40, at most 70vh, scrolls), so nothing below moves. Only one is open at a time. A click outside, focus leaving it, or Escape folds it back. The open state is not saved.
 
 **Every list is capped** (the `cap…` constants in `status_groups.go`, read by the template as `.Cap`): it shows its first N rows, then the rest sit in a `<details class="status-more">` "+K more" that opens in place, without JS. The caps: Needs you 5 per kind, Working on 8, in-design agent chips 6, backlog and parked 5 each, epics per area 8, Versions 8, Unreleased 5, and the release-wait open list folds whole past 5 (10 rows inside, then "+K more"). The template splits a list with `head N list` / `rest N list` (`template_funcs.go`).
 
@@ -220,26 +223,26 @@ workbench:
 - **Recently shipped** (`status.shipped`), on the same column grid as the Epics rows: issues that reached the final status in the last 7 days, grouped by area, largest first, with a bar per area. The largest group starts open with its newest 3 and "Show K more"; past 5 areas the rest merge into "N more areas". **Full list** links `/?status=done`.
 - **Versions** (`status.versions`): a bar per `version:`, the current milestone marked "· now".
 - **Recently released** (`status.released`): the newest 3 releases from the changelog (or git tags), each with its version in green mono, the date and the summary clamped to 3 lines. Summaries render their inline markdown (bold, code, links; raw HTML dropped) as `Release.SummaryHTML`; `status.md` and `status.json` get plain text (`SummaryText`, clipped at 140). With none: "No releases yet: vX.Y.0 will be the first".
-- **Working on** (`status.working`), compact for the side column:
+- **Working on** (`status.working`, in its tile's panel):
   - every issue from in progress up to (not including) done: title, status chip, time in status and agent state from the agents model
   - the time is the stats sidecar's last transition into the status; without one it is the file's mtime, marked `≈`
   - the time turns amber at 7 days and red at 14
   - the project lead's state
   - chips for live agents on issues not yet in progress
-- **What's next:** the `## Next` section of the project lead's newest handoff note (`tracker.NewestHandoffNote`), rendered as markdown, with slugs in code spans linked to their issues. Then the backlog by priority, then parked issues with the first line of their `## Parked Record`.
-- **Needs you** (`status.waiting`; `waitingOnOwner` in `attention.go`, shared with the board markers and the system pages), amber while anything waits, each gate with an amber Review button:
+- **What's next** (`status.next`, in its tile's panel): the `## Next` section of the project lead's newest handoff note (`tracker.NewestHandoffNote`), rendered as markdown, with slugs in code spans linked to their issues. Then the backlog by priority, then parked issues with the first line of their `## Parked Record`.
+- **Needs you** (`status.waiting`, in its tile's panel; `waitingOnOwner` in `attention.go`, shared with the board markers and the system pages), amber while anything waits, each gate with an amber Review button:
   - gates whose approval is the only unmet requirement (`WorkflowConfig.ReadyForApproval`, which skips `command_succeeds`)
   - human-testing issues with a playtest session (`issue: <slug>`) and no `-judge` run
   - issues whose newest comment starts with `question:`
   - a footer counts gates whose checklist is still open
   - the sidebar's Status count is the same number
-- **Local CI** (only with a `ci:` block; `ci_view.go`), in the side column under Working on:
+- **Local CI** (only with a `ci:` block; `ci_view.go`), in the side column beside Current milestone:
   - a state chip (green, red, amber when CI can't run) and the one-liner `issue-cli ci status` prints
   - **Last runs:** the last 12 default-tier runs as boxes, oldest first (`status.ci.run.<sha>`, `data-state`), with a dashed box for a live run; each tooltip has the commit, result, age, duration and what failed
   - while red: the failing command and tests, the issues that landed since the last green run (and how many commits had no issue), the bugfix issue with `on_red: file_issue`, and the log tail in a `<details>`
   - red CI is the first entry under Waiting on you (`status.waiting.ci`) and adds one to the waiting count and the sidebar's Status number; `status.md` gets a `Local CI:` line, the tail while red, and the waiting entry
   - the same state gives the merged issues a red `ci-red` card marker (`markers.go`, `ciMarkers`), which done workboard cards get too
-- **Waiting for release** (`release_wait.go`), in the side column under Local CI:
+- **Waiting for release** (`release_wait.go`), in the side column beside Epics:
   - **Milestone:** the lowest issue `version:` after the newest released version (the top `## vX.Y.Z` changelog heading, else the newest git tag). `0.53` and `v0.53.0` compare equal. Parked issues don't count, and a version with only parked issues is skipped. With no release yet, it is the lowest version with an open issue. It shows done/total, its open issues (furthest along first, with status and assignee), and a chip: amber `vX.Y.0 not ready` or green `ready to cut`.
   - **Checks** (`status.release_wait.check.<key>`, `data-ok`):
     - `issues`: every milestone issue done.

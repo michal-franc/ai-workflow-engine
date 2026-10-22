@@ -16,36 +16,77 @@ steps:
     act:
       - check: { text_contains: { target: status.release_wait.open.fold, text: "20 open: 1 in progress, 2 in design, 17 idea" } }
       - check: { count: { pattern: status.release_wait.open.row.*, equals: 0 } }
+      # Needs you: 7 ready gates, 5 shown.
+      - click: status.waiting.pop
+      - check: { count: { pattern: status.waiting.gate.*, equals: 5 } }
+      - check: { text_equals: { target: status.waiting.more.gate, text: "+2 more" } }
+      # Working on: 12 in progress, 8 shown.
+      - click: status.working.pop
+      - check: { count: { pattern: status.working.row.*, equals: 8 } }
+      - check: { text_equals: { target: status.working.more, text: "+4 more" } }
+      - click: status.next.pop
+      - check: { text_equals: { target: status.backlog.more, text: "+3 more" } }
+      - check: { text_equals: { target: status.parked.more, text: "+1 more" } }
+      - key: Escape
       - click: status.release_wait.open.fold
     checks:
-      # Needs you: 7 ready gates, 5 shown.
-      - count: { pattern: status.waiting.gate.*, equals: 5 }
-      - text_equals: { target: status.waiting.more.gate, text: "+2 more" }
-      # Working on: 12 in progress, 8 shown.
-      - count: { pattern: status.working.row.*, equals: 8 }
-      - text_equals: { target: status.working.more, text: "+4 more" }
-      - text_equals: { target: status.backlog.more, text: "+3 more" }
-      - text_equals: { target: status.parked.more, text: "+1 more" }
       - text_equals: { target: status.release_wait.unreleased.more, text: "+3 more" }
       # The open list, once unfolded: 10 rows, started first, then "+10 more".
       - count: { pattern: status.release_wait.open.row.*, equals: 10 }
       - text_equals: { target: status.release_wait.open.more, text: "+10 more" }
-      # One grid: the side column has the same width and edges in each row.
-      - beside: [status.milestone, status.waiting]
-      - beside: [status.epics, status.working]
+      # Three tiles in one line, then one grid: the side column has the
+      # same width and edges in each row.
+      - beside: [status.waiting.pop, status.working.pop]
+      - beside: [status.working.pop, status.next.pop]
+      - below: [status.strip, status.milestone]
+      - beside: [status.epics, status.release_wait]
       - beside: [status.shipped, status.versions]
       - below: [status.milestone, status.epics]
       - below: [status.epics, status.shipped]
-      - size: { target: status.waiting, min_width: 318, max_width: 322 }
-      - size: { target: status.working, min_width: 318, max_width: 322 }
+      - size: { target: status.release_wait, min_width: 318, max_width: 322 }
       - size: { target: status.versions, min_width: 318, max_width: 322 }
     do: Load the page at 1440×900 without scrolling.
     expect: |
-      Current milestone, Needs you, Working on and the top of Waiting for
-      release are on screen without scrolling. No card lists more than
-      about ten rows; each longer list ends in a blue "+K more". The side
-      cards share one left and one right edge down the whole page.
+      The three tiles (Needs you, Working on, What's next), Current
+      milestone and the top of Epics and Waiting for release are on screen
+      without scrolling. No card lists more than about ten rows; each
+      longer list ends in a blue "+K more". The side cards share one left
+      and one right edge.
     why: what fits above the fold on a real screen is the owner's call; ux-test only checks the shape.
+
+  - id: TP11
+    title: The tiles open their card over the page and fold back on a click outside, focus loss or Escape
+    setup:
+      - open: /p/{project}/status
+    act:
+      - check: { text_equals: { target: status.waiting.pop.summary, text: "7 to approve · 1 question" } }
+      - check: { text_equals: { target: status.working.pop.summary, text: "12 agents stopped · lead not running" } }
+      - check: { text_equals: { target: status.next.pop.summary, text: "8 backlog · 6 parked" } }
+      - check: { absent: [status.waiting, status.working, status.next] }
+      - snapshot: { name: milestone_before, target: status.milestone }
+      - click: status.waiting.pop
+      - check: { visible: status.waiting }
+      # Opening another tile folds the first.
+      - click: status.working.pop
+      - check: { visible: status.working }
+      - check: { absent: status.waiting }
+      # A click outside folds it (the milestone is under the open card).
+      - click: status.versions
+      - check: { absent: status.working }
+      - click: status.next.pop
+      - check: { visible: status.next }
+      - key: Escape
+    checks:
+      - absent: [status.waiting, status.working, status.next]
+      - unchanged: { target: status.milestone, since: milestone_before }
+      - below: [status.strip, status.milestone]
+    do: Click Needs you, then Working on, then somewhere on the page; Tab out of an open card.
+    expect: |
+      Each card opens just under its tile, over the milestone and Epics,
+      with a shadow; nothing below it moves. Opening another tile closes
+      the first; a click outside, Tab past its last link, or Escape folds
+      it back.
+    why: that the card floats over the page rather than pushing it is a visual judgement.
 
   - id: TP5
     title: Current milestone splits 0.1 by status and counts its open issues by area

@@ -435,3 +435,73 @@ func (ev EpicsView) CurrentPanel() *EpicsPanel {
 	}
 	return nil
 }
+
+// The top row's tiles show one line each; the full card opens over the page.
+
+// NeedsSummary is the Needs you tile's line: "7 to approve · 1 question".
+func (m *StatusModel) NeedsSummary() string {
+	var parts []string
+	if m.CI.Red() {
+		parts = append(parts, "local CI red")
+	}
+	for _, k := range []struct{ kind, label string }{{"gate", "to approve"}, {"playtest", "to playtest"}, {"question", "question"}} {
+		if n := len(m.WaitingOf(k.kind)); n > 0 {
+			label := k.label
+			if k.kind == "question" && n > 1 {
+				label = "questions"
+			}
+			parts = append(parts, fmt.Sprintf("%d %s", n, label))
+		}
+	}
+	if len(parts) == 0 {
+		return "Nothing waits on you"
+	}
+	return strings.Join(parts, " · ")
+}
+
+// WorkingSummary is the Working on tile's line: "3 agents working · 9
+// without an agent · lead not running".
+func (m *StatusModel) WorkingSummary() string {
+	if len(m.Active) == 0 && m.LeadName == "" {
+		return "Nothing in flight"
+	}
+	counts := map[string]int{}
+	var order []string
+	for _, r := range m.Active {
+		state := r.Agent
+		if state == "" {
+			state = "no agent"
+		}
+		if counts[state] == 0 {
+			order = append(order, state)
+		}
+		counts[state]++
+	}
+	var parts []string
+	for _, s := range order {
+		if s == "no agent" {
+			parts = append(parts, fmt.Sprintf("%d without an agent", counts[s]))
+			continue
+		}
+		parts = append(parts, plural(counts[s], "agent", "agents")+" "+s)
+	}
+	if m.LeadName != "" {
+		if m.LeadState == "live" {
+			parts = append(parts, "lead live")
+		} else {
+			parts = append(parts, "lead not running")
+		}
+	}
+	return strings.Join(parts, " · ")
+}
+
+// NextSummary is the What's next tile's line: the lead's list, or the
+// backlog and parked counts.
+func (m *StatusModel) NextSummary() string {
+	var parts []string
+	if m.Next.Found {
+		parts = append(parts, "the lead's ## Next")
+	}
+	parts = append(parts, fmt.Sprintf("%d backlog", len(m.Backlog)), fmt.Sprintf("%d parked", len(m.Parked)))
+	return strings.Join(parts, " · ")
+}

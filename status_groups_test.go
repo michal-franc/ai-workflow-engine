@@ -266,3 +266,24 @@ func TestStatusMarkdownCaps(t *testing.T) {
 		last = i
 	}
 }
+
+func TestTileSummaries(t *testing.T) {
+	m := &StatusModel{}
+	if m.NeedsSummary() != "Nothing waits on you" || m.WorkingSummary() != "Nothing in flight" || m.NextSummary() != "0 backlog · 0 parked" {
+		t.Errorf("empty = %q / %q / %q", m.NeedsSummary(), m.WorkingSummary(), m.NextSummary())
+	}
+	m.Waiting = []WaitingItem{{Kind: "gate"}, {Kind: "gate"}, {Kind: "question"}, {Kind: "question"}, {Kind: "playtest"}}
+	m.Active = []ActiveRow{{Agent: "working"}, {}, {Agent: "working"}, {Agent: "stopped"}}
+	m.LeadName, m.LeadState = "lead-x", "live"
+	m.Next.Found = true
+	m.Backlog = []*tracker.Issue{{}}
+	if got := m.NeedsSummary(); got != "2 to approve · 1 to playtest · 2 questions" {
+		t.Errorf("needs = %q", got)
+	}
+	if got := m.WorkingSummary(); got != "2 agents working · 1 without an agent · 1 agent stopped · lead live" {
+		t.Errorf("working = %q", got)
+	}
+	if got := m.NextSummary(); got != "the lead's ## Next · 1 backlog · 0 parked" {
+		t.Errorf("next = %q", got)
+	}
+}

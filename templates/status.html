@@ -28,41 +28,13 @@
         </div>
         {{if .HasProjectPage}}{{template "status-tabs" (statusTabs .Prefix true)}}{{end}}
 
-        <div class="status-grid status-grid-top">
-            <section class="card status-card" data-testid="status.milestone" aria-labelledby="status-milestone-h">
-                {{with .Milestone}}
-                <div class="status-card-head">
-                    <h2 id="status-milestone-h">Current milestone · <span class="mono">{{.Version}}</span></h2>
-                    <span class="mono status-meta"><strong class="status-num">{{.Progress.Done}}</strong> / {{.Progress.Total}} done · {{.Progress.Pct}}%</span>
-                </div>
-                <div class="status-bar status-split" data-testid="status.milestone.bar" role="img" aria-label="{{.Progress.Done}} of {{.Progress.Total}} done{{range .Segments}}{{if not .Done}}, {{.Count}} {{.Status}}{{end}}{{end}}">
-                    {{range .Segments}}<span data-testid="status.milestone.segment.{{tid .Status}}" style="width: {{.Pct}}%; background: {{if .Done}}var(--green){{else}}{{statusColor .Status}}{{end}}" title="{{.Status}}: {{.Count}}"></span>{{end}}
-                </div>
-                <div class="status-legend">
-                    {{range .Legend}}<span><span class="status-dot{{if .Track}} status-dot-track{{end}}" style="background: {{if .Done}}var(--green){{else if .Track}}var(--bg-tertiary){{else}}{{statusColor .Status}}{{end}}"></span>{{.Status}} <span class="mono">{{.Count}}</span></span>{{end}}
-                </div>
-                {{if .OpenAreas}}
-                <div class="status-chips status-areas">
-                    <span class="label">Open by area</span>
-                    {{range head $.Cap.MilestoneAreas .OpenAreas}}<span class="chip" data-testid="status.milestone.area.{{tid .Area}}">{{.Area}} <span class="mono">{{.Count}}</span></span>{{end}}
-                    {{with rest $.Cap.MilestoneAreas .OpenAreas}}<span class="chip chip-muted" data-testid="status.milestone.areas_more" title="{{range $i, $a := .}}{{if $i}}, {{end}}{{$a.Area}} {{$a.Count}}{{end}}">+{{len .}} areas</span>{{end}}
-                </div>
-                {{end}}
-                {{else}}
-                <div class="status-card-head">
-                    <h2 id="status-milestone-h">Where we are</h2>
-                    <a href="{{.Prefix}}/canvas">Issues canvas</a>
-                </div>
-                <div class="status-progress" data-testid="status.all_progress">
-                    <div class="status-progress-row"><span class="status-strong">All issues</span><span class="mono">{{.All.Done}}/{{.All.Total}} done</span></div>
-                    <div class="status-bar"><span data-testid="status.all_progress.bar" style="width: {{.All.Pct}}%"></span></div>
-                </div>
-                {{if not .Versions}}
-                <p class="status-hint" data-testid="status.no_versions">No issue sets a version, so there is no milestone. Set one with <code>issue-cli set-meta &lt;slug&gt; --key version --value 0.41</code> to get a milestone and a row per version.</p>
-                {{end}}
-                {{end}}
-            </section>
-
+        <div class="status-strip" data-testid="status.strip">
+            <details class="status-pop{{if .WaitingCount}} has-items{{end}}" data-testid="status.waiting.pop">
+                <summary class="status-pop-tile">
+                    <span class="status-pop-head"><span class="status-pop-title">Needs you</span><span class="chip{{if .WaitingCount}} chip-amber{{end}}">{{.WaitingCount}}</span></span>
+                    <span class="status-pop-sum" data-testid="status.waiting.pop.summary">{{.NeedsSummary}}</span>
+                </summary>
+                <div class="status-pop-panel">
             <section class="card status-card status-waiting{{if .WaitingCount}} has-items{{end}}" data-testid="status.waiting" aria-labelledby="status-waiting-h">
                 <div class="status-card-head">
                     <h2 id="status-waiting-h">Needs you</h2>
@@ -129,6 +101,179 @@
                 <p class="status-hint" data-testid="status.waiting.not_ready">{{plural .NotReady "more issue is" "more issues are"}} at a gate with their checklist still open. <a href="{{.Prefix}}/board">See the board</a></p>
                 {{end}}
             </section>
+                </div>
+            </details>
+            <details class="status-pop" data-testid="status.working.pop">
+                <summary class="status-pop-tile">
+                    <span class="status-pop-head"><span class="status-pop-title">Working on</span><span class="chip">{{len .Active}}</span></span>
+                    <span class="status-pop-sum" data-testid="status.working.pop.summary">{{.WorkingSummary}}</span>
+                </summary>
+                <div class="status-pop-panel">
+                <section class="card status-card" data-testid="status.working" aria-labelledby="status-working-h">
+                    <div class="status-card-head">
+                        <h2 id="status-working-h">Working on · {{len .Active}}</h2>
+                        <a href="{{.Prefix}}/agents">Agents</a>
+                    </div>
+                    {{if .LeadName}}
+                    <div class="status-lead" data-testid="status.lead">
+                        <span class="mono">{{.LeadName}}</span>
+                        <span class="chip{{if eq .LeadState "live"}} chip-green{{else}} chip-amber{{end}}">{{if eq .LeadState "live"}}live{{else}}not running{{end}}</span>
+                    </div>
+                    {{end}}
+                    {{$rest := rest .Cap.Working .Active}}
+                    <div class="status-list">
+                    {{range $i, $r := .Active}}{{if eq $i $.Cap.Working}}<details class="status-more" data-fold="working" data-testid="status.working.more"><summary>+{{len $rest}} more</summary>{{end}}
+                    <div class="status-row status-row-stack" data-testid="status.working.row.{{tid .Issue.Slug}}">
+                        <a href="{{$.IssueURL .Issue.Slug}}" class="status-title status-ellipsis" title="{{.Issue.Slug}}">{{.Issue.Title}}</a>
+                        <span class="status-meta status-work-meta">
+                            <span class="badge status-chip" style="--c: {{statusColor .Issue.Status}}">{{.Issue.Status}}</span>
+                            <span class="mono status-age {{.Age.Level}}" title="{{if .Age.Approx}}No transition recorded: the file's last change{{else}}Since {{.Age.Since.Format "2 Jan 15:04"}}{{end}}">{{if .Age.Approx}}≈ {{end}}{{.Age.Text}}</span>
+                            {{if .Agent}}<span class="chip {{agentTone .Agent}}">agent {{.Agent}}{{if .Gate}} → {{.Gate}}{{end}}</span>{{else}}<span>no agent</span>{{end}}
+                        </span>
+                    </div>
+                    {{else}}
+                    <p class="status-hint">Nothing between in progress and shipping.</p>
+                    {{end}}{{if $rest}}</details>{{end}}
+                    </div>
+                    {{if .InDesign}}
+                    <div class="status-list status-divided" data-testid="status.design_agents">
+                        <span class="label">Agents on issues not yet in progress</span>
+                        <div class="status-chips">
+                            {{range head .Cap.Chips .InDesign}}<a href="{{$.IssueURL .Issue.Slug}}" class="chip {{agentTone .State}}">{{.Issue.Title}} · {{.State}}</a>{{end}}
+                            {{with rest .Cap.Chips .InDesign}}<details class="status-more" data-fold="design_agents" data-testid="status.design_agents.more"><summary>+{{len .}} more</summary><div class="status-chips">{{range .}}<a href="{{$.IssueURL .Issue.Slug}}" class="chip {{agentTone .State}}">{{.Issue.Title}} · {{.State}}</a>{{end}}</div></details>{{end}}
+                        </div>
+                    </div>
+                    {{end}}
+                </section>
+                </div>
+            </details>
+            <details class="status-pop" data-testid="status.next.pop">
+                <summary class="status-pop-tile">
+                    <span class="status-pop-head"><span class="status-pop-title">What's next</span><span class="chip">{{len .Backlog}}</span></span>
+                    <span class="status-pop-sum" data-testid="status.next.pop.summary">{{.NextSummary}}</span>
+                </summary>
+                <div class="status-pop-panel">
+                <section class="card status-card" data-testid="status.next" aria-labelledby="status-next-h">
+                    <div class="status-card-head">
+                        <h2 id="status-next-h">What's next</h2>
+                        <span class="status-meta{{if and .Next.Found .Next.Age.Level}} status-old{{end}}" data-testid="status.next.source">
+                            {{if .Next.Found}}From <span class="mono">{{.Next.File}}</span> · ## Next · {{if eq .Next.Age.Text "now"}}just now{{else}}{{.Next.Age.Text}} ago{{end}}{{else}}Backlog by priority{{end}}
+                        </span>
+                    </div>
+                    {{if .Next.Found}}
+                    <div class="status-next markdown-body">{{.NextHTML}}</div>
+                    {{else}}
+                    <p class="status-hint">{{if .Next.File}}The project lead's newest handoff note (<span class="mono">{{.Next.File}}</span>) has no <code>## Next</code> section{{else}}The project lead has no handoff note yet{{end}}, so this lists the backlog. The lead's brief asks for a <code>## Next</code> section in every handoff note.</p>
+                    {{end}}
+                    {{$rest := rest .Cap.Next .Backlog}}
+                    <div class="status-list status-divided" data-testid="status.backlog">
+                        <span class="label">Backlog · {{len .Backlog}}</span>
+                        {{range $i, $b := .Backlog}}{{if eq $i $.Cap.Next}}<details class="status-more" data-fold="backlog" data-testid="status.backlog.more"><summary>+{{len $rest}} more</summary>{{end}}
+                        <div class="status-row">
+                            <a href="{{$.IssueURL .Slug}}" class="status-title status-ellipsis" title="{{.Slug}}">{{.Title}}</a>
+                            <span class="status-prio" style="color: {{priorityColor .Priority}}">{{if .Priority}}{{.Priority}}{{else}}—{{end}}</span>
+                        </div>
+                        {{else}}
+                        <span class="status-meta">Empty</span>
+                        {{end}}{{if $rest}}</details>{{end}}
+                    </div>
+                    {{$prest := rest .Cap.Next .Parked}}
+                    <div class="status-list status-divided" data-testid="status.parked">
+                        <span class="label">Parked{{if .Parked}} · {{len .Parked}}{{end}}</span>
+                        {{range $i, $p := .Parked}}{{if eq $i $.Cap.Next}}<details class="status-more" data-fold="parked" data-testid="status.parked.more"><summary>+{{len $prest}} more</summary>{{end}}
+                        <div class="status-row status-row-stack">
+                            <a href="{{$.IssueURL .Issue.Slug}}" class="status-title">{{.Issue.Title}}</a>
+                            {{if .Reason}}<span class="status-meta">{{.Reason}}</span>{{end}}
+                        </div>
+                        {{else}}
+                        <span class="status-meta">None</span>
+                        {{end}}{{if $prest}}</details>{{end}}
+                    </div>
+                </section>
+                </div>
+            </details>
+        </div>
+
+        <div class="status-grid status-grid-top">
+            <section class="card status-card" data-testid="status.milestone" aria-labelledby="status-milestone-h">
+                {{with .Milestone}}
+                <div class="status-card-head">
+                    <h2 id="status-milestone-h">Current milestone · <span class="mono">{{.Version}}</span></h2>
+                    <span class="mono status-meta"><strong class="status-num">{{.Progress.Done}}</strong> / {{.Progress.Total}} done · {{.Progress.Pct}}%</span>
+                </div>
+                <div class="status-bar status-split" data-testid="status.milestone.bar" role="img" aria-label="{{.Progress.Done}} of {{.Progress.Total}} done{{range .Segments}}{{if not .Done}}, {{.Count}} {{.Status}}{{end}}{{end}}">
+                    {{range .Segments}}<span data-testid="status.milestone.segment.{{tid .Status}}" style="width: {{.Pct}}%; background: {{if .Done}}var(--green){{else}}{{statusColor .Status}}{{end}}" title="{{.Status}}: {{.Count}}"></span>{{end}}
+                </div>
+                <div class="status-legend">
+                    {{range .Legend}}<span><span class="status-dot{{if .Track}} status-dot-track{{end}}" style="background: {{if .Done}}var(--green){{else if .Track}}var(--bg-tertiary){{else}}{{statusColor .Status}}{{end}}"></span>{{.Status}} <span class="mono">{{.Count}}</span></span>{{end}}
+                </div>
+                {{if .OpenAreas}}
+                <div class="status-chips status-areas">
+                    <span class="label">Open by area</span>
+                    {{range head $.Cap.MilestoneAreas .OpenAreas}}<span class="chip" data-testid="status.milestone.area.{{tid .Area}}">{{.Area}} <span class="mono">{{.Count}}</span></span>{{end}}
+                    {{with rest $.Cap.MilestoneAreas .OpenAreas}}<span class="chip chip-muted" data-testid="status.milestone.areas_more" title="{{range $i, $a := .}}{{if $i}}, {{end}}{{$a.Area}} {{$a.Count}}{{end}}">+{{len .}} areas</span>{{end}}
+                </div>
+                {{end}}
+                {{else}}
+                <div class="status-card-head">
+                    <h2 id="status-milestone-h">Where we are</h2>
+                    <a href="{{.Prefix}}/canvas">Issues canvas</a>
+                </div>
+                <div class="status-progress" data-testid="status.all_progress">
+                    <div class="status-progress-row"><span class="status-strong">All issues</span><span class="mono">{{.All.Done}}/{{.All.Total}} done</span></div>
+                    <div class="status-bar"><span data-testid="status.all_progress.bar" style="width: {{.All.Pct}}%"></span></div>
+                </div>
+                {{if not .Versions}}
+                <p class="status-hint" data-testid="status.no_versions">No issue sets a version, so there is no milestone. Set one with <code>issue-cli set-meta &lt;slug&gt; --key version --value 0.41</code> to get a milestone and a row per version.</p>
+                {{end}}
+                {{end}}
+            </section>
+            {{with .CI}}
+            <section class="card status-card status-ci status-ci-{{if .State}}{{.State}}{{else}}none{{end}}" data-testid="status.ci" aria-labelledby="status-ci-h">
+                <div class="status-card-head">
+                    <h2 id="status-ci-h">Local CI</h2>
+                    <span class="chip{{if eq .State "green"}} chip-green{{else if eq .State "red"}} chip-red{{else if eq .State "error"}} chip-amber{{end}}" data-testid="status.ci.state">{{if .State}}{{.State}}{{else}}no run yet{{end}}</span>
+                </div>
+                <span class="mono status-ci-line" data-testid="status.ci.line">{{.Line}}</span>
+                {{if .Runs}}
+                <div class="status-ci-runs-wrap">
+                    <span class="label">Last runs</span>
+                    <div class="status-ci-runs" data-testid="status.ci.runs" role="list" aria-label="Last CI runs, oldest first">
+                        {{range .Runs}}<span class="ci-run ci-run-{{.State}}" role="listitem" data-testid="status.ci.run.{{.Sha}}" data-state="{{.State}}" title="{{.Title}}" aria-label="{{.Title}}"></span>{{end}}
+                    </div>
+                </div>
+                {{end}}
+                {{if .Red}}
+                <div class="status-list" data-testid="status.ci.failed">
+                    <span class="label">Failing</span>
+                    <span class="mono status-ci-cmd">{{.Failed}}</span>
+                    {{if .Failures}}<span class="status-meta">{{.Failures}}</span>{{end}}
+                </div>
+                <div class="status-list status-divided" data-testid="status.ci.blamed">
+                    <span class="label">Landed since the last green run</span>
+                    {{range .Blamed}}
+                    <a href="{{$.IssueURL .Slug}}" class="status-title">{{.Title}}</a>
+                    {{else}}
+                    <span class="status-meta">No issue matched{{if .Others}}; see <code>issue-cli ci status</code>{{end}}</span>
+                    {{end}}
+                    {{if and .Blamed .Others}}<span class="status-meta">and {{plural .Others "commit" "commits"}} without an issue</span>{{end}}
+                    {{with .RedIssue}}<span class="status-meta">Fix tracked in <a href="{{$.IssueURL .Slug}}">{{.Title}}</a></span>{{end}}
+                </div>
+                {{else if eq .State "error"}}
+                <p class="status-hint" data-testid="status.ci.error">CI could not run: {{.Error}}. Fix it, or run <code>issue-cli ci reset</code> to rebuild the CI worktree.</p>
+                {{else if not .State}}
+                <p class="status-hint">The first run starts when the viewer sees the branch, or with <code>issue-cli ci run</code>.</p>
+                {{end}}
+                {{if .LogTail}}
+                <details class="status-ci-log" data-testid="status.ci.log">
+                    <summary>Log tail <span class="mono status-meta">{{.Log}}</span></summary>
+                    <pre>{{range .LogTail}}{{.}}
+{{end}}</pre>
+                </details>
+                {{end}}
+            </section>
+            {{end}}
+
         </div>
 
 
@@ -186,90 +331,8 @@
                 {{end}}
             </section>
 
-            <div class="status-side">
-                <section class="card status-card" data-testid="status.working" aria-labelledby="status-working-h">
-                    <div class="status-card-head">
-                        <h2 id="status-working-h">Working on · {{len .Active}}</h2>
-                        <a href="{{.Prefix}}/agents">Agents</a>
-                    </div>
-                    {{if .LeadName}}
-                    <div class="status-lead" data-testid="status.lead">
-                        <span class="mono">{{.LeadName}}</span>
-                        <span class="chip{{if eq .LeadState "live"}} chip-green{{else}} chip-amber{{end}}">{{if eq .LeadState "live"}}live{{else}}not running{{end}}</span>
-                    </div>
-                    {{end}}
-                    {{$rest := rest .Cap.Working .Active}}
-                    <div class="status-list">
-                    {{range $i, $r := .Active}}{{if eq $i $.Cap.Working}}<details class="status-more" data-fold="working" data-testid="status.working.more"><summary>+{{len $rest}} more</summary>{{end}}
-                    <div class="status-row status-row-stack" data-testid="status.working.row.{{tid .Issue.Slug}}">
-                        <a href="{{$.IssueURL .Issue.Slug}}" class="status-title status-ellipsis" title="{{.Issue.Slug}}">{{.Issue.Title}}</a>
-                        <span class="status-meta status-work-meta">
-                            <span class="badge status-chip" style="--c: {{statusColor .Issue.Status}}">{{.Issue.Status}}</span>
-                            <span class="mono status-age {{.Age.Level}}" title="{{if .Age.Approx}}No transition recorded: the file's last change{{else}}Since {{.Age.Since.Format "2 Jan 15:04"}}{{end}}">{{if .Age.Approx}}≈ {{end}}{{.Age.Text}}</span>
-                            {{if .Agent}}<span class="chip {{agentTone .Agent}}">agent {{.Agent}}{{if .Gate}} → {{.Gate}}{{end}}</span>{{else}}<span>no agent</span>{{end}}
-                        </span>
-                    </div>
-                    {{else}}
-                    <p class="status-hint">Nothing between in progress and shipping.</p>
-                    {{end}}{{if $rest}}</details>{{end}}
-                    </div>
-                    {{if .InDesign}}
-                    <div class="status-list status-divided" data-testid="status.design_agents">
-                        <span class="label">Agents on issues not yet in progress</span>
-                        <div class="status-chips">
-                            {{range head .Cap.Chips .InDesign}}<a href="{{$.IssueURL .Issue.Slug}}" class="chip {{agentTone .State}}">{{.Issue.Title}} · {{.State}}</a>{{end}}
-                            {{with rest .Cap.Chips .InDesign}}<details class="status-more" data-fold="design_agents" data-testid="status.design_agents.more"><summary>+{{len .}} more</summary><div class="status-chips">{{range .}}<a href="{{$.IssueURL .Issue.Slug}}" class="chip {{agentTone .State}}">{{.Issue.Title}} · {{.State}}</a>{{end}}</div></details>{{end}}
-                        </div>
-                    </div>
-                    {{end}}
-                </section>
-
-            {{with .CI}}
-            <section class="card status-card status-ci status-ci-{{if .State}}{{.State}}{{else}}none{{end}}" data-testid="status.ci" aria-labelledby="status-ci-h">
-                <div class="status-card-head">
-                    <h2 id="status-ci-h">Local CI</h2>
-                    <span class="chip{{if eq .State "green"}} chip-green{{else if eq .State "red"}} chip-red{{else if eq .State "error"}} chip-amber{{end}}" data-testid="status.ci.state">{{if .State}}{{.State}}{{else}}no run yet{{end}}</span>
-                </div>
-                <span class="mono status-ci-line" data-testid="status.ci.line">{{.Line}}</span>
-                {{if .Runs}}
-                <div class="status-ci-runs-wrap">
-                    <span class="label">Last runs</span>
-                    <div class="status-ci-runs" data-testid="status.ci.runs" role="list" aria-label="Last CI runs, oldest first">
-                        {{range .Runs}}<span class="ci-run ci-run-{{.State}}" role="listitem" data-testid="status.ci.run.{{.Sha}}" data-state="{{.State}}" title="{{.Title}}" aria-label="{{.Title}}"></span>{{end}}
-                    </div>
-                </div>
-                {{end}}
-                {{if .Red}}
-                <div class="status-list" data-testid="status.ci.failed">
-                    <span class="label">Failing</span>
-                    <span class="mono status-ci-cmd">{{.Failed}}</span>
-                    {{if .Failures}}<span class="status-meta">{{.Failures}}</span>{{end}}
-                </div>
-                <div class="status-list status-divided" data-testid="status.ci.blamed">
-                    <span class="label">Landed since the last green run</span>
-                    {{range .Blamed}}
-                    <a href="{{$.IssueURL .Slug}}" class="status-title">{{.Title}}</a>
-                    {{else}}
-                    <span class="status-meta">No issue matched{{if .Others}}; see <code>issue-cli ci status</code>{{end}}</span>
-                    {{end}}
-                    {{if and .Blamed .Others}}<span class="status-meta">and {{plural .Others "commit" "commits"}} without an issue</span>{{end}}
-                    {{with .RedIssue}}<span class="status-meta">Fix tracked in <a href="{{$.IssueURL .Slug}}">{{.Title}}</a></span>{{end}}
-                </div>
-                {{else if eq .State "error"}}
-                <p class="status-hint" data-testid="status.ci.error">CI could not run: {{.Error}}. Fix it, or run <code>issue-cli ci reset</code> to rebuild the CI worktree.</p>
-                {{else if not .State}}
-                <p class="status-hint">The first run starts when the viewer sees the branch, or with <code>issue-cli ci run</code>.</p>
-                {{end}}
-                {{if .LogTail}}
-                <details class="status-ci-log" data-testid="status.ci.log">
-                    <summary>Log tail <span class="mono status-meta">{{.Log}}</span></summary>
-                    <pre>{{range .LogTail}}{{.}}
-{{end}}</pre>
-                </details>
-                {{end}}
-            </section>
-            {{end}}
             {{with .ReleaseWait}}
+            <div class="status-side">
             <section class="card status-card{{if and .Milestone .Milestone.Ready}} status-ready-card{{end}}" data-testid="status.release_wait" aria-labelledby="status-release-wait-h">
                 <div class="status-card-head">
                     <h2 id="status-release-wait-h">Waiting for release</h2>
@@ -341,46 +404,8 @@
                 </div>
                 {{end}}
             </section>
-            {{end}}
-
-                <section class="card status-card" data-testid="status.next" aria-labelledby="status-next-h">
-                    <div class="status-card-head">
-                        <h2 id="status-next-h">What's next</h2>
-                        <span class="status-meta{{if and .Next.Found .Next.Age.Level}} status-old{{end}}" data-testid="status.next.source">
-                            {{if .Next.Found}}From <span class="mono">{{.Next.File}}</span> · ## Next · {{if eq .Next.Age.Text "now"}}just now{{else}}{{.Next.Age.Text}} ago{{end}}{{else}}Backlog by priority{{end}}
-                        </span>
-                    </div>
-                    {{if .Next.Found}}
-                    <div class="status-next markdown-body">{{.NextHTML}}</div>
-                    {{else}}
-                    <p class="status-hint">{{if .Next.File}}The project lead's newest handoff note (<span class="mono">{{.Next.File}}</span>) has no <code>## Next</code> section{{else}}The project lead has no handoff note yet{{end}}, so this lists the backlog. The lead's brief asks for a <code>## Next</code> section in every handoff note.</p>
-                    {{end}}
-                    {{$rest := rest .Cap.Next .Backlog}}
-                    <div class="status-list status-divided" data-testid="status.backlog">
-                        <span class="label">Backlog · {{len .Backlog}}</span>
-                        {{range $i, $b := .Backlog}}{{if eq $i $.Cap.Next}}<details class="status-more" data-fold="backlog" data-testid="status.backlog.more"><summary>+{{len $rest}} more</summary>{{end}}
-                        <div class="status-row">
-                            <a href="{{$.IssueURL .Slug}}" class="status-title status-ellipsis" title="{{.Slug}}">{{.Title}}</a>
-                            <span class="status-prio" style="color: {{priorityColor .Priority}}">{{if .Priority}}{{.Priority}}{{else}}—{{end}}</span>
-                        </div>
-                        {{else}}
-                        <span class="status-meta">Empty</span>
-                        {{end}}{{if $rest}}</details>{{end}}
-                    </div>
-                    {{$prest := rest .Cap.Next .Parked}}
-                    <div class="status-list status-divided" data-testid="status.parked">
-                        <span class="label">Parked{{if .Parked}} · {{len .Parked}}{{end}}</span>
-                        {{range $i, $p := .Parked}}{{if eq $i $.Cap.Next}}<details class="status-more" data-fold="parked" data-testid="status.parked.more"><summary>+{{len $prest}} more</summary>{{end}}
-                        <div class="status-row status-row-stack">
-                            <a href="{{$.IssueURL .Issue.Slug}}" class="status-title">{{.Issue.Title}}</a>
-                            {{if .Reason}}<span class="status-meta">{{.Reason}}</span>{{end}}
-                        </div>
-                        {{else}}
-                        <span class="status-meta">None</span>
-                        {{end}}{{if $prest}}</details>{{end}}
-                    </div>
-                </section>
             </div>
+            {{end}}
         </div>
 
         <div class="status-grid">
@@ -468,6 +493,28 @@ function copyStatusMarkdown(btn) {
         })
         .catch(function() { window.open(url, '_blank'); });
 }
+
+// The top row's tiles: one card open at a time, over the page; it folds
+// back on a click outside, when focus leaves it, or on Escape. Not saved.
+(function() {
+    var pops = Array.prototype.slice.call(document.querySelectorAll('details.status-pop'));
+    function closeAll(except) { pops.forEach(function(p) { if (p !== except) p.open = false; }); }
+    pops.forEach(function(p) {
+        p.addEventListener('toggle', function() { if (p.open) closeAll(p); });
+        p.addEventListener('focusout', function(e) {
+            if (e.relatedTarget && !p.contains(e.relatedTarget)) p.open = false;
+        });
+    });
+    document.addEventListener('click', function(e) {
+        pops.forEach(function(p) { if (p.open && !p.contains(e.target)) p.open = false; });
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key !== 'Escape') return;
+        pops.forEach(function(p) {
+            if (p.open) { p.open = false; p.querySelector('summary').focus(); }
+        });
+    });
+})();
 
 // Folds and the Epics filters, remembered per project in localStorage under
 // status:<project> as {tab, version, q, open: {<fold>: bool}}. Storage that

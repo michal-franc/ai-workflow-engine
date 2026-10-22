@@ -20,6 +20,12 @@ steps:
       - text_contains: { target: nav.tab.list, text: "4" }
       # No workbench.balance in this scenario, and More starts closed.
       - absent: [nav.tab.balance, nav.tab.board, nav.tab.graph, nav.tab.stats]
+      # The sidebar's shape: a fixed-width column beside the page, the
+      # project name over the entries, one entry per row.
+      - beside: [nav.sidebar, workboard.page]
+      - size: { target: nav.sidebar, min_width: 200, max_width: 280 }
+      - below: [nav.project, nav.tab.workboard]
+      - below: [nav.tab.workboard, nav.tab.list]
 
   - id: TP5
     title: More opens to the secondary views, and a view inside it opens More on load

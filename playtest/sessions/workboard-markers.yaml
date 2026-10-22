@@ -27,6 +27,11 @@ steps:
       - text_contains: { target: workboard.card.ui/redesign.epic, text: 1 of 2 children done }
       - text_contains: { target: workboard.card.ui/player-card.age, text: d }
       - text_equals: { target: workboard.column.done.count, text: "1" }
+      # The board's shape: group toggles in a row, columns side by side
+      # under them.
+      - beside: [workboard.group.status, workboard.group.system]
+      - beside: [workboard.column.in_design, workboard.column.backlog]
+      - below: [workboard.group.status, workboard.column.in_design]
 
   - id: TP5
     title: The footer names the agent on the card and what it is doing

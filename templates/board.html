@@ -68,7 +68,7 @@
     <div class="board-container">
         <div class="board">
             {{range .Columns}}
-            <div class="board-column{{if .Optional}} board-column-optional{{end}}{{if .Global}} board-column-global{{end}}" data-status="{{.Status}}" data-testid="board.column.{{tid .Status}}">
+            <div class="board-column{{if .Optional}} board-column-optional{{end}}" data-status="{{.Status}}" data-testid="board.column.{{tid .Status}}">
                 <div class="board-column-header" onclick="toggleColumn(this)">
                     <div class="board-column-header-top">
                         <svg class="board-column-chevron" width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path d="M4 2l4 4-4 4"/></svg>

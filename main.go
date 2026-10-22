@@ -63,6 +63,12 @@ func main() {
 		log.Fatalf("Failed to initialize server: %v", err)
 	}
 
+	// Local CI: start runs when a project's CI branch moves (ci_watch.go).
+	// Needs the config, which the detached issue-cli runs read.
+	if *configFile != "" {
+		go srv.watchCI(nil)
+	}
+
 	addr := fmt.Sprintf(":%d", *port)
 	fmt.Printf("Issue Viewer running at http://localhost%s\n", addr)
 	for _, p := range projects {

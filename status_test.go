@@ -364,3 +364,30 @@ func TestLinkCodeSlugs(t *testing.T) {
 		t.Errorf("raw HTML must be dropped: %s", got)
 	}
 }
+
+func TestStatusUnsentBugReports(t *testing.T) {
+	proj := setupStatusProject(t, time.Now())
+	withMockTmuxSessions(t, nil)
+	stubAgentsGit(t)
+	prev := unsentBugReports
+	unsentBugReports = func() int { return 2 }
+	t.Cleanup(func() { unsentBugReports = prev })
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	_, body := getResp(t, ts.URL+"/p/status/status")
+	for _, want := range []string{
+		`data-testid="status.waiting.cli_bugs"`,
+		`2 issue-cli bug reports not sent`,
+		`issue-cli report-bug --send`,
+		`data-testid="nav.tab.status.count">4</span>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("status page missing %q", want)
+		}
+	}
+	_, md := getResp(t, ts.URL+"/p/status/status.md")
+	if !strings.Contains(md, "## Waiting on you (4)") || !strings.Contains(md, "- 2 issue-cli bug report(s) not sent (issue-cli report-bug --send)") {
+		t.Errorf("status.md:\n%s", md)
+	}
+}

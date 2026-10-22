@@ -663,15 +663,30 @@ func (w *WorkflowConfig) EntryPrompts(from, to string) []string {
 // AppendTemplate appends the status template to the body if not already present.
 // Returns the new body and whether anything was appended.
 func (w *WorkflowConfig) AppendTemplate(body, status string) (string, bool) {
+	body, _, appended := w.appendTemplate(body, status)
+	return body, appended
+}
+
+// appendTemplate is AppendTemplate plus what it did to the template's
+// section. A template that opens with a heading is a gate section
+// (appendGateSection): only that exact heading counts as present, and a
+// present section gets the boxes it lacks. sec.Title is "" for a template
+// without a leading heading.
+func (w *WorkflowConfig) appendTemplate(body, status string) (string, SectionAppend, bool) {
 	tmpl := w.TemplateForStatus(status)
 	if tmpl == "" {
-		return body, false
+		return body, SectionAppend{}, false
 	}
 
-	// Duplicate guard: check if the first line (section heading) already exists
-	firstLine := strings.SplitN(tmpl, "\n", 2)[0]
-	if strings.Contains(body, firstLine) {
-		return body, false
+	parts := strings.SplitN(tmpl, "\n", 2)
+	if _, _, ok := parseHeadingLine(parts[0]); ok && len(parts) == 2 {
+		newBody, sec := appendGateSection(body, parts[0], parts[1])
+		return newBody, sec, sec.Changed()
+	}
+
+	// Duplicate guard: check if the first line already exists
+	if strings.Contains(body, parts[0]) {
+		return body, SectionAppend{}, false
 	}
 
 	body = strings.TrimRight(body, "\n")
@@ -679,5 +694,5 @@ func (w *WorkflowConfig) AppendTemplate(body, status string) (string, bool) {
 		body += "\n\n"
 	}
 	body += tmpl + "\n"
-	return body, true
+	return body, SectionAppend{}, true
 }

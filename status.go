@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/clibug"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -154,7 +155,14 @@ type StatusModel struct {
 	EpicsByArea EpicsView
 	// Shipped is DoneRecent grouped by area.
 	Shipped []ShippedArea
+	// UnsentBugReports counts issue-cli bug reports queued on this machine
+	// because report-bug found no engine project.
+	UnsentBugReports int
 }
+
+// unsentBugReports counts this user's queued report-bug files. A var so
+// tests never read the real queue.
+var unsentBugReports = clibug.PendingCount
 
 // IsCurrent reports whether version is the current milestone.
 func (m *StatusModel) IsCurrent(version string) bool {
@@ -162,10 +170,14 @@ func (m *StatusModel) IsCurrent(version string) bool {
 }
 
 // WaitingCount is the number shown on the sidebar's Status entry: the
-// waiting items, plus one while local CI is red.
+// waiting items, plus one while local CI is red, plus one while issue-cli
+// bug reports wait to be sent.
 func (m *StatusModel) WaitingCount() int {
 	n := len(m.Waiting)
 	if m.CI.Red() {
+		n++
+	}
+	if m.UnsentBugReports > 0 {
 		n++
 	}
 	return n
@@ -298,6 +310,7 @@ func buildStatus(proj *tracker.Project, issues []*tracker.Issue, agents *AgentsM
 
 	m.Waiting = waitingOnOwner(proj, sorted)
 	m.CI = ciRow(proj, issues, now)
+	m.UnsentBugReports = unsentBugReports()
 	root := projectRoot(proj)
 	m.Next = leadNextSteps(root, tracker.LeadSessionName(proj), now)
 	text, changelog := readChangelog(root, wf.Workbench.Changelog)
@@ -536,6 +549,9 @@ func statusMarkdown(m *StatusModel) string {
 	fmt.Fprintf(&b, "\n## Waiting on you (%d)\n", m.WaitingCount())
 	if m.CI.Red() {
 		fmt.Fprintf(&b, "- Local CI red on %s since %s: %s (issue-cli ci status)\n", m.CI.Branch, m.CI.Sha, m.CI.Failed)
+	}
+	if m.UnsentBugReports > 0 {
+		fmt.Fprintf(&b, "- %d issue-cli bug report(s) not sent (issue-cli report-bug --send)\n", m.UnsentBugReports)
 	}
 	for i, it := range m.Waiting {
 		if i == capMDList {

@@ -424,12 +424,8 @@ func ClosedIssueFunc(proj *Project) func(*Issue) bool {
 // (decisions) are kept as a tight list.
 func appendToSectionTight(body, title, content string, blankLine bool) string {
 	var sec *headingMatch
-	for _, m := range findHeadingMatches(body, title) {
-		if m.Level == 2 {
-			m := m
-			sec = &m
-			break
-		}
+	if secs := findSectionHeadings(body, title, 2); len(secs) > 0 {
+		sec = &secs[0]
 	}
 	if sec == nil {
 		body = strings.TrimRight(body, "\n")

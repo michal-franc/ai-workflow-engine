@@ -134,7 +134,7 @@ How an issue ships is up to your workflow's `shipping` step. The bundled `develo
 - **Worktrees.** With `worktree: true` the agent works in `.worktrees/<slug>` on branch `work/<slug>`. `issues/` is left out of the worktree, so issues stay on your main checkout; `worktree_setup: "make"` bootstraps a fresh one.
 - **Approvals.** When a step needs you, the CLI error links straight to the box (`…/issue/<slug>#approve-in-progress`). The agent asks in chat and ends its turn, and your tick nudges its tmux session to resume.
 - **The trail.** Every `issue-cli` call is logged under `.agent-logs/` and shown as a timeline on the issue page, next to the exact prompt the agent was given.
-- **Retros and bug reports.** Agents leave `issue-cli retrospective` notes, which the Retros page collects so you can fix the process where it hurt. `issue-cli report-bug` files a bug in the engine itself as a `cli-bug` issue on the engine's own board.
+- **Retros and bug reports.** Agents leave `issue-cli retrospective` notes, which the Retros page collects, so you can fix the process where it hurt. `issue-cli report-bug` files bugs in the tool itself as `cli-bug` issues on this project's board, from any project.
 - **Custom buttons.** `issue_actions` and `project_actions` in `workflow.yaml` add one-click agent jobs (a review, a report, a sweep) to the issue page or the board.
 - **Manual checks as playtests.** An issue's manual checks are a YAML session whose step ids are the issue's checkbox ids. A machine runs everything it can see in headless Chrome against a throwaway board; you judge the rest in an overlay, and a report ticks the boxes that passed. See [docs/patterns/playtest/](docs/patterns/playtest/README.md) or `issue-cli process playtest`.
 

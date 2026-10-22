@@ -18,6 +18,9 @@ type TransitionResult struct {
 	// human_approval during this transition ("" when none).
 	PromotedApproval string   `json:"promoted_approval,omitempty"`
 	InjectedPrompts  []string `json:"injected_prompts"`
+	// Sections lists each gate section a transition appended or topped up
+	// with missing boxes, in action order.
+	Sections []SectionAppend `json:"sections,omitempty"`
 }
 
 // ErrApprovalMissing is the sentinel returned when StartIssueOnce or a
@@ -211,8 +214,11 @@ func (w *WorkflowConfig) ApplyTransitionWithFields(issue *Issue, fromStatus, toS
 	for _, action := range w.transitionActions(fromStatus, toStatus) {
 		switch action.Type {
 		case "append_section":
-			newBody, changed := appendToSection(issue.BodyRaw, action.Title, action.Body)
-			if changed {
+			newBody, sec := appendGateSection(issue.BodyRaw, action.Title, action.Body)
+			if sec.Title != "" {
+				result.Sections = append(result.Sections, sec)
+			}
+			if sec.Changed() {
 				result.Update.Body = &newBody
 				issue.BodyRaw = newBody
 				result.BodyChanged = true
@@ -236,7 +242,11 @@ func (w *WorkflowConfig) ApplyTransitionWithFields(issue *Issue, fromStatus, toS
 		}
 	}
 
-	if tmplBody, appended := w.AppendTemplate(issue.BodyRaw, toStatus); appended {
+	tmplBody, tmplSec, appended := w.appendTemplate(issue.BodyRaw, toStatus)
+	if tmplSec.Title != "" {
+		result.Sections = append(result.Sections, tmplSec)
+	}
+	if appended {
 		result.Update.Body = &tmplBody
 		issue.BodyRaw = tmplBody
 		result.BodyChanged = true

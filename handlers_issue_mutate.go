@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -26,6 +27,10 @@ import (
 type updateIssuePayload struct {
 	tracker.IssueUpdate
 	Fields map[string]string `json:"fields,omitempty"`
+	// BaseBodyHash is tracker.BodyHash of the body the page started from.
+	// With a body, the write is refused (409) when the file's body has
+	// changed since, so a stale page never overwrites a CLI append.
+	BaseBodyHash string `json:"base_body_hash,omitempty"`
 }
 
 func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
@@ -60,6 +65,13 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 		return
 	}
 	update := payload.IssueUpdate
+	// A retitle keeps the slug, as `issue-cli update --title` does: the old
+	// slug is pinned with slug: and the file is not renamed. The pin is the
+	// server's call, never the client's.
+	update.Slug = nil
+	if update.Title != nil {
+		update.Slug = tracker.RetitleUpdate(found, *update.Title, false).Slug
+	}
 
 	// Status changes route through the workflow engine so the board path matches
 	// `issue-cli transition` — validation, actions, declarative fields.
@@ -79,7 +91,19 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 		update.ExtraFields = nil
 	}
 
-	if hasNonStatusUpdates(update) {
+	var bodyHash string
+	switch {
+	case update.Body != nil && payload.BaseBodyHash != "":
+		bodyHash, err = tracker.UpdateIssueFrontmatterIfBody(found.FilePath, payload.BaseBodyHash, update)
+		if errors.Is(err, tracker.ErrStaleBody) {
+			writeTransitionError(w, errors.New("This issue changed since the page loaded (an agent, the CLI or another tab wrote it). Your change was not saved: reload to see the current version."))
+			return
+		}
+		if err != nil {
+			http.Error(w, "update failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	case hasNonStatusUpdates(update):
 		if err := tracker.UpdateIssueFrontmatter(found.FilePath, update); err != nil {
 			http.Error(w, "update failed: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -92,22 +116,13 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 		})
 	}
 
-	newSlug := found.Slug
-	if update.Title != nil {
-		newSlug = tracker.Slugify(*update.Title)
-		if newSlug != found.Slug {
-			dir := filepath.Dir(found.FilePath)
-			newPath := filepath.Join(dir, newSlug+".md")
-			if err := os.Rename(found.FilePath, newPath); err != nil {
-				http.Error(w, "rename failed: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "slug": newSlug})
+	resp := map[string]string{"status": "ok", "slug": found.Slug}
+	if bodyHash != "" {
+		resp["body_hash"] = bodyHash
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func hasNonStatusUpdates(u tracker.IssueUpdate) bool {

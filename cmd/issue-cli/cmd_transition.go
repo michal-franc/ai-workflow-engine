@@ -87,7 +87,7 @@ func runTransition(ctx *Context, args []string) error {
 	if err := rejectRemovedWaitFlags(rest); err != nil {
 		return err
 	}
-	if err := parseFlags(ctx, fs, rest); err != nil {
+	if err := parseFlagsArgs(ctx, fs, rest); err != nil {
 		return err
 	}
 	to := *toFlag
@@ -159,6 +159,7 @@ func runTransitionDryRun(ctx *Context, wf *tracker.WorkflowConfig, issue *tracke
 	out := dryRunOutput{DryRun: true, Ready: len(problems) == 0, From: from, To: to, Slug: slug, Problems: problems}
 	if out.Ready {
 		_, out.SideEffects = nextTransitionContract(wf, from, to)
+		out.SideEffects = sectionDryRunEffects(wf, issue, from, to, fields, out.SideEffects)
 	}
 	if out.Problems == nil {
 		out.Problems = []transitionProblem{}
@@ -279,15 +280,63 @@ func transitionSideEffects(result tracker.TransitionResult) []string {
 	if result.PromotedApproval != "" {
 		effects = append(effects, fmt.Sprintf("queued approval for %q is now active — run issue-cli start to continue", result.PromotedApproval))
 	}
-	if result.BodyAppended {
+	sections := sectionEffects(result)
+	effects = append(effects, sections...)
+	if result.BodyAppended && len(sections) == 0 {
 		effects = append(effects, "workflow content appended to issue body")
-	} else if result.BodyChanged {
+	} else if result.BodyChanged && !result.BodyAppended {
 		effects = append(effects, "issue body updated")
 	}
 	if len(result.InjectedPrompts) > 0 {
 		effects = append(effects, fmt.Sprintf("%d entry guidance prompt(s) injected", len(result.InjectedPrompts)))
 	}
 	return effects
+}
+
+// sectionEffects names each gate section a transition created or topped up
+// with missing boxes, so an agent sees which checklist it now has to work.
+func sectionEffects(result tracker.TransitionResult) []string {
+	var out []string
+	for _, sec := range result.Sections {
+		switch {
+		case sec.Created:
+			out = append(out, fmt.Sprintf("## %s appended", sec.Title))
+		case sec.BoxesAdded > 0:
+			out = append(out, fmt.Sprintf("## %s existed — added %s", sec.Title, missingBoxes(sec.BoxesAdded)))
+		}
+	}
+	return out
+}
+
+// sectionDryRunEffects rewrites the static "appends ## X section" side
+// effect for each section the issue already has: the transition adds only
+// the boxes it lacks, or leaves it as is.
+func sectionDryRunEffects(wf *tracker.WorkflowConfig, issue *tracker.Issue, from, to string, fields map[string]string, effects []string) []string {
+	probe := *issue
+	result := wf.ApplyTransitionWithFields(&probe, from, to, fields)
+	for _, sec := range result.Sections {
+		if sec.Created {
+			continue
+		}
+		line := fmt.Sprintf("Side-effect: ## %s exists with all its boxes — left as is", sec.Title)
+		if sec.BoxesAdded > 0 {
+			line = fmt.Sprintf("Side-effect: ## %s exists — adds %s", sec.Title, missingBoxes(sec.BoxesAdded))
+		}
+		static := fmt.Sprintf("Side-effect: appends ## %s section", sec.Title)
+		for i, e := range effects {
+			if e == static {
+				effects[i] = line
+			}
+		}
+	}
+	return effects
+}
+
+func missingBoxes(n int) string {
+	if n == 1 {
+		return "1 missing box"
+	}
+	return fmt.Sprintf("%d missing boxes", n)
 }
 
 func collectChecklist(body string) []transitionChecklistItem {
@@ -356,7 +405,7 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 				mark = "x"
 			}
 			if item.ID != "" {
-				fmt.Fprintf(w, "  %s [%s] %s\n", item.ID, mark, item.Text)
+				fmt.Fprintf(w, "  %s [%s] %s\n", item.ID, mark, tracker.StripCheckboxID(item.ID, item.Text))
 				hint = hint || !item.Checked
 			} else {
 				fmt.Fprintf(w, "  %d. [%s] %s\n", item.Index, mark, item.Text)
@@ -364,6 +413,7 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 		}
 		if hint {
 			fmt.Fprintf(w, "Tick done boxes by id, several at once: issue-cli check %s <id> [<id>...]\n", slug)
+			fmt.Fprintf(w, "Box text wrong? issue-cli check-edit %s <id> --text \"...\"\n", slug)
 		}
 		fmt.Fprintln(w)
 	}

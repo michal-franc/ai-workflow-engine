@@ -165,6 +165,9 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 			if ciRedState(proj) != nil {
 				n++
 			}
+			if unsentBugReports() > 0 {
+				n++
+			}
 			if n > 0 {
 				item.Note, item.Attention = fmt.Sprint(n), true
 			}

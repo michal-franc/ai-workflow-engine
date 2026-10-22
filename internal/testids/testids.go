@@ -107,6 +107,7 @@ var IDs = []string{
 	"status.waiting.not_ready",
 	"status.waiting.more.*",
 	"status.waiting.ci",
+	"status.waiting.cli_bugs",
 	"status.ci",
 	"status.ci.state",
 	"status.ci.line",
@@ -183,6 +184,8 @@ var IDs = []string{
 	// Detail (/p/<project>/issue/<slug>).
 	"detail.back",
 	"detail.title",
+	"detail.title.input",
+	"detail.title.save",
 	"detail.tab.preview",
 	"detail.tab.edit",
 	"detail.body",

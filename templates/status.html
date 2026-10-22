@@ -52,6 +52,18 @@
                     </div>
                 </div>
                 {{end}}
+                {{if .UnsentBugReports}}
+                <div class="status-list">
+                    <span class="label">issue-cli bugs</span>
+                    <div class="status-row" data-testid="status.waiting.cli_bugs">
+                        <div class="status-row-stack">
+                            <span class="status-title">{{plural .UnsentBugReports "issue-cli bug report" "issue-cli bug reports"}} not sent</span>
+                            <span class="status-meta">Saved on this machine because report-bug found no engine project.</span>
+                        </div>
+                        <span class="mono status-meta">issue-cli report-bug --send</span>
+                    </div>
+                </div>
+                {{end}}
                 {{with .WaitingOf "gate"}}
                 {{$rest := rest $.Cap.Needs .}}
                 <div class="status-list">

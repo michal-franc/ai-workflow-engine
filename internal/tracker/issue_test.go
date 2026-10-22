@@ -317,6 +317,49 @@ func TestAppendIssueBodyToSectionForceUsesFirstMatch(t *testing.T) {
 	}
 }
 
+// A body that starts with the target section's own heading must not write
+// that heading a second time (cli/append-section-duplicates-the-heading-when-the-body-starts-with-it).
+func TestAppendIssueBodyToSectionStripsLeadingSameHeading(t *testing.T) {
+	cases := []struct {
+		name, body, section, text, want string
+	}{
+		{
+			name: "existing section", body: "## Design\n- [ ] one", section: "Design",
+			text: "\n## Design\n- [ ] two",
+			want: "## Design\n- [ ] one\n\n- [ ] two\n",
+		},
+		{
+			name: "normalized title", body: "## Design\n- [ ] one", section: "design",
+			text: "##  DESIGN \n- [ ] two",
+			want: "## Design\n- [ ] one\n\n- [ ] two\n",
+		},
+		{
+			name: "missing section is created once", body: "## Idea\nx", section: "Design",
+			text: "## Design\n- [ ] two",
+			want: "## Idea\nx\n\n## Design\n- [ ] two\n",
+		},
+		{
+			name: "a different leading heading is kept", body: "## Design\n- [ ] one", section: "Design",
+			text: "### Risks\n- [ ] two",
+			want: "## Design\n- [ ] one\n\n### Risks\n- [ ] two\n",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body, changed, err := AppendIssueBodyToSection(tc.body, tc.section, tc.text, false)
+			if err != nil {
+				t.Fatalf("AppendIssueBodyToSection returned error: %v", err)
+			}
+			if !changed {
+				t.Fatal("changed = false, want true")
+			}
+			if body != tc.want {
+				t.Fatalf("body = %q, want %q", body, tc.want)
+			}
+		})
+	}
+}
+
 func TestReplaceIssueBodySectionReplacesUntilNextHeading(t *testing.T) {
 	body := "## Design\nOld plan\nMore old detail\n\n## Notes\nKept"
 	got, changed, err := ReplaceIssueBodySection(body, "Design", "New plan", false)
@@ -1716,5 +1759,41 @@ func TestRewriteIssueFile_HoldsLockSerially(t *testing.T) {
 	}
 	if !strings.HasPrefix(issue.Title, "Writer ") {
 		t.Errorf("final title %q is not from any writer — possible torn write", issue.Title)
+	}
+}
+
+func TestParseIssueSlugPin(t *testing.T) {
+	iss, err := ParseIssue("x.md", []byte("---\ntitle: \"A New Title\"\nslug: \"Old Name\"\n---\nbody\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if iss.Slug != "old-name" {
+		t.Fatalf("slug = %q, want the pin slugified (old-name)", iss.Slug)
+	}
+	for _, f := range iss.ExtraFields {
+		if f.Key == "slug" {
+			t.Fatal("slug: shows as a custom field")
+		}
+	}
+	iss, _ = ParseIssue("x.md", []byte("---\ntitle: \"A New Title\"\n---\n"))
+	if iss.Slug != "a-new-title" {
+		t.Fatalf("without a pin the slug comes from the title, got %q", iss.Slug)
+	}
+}
+
+func TestRetitleUpdate(t *testing.T) {
+	iss := &Issue{Title: "old", Slug: "cli/old"}
+	if u := RetitleUpdate(iss, "new", false); u.Slug == nil || *u.Slug != "old" {
+		t.Fatalf("retitle should pin the current slug, got %v", u.Slug)
+	}
+	if u := RetitleUpdate(iss, "Old", false); u.Slug != nil {
+		t.Fatal("a title with the same slug needs no pin")
+	}
+	iss.SlugPin = "old"
+	if u := RetitleUpdate(iss, "newer", false); u.Slug != nil {
+		t.Fatal("an existing pin is kept as is")
+	}
+	if u := RetitleUpdate(iss, "newer", true); u.Slug == nil || *u.Slug != "" {
+		t.Fatal("--rename removes the pin")
 	}
 }

@@ -29,6 +29,14 @@ Epic links are custom fields that the [issues canvas](UI/overview.md#issues-canv
 | `umbrella` | Legacy spelling of `parent`; read when `parent` is unset. |
 | `base`     | An epic's staging branch (children branch from it and ship into it). Shown on the epic's canvas row. |
 
+Dependency links are a custom field too:
+
+| Field        | Description |
+|:-------------|:------------|
+| `depends_on` | The issues this one waits on, as a YAML list or a comma-separated string: `issue-cli set-meta <slug> --key depends_on --value "economy/shop-prices, ui/other"`. `set-meta` refuses unknown slugs (and suggests close ones) and the issue itself. The detail page shows **Depends on** and, on the other issue, **Depended on by**; `issue-cli show` prints both lines, plus **Decided by** for the `slug#D-n` decisions the body cites. |
+
+Metric and knob files, and the `metrics:` / `knobs:` lists that tie them to a system, are configured in `workflow.yaml`'s `workbench:` block: see [Workbench Files](workbench-files.md).
+
 `score_boost` and `due` take part in scoring when it's enabled (see [Scoring Fields](#scoring-fields)).
 
 ## Status Values

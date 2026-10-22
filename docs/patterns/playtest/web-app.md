@@ -75,6 +75,31 @@ Each step at each viewport starts a fresh scenario:
 Slugs come from the issue title (`card-titles-overflow-on-a-phone`), with
 the system folder lower-cased (`ui/…`), not from the file name.
 
+### Files, history and branches
+
+A scenario that needs more than issues (a view over project files, or git branches) can add these keys to `scenario.yaml`. Each one names a folder in the scenario:
+
+```yaml
+files: files                  # copied into the project root, in the first commit
+commits:                      # applied on main afterwards, in order
+  - files: commits/pass1
+    message: "Play calls balance pass 1"
+branches:
+  - name: work/sim/keep-redesign
+    worktree: true            # .worktrees/work-sim-keep-redesign
+    commits:
+      - files: branches/keep
+        message: "Keep: outer ring"
+    uncommitted: branches/keep-run   # overlaid in the worktree, not committed
+  - name: work/economy/shop-prices   # no worktree: committed on the branch only
+    commits:
+      - files: branches/shop
+```
+
+- **Fixed commit dates:** scenario commits get fixed dates, an hour apart from 2026-10-01 12:00 UTC, so shas and dates match between runs and `REPEAT=2` passes.
+- **Worktrees** are excluded from the project's own commits.
+- **Example:** `playtest/scenarios/metrics/` (the Metrics view).
+
 ## The runner (cmd/playtest)
 
 - **Browser:** chromedp. It drives the installed Chrome; set

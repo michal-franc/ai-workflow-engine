@@ -81,3 +81,45 @@ test('without ISSUE_VIEWER_PROJECT it asks the board which project the folder is
   expect((await ui.find({ key: 'in progress' }))?.text).toBe('☐ in progress')
   await ui.unmount()
 })
+
+test('at human-testing it offers Playtest, then Report, which applies the results', async ($, on) => {
+  const runs: string[] = []
+  const spawned: string[] = []
+  on('env.get', (_, e) => ({ value: ENV[e.name] }))
+  on('clock.every', () => ({ deny: 'no timers in tests' }))
+  const toasts: string[] = []
+  on('ui.toast', (_, e) => {
+    toasts.push(JSON.stringify(e))
+    return { value: {} }
+  })
+  on('http.fetch', () => {
+    const body = { slug: 'ui/foo', title: 'Foo', status: 'human-testing', human_approval: '', approvals: [{ status: 'documentation', approved: false }] }
+    return { value: { status: 200, ok: true, headers: {}, text: JSON.stringify(body) } }
+  })
+  on('process.run', (_, e) => {
+    runs.push(e.argv.join(' '))
+    return { value: { exitCode: 0, stdout: 'ticked TP6 TP10\n', stderr: '' } }
+  })
+  on('process.spawn', async function* ($, e, next) {
+    void $
+    void next
+    spawned.push(e.argv.join(' '))
+    yield { stream: 'stdout' as const, text: 'overlay open\n' }
+    return { value: { code: 0, signal: null } }
+  })
+  on('session.start', (_, e) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/w/proj/.worktrees/ui/foo', surface: 'terminal', isInteractive: true })
+  expect(runs).toEqual(['make -n playtest ISSUE=ui/foo'])
+
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await ui.find({ key: 'playtest' }))?.text).toBe('▶ Playtest')
+  expect((await ui.find({ key: 'documentation' }))?.text).toBe('☐ documentation')
+  await ui.press({ key: 'playtest' })
+  expect(spawned).toEqual(['make playtest ISSUE=ui/foo'])
+  expect(toasts[0]).toContain('Playtest finished')
+  expect((await ui.find({ key: 'report' }))?.text).toBe('✓ Report')
+  await ui.press({ key: 'report' })
+  expect(runs[1]).toBe('make playtest-report ISSUE=ui/foo APPLY=1')
+  expect((await ui.find({ key: 'playtest' }))?.text).toBe('▶ Playtest')
+  await ui.unmount()
+})

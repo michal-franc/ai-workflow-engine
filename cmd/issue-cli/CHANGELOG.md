@@ -16,6 +16,10 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.46.0 — 2026-10-22
+
+- The `issue-approve` Claude Code mod (0.2.0) adds **▶ Playtest** beside the approve buttons when the issue waits on the owner's playtest and the worktree has a `make playtest` target: it runs the playtest in the agent's worktree, then **✓ Report** runs `make playtest-report APPLY=1`. Running sessions pick it up with `/reload-plugins`.
+
 ## v0.45.0 — 2026-10-21
 
 - **Status page** (`/p/<project>/status`), the first sidebar entry. It shows where the project stands without asking the lead: overall, per-version and per-epic progress; the issues in flight with their agent and time in status (amber at 7 days, red at 14); the project lead's `## Next` list, the backlog by priority and parked issues with their reason; what waits on you; and the newest 3 releases plus issues done in the last 7 days.

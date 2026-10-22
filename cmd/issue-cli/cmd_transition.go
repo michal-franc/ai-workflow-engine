@@ -48,6 +48,7 @@ type transitionOutput struct {
 	To                   string                    `json:"to"`
 	Status               string                    `json:"status"`
 	StatusOptional       bool                      `json:"status_optional,omitempty"`
+	Done                 bool                      `json:"done,omitempty"`
 	Slug                 string                    `json:"slug"`
 	File                 string                    `json:"file"`
 	SideEffects          []string                  `json:"side_effects"`

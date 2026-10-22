@@ -29,10 +29,10 @@ Evidence shows "coming" until `ui/evidence-tab-proof-shots-and-criteria`. The "A
 | Your approvals, with your words or "no words recorded" | `approval:` comments; stats `approved_at` |
 | Repeated reads folded into one line | clilog verbs `show`, `checklist`, `context`, `--dry-run` |
 | Filters: All, Your actions, Commits, Tests and CI, **CLI calls** | CLI calls is today's Agent Timeline, with the workflow actions each transition saw |
-| Side: your part, your words, left open at done, tokens by step, CI after merge | stats estimates; checkbox state; local CI runs once the merge sha is recorded |
+| Side: your part, your words, left open at done, CI after merge | stats `approved_at`; `approval:` comments; checkbox state; local CI runs once the merge sha is recorded |
 
-Working vs idle inside a band is shown as inferred from CLI calls until `workflow/agent-heartbeat-and-actual-tokens`
-lands. Each tab is a URL (`?tab=timeline`) so links and playtests can open it.
+Inside an agent band, gaps of 15 minutes or more with no CLI call show as idle (the same rule as `workerState`).
+There is no heartbeat and no tokens card. Each tab is a URL (`?tab=timeline`) so links and playtests can open it.
 
 ## Acceptance criteria
 

@@ -25,7 +25,7 @@ Set 2026-10-22 at v0.50.0, after a cleanup that triaged every open issue against
 | `ui/lean-surface-one-lead-one-landing-page-no-leftovers` | 4 | 5 children | /status becomes `/`; Classic board and Graph are retired; worktree prune |
 | `workflow/project-health-trends-that-tell-the-owner-when-the-project-gets-slower` | 1 | 5 children in 0.54, more later | The engine measures; owner alerted when metrics get worse |
 | `workflow/code-health-ci-consolidated-helpers-modern-go` | 4 | 8 children | Background work: CI first, then one refactor at a time |
-| `ui/issue-page-tabs-issue-timeline-evidence` | 3 | 7 children (0.54) | Issue, Timeline, Evidence tabs; Timeline replaces the Agent Timeline. Shares the working/waiting/idle recording with Project health |
+| `ui/issue-page-tabs-issue-timeline-evidence` | 3 | 6 children (0.54) | Issue, Timeline, Evidence tabs; Timeline replaces the Agent Timeline. Shares the working/waiting/idle recording with Project health |
 
 ## Versions
 

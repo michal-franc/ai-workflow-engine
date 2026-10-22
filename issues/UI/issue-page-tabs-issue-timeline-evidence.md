@@ -15,7 +15,6 @@ children:
   - ui/issue-tab-brief-needs-you-bar-and-a-folded-body
   - workflow/issue-cli-prove-link-each-criterion-to-its-proof
   - ui/evidence-tab-proof-shots-and-criteria
-  - workflow/agent-heartbeat-and-actual-tokens
 ---
 
 The owner opens an issue when an agent asks for an approval or a playtest, and rarely reads it. Today the page is
@@ -44,7 +43,6 @@ sidecar, comments, decisions, git and playtest `results.yaml`. The rest:
 | issue-cli records more, no new ask | gate refusals, CI after merge | `cli/clilog-and-stats-record-what-the-timeline-needs` |
 | Viewer change | your words at an approval | `ui/approve-button-takes-your-words` |
 | New agent ask | criterion → proof, proof shots, image tags, watch list | `workflow/issue-cli-prove-link-each-criterion-to-its-proof` |
-| New telemetry | working vs idle, actual tokens | `workflow/agent-heartbeat-and-actual-tokens` |
 
 ## Children
 
@@ -56,14 +54,15 @@ sidecar, comments, decisions, git and playtest `results.yaml`. The rest:
 | `ui/issue-tab-brief-needs-you-bar-and-a-folded-body` | M | Needs-you bar, brief, what you're approving, decisions, folded body, agent card, relations; phone layout |
 | `workflow/issue-cli-prove-link-each-criterion-to-its-proof` | M | `issue-cli prove`, criteria as checkboxes with ids, proof shots, `risk:` comments; prompt changes |
 | `ui/evidence-tab-proof-shots-and-criteria` | M | The Evidence tab on top of `prove` and `results.yaml` |
-| `workflow/agent-heartbeat-and-actual-tokens` | M | Working vs idle between CLI calls; real token counts per transition |
 
 ## Overlap with 0.54 Project health
 
-The roadmap's 0.54 milestone lists "workflow timeline (working, waiting on owner, idle)" and "context cost" under
-`workflow/project-health-trends-that-tell-the-owner-when-the-project-gets-slower`. The Timeline tab and the
-heartbeat child are the per-issue view of the same data. Build the recording once (`cli/clilog-and-stats-…` and the
-heartbeat) and let Project health aggregate it.
+The roadmap's 0.54 milestone lists "workflow timeline (working, waiting on owner, idle)" under
+`workflow/project-health-trends-that-tell-the-owner-when-the-project-gets-slower`. The Timeline tab is the per-issue
+view of the same data. Build the recording once (`cli/clilog-and-stats-…`) and let Project health aggregate it.
+
+Dropped on 2026-10-22: an agent heartbeat (the raw log is being removed; the agent-vs-you split comes from gates and
+approvals, and gaps of 15 min or more with no CLI call show as idle) and tokens by step.
 
 0.54's rule is "agents don't self-report". Everything here follows it except
 `workflow/issue-cli-prove-link-each-criterion-to-its-proof`, which asks agents to link proof. It may fit 0.57
@@ -75,4 +74,3 @@ heartbeat) and let Project health aggregate it.
 2. Approve button words.
 3. Issue tab.
 4. `prove`, then the Evidence tab.
-5. Heartbeat and actual tokens, shared with Project health.

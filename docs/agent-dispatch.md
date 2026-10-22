@@ -166,6 +166,7 @@ The `issue-approve` Claude Code mod (`claude-mods/issue-approve/` in this repo) 
 - The mod refreshes at session start, every 15 seconds, after each agent turn and after a press.
 - It reads `ISSUE_VIEWER_ISSUE_SLUG`, `ISSUE_VIEWER_URL` and `ISSUE_VIEWER_PROJECT`. An agent dispatched before `ISSUE_VIEWER_PROJECT` existed asks `GET /project-for?cwd=<its folder>`, which names the project whose work directory holds that folder (the most nested wins).
 - A session with no issue slug (a lead, a session you started yourself) shows nothing.
+- **Playtest:** when the issue waits on your playtest (status `human-testing`, or a project's own `playtest…` status) and the worktree's Makefile has a `playtest` target (`make -n playtest` at session start), the band also shows **▶ Playtest**. It runs `make playtest ISSUE=<slug>` in the agent's worktree for as long as you need; when it ends, **✓ Report** runs `make playtest-report ISSUE=<slug> APPLY=1`, which ticks the passed boxes, and the approve buttons are back for documentation. A toast says how each ended.
 
 Install it once, at user scope, from this repo's folder:
 

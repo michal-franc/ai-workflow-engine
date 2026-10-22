@@ -1,0 +1,45 @@
+session: remove-sub-leads
+issue: cli/remove-sub-lead-leftovers-lead-spawn-epic-approve-scope-and-docs
+title: "One lead per project: no sub-leads in the CLI, the agents canvas or the detail page"
+scenario: leads
+
+# A leftover lead-ui-epic session (a sub-lead started before the removal) is
+# faked with `cat` on the scenario's private tmux server, next to the live
+# project lead. It must lead nobody: workers report to lead-crew, and the
+# canvas lists it with the other unbound sessions.
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP2
+    title: Sub-leads are gone; a leftover lead-<epic> session leads nobody
+    setup:
+      - tmux: [new-session, -d, -s, lead-crew, cat]
+      - tmux: [new-session, -d, -s, lead-ui-epic, cat]
+      - tmux: [new-session, -d, -s, agent-ui-child, cat]
+    act:
+      - post: { path: "/p/{project}/lead/spawn", json: { epic: ui/epic }, status: 422 }
+      - open: /p/{project}/agents
+    checks:
+      - cli: { args: [--project, crew, lead, spawn, --epic, ui/epic], exit: 1, contains: "sub-leads were removed (one lead per project)" }
+      - cli: { args: [--project, crew, lead, list], not_contains: "sub-lead" }
+      - cli: { args: [--project, crew, show, ui/child], contains: "Lead: lead-crew (live)" }
+      - cli: { args: [--project, crew, dispatch-prompt, ui/child], not_contains: "sub-lead" }
+      - http: { path: "/p/{project}/agents.json", json: { "others.0.name": lead-ui-epic, "others.0.kind": other } }
+      - http: { path: "/p/{project}/issue/ui/child", contains: 'data-testid="detail.lead.name">lead-crew</div>' }
+      - visible: [agents.node.lead-crew, agents.node.lead-ui-epic, agents.node.agent-ui-child]
+      - below: [agents.node.lead-crew, agents.node.agent-ui-child]
+    targets:
+      - { id: agents.tree, note: "lead-crew leads the workers; lead-ui-epic is a leftover session, listed after them" }
+    do: |
+      1. Look at the Tree: lead-crew leads agent-ui-child, and lead-ui-epic
+         sits among the other sessions, not as anyone's lead.
+      2. Open ui/child from the Issues tab and read its Lead section.
+    expect: |
+      The canvas shows one lead, lead-crew. Nothing calls lead-ui-epic a
+      sub-lead or offers to spawn one. ui/child's Lead section names lead-crew
+      and links its epic ui/epic.
+    why: The machine checks cover the wording; only you can say whether the canvas still reads as one lead.

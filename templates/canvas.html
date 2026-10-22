@@ -55,7 +55,6 @@
                 <div class="canvas-lane-kind"><span data-testid="canvas.lane.{{tid .Key}}.kind">{{.Kind}}</span>{{if .Status}}<span class="canvas-status" data-testid="canvas.lane.{{tid .Key}}.status"><span class="canvas-dot" style="background: {{statusColor .Status}}"></span>{{.Status}}</span>{{end}}</div>
                 {{if .ParentTitle}}<div class="canvas-muted" data-testid="canvas.lane.{{tid .Key}}.parent">↳ in {{.ParentTitle}}</div>{{end}}
                 {{if .Slug}}<a class="canvas-lane-title" data-testid="canvas.lane.{{tid .Key}}.title" href="{{$.Prefix}}/issue/{{.Slug}}">{{.Title}}</a>{{else}}<b class="canvas-lane-title" data-testid="canvas.lane.{{tid .Key}}.title">{{.Title}}</b>{{end}}
-                {{if .Base}}<span class="canvas-base" data-testid="canvas.lane.{{tid .Key}}.base" title="base branch: {{.Base}}">⎇ {{.Base}}</span>{{end}}
                 <div class="canvas-muted" data-testid="canvas.lane.{{tid .Key}}.summary">{{.Summary}}</div>
                 {{template "canvas-bar" .Bar}}
                 {{if .Slug}}<button type="button" class="canvas-hl-btn" data-testid="canvas.lane.{{tid .Key}}.highlight" aria-pressed="{{if .Lit}}true{{else}}false{{end}}" data-highlight="{{.Slug}}" data-name="{{.ShortTitle}}">{{if .Lit}}Highlighted{{else}}Highlight{{end}}</button>{{end}}

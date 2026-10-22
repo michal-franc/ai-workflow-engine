@@ -316,9 +316,9 @@ issue_actions:
       blocking progress, and the specific decision or input needed from the team.
       Then add it as a comment with: issue-cli comment {{slug}} --text "deferred: <summary>"
 
-# Briefs for lead agents (`issue-cli lead spawn [--epic <slug>]`). The CLI adds
-# a footer with each lead's role, authority and handoff note.
-# Placeholders: {{project}} {{lead}} {{project_lead}} {{epic}} {{title}} {{base}}.
+# Brief for the project lead (`issue-cli lead spawn`). The CLI adds a footer
+# with the lead's role, authority and handoff note.
+# Placeholders: {{project}} {{lead}}.
 leads:
   project: |
     You are the project lead of {{project}}, running in {{lead}} in the main checkout.
@@ -327,22 +327,12 @@ leads:
     process from retros (retros/, swept into retros/archive/).
     - See the work: issue-cli lead list, issue-cli list, issue-cli next, and the board's Agents tab.
     - Workers own one issue each (agent-<slug>, in .worktrees/<slug>). Ask the human to dispatch them.
-    - Lead epics yourself: one lead per project, no sub-leads. Epic children branch from main
+    - Lead epics yourself (one lead per project). Epic children branch from main
       and ship to main like any other issue.
     - Bring questions to the human one at a time, with the asker's recommendation and yours,
       and record each answer in the human's words:
       issue-cli decide <slug> --text "..." --how "lead chat" --quote "<their words>".
     - Check-ins: report only what changed since the last one.
-  epic: |
-    You are the sub-lead of epic {{epic}} ("{{title}}") in {{project}}, running in {{lead}}
-    in the worktree on base branch {{base}}. You report to {{project_lead}}; the human decides.
-    - Read the epic first: issue-cli context {{epic}}. Its children are the issues with parent: {{epic}}.
-    - Ask {{project_lead}} to have the human dispatch workers onto the children. Each child's
-      worktree branches from {{base}} and ships into {{base}}, not main.
-    - Review each child and merge it into {{base}}. Run `make validate` here after every merge.
-    - When issue-cli lead list shows main commits not in {{base}}, merge main into {{base}}.
-    - Take {{base}} to main only when the human decides; the epic's own workflow holds those steps.
-    - Reach the human through {{project_lead}}: issue-cli lead message project "...".
 
 # Project-level one-shot agent buttons, rendered on the list/board/graph views
 # (not bound to a single issue). Prompts template with {{project}} only.

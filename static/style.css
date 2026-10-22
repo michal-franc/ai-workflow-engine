@@ -2988,8 +2988,8 @@ a.balance-pass:hover { text-decoration: none; border-color: var(--text-secondary
 }
 .agent-node.selected { outline: 2px solid var(--text-link); outline-offset: 1px; }
 .agent-human { cursor: default; font-weight: 600; }
-.agent-project-lead, .agent-sub-lead { font-weight: 600; }
-.agent-worker { font-weight: 400; }
+.agent-project-lead { font-weight: 600; }
+.agent-worker, .agent-other { font-weight: 400; }
 .agent-name { font-family: var(--font-mono); }
 .agent-state { color: var(--text-secondary); font-size: 12px; }
 .agent-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); flex: none; }
@@ -3282,20 +3282,6 @@ body.canvas-page { overflow: hidden; }
     font-weight: 600;
     line-height: 20px;
     color: var(--text);
-}
-
-.canvas-base {
-    align-self: flex-start;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 1px 6px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--text-secondary);
 }
 
 .canvas-hl-btn,

@@ -16,14 +16,12 @@ toggles an existing approval off, unlike the viewer's button).
 
 Who may run it:
   - the project lead, for a gate the human approved in its chat;
-  - a sub-lead, only on its epic and the epic's children, and only for words
-    the project lead relayed (say so with --how);
   - never a worker. Human Testing is always approved by the human in the
     viewer.
 
 Examples:
   issue-cli approve <slug> --to backlog --quote "looks good, go"
-  issue-cli approve <slug> --to "in progress" --quote "approved" --how "relayed by lead-issue-viewer"`,
+  issue-cli approve <slug> --to "in progress" --quote "approved" --how "on a call"`,
 	Run: runApprove,
 }
 
@@ -64,19 +62,10 @@ func runApprove(ctx *Context, args []string) error {
 	}
 
 	me := whoAmI(proj, issues)
-	switch me.Role {
-	case tracker.RoleWorker:
+	if me.Role == tracker.RoleWorker {
 		route := tracker.LeadFor(proj, issue, issues, sessionLive(proj))
 		return fmt.Errorf("workers never tick gates. Ask your lead (%s, %s) on your issue trail:\n  %s", route.Lead, liveWord(route.Live),
 			tracker.InjectProject(proj, fmt.Sprintf("issue-cli comment %s \"question: ready for %s?\"", issue.Slug, to)))
-	case tracker.RoleSubLead:
-		if !strings.EqualFold(issue.Slug, me.Scope) && !strings.EqualFold(tracker.ParentSlug(issue), me.Scope) {
-			return fmt.Errorf("%s is outside your epic %s; sub-leads tick gates only on their epic and its children. Ask %s.",
-				issue.Slug, me.Scope, tracker.LeadSessionName(proj, tracker.LeadScopeProject))
-		}
-		if how == "" {
-			how = "relayed by " + tracker.LeadSessionName(proj, tracker.LeadScopeProject)
-		}
 	}
 	if how == "" {
 		how = "in the lead chat"

@@ -12,7 +12,7 @@ import (
 
 func TestLeadBrief_CustomPromptsAndPlaceholders(t *testing.T) {
 	var wf WorkflowConfig
-	if err := yaml.Unmarshal([]byte("leads:\n  project: \"Lead {{project}} as {{lead}}.\"\n  epic: \"Stabilise {{epic}} ({{title}}) on {{base}}; report to {{project_lead}}. Run issue-cli lead list.\"\n"), &wf); err != nil {
+	if err := yaml.Unmarshal([]byte("leads:\n  project: \"Lead {{project}} as {{lead}}.\"\n  epic: \"Stabilise {{epic}}.\"\n"), &wf); err != nil {
 		t.Fatal(err)
 	}
 	proj := &Project{Slug: "p", Name: "Proj"}
@@ -32,18 +32,9 @@ func TestLeadBrief_CustomPromptsAndPlaceholders(t *testing.T) {
 		t.Fatalf("project brief should ask for ## Next and name status.md:\n%s", got)
 	}
 
-	epic := &Issue{Slug: "ui/epic", Title: "Epic", ExtraFields: []ExtraField{{Key: "base", Value: "exp"}}}
-	got = LeadBrief(&wf, LeadBriefInput{Project: proj, Epic: epic, Root: "/r", Now: day})
-	if !strings.HasPrefix(got, "Stabilise ui/epic (Epic) on exp; report to lead-p. Run issue-cli --project p lead list.") {
-		t.Fatalf("epic brief:\n%s", got)
-	}
-	if !strings.Contains(got, "sub-lead (lead-ui-epic) of epic ui/epic, guarding base branch exp") ||
-		!strings.Contains(got, "--how \"relayed by lead-p\"") ||
-		!strings.Contains(got, "/r/sessions/2026-10-18-lead-ui-epic.md") {
-		t.Fatalf("epic footer:\n%s", got)
-	}
-	if !strings.Contains(got, "a ## Next section") || strings.Contains(got, "status.md") {
-		t.Fatalf("epic brief asks for ## Next but leaves the Status page to the project lead:\n%s", got)
+	// leads.epic is obsolete: it loads, but nothing renders it.
+	if strings.Contains(got, "Stabilise") || strings.Contains(got, "sub-lead") {
+		t.Fatalf("project brief uses the obsolete epic brief or names sub-leads:\n%s", got)
 	}
 }
 
@@ -59,22 +50,19 @@ func TestNewestHandoffNote(t *testing.T) {
 	for _, name := range []string{
 		"2026-10-01-lead-session.md", "2026-10-13-lead-session.md",
 		"2026-10-02-lead-p.md", "2026-10-09-lead-p.md",
-		"2026-10-20-lead-ui-epic.md", "notes.md",
+		"2026-10-20-lead-other.md", "notes.md",
 	} {
 		os.WriteFile(filepath.Join(dir, name), []byte("x"), 0644)
 	}
-	if got := NewestHandoffNote(dir, "lead-p", true); got != filepath.Join(dir, "2026-10-09-lead-p.md") {
+	if got := NewestHandoffNote(dir, "lead-p"); got != filepath.Join(dir, "2026-10-09-lead-p.md") {
 		t.Errorf("own note should win over legacy: %q", got)
 	}
 	os.Remove(filepath.Join(dir, "2026-10-02-lead-p.md"))
 	os.Remove(filepath.Join(dir, "2026-10-09-lead-p.md"))
-	if got := NewestHandoffNote(dir, "lead-p", true); got != filepath.Join(dir, "2026-10-13-lead-session.md") {
-		t.Errorf("project lead falls back to the newest legacy note: %q", got)
+	if got := NewestHandoffNote(dir, "lead-p"); got != filepath.Join(dir, "2026-10-13-lead-session.md") {
+		t.Errorf("falls back to the newest legacy note: %q", got)
 	}
-	if got := NewestHandoffNote(dir, "lead-other", false); got != "" {
-		t.Errorf("sub-lead never takes legacy notes: %q", got)
-	}
-	if got := NewestHandoffNote(filepath.Join(dir, "missing"), "lead-p", true); got != "" {
+	if got := NewestHandoffNote(filepath.Join(dir, "missing"), "lead-p"); got != "" {
 		t.Errorf("missing dir: %q", got)
 	}
 }

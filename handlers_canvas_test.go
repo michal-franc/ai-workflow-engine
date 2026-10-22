@@ -116,8 +116,8 @@ func TestBuildCanvas_EpicRowsDefaults(t *testing.T) {
 	}
 
 	e := laneByTitle(t, data, "e")
-	if e.Base != "base/e" || e.Depth != 0 {
-		t.Errorf("epic e base=%q depth=%d", e.Base, e.Depth)
+	if e.Depth != 0 {
+		t.Errorf("epic e depth=%d", e.Depth)
 	}
 	if e.Summary != "3 children · 1/3 done · 1 without a version" {
 		t.Errorf("epic e summary = %q", e.Summary)
@@ -291,7 +291,6 @@ func TestHandleCanvas_Renders(t *testing.T) {
 		`>1.0</b>`,
 		`>2.0</b>`,
 		`UMBRELLA`,
-		`⎇ base/umbrella`,
 		`class="canvas-card lit" data-testid="canvas.card.child" data-epic="big-umbrella-the-plan"`,
 		`data-testid="canvas.highlight.name">Big umbrella</span>`,
 		`2 issues without a version hidden`,

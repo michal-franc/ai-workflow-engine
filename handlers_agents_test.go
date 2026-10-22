@@ -12,9 +12,10 @@ import (
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
-// setupAgentsProject builds a project with an epic (ui/epic, with a sub-lead
-// recorded), children ui/child (parent:, at a gate), ui/asker (umbrella:,
-// asked a question), ui/idle (in progress, nobody on it) and a loner.
+// setupAgentsProject builds a project with an epic (ui/epic, still carrying
+// base: and lead: from before sub-leads were removed), children ui/child
+// (parent:, at a gate), ui/asker (umbrella:, asked a question), ui/idle (in
+// progress, nobody on it) and a loner.
 func setupAgentsProject(t *testing.T) tracker.Project {
 	t.Helper()
 	root := t.TempDir()
@@ -52,11 +53,10 @@ transitions:
 
 func stubAgentsGit(t *testing.T) {
 	t.Helper()
-	origAhead, origMain, origDiff := mainAhead, mainBranch, branchDiffStat
-	mainAhead = func(_, base string) (int, string, bool) { return 2, "main", true }
+	origMain, origDiff := mainBranch, branchDiffStat
 	mainBranch = func(string) string { return "main" }
 	branchDiffStat = func(_, against, branch string) string { return against + "..." + branch + " | 3 +++" }
-	t.Cleanup(func() { mainAhead, mainBranch, branchDiffStat = origAhead, origMain, origDiff })
+	t.Cleanup(func() { mainBranch, branchDiffStat = origMain, origDiff })
 }
 
 func TestAgentsModel(t *testing.T) {
@@ -90,8 +90,7 @@ func TestAgentsModel(t *testing.T) {
 		t.Fatalf("epics = %+v", m.Epics)
 	}
 	g := m.Epics[0]
-	if g.Issue.Slug != "ui/epic" || !g.HasSubLead || !g.SubLead.Live || g.Base != "base/ui/epic" || g.MainAhead != 2 ||
-		g.ChildrenRunning != 2 || g.ChildrenTotal != 3 {
+	if g.Issue.Slug != "ui/epic" || g.ChildrenRunning != 2 || g.ChildrenTotal != 3 {
 		t.Errorf("epic group = %+v", g)
 	}
 
@@ -122,7 +121,9 @@ func TestAgentsModel(t *testing.T) {
 			t.Errorf("unexpected unfinished %+v (backlog loner must not show)", n)
 		}
 	}
-	if len(m.Others) != 1 || m.Others[0].Name != "agent-agents-ux-review" {
+	// A leftover lead-<epic> session is no sub-lead: it shows as any other
+	// unbound session.
+	if len(m.Others) != 2 || m.Others[0].Name != "agent-agents-ux-review" || m.Others[1].Name != "lead-ui-epic" || m.Others[1].Kind != "other" {
 		t.Errorf("others = %+v", m.Others)
 	}
 }
@@ -164,14 +165,10 @@ func TestLeadSpawnEndpoint(t *testing.T) {
 		t.Fatalf("project lead: %d %v %+v", code, out, got)
 	}
 
+	got = agentrun.Spec{}
 	code, out = postJSON(t, ts.URL+"/p/agents/lead/spawn", `{"epic":"ui/epic"}`)
-	if code != 200 || got.Session != "lead-ui-epic" || got.Worktree.Branch != "base/ui/epic" {
-		t.Fatalf("sub-lead: %d %v %+v", code, out, got)
-	}
-
-	code, out = postJSON(t, ts.URL+"/p/agents/lead/spawn", `{"epic":"loner"}`)
-	if code != 422 || !strings.Contains(out["steps"].([]interface{})[0].(map[string]interface{})["detail"].(string), "not an epic") {
-		t.Fatalf("non-epic: %d %v", code, out)
+	if code != 422 || out["steps"].([]interface{})[0].(map[string]interface{})["detail"] != "sub-leads were removed (one lead per project)" || got.Session != "" {
+		t.Fatalf("epic: %d %v %+v", code, out, got)
 	}
 }
 
@@ -280,35 +277,33 @@ func TestAgentOpenAndDetail(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &d); err != nil {
 		t.Fatal(err)
 	}
-	if len(d.Comments) != 1 || d.Branch != "work/ui/asker" || d.Against != "base/ui/epic" || d.DiffStat != "base/ui/epic...work/ui/asker | 3 +++" {
+	// Epic children are compared with main; the epic's old base: is ignored.
+	if len(d.Comments) != 1 || d.Branch != "work/ui/asker" || d.Against != "main" || d.DiffStat != "main...work/ui/asker | 3 +++" {
 		t.Errorf("detail = %+v", d)
 	}
 
+	d = AgentDetail{}
 	_, body = getResp(t, ts.URL+"/p/agents/agents/detail?session=lead-ui-epic&issue=ui/epic")
 	json.Unmarshal([]byte(body), &d)
-	if d.Branch != "base/ui/epic" || d.Against != "main" {
-		t.Errorf("sub-lead detail = %+v", d)
+	if d.Branch != "" || d.DiffStat != "" {
+		t.Errorf("a lead has no branch of its own: %+v", d)
 	}
 }
 
 func TestDetailShowsLeadSection(t *testing.T) {
 	proj := setupAgentsProject(t)
-	withMockTmuxHasSession(t, func(string) bool { return false })
+	// Even a leftover lead-ui-epic session that is still running is not
+	// anyone's lead: one lead per project (workbench umbrella D-13).
+	withMockTmuxHasSession(t, func(name string) bool { return strings.HasSuffix(name, "lead-ui-epic") })
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
 
 	_, html := getResp(t, ts.URL+"/p/agents/issue/ui/epic")
-	// Its sub-lead isn't live, so the epic reports to the project lead like any
-	// other issue.
-	if !strings.Contains(html, `data-testid="detail.lead.name">lead-agents</div>`) || strings.Contains(html, "sub-lead · not running") {
-		t.Errorf("epic page should name the project lead, not a stopped sub-lead")
-	}
-	// One lead per project for now (workbench umbrella D-13): no sub-lead button.
-	if strings.Contains(html, "Spawn sub-lead") || strings.Contains(html, "spawnSubLead(") {
-		t.Errorf("epic page still offers Spawn sub-lead")
+	if !strings.Contains(html, `data-testid="detail.lead.name">lead-agents</div>`) || strings.Contains(html, "sub-lead") {
+		t.Errorf("epic page should name the project lead and no sub-lead")
 	}
 	_, html = getResp(t, ts.URL+"/p/agents/issue/ui/child")
-	if !strings.Contains(html, `<div class="active-session-name" data-testid="detail.lead.name">lead-agents</div>`) || strings.Contains(html, "spawnSubLead('") {
-		t.Errorf("child page should name the project lead (sub-lead not live) and offer no spawn")
+	if !strings.Contains(html, `<div class="active-session-name" data-testid="detail.lead.name">lead-agents</div>`) || !strings.Contains(html, `· epic <a href="/p/agents/issue/ui/epic">ui/epic</a>`) {
+		t.Errorf("child page should name the project lead and its epic")
 	}
 }

@@ -29,18 +29,19 @@ func TestParentSlug_ParentWinsUmbrellaIsAlias(t *testing.T) {
 	}
 }
 
+// A leftover lead: or base: is a plain custom field: it doesn't make an epic.
 func TestIsEpic(t *testing.T) {
 	epic := issueWith("ui/epic", nil)
 	child := issueWith("ui/child", map[string]string{"parent": "ui/epic", "base": "base/ui/epic"})
 	typed := issueWith("typed", nil)
 	typed.Type = "epic"
-	led := issueWith("led", map[string]string{"lead": "lead-led"})
+	led := issueWith("led", map[string]string{"lead": "lead-led", "base": "base/led"})
 	issues := []*Issue{epic, child, typed, led}
 
 	for _, c := range []struct {
 		issue *Issue
 		want  bool
-	}{{epic, true}, {child, false}, {typed, true}, {led, true}} {
+	}{{epic, true}, {child, false}, {typed, true}, {led, false}} {
 		if got := IsEpic(c.issue, issues); got != c.want {
 			t.Errorf("IsEpic(%s) = %v, want %v", c.issue.Slug, got, c.want)
 		}
@@ -51,61 +52,42 @@ func TestIsEpic(t *testing.T) {
 }
 
 func TestLeadSessionName(t *testing.T) {
-	proj := &Project{Slug: "issue-viewer"}
-	if got := LeadSessionName(proj, LeadScopeProject); got != "lead-issue-viewer" {
+	if got := LeadSessionName(&Project{Slug: "issue-viewer"}); got != "lead-issue-viewer" {
 		t.Errorf("project lead = %q", got)
 	}
-	if got := LeadSessionName(proj, "ui/workbench.v2 redesign"); got != "lead-ui-workbench-v2-redesign" {
-		t.Errorf("sub-lead = %q", got)
+	if got := LeadSessionName(&Project{Slug: "my.proj"}); got != "lead-my-proj" {
+		t.Errorf("dotted slug = %q", got)
 	}
-	if got := LeadSessionName(nil, ""); got != "lead-project" {
+	if got := LeadSessionName(nil); got != "lead-project" {
 		t.Errorf("no project = %q", got)
 	}
 }
 
+// Epics and their children branch from HEAD like any issue; an old base: is
+// ignored.
 func TestIssueWorktree(t *testing.T) {
 	enabled := true
 	wf := &WorkflowConfig{Worktree: &enabled}
 	epic := issueWith("ui/epic", map[string]string{"base": "base/ui/epic", "lead": "lead-ui-epic"})
-	child := issueWith("ui/child", map[string]string{"parent": "ui/epic"})
-	legacyChild := issueWith("ui/old", map[string]string{"umbrella": "ui/epic"})
-	loner := issueWith("loner", nil)
-	issues := []*Issue{epic, child, legacyChild, loner}
+	child := issueWith("ui/child", map[string]string{"parent": "ui/epic", "base": "base/ui/epic"})
 
-	if got := IssueWorktree("/w", epic, issues, wf); got != (WorktreeSpec{Path: "/w/.worktrees/ui/epic", Branch: "base/ui/epic"}) {
+	if got := IssueWorktree("/w", epic, wf); got != (WorktreeSpec{Path: "/w/.worktrees/ui/epic", Branch: "work/ui/epic"}) {
 		t.Errorf("epic = %+v", got)
 	}
-	want := WorktreeSpec{Path: "/w/.worktrees/ui/child", Branch: "work/ui/child", StartPoint: "base/ui/epic"}
-	if got := IssueWorktree("/w", child, issues, wf); got != want {
-		t.Errorf("child = %+v, want %+v", got, want)
+	if got := IssueWorktree("/w", child, wf); got != (WorktreeSpec{Path: "/w/.worktrees/ui/child", Branch: "work/ui/child"}) {
+		t.Errorf("child = %+v", got)
 	}
-	if got := IssueWorktree("/w", legacyChild, issues, wf); got.StartPoint != "base/ui/epic" {
-		t.Errorf("umbrella child = %+v", got)
-	}
-	if got := IssueWorktree("/w", loner, issues, wf); got != (WorktreeSpec{Path: "/w/.worktrees/loner", Branch: "work/loner"}) {
-		t.Errorf("loner = %+v", got)
-	}
-	if got := IssueWorktree("/w", child, issues, nil); got != (WorktreeSpec{}) {
+	if got := IssueWorktree("/w", child, nil); got != (WorktreeSpec{}) {
 		t.Errorf("worktrees disabled = %+v", got)
 	}
 }
 
-func TestChildBase_FallsBackToOwnBase(t *testing.T) {
-	epic := issueWith("epic", nil)
-	child := issueWith("child", map[string]string{"parent": "epic", "base": "experiment"})
-	if got := ChildBase(child, []*Issue{epic, child}); got != "experiment" {
-		t.Fatalf("ChildBase = %q, want the child's own base", got)
-	}
-	orphanBase := issueWith("x", map[string]string{"base": "experiment"})
-	if got := ChildBase(orphanBase, nil); got != "" {
-		t.Fatalf("issue without parent: ChildBase = %q", got)
-	}
-}
-
+// Every issue reports to the project lead, even when an old lead-<epic>
+// session is still running.
 func TestLeadFor(t *testing.T) {
 	proj := &Project{Slug: "p"}
 	epic := issueWith("ui/epic", nil)
-	child := issueWith("ui/child", map[string]string{"parent": "ui/epic"})
+	child := issueWith("ui/child", map[string]string{"parent": "UI/Epic"})
 	issues := []*Issue{epic, child}
 	liveSet := func(names ...string) func(string) bool {
 		return func(n string) bool {
@@ -119,16 +101,16 @@ func TestLeadFor(t *testing.T) {
 	}
 
 	r := LeadFor(proj, child, issues, liveSet("lead-ui-epic", "lead-p"))
-	if r.Lead != "lead-ui-epic" || !r.Live || r.Epic != "ui/epic" {
-		t.Errorf("live sub-lead: %+v", r)
+	if r != (LeadRoute{Lead: "lead-p", Live: true, Epic: "ui/epic"}) {
+		t.Errorf("child: %+v", r)
 	}
-	r = LeadFor(proj, child, issues, liveSet("lead-p"))
-	if r.Lead != "lead-p" || !r.Live || r.SubLead != "lead-ui-epic" || r.SubLeadLive {
-		t.Errorf("sub-lead down: %+v", r)
+	r = LeadFor(proj, child, issues, liveSet("lead-ui-epic"))
+	if r != (LeadRoute{Lead: "lead-p", Live: false, Epic: "ui/epic"}) {
+		t.Errorf("project lead down: %+v", r)
 	}
 	r = LeadFor(proj, epic, issues, nil)
-	if r.Lead != "lead-p" || r.Live || r.Epic != "" {
-		t.Errorf("epic reports to project lead: %+v", r)
+	if r != (LeadRoute{Lead: "lead-p"}) {
+		t.Errorf("epic: %+v", r)
 	}
 }
 
@@ -141,7 +123,7 @@ func TestBuildDispatchPrompt_ChildOfEpic(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write("UI/epic.md", "---\ntitle: \"Epic\"\nstatus: \"in progress\"\nbase: \"base/ui/epic\"\n---\n\nEpic body.\n")
+	write("UI/epic.md", "---\ntitle: \"Epic\"\nstatus: \"in progress\"\nbase: \"base/ui/epic\"\nlead: \"lead-ui-epic\"\n---\n\nEpic body.\n")
 	write("UI/child.md", "---\ntitle: \"Child\"\nstatus: \"in progress\"\numbrella: \"ui/epic\"\n---\n\nChild body.\n")
 	proj := &Project{Slug: "p", IssueDir: dir}
 	issues, err := LoadIssues(dir)
@@ -152,24 +134,27 @@ func TestBuildDispatchPrompt_ChildOfEpic(t *testing.T) {
 	enabled := true
 	wf := &WorkflowConfig{Worktree: &enabled}
 
-	dp := BuildDispatchPrompt(proj, child, wf, "/w", func(n string) bool { return n == "lead-ui-epic" })
-	if dp.Base != "base/ui/epic" || dp.Lead != "lead-ui-epic" || dp.Branch != "work/ui/child" {
+	dp := BuildDispatchPrompt(proj, child, wf, "/w", func(n string) bool { return n == "lead-ui-epic" || n == "lead-p" })
+	if dp.Lead != "lead-p" || dp.Branch != "work/ui/child" {
 		t.Fatalf("got %+v", dp)
 	}
 	for _, want := range []string{
-		"You report to lead-ui-epic, the sub-lead of epic ui/epic (live).",
+		"You report to the project lead lead-p (live). Your issue is part of epic ui/epic.",
 		"`issue-cli --project p comment ui/child \"question: ...\"`",
-		"## Base branch",
-		"merge base/ui/epic (never main) into your branch",
-		"open the PR against base/ui/epic, not main",
+		"(lead-<project>, agent-<slug>)",
 	} {
 		if !strings.Contains(dp.Prompt, want) {
 			t.Errorf("prompt missing %q", want)
 		}
 	}
+	for _, gone := range []string{"sub-lead", "## Base branch", "base/ui/epic"} {
+		if strings.Contains(dp.Prompt, gone) {
+			t.Errorf("prompt still mentions %q", gone)
+		}
+	}
 
 	dp = BuildDispatchPrompt(proj, child, wf, "/w", nil)
-	if !strings.Contains(dp.Prompt, "Your epic ui/epic has no live sub-lead (lead-ui-epic), so you report to the project lead lead-p (not running).") {
-		t.Errorf("fallback lead line missing:\n%s", dp.Prompt)
+	if !strings.Contains(dp.Prompt, "You report to the project lead lead-p (not running).") {
+		t.Errorf("lead line missing:\n%s", dp.Prompt)
 	}
 }

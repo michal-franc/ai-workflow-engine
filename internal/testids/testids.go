@@ -152,7 +152,7 @@ var IDs = []string{
 	"actions.modal.steps",
 
 	// Agents canvas (/p/<project>/agents). Nodes are keyed by tmux session
-	// name (lead-<scope>, agent-<slug>), epic boxes by the epic's slug.
+	// name (lead-<project>, agent-<slug>).
 	"agents.toolbar",
 	"agents.layout.tree",
 	"agents.layout.radial",
@@ -211,7 +211,6 @@ var IDs = []string{
 	"canvas.lane.*.status",
 	"canvas.lane.*.parent",
 	"canvas.lane.*.title",
-	"canvas.lane.*.base",
 	"canvas.lane.*.summary",
 	"canvas.lane.*.highlight",
 	"canvas.lane.*.note",

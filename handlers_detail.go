@@ -42,25 +42,14 @@ type DetailData struct {
 	Shared *tracker.SharedFiles
 }
 
-// DetailLead is the detail page's Lead section: who the issue reports to and,
-// for an epic, its sub-lead.
+// DetailLead is the detail page's Lead section: the project lead the issue
+// reports to.
 type DetailLead struct {
-	Route       tracker.LeadRoute
-	IsEpic      bool
-	SubLead     string
-	SubLeadLive bool
-	Base        string
+	Route tracker.LeadRoute
 }
 
 func detailLead(proj *tracker.Project, issue *tracker.Issue, issues []*tracker.Issue) DetailLead {
-	live := leadLive(proj)
-	dl := DetailLead{Route: tracker.LeadFor(proj, issue, issues, live), IsEpic: tracker.IsEpic(issue, issues)}
-	if dl.IsEpic {
-		dl.SubLead = tracker.LeadSessionName(proj, issue.Slug)
-		dl.SubLeadLive = live(dl.SubLead)
-		dl.Base = tracker.EpicBase(issue)
-	}
-	return dl
+	return DetailLead{Route: tracker.LeadFor(proj, issue, issues, leadLive(proj))}
 }
 
 // OptionalApproval describes a transition to an Optional status that requires

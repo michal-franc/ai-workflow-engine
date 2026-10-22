@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -20,7 +22,6 @@ func init() {
 	liveSessionNames = func(*tracker.Project) map[string]bool { return nil }
 	currentTmuxNames = func() (string, string) { return "", "" }
 	workingDir = func() (string, error) { return "/home/someone/project", nil }
-	commitsBehind = func(string, string) (int, string, bool) { return 0, "", false }
 	startAgent = func(*tracker.Project, agentrun.Spec) agentrun.Response {
 		panic("test started a real agent; stub startAgent")
 	}
@@ -109,7 +110,6 @@ func TestLeadSpawn_ProjectLead(t *testing.T) {
 	}
 	for _, want := range []string{
 		"You are the project lead of Proj. You run in lead-proj",
-		"issue-cli --project proj lead spawn --epic <slug>",
 		"## Your role",
 		"- Role: project lead (lead-proj).",
 		"read " + legacy + " first",
@@ -118,6 +118,9 @@ func TestLeadSpawn_ProjectLead(t *testing.T) {
 		if !strings.Contains(spec.Prompt, want) {
 			t.Errorf("brief missing %q\n%s", want, spec.Prompt)
 		}
+	}
+	if strings.Contains(spec.Prompt, "sub-lead") || strings.Contains(spec.Prompt, "--epic") {
+		t.Errorf("brief still mentions sub-leads:\n%s", spec.Prompt)
 	}
 	if !strings.Contains(stdout.String(), "✓ Spawned project lead lead-proj") {
 		t.Fatalf("stdout = %q", stdout.String())
@@ -155,63 +158,38 @@ func TestLeadSpawn_ReattachSaysAlreadyLive(t *testing.T) {
 	}
 }
 
-func TestLeadSpawn_EpicRecordsBaseAndLead(t *testing.T) {
+// --epic is gone: every spelling gets the same one-line answer, nothing is
+// started and the epic's frontmatter is untouched.
+func TestLeadSpawn_EpicRemoved(t *testing.T) {
 	proj := makeLeadProject(t)
-	spec := captureStart(t, "dispatched")
-	ctx, stdout, _ := newTestContext(proj, false)
-
-	if err := runLead(ctx, []string{"spawn", "--epic", "ui/epic", "--attach"}); err != nil {
-		t.Fatal(err)
-	}
-	wantWT := tracker.WorktreeSpec{Path: filepath.Join(proj.WorkDir, ".worktrees", "ui/epic"), Branch: "base/ui/epic"}
-	if spec.Session != "lead-ui-epic" || spec.LeadScope != "ui/epic" || spec.Headless || spec.Worktree != wantWT {
-		t.Fatalf("spec = %+v", *spec)
-	}
-	if !strings.Contains(spec.Prompt, "You are the sub-lead of epic ui/epic (\"Epic\")") ||
-		!strings.Contains(spec.Prompt, "guarding base branch base/ui/epic. You report to lead-proj.") {
-		t.Fatalf("brief:\n%s", spec.Prompt)
+	for _, args := range [][]string{
+		{"spawn", "--epic", "ui/epic"},
+		{"spawn", "-epic", "x"},
+		{"spawn", "--attach", "--epic=ui/epic"},
+	} {
+		ctx, stdout, _ := newTestContext(proj, false)
+		err := runLead(ctx, args)
+		if err == nil || err.Error() != "sub-leads were removed (one lead per project); issue-cli --project proj lead spawn starts the project lead" {
+			t.Fatalf("%v: err = %v", args, err)
+		}
+		if strings.Contains(err.Error(), "\n") || stdout.Len() != 0 {
+			t.Fatalf("%v: want one line and no output, got %q / %q", args, err, stdout.String())
+		}
 	}
 	epic := loadLeadIssue(t, proj, "ui/epic")
-	if epic.Field("base") != "base/ui/epic" || epic.Field("lead") != "lead-ui-epic" {
+	if epic.Field("base") != "" || epic.Field("lead") != "" {
 		t.Fatalf("epic frontmatter base=%q lead=%q", epic.Field("base"), epic.Field("lead"))
-	}
-	if !strings.Contains(stdout.String(), "✓ Spawned sub-lead lead-ui-epic for epic ui/epic on base branch base/ui/epic") {
-		t.Fatalf("stdout = %q", stdout.String())
-	}
-}
-
-func TestLeadSpawn_EpicKeepsExistingBase(t *testing.T) {
-	proj := makeLeadProject(t)
-	epic := loadLeadIssue(t, proj, "ui/epic")
-	tracker.SetFrontmatterField(epic.FilePath, "base", "experiment", false)
-	spec := captureStart(t, "dispatched")
-	ctx, _, _ := newTestContext(proj, false)
-	if err := runLead(ctx, []string{"spawn", "--epic", "ui/epic"}); err != nil {
-		t.Fatal(err)
-	}
-	if spec.Worktree.Branch != "experiment" {
-		t.Fatalf("worktree = %+v, want the epic's own base", spec.Worktree)
 	}
 }
 
 func TestLeadSpawn_Refusals(t *testing.T) {
 	proj := makeLeadProject(t)
 	captureStart(t, "dispatched")
-
 	ctx, _, _ := newTestContext(proj, false)
-	if err := runLead(ctx, []string{"spawn", "--epic", "loner"}); err == nil || !strings.Contains(err.Error(), "loner is not an epic") {
-		t.Fatalf("non-epic: err = %v", err)
-	}
 
 	t.Setenv("ISSUE_VIEWER_ISSUE_SLUG", "ui/child")
 	if err := runLead(ctx, []string{"spawn"}); err == nil || !strings.Contains(err.Error(), "workers can't spawn leads") {
 		t.Fatalf("worker: err = %v", err)
-	}
-
-	t.Setenv("ISSUE_VIEWER_ISSUE_SLUG", "")
-	t.Setenv("ISSUE_VIEWER_LEAD_SCOPE", "ui/epic")
-	if err := runLead(ctx, []string{"spawn", "--epic", "ui/epic"}); err == nil || !strings.Contains(err.Error(), "fixed at project lead → sub-lead → worker") {
-		t.Fatalf("sub-lead: err = %v", err)
 	}
 }
 
@@ -240,12 +218,14 @@ func TestLeadWhoami_Roles(t *testing.T) {
 	t.Setenv("ISSUE_VIEWER_LEAD_SCOPE", "project")
 	expect(run(), "Role: project lead (lead-proj)", "Reports to: the human", "May tick: gates the human approved in your chat")
 
+	// An old sub-lead's scope is no lead: it falls through to the other
+	// signals (here none, so unmanaged).
 	t.Setenv("ISSUE_VIEWER_LEAD_SCOPE", "ui/epic")
-	expect(run(), "Role: sub-lead (lead-ui-epic)", "Guards: base/ui/epic", "Reports to: lead-proj (live)", "issue-cli --project proj lead message lead-proj")
+	expect(run(), "Role: unmanaged", "Reports to: lead-proj (live)")
 
 	t.Setenv("ISSUE_VIEWER_LEAD_SCOPE", "")
 	t.Setenv("ISSUE_VIEWER_ISSUE_SLUG", "ui/old")
-	expect(run(), "Role: worker (agent-ui-old)", "Reports to: lead-ui-epic (live)", "May tick: nothing", "Hint: your issue links its epic with umbrella:")
+	expect(run(), "Role: worker (agent-ui-old)", "Reports to: lead-proj (live)", "May tick: nothing", "Hint: your issue links its epic with umbrella:")
 
 	t.Setenv("ISSUE_VIEWER_ISSUE_SLUG", "loner")
 	expect(run(), "Role: worker (agent-loner)", "Reports to: lead-proj (live)")
@@ -254,52 +234,57 @@ func TestLeadWhoami_Roles(t *testing.T) {
 func TestLeadWhoami_TmuxNameSignal(t *testing.T) {
 	proj := makeLeadProject(t)
 	orig := currentTmuxNames
-	currentTmuxNames = func() (string, string) { return "work", "lead-ui-epic" }
 	t.Cleanup(func() { currentTmuxNames = orig })
-	ctx, stdout, _ := newTestContext(proj, false)
-	if err := runLead(ctx, []string{"whoami"}); err != nil {
-		t.Fatal(err)
+	run := func() string {
+		t.Helper()
+		ctx, stdout, _ := newTestContext(proj, false)
+		if err := runLead(ctx, []string{"whoami"}); err != nil {
+			t.Fatal(err)
+		}
+		return stdout.String()
 	}
-	if !strings.Contains(stdout.String(), "Role: sub-lead (lead-ui-epic)  [detected from tmux name lead-ui-epic]") {
-		t.Fatalf("stdout = %q", stdout.String())
+
+	currentTmuxNames = func() (string, string) { return "work", "lead-proj" }
+	if out := run(); !strings.Contains(out, "Role: project lead (lead-proj)  [detected from tmux name lead-proj]") {
+		t.Fatalf("stdout = %q", out)
+	}
+	// A leftover lead-<epic> window is not a lead.
+	currentTmuxNames = func() (string, string) { return "work", "lead-ui-epic" }
+	if out := run(); !strings.Contains(out, "Role: unmanaged") {
+		t.Fatalf("stdout = %q", out)
 	}
 }
 
+// lead list shows the project lead and the open epics, and never suggests a
+// sub-lead, even for an epic that still carries lead:/base:.
 func TestLeadList(t *testing.T) {
 	proj := makeLeadProject(t)
 	epic := loadLeadIssue(t, proj, "ui/epic")
 	tracker.SetFrontmatterField(epic.FilePath, "lead", "lead-ui-epic", false)
+	tracker.SetFrontmatterField(epic.FilePath, "base", "base/ui/epic", false)
 	withLive(t, "lead-ui-epic", "agent-ui-child")
-	orig := commitsBehind
-	commitsBehind = func(_, base string) (int, string, bool) { return 3, "main", base == "base/ui/epic" }
-	t.Cleanup(func() { commitsBehind = orig })
 
 	ctx, stdout, _ := newTestContext(proj, false)
 	if err := runLead(ctx, []string{"list"}); err != nil {
 		t.Fatal(err)
 	}
 	out := stdout.String()
-	for _, want := range []string{
-		"lead-proj", "project lead  not running",
-		"lead-ui-epic", "sub-lead      live  epic ui/epic (in progress)",
-		"base base/ui/epic · main commits not in base: 3 · children running 1/2",
-		"→ merge main into base/ui/epic",
-		"The project lead is not running. Start it: issue-cli --project proj lead spawn",
-	} {
-		if !strings.Contains(out, want) {
-			t.Errorf("list missing %q:\n%s", want, out)
-		}
+	want := "== Lead ==\n  lead-proj                                project lead  not running\n\n== Epics ==\n  ui/epic (in progress) · children running 1/2\n\nThe project lead is not running. Start it: issue-cli --project proj lead spawn\n"
+	if out != want {
+		t.Errorf("list:\n%s\nwant:\n%s", out, want)
 	}
-}
 
-func TestLeadList_EpicWithoutSubLead(t *testing.T) {
-	proj := makeLeadProject(t)
-	ctx, stdout, _ := newTestContext(proj, false)
+	ctx, stdout, _ = newTestContext(proj, true)
 	if err := runLead(ctx, []string{"list"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(stdout.String(), "== Epics without a sub-lead ==\n  ui/epic (in progress) · children running 0/2") {
-		t.Fatalf("stdout:\n%s", stdout.String())
+	var got leadListJSON
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	wantJSON := leadListJSON{Lead: leadRow{Session: "lead-proj"}, Epics: []epicRow{{Slug: "ui/epic", Title: "Epic", Status: "in progress", ChildrenRunning: 1, ChildrenTotal: 2}}}
+	if !reflect.DeepEqual(got, wantJSON) {
+		t.Errorf("json = %+v", got)
 	}
 }
 
@@ -321,10 +306,10 @@ func TestLeadMessage(t *testing.T) {
 	}
 	t.Cleanup(func() { pasteIntoSession = orig })
 
-	t.Setenv("ISSUE_VIEWER_LEAD_SCOPE", "ui/epic")
+	t.Setenv("ISSUE_VIEWER_LEAD_SCOPE", "project")
 	for target, want := range map[string]string{
 		"project":    "lead-proj",
-		"ui/epic":    "lead-ui-epic",
+		"ui/epic":    "agent-ui-epic",
 		"ui/child":   "agent-ui-child",
 		"lead-other": "lead-other",
 	} {
@@ -332,7 +317,7 @@ func TestLeadMessage(t *testing.T) {
 		if err := runLead(ctx, []string{"message", target, "hello", "there"}); err != nil {
 			t.Fatalf("%s: %v", target, err)
 		}
-		if gotSession != want || gotText != "[from lead-ui-epic] hello there" {
+		if gotSession != want || gotText != "[from lead-proj] hello there" {
 			t.Errorf("%s → %q %q, want %q", target, gotSession, gotText, want)
 		}
 	}
@@ -372,10 +357,7 @@ func TestApprove(t *testing.T) {
 	}
 
 	t.Setenv("ISSUE_VIEWER_ISSUE_SLUG", "")
-	t.Setenv("ISSUE_VIEWER_LEAD_SCOPE", "ui/epic")
-	if err := run("loner", "--to", "backlog", "--quote", "ok"); err == nil || !strings.Contains(err.Error(), "outside your epic ui/epic") {
-		t.Fatalf("sub-lead outside epic: err = %v", err)
-	}
+	t.Setenv("ISSUE_VIEWER_LEAD_SCOPE", "project")
 	if err := run("ui/child", "--to", "done", "--quote", "ship it"); err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +366,7 @@ func TestApprove(t *testing.T) {
 		t.Fatalf("human_approval = %q", child.HumanApproval)
 	}
 	comments, _ := tracker.LoadComments(child.FilePath)
-	if len(comments) != 1 || !strings.HasPrefix(comments[0].Text, `approval: "ship it" (relayed by lead-proj, `) || !strings.HasSuffix(comments[0].Text, "recorded by lead-ui-epic") {
+	if len(comments) != 1 || !strings.HasPrefix(comments[0].Text, `approval: "ship it" (in the lead chat, `) || !strings.HasSuffix(comments[0].Text, "recorded by lead-proj") {
 		t.Fatalf("comments = %+v", comments)
 	}
 
@@ -399,13 +381,13 @@ func TestApprove(t *testing.T) {
 
 func TestShowPrintsLeadAndUmbrellaHint(t *testing.T) {
 	proj := makeLeadProject(t)
-	withLive(t, "lead-ui-epic")
+	withLive(t, "lead-ui-epic", "lead-proj")
 	ctx, stdout, _ := newTestContext(proj, false)
 	if err := runShow(ctx, []string{"ui/old"}); err != nil {
 		t.Fatal(err)
 	}
 	out := stdout.String()
-	if !strings.Contains(out, "Lead: lead-ui-epic (live, sub-lead of epic ui/epic)") {
+	if !strings.Contains(out, "Lead: lead-proj (live)\n") {
 		t.Errorf("missing lead line:\n%s", out)
 	}
 	if !strings.Contains(out, "Hint: umbrella: is a legacy alias for parent:. Rename it: issue-cli --project proj set-meta ui/old --key parent --value ui/epic") {

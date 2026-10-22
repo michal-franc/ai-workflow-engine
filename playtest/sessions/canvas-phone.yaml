@@ -17,6 +17,6 @@ steps:
     setup:
       - open: /p/{project}/canvas
     checks:
-      - visible: [canvas.toolbar, canvas.rows, canvas.collapse_done, canvas.show_no_version, canvas.zoom.fit, canvas.viewport]
+      - visible: [canvas.toolbar, canvas.rows, canvas.epic, canvas.collapse_done, canvas.show_no_version, canvas.expand_all, canvas.fold_all, canvas.zoom.fit, canvas.viewport]
       - below: [canvas.toolbar, canvas.viewport]
       - beside: [canvas.column.0_1, canvas.column.0_2]

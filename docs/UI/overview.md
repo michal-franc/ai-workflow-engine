@@ -243,6 +243,12 @@ With `workbench.status_page` or `workbench.pages` in `workflow.yaml`, the viewer
     - "No epic" is the last row. A card whose `parent:` matches no issue lands there with an "unknown parent" marker.
     - Parent cycles list each epic once.
   - `system` gives one row per `system:`, with "No system" last. Epics appear as cards, and every card under an epic carries a **⧉ <epic>** badge.
+- **Folding:** every lane, in both row modes, starts folded: the header shrinks to three lines (title on one line), and each cell shows a count per open status (coloured dot, workflow order) and one "✓ n" for closed cards instead of the cards.
+  - A click anywhere on a lane head but its title link (or the ▸/▾ button) unfolds or folds it. **Expand all** / **Fold all** sit in the toolbar.
+  - Open lanes go in `?open=<key>,<key>` (lane keys: epic slug, `no epic`, or the system) via `history.replaceState` and the toolbar's hidden `open` field, so a reload or a toolbar change keeps them. The server drops keys that match no lane.
+  - The pan starts capturing the pointer only after it moves 4px, so a plain click reaches the head and a drag pans without folding.
+- **Epic filter** (`?epic=<slug>`, epic rows only): the toolbar's **Epic** select lists every epic in lane order, sub-epics indented. Picking one shows its lane and its sub-epics, unfolded, without "No epic". Folding there is not written to the URL, and **All** brings every lane back folded.
+- **Toolbar changes** submit through `submit()`, which leaves empty fields out of the URL.
 - **Highlight** comes from `?hl=<epic slug>`, a row's Highlight button, or a card's badge. It rings the epic's cards and sorts them first, fades the rest, and shows a "Highlight ⧉ <epic> ×" chip.
   - Client-side changes are mirrored into the URL with `history.replaceState`, and `data-order` restores the original card order when the highlight is cleared.
   - An epic's detail page links to `/canvas?hl=<slug>` ("View on canvas").
@@ -251,7 +257,7 @@ With `workbench.status_page` or `workbench.pages` in `workflow.yaml`, the viewer
   - The function has no canvas-specific names, so another map view can reuse it.
   - Nothing is saved: the layout is always computed.
 - **Parent lookup** is `epicParentSlug` (`parent:`, then `umbrella:`). Swap it for `tracker.ParentSlug` once the lead-engineer branch lands.
-- **Test ids** are `canvas.*`: lanes are keyed by epic slug, `no_epic` or the system; columns and cells by version (`0_1`, `no_version`). The playtest sessions are `playtest/sessions/canvas-basics.yaml` and `canvas-phone.yaml`, on the `canvas` scenario.
+- **Test ids** are `canvas.*`: lanes are keyed by epic slug, `no_epic` or the system; columns and cells by version (`0_1`, `no_version`). The playtest sessions are `playtest/sessions/canvas-basics.yaml` (its steps click Expand all first), `canvas-fold.yaml` and `canvas-phone.yaml`, on the `canvas` scenario.
 
 ## Metrics view
 

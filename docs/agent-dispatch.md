@@ -78,9 +78,16 @@ The handler substitutes `{{session}}` with the tmux session name and runs the co
 | macOS + Terminal.app       | `osascript -e 'tell app "Terminal" to do script "tmux attach -t {{session}}"'` |
 | Headless (attach manually) | `none`                                                                       |
 
-If `terminal` is unset, defaults to i3 + alacritty, with the window titled after the session (`alacritty -T <session>`). On i3, opening an agent from the agents canvas when its session already has a terminal focuses the window with that exact title instead of opening another, so give your own `terminal` command `-T {{session}}` (or your terminal's equivalent) to get the same. Set to `none` to only create the tmux session (the response includes the `attach_cmd`).
+If `terminal` is unset, defaults to i3 + alacritty, with the window titled after the session (`alacritty -T <session>`). On i3, opening an agent from the agents canvas when its session already has a terminal focuses the window with that exact title instead of opening another, so give your own `terminal` command `-T {{session}}` (or your terminal's equivalent) to get the same. Set to `none` to only create the tmux session. Nothing on screen changes, and the response carries two ways to reach the agent:
 
-When the viewer itself runs with `TMUX_TMPDIR` set (a sandbox or playtest scenario on a private tmux server), `attach_cmd` starts with `TMUX_TMPDIR=<dir>`, so it reaches that server from any shell. A `terminal` command inherits the variable through `sh -c`; the i3 default passes it on with `env`. The board waits for the `terminal` command to exit, so use one that returns at once (`i3-msg exec …`, or `setsid -f alacritty -e … >/dev/null 2>&1`).
+- `switch_cmd` is for a shell already inside tmux, e.g. `tmux switch-client -t agent-<slug>`. A plain `tmux attach` refuses to nest there.
+- `attach_cmd` is for a plain shell, e.g. `tmux attach -t agent-<slug>`.
+
+`issue-cli lead spawn` prints both, as `Inside tmux:` and `From a shell:`.
+
+A `terminal:` at the top of `projects.yaml` is the default for every project that doesn't set its own (see [One terminal, a session per project](#one-terminal-a-session-per-project)).
+
+When the viewer itself runs with `TMUX_TMPDIR` set (a sandbox or playtest scenario on a private tmux server), `attach_cmd` starts with `TMUX_TMPDIR=<dir>`, so it reaches that server from any shell. `switch_cmd` has no prefix, because inside tmux `$TMUX` already names the server. A `terminal` command inherits the variable through `sh -c`; the i3 default passes it on with `env`. The board waits for the `terminal` command to exit, so use one that returns at once (`i3-msg exec …`, or `setsid -f alacritty -e … >/dev/null 2>&1`).
 
 ## Shared tmux Session
 
@@ -95,11 +102,50 @@ By default every dispatch gets its own tmux session (`agent-<slug>`) and its own
 On dispatch:
 
 - If the `work` session doesn't exist, it is created with the agent as its first window (`agent-<slug>`).
-- If it exists, a new `agent-<slug>` window is added to it and selected.
+- If it exists, a new `agent-<slug>` window is added to it. It is selected, except with `terminal: none`: there the window is added in the background, so whoever is looking at the session (usually the lead) keeps it. A re-dispatch doesn't select it either. Opening the agent from the agents canvas selects it.
 - A terminal (via `terminal`, where `{{session}}` becomes the shared session name) is opened **only when no client is attached** to the shared session. If you already have it open, the new window just appears there.
 - Re-dispatching an issue whose window is still alive reattaches (selects the window) instead of re-prompting.
 
-"Edit in nvim" follows the same rule: it opens as an `agent-<slug>-edit` window, and only that window is closed when the edit finishes. Agent windows are listed as `work:agent-<slug>` and receive approval notifications like per-agent sessions. Lead windows (`lead-<project>`, `lead-<epic>`) live in the same shared session and are listed as `work:lead-<…>`. With `terminal: none`, `attach_cmd` is `tmux attach -t work \; select-window -t agent-<slug>`.
+"Edit in nvim" follows the same rule: it opens as an `agent-<slug>-edit` window, and only that window is closed when the edit finishes. Agent windows are listed as `work:agent-<slug>` and receive approval notifications like per-agent sessions. Lead windows (`lead-<project>`, `lead-<epic>`) live in the same shared session and are listed as `work:lead-<…>`. With `terminal: none`, `attach_cmd` is `tmux attach -t work \; select-window -t agent-<slug>`, and `switch_cmd` is `tmux switch-client -t '=work:=agent-<slug>'`, which switches session and window at once. The target is quoted because zsh expands a leading `=`.
+
+To give every project its own shared session without setting `tmux_session` on each, put `tmux_session_per_project: true` at the top of `projects.yaml`. Each project without a `tmux_session` then uses one named after its slug.
+
+## One terminal, a session per project
+
+This recipe is for a machine with one terminal running tmux and no window manager to open terminals in, such as a Mac. Each project is one tmux session holding its lead and the lead's workers as windows. Switching session switches lead, and nothing ever opens a window.
+
+```yaml
+# projects.yaml
+terminal: none                  # never open a terminal
+tmux_session_per_project: true  # each project's agents share a session named after its slug
+projects:
+  - name: "Issue Viewer"
+    slug: "issue-viewer"         # → tmux session "issue-viewer"
+  - name: "RogueTech"
+    slug: "roguetech"
+```
+
+A project can still set its own `terminal:` or `tmux_session:`; its own value wins.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ lead-issue-viewer                                        │
+│ > _                                                      │
+│[issue-viewer] 0:lead-issue-viewer* 1:agent-a 2:agent-b   │
+└──────────────────────────────────────────────────────────┘
+```
+
+1. **Start the lead.**
+   - `issue-cli --project <slug> lead spawn` creates the session with `lead-<slug>` as its first window.
+   - Or run claude yourself in a window of that session and rename the window `lead-<slug>` (`prefix ,`). `lead list`, the agents canvas and the polybar crown then see it as the live lead.
+2. **Attach once:** `tmux attach -t <slug>` from the terminal. After that you stay inside tmux.
+3. **Dispatch.** Each worker becomes an `agent-<slug>` window in the background. Its tab appears in the status bar, and the lead's window keeps the focus.
+4. **Move around:**
+   - `prefix n` / `prefix p` (or `prefix <number>`) moves between the lead and its workers.
+   - `prefix s` picks another project's session, which means another lead and its workers.
+5. **Reach a specific agent:** clicking it on the agents canvas selects its window. **Copy switch** in its panel copies `tmux switch-client -t '=<slug>:=agent-…'`; paste it anywhere inside tmux to jump there.
+
+Epic sub-leads (`lead-<epic>`) and their workers live in the same project session, so the grouping is per project, not per epic.
 
 ## Per-issue Worktrees
 

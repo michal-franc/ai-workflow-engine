@@ -124,6 +124,25 @@ func TestLeadSpawn_ProjectLead(t *testing.T) {
 	}
 }
 
+func TestLeadSpawn_PrintsSwitchAndAttach(t *testing.T) {
+	proj := makeLeadProject(t)
+	orig := startAgent
+	startAgent = func(proj *tracker.Project, spec agentrun.Spec) agentrun.Response {
+		return agentrun.Response{Status: "dispatched", Session: spec.Session,
+			AttachCmd: agentrun.AttachCmd(proj, spec.Session), SwitchCmd: agentrun.SwitchCmd(proj, spec.Session)}
+	}
+	t.Cleanup(func() { startAgent = orig })
+	t.Setenv("TMUX_TMPDIR", "")
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runLead(ctx, []string{"spawn"}); err != nil {
+		t.Fatal(err)
+	}
+	want := "Inside tmux:  tmux switch-client -t lead-proj\nFrom a shell: tmux attach -t lead-proj\n"
+	if !strings.Contains(stdout.String(), want) {
+		t.Fatalf("stdout = %q, want %q", stdout.String(), want)
+	}
+}
+
 func TestLeadSpawn_ReattachSaysAlreadyLive(t *testing.T) {
 	proj := makeLeadProject(t)
 	captureStart(t, "reattached")

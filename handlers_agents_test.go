@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -176,6 +177,53 @@ func TestLeadSpawnEndpoint(t *testing.T) {
 
 // Clicking a live agent opens its tmux session in a terminal (D-12); the page
 // never shows the pane and has no message box.
+// With terminal: none, Open in tmux opens and focuses nothing. In shared
+// mode it selects the agent's window; it always answers with the switch and
+// attach commands.
+func TestAgentOpen_TerminalNone(t *testing.T) {
+	isolateTmux(t)
+	proj := setupAgentsProject(t)
+	proj.Terminal = "none"
+	proj.TmuxSession = "work"
+	for _, args := range [][]string{
+		{"new-session", "-d", "-s", "work", "-n", "lead-agents"},
+		{"new-window", "-d", "-t", "=work:", "-n", "agent-ui-child"},
+	} {
+		if out, err := exec.Command("tmux", args...).CombinedOutput(); err != nil {
+			t.Fatalf("tmux %v: %v %s", args, err, out)
+		}
+	}
+	origAttach, origFocus := attachAgent, agentrun.FocusTerminal
+	attachAgent = func(*tracker.Project, string, *[]agentrun.Step) bool {
+		t.Fatal("terminal: none must not open a terminal")
+		return false
+	}
+	agentrun.FocusTerminal = func(string) bool {
+		t.Fatal("terminal: none must not focus a terminal")
+		return false
+	}
+	t.Cleanup(func() { attachAgent, agentrun.FocusTerminal = origAttach, origFocus })
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"agent-ui-child"}`)
+	if code != 200 || resp["status"] != "selected" || resp["switch_cmd"] != "tmux switch-client -t '=work:=agent-ui-child'" || resp["attach_cmd"] == "" {
+		t.Fatalf("open: %d %v", code, resp)
+	}
+	if got := activeWindow(t, "work"); got != "agent-ui-child" {
+		t.Fatalf("active window = %q, want agent-ui-child", got)
+	}
+
+	_, body := getResp(t, ts.URL+"/p/agents/agents.json")
+	var m AgentsModel
+	if err := json.Unmarshal([]byte(body), &m); err != nil {
+		t.Fatal(err)
+	}
+	if !m.TerminalNone || m.ProjectLead.SwitchCmd != "tmux switch-client -t '=work:=lead-agents'" {
+		t.Fatalf("agents.json: terminal_none %v, lead switch_cmd %q", m.TerminalNone, m.ProjectLead.SwitchCmd)
+	}
+}
+
 func TestAgentOpenAndDetail(t *testing.T) {
 	proj := setupAgentsProject(t)
 	stubAgentsGit(t)

@@ -130,7 +130,7 @@ func runLeadSpawn(ctx *Context, args []string) error {
 	}
 	printSteps(ctx, resp.Steps)
 	if resp.AttachCmd != "" {
-		fmt.Fprintf(ctx.Stdout, "\nAttach: %s\n", resp.AttachCmd)
+		fmt.Fprintf(ctx.Stdout, "\nInside tmux:  %s\nFrom a shell: %s\n", resp.SwitchCmd, resp.AttachCmd)
 	}
 	return nil
 }

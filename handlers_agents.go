@@ -50,7 +50,9 @@ type AgentNode struct {
 	Issue         *AgentIssue `json:"issue,omitempty"`
 	RetroNotSwept bool        `json:"retro_not_swept,omitempty"`
 	AttachCmd     string      `json:"attach_cmd"`
-	StartTime     string      `json:"start_time,omitempty"`
+	// SwitchCmd reaches the agent from inside tmux (tmux switch-client).
+	SwitchCmd string `json:"switch_cmd"`
+	StartTime string `json:"start_time,omitempty"`
 }
 
 // EpicGroup is one epic box: its sub-lead and how its children are doing.
@@ -68,11 +70,15 @@ type EpicGroup struct {
 
 // AgentsModel is the whole canvas, also served as /p/<project>/agents.json.
 type AgentsModel struct {
-	Project     string      `json:"project"`
-	Prefix      string      `json:"prefix"`
-	ListedAt    string      `json:"listed_at"`
-	ProjectLead AgentNode   `json:"project_lead"`
-	Epics       []EpicGroup `json:"epics"`
+	Project  string `json:"project"`
+	Prefix   string `json:"prefix"`
+	ListedAt string `json:"listed_at"`
+	// TerminalNone is the project's terminal: none. Its owner works inside
+	// tmux, so the panel's copy button copies switch_cmd instead of
+	// attach_cmd.
+	TerminalNone bool        `json:"terminal_none"`
+	ProjectLead  AgentNode   `json:"project_lead"`
+	Epics        []EpicGroup `json:"epics"`
 	// Workers are the live workers; each names its epic, if any.
 	Workers []AgentNode `json:"workers"`
 	// Unfinished are issues with a worktree or an active status and no live
@@ -140,7 +146,7 @@ func (s *Server) buildAgentsModel(proj *tracker.Project, prefix string) (*Agents
 
 	node := func(name, kind string) AgentNode {
 		sess, ok := live[name]
-		n := AgentNode{Name: name, Display: agentDisplayName(proj, name), Kind: kind, Live: ok, AttachCmd: agentAttachCmd(proj, name), StartTime: sess.StartTime}
+		n := AgentNode{Name: name, Display: agentDisplayName(proj, name), Kind: kind, Live: ok, AttachCmd: agentAttachCmd(proj, name), SwitchCmd: agentrun.SwitchCmd(proj, name), StartTime: sess.StartTime}
 		if kind == "project-lead" || kind == "sub-lead" {
 			n.State = "not-running"
 			if ok {
@@ -151,10 +157,11 @@ func (s *Server) buildAgentsModel(proj *tracker.Project, prefix string) (*Agents
 	}
 
 	model := &AgentsModel{
-		Project:     proj.Name,
-		Prefix:      prefix,
-		ListedAt:    time.Now().Format(time.RFC3339),
-		ProjectLead: node(tracker.LeadSessionName(proj, tracker.LeadScopeProject), "project-lead"),
+		Project:      proj.Name,
+		Prefix:       prefix,
+		ListedAt:     time.Now().Format(time.RFC3339),
+		TerminalNone: agentrun.TerminalNone(proj),
+		ProjectLead:  node(tracker.LeadSessionName(proj, tracker.LeadScopeProject), "project-lead"),
 	}
 	claimed := map[string]bool{model.ProjectLead.Name: true}
 
@@ -326,8 +333,9 @@ var mainBranch = agentrun.MainBranch
 // setting, or in shared mode a select-window plus a terminal only when no
 // client is attached. A session that already has a terminal gets no second
 // window: its window is brought to the front instead (i3, by title), or the
-// answer says it is already open. With terminal: none it only returns the
-// attach command.
+// answer says it is already open. With terminal: none nothing opens: in
+// shared mode the agent's window is selected (status "selected"), and the
+// answer carries the switch and attach commands.
 func (s *Server) handleAgentOpen(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
 	var body struct {
 		Session string `json:"session"`
@@ -336,7 +344,7 @@ func (s *Server) handleAgentOpen(w http.ResponseWriter, r *http.Request, proj *t
 		http.Error(w, `{"error":"session (agent-* or lead-*) required"}`, http.StatusBadRequest)
 		return
 	}
-	resp := DispatchResponse{Status: "opened", Session: agentDisplayName(proj, body.Session), AttachCmd: agentAttachCmd(proj, body.Session)}
+	resp := DispatchResponse{Status: "opened", Session: agentDisplayName(proj, body.Session), AttachCmd: agentAttachCmd(proj, body.Session), SwitchCmd: agentrun.SwitchCmd(proj, body.Session)}
 	w.Header().Set("Content-Type", "application/json")
 	if !agentSessionLive(proj, body.Session) {
 		resp.Status = "no-session"
@@ -348,6 +356,18 @@ func (s *Server) handleAgentOpen(w http.ResponseWriter, r *http.Request, proj *t
 	// The terminal shows the agent's own session, or in shared mode the
 	// shared session switched to the agent's window.
 	shared := agentrun.SharedSession(proj)
+	if agentrun.TerminalNone(proj) {
+		// Nothing to open or focus: in shared mode select the agent's window
+		// so whoever is in the shared session sees it, and hand back the
+		// commands for reaching it from elsewhere.
+		if shared != "" && agentrun.RunStep(&resp.Steps, "Select window "+body.Session+" in session "+shared,
+			exec.Command("tmux", "select-window", "-t", agentTmuxTarget(proj, body.Session))) {
+			resp.Status = "selected"
+		}
+		resp.Steps = append(resp.Steps, DispatchStep{Name: "Terminal: headless — attach manually", Status: "ok"})
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
 	home := body.Session
 	if shared != "" {
 		home = shared

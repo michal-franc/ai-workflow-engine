@@ -98,7 +98,12 @@ projects:
 issue-viewer -config projects.yaml
 ```
 
-`projects.yaml.example` in this repo lists every key. The dispatch keys (`terminal`, `tmux_session`, `agent_models`) are explained in [Agent Dispatch](agent-dispatch.md).
+`projects.yaml.example` in this repo lists every key. The dispatch keys (`terminal`, `tmux_session`, `agent_models`) are explained in [Agent Dispatch](agent-dispatch.md). Two top-level keys set machine-wide defaults for projects that leave them unset:
+
+- `terminal:`, e.g. `none`
+- `tmux_session_per_project: true`, which gives each project its own tmux session for its lead and workers
+
+With one terminal and tmux, as on a Mac, see [One terminal, a session per project](agent-dispatch.md#one-terminal-a-session-per-project).
 
 For a quick look at a single folder without a config file:
 

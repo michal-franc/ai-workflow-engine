@@ -1,0 +1,33 @@
+session: one-terminal-hints
+issue: api/one-terminal-tmux-mode-workers-as-new-sessions-optional-switch-client
+title: With terminal none, the canvas and lead spawn give the inside-tmux switch command beside the attach command
+scenario: leads
+
+# The scenario is headless (terminal: none) on a private tmux server; a `cat`
+# session fakes the live lead, so lead spawn takes the re-attach path and no
+# real agent starts. Shared sessions per project and the top-level
+# projects.yaml defaults are a terminal-only flow: ### Manual, in the sandbox.
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+
+steps:
+  - id: TP2
+    title: Clicking a live lead shows "Inside tmux" switch-client and "From a shell" attach; Copy copies the switch command
+    setup:
+      - tmux: [new-session, -d, -s, lead-crew, cat]
+      - open: /p/{project}/agents
+    act:
+      - click: agents.node.lead-crew
+      - wait_for: { text_contains: { target: agents.panel.open_status, text: "Inside tmux" } }
+    checks:
+      - text_contains: { target: agents.panel.open_status, text: "Inside tmux: tmux switch-client -t lead-crew" }
+      # The attach command names the private server; the switch command
+      # doesn't need to, because inside tmux $TMUX already does.
+      - text_contains: { target: agents.panel.open_status, text: "From a shell: TMUX_TMPDIR=" }
+      - text_equals: { target: agents.panel.copy, text: Copy switch }
+      - http: { path: "/p/{project}/agents.json", json: { "terminal_none": true, "project_lead.switch_cmd": "tmux switch-client -t lead-crew" } }
+      - cli: { args: [--project, crew, lead, spawn], contains: "Inside tmux:  tmux switch-client -t lead-crew" }
+      - cli: { args: [--project, crew, lead, spawn], contains: "From a shell: TMUX_TMPDIR=" }

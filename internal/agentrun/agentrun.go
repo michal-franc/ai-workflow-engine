@@ -31,6 +31,8 @@ type Response struct {
 	Session   string `json:"session"`
 	LogFile   string `json:"log_file,omitempty"`
 	AttachCmd string `json:"attach_cmd,omitempty"`
+	// SwitchCmd reaches the agent from inside tmux; set with AttachCmd.
+	SwitchCmd string `json:"switch_cmd,omitempty"`
 	Steps     []Step `json:"steps"`
 }
 
@@ -56,7 +58,8 @@ type Spec struct {
 	Workflow *tracker.WorkflowConfig
 	// RepromptURL is quoted in hints when the prompt can be re-sent.
 	RepromptURL string
-	// Headless skips opening a terminal; the response carries AttachCmd.
+	// Headless skips opening a terminal; the response carries AttachCmd and
+	// SwitchCmd.
 	Headless bool
 }
 
@@ -141,7 +144,14 @@ func Start(proj *tracker.Project, spec Spec) Response {
 		LogFile: rawLog,
 		Steps:   steps,
 	}
-	headless := spec.Headless || (proj != nil && proj.Terminal == "none")
+	// Headless (spec.Headless, or terminal: none) leaves the screen alone: no
+	// terminal opens and, in shared mode, the new window is not selected, so
+	// whoever is looking at the shared session (usually the lead) keeps it.
+	headless := spec.Headless || TerminalNone(proj)
+	setHints := func() {
+		response.AttachCmd = AttachCmd(proj, session)
+		response.SwitchCmd = SwitchCmd(proj, session)
+	}
 
 	if HasSession(target) {
 		// A session with this name already exists — most often the same agent is
@@ -153,11 +163,11 @@ func Start(proj *tracker.Project, spec Spec) Response {
 			steps = append(steps, Step{Name: "Prompt not re-sent", Status: "reattached", Detail: "to re-send the current briefing use Re-send prompt or POST " + spec.RepromptURL})
 		}
 		response.Status = "reattached"
-		if !spec.Headless {
-			AttachStep(proj, session, &steps)
-		}
 		if headless {
-			response.AttachCmd = AttachCmd(proj, session)
+			steps = append(steps, Step{Name: "Terminal: headless — attach manually", Status: "ok"})
+			setHints()
+		} else {
+			AttachStep(proj, session, &steps)
 		}
 		response.Steps = steps
 		return response
@@ -223,15 +233,13 @@ func Start(proj *tracker.Project, spec Spec) Response {
 	RunStep(&steps, fmt.Sprintf("cd %s", workDir),
 		exec.Command("tmux", "send-keys", "-t", target, fmt.Sprintf("cd %q", workDir), "Enter"))
 
-	if spec.Headless {
+	if headless {
 		steps = append(steps, Step{Name: "Terminal: headless — attach manually", Status: "ok"})
+		setHints()
 	} else if !AttachStep(proj, session, &steps) {
 		response.Status = "error"
 		response.Steps = steps
 		return response
-	}
-	if headless {
-		response.AttachCmd = AttachCmd(proj, session)
 	}
 
 	time.Sleep(500 * time.Millisecond)

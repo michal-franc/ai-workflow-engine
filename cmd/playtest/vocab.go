@@ -27,7 +27,7 @@ var (
 	actionKinds  = map[string]bool{
 		"open": true, "reload": true, "click": true, "hover": true, "type": true,
 		"select": true, "key": true, "drag": true, "wait_for": true, "wait": true,
-		"post": true, "cli": true, "tmux": true, "snapshot": true, "check": true,
+		"post": true, "write": true, "cli": true, "tmux": true, "snapshot": true, "check": true,
 	}
 	browserActions = map[string]bool{
 		"open": true, "reload": true, "click": true, "hover": true, "type": true,
@@ -228,7 +228,11 @@ func (v *Validator) action(a Action, at errAt) {
 	case "post":
 		m, ok := argMap(a.Arg)
 		p, _ := m["path"].(string)
-		need(ok && strings.HasPrefix(p, "/"), "{path, json?|form?, status?}")
+		need(ok && strings.HasPrefix(p, "/"), "{path, json?|form?, headers?, status?}")
+	case "write":
+		m, ok := argMap(a.Arg)
+		p, _ := m["path"].(string)
+		need(ok && p != "" && !strings.HasPrefix(p, "/") && m["text"] != nil, "{path, text}: path relative to the scenario's project root")
 	case "cli":
 		_, err := cliArgs(a.Arg)
 		if err != nil {

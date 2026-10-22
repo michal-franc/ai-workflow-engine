@@ -145,3 +145,81 @@ workbench:
 		t.Fatal("Clone shares families or metrics with the original")
 	}
 }
+
+func TestWorkbenchConfig_ProjectPages(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workflow.yaml")
+	yaml := `statuses:
+  - name: idea
+workbench:
+  status_page: docs/status/index.html
+  pages:
+    - title: "Balance report"
+      path: docs/reports/balance.html
+    - title: "Status appendix"
+      path: docs/status/appendix.html
+`
+	if err := os.WriteFile(path, []byte(yaml), 0644); err != nil {
+		t.Fatal(err)
+	}
+	wf, err := LoadWorkflow(path)
+	if err != nil {
+		t.Fatalf("LoadWorkflow: %v", err)
+	}
+	wb := wf.Workbench
+	if wb.IsZero() || wb.StatusPage != "docs/status/index.html" || len(wb.Pages) != 2 || wb.Pages[0].Title != "Balance report" {
+		t.Fatalf("pages parsed as %+v", wb)
+	}
+	if problems := wb.Validate(); len(problems) != 0 {
+		t.Fatalf("valid pages have problems: %v", problems)
+	}
+	if got := strings.Join(wb.PageDirs(), ","); got != "docs/status,docs/reports" {
+		t.Errorf("PageDirs = %s, want docs/status,docs/reports (deduplicated, status page first)", got)
+	}
+	clone := wf.Clone()
+	clone.Workbench.Pages[0].Title = "changed"
+	if wf.Workbench.Pages[0].Title != "Balance report" {
+		t.Fatal("Clone shares the pages slice with the original")
+	}
+	if (WorkbenchConfig{StatusPage: "x.html"}).IsZero() {
+		t.Error("a status_page alone should make the block non-zero")
+	}
+}
+
+func TestWorkbenchConfig_ValidatePages(t *testing.T) {
+	wb := WorkbenchConfig{
+		StatusPage: "../shared/status.html",
+		Pages: []WorkbenchPage{
+			{Title: "", Path: "docs/a.html"},
+			{Title: "Notes", Path: "docs/notes.md"},
+			{Title: "Abs", Path: "/srv/report.html"},
+			{Title: "No path"},
+			{Title: "Fine", Path: "docs/fine.htm"},
+		},
+	}
+	joined := strings.Join(wb.Validate(), "\n")
+	for _, want := range []string{
+		`workbench.status_page: "../shared/status.html" points outside the project root`,
+		"workbench.pages[0]: title is required",
+		`workbench.pages[1].path: "docs/notes.md" is not an .html file`,
+		"workbench.pages[2].path:",
+		"workbench.pages[3]: path is required",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("missing %q in:\n%s", want, joined)
+		}
+	}
+	if strings.Contains(joined, "pages[4]") {
+		t.Errorf("a valid .htm page was reported:\n%s", joined)
+	}
+	if dirs := wb.PageDirs(); strings.Contains(strings.Join(dirs, ","), "..") || strings.Contains(strings.Join(dirs, ","), "/srv") {
+		t.Errorf("PageDirs keeps an invalid path: %v", dirs)
+	}
+}
+
+func TestLintReportsWorkbenchProblems(t *testing.T) {
+	wf := DefaultWorkflow()
+	wf.Workbench.StatusPage = "../x.html"
+	if got := strings.Join(wf.Lint(), "\n"); !strings.Contains(got, "workbench.status_page") {
+		t.Errorf("Lint() = %q, want the status_page problem", got)
+	}
+}

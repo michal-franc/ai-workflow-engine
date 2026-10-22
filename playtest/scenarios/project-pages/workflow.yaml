@@ -1,0 +1,24 @@
+statuses:
+  - name: "idea"
+  - name: "in design"
+  - name: "backlog"
+  - name: "in progress"
+  - name: "testing"
+  - name: "human-testing"
+  - name: "shipping"
+  - name: "done"
+  - name: "parked"
+    optional: true
+transitions:
+  - from: "in design"
+    to: "backlog"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Design"
+      - type: "require_human_approval"
+        status: "backlog"
+workbench:
+  status_page: docs/status/index.html
+  pages:
+    - title: "Balance report"
+      path: docs/reports/balance.html

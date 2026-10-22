@@ -31,10 +31,19 @@ func orderedStatusesForIssue(wf *tracker.WorkflowConfig, current string) []strin
 	return append([]string{current}, statuses...)
 }
 
+// StatusTabs is what the status-tabs partial renders.
+type StatusTabs struct {
+	Prefix  string
+	Builtin bool // the Built-in tab is the selected one
+}
+
 var funcMap = template.FuncMap{
 	// sidebar is replaced per server (Server.sidebarNav): the Nav the shared
 	// sidebar partial renders for a project page.
 	"sidebar": func(prefix, active string) Nav { return Nav{Prefix: prefix} },
+	// statusTabs is the data of the Status page's Project status / Built-in
+	// tabs (_status_tabs.html), shown when workbench.status_page is set.
+	"statusTabs": func(prefix string, builtin bool) StatusTabs { return StatusTabs{Prefix: prefix, Builtin: builtin} },
 	"statusColor": func(s string) string {
 		// Keys are canonicalStatusKey form: lower case, spaces as hyphens.
 		colors := map[string]string{

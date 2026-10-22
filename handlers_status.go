@@ -44,18 +44,26 @@ type StatusPageData struct {
 	// ReleasesURL is the GitHub releases page, when the project has one.
 	ReleasesURL string
 	NextHTML    template.HTML
+	// HasProjectPage: workbench.status_page is set, so the page shows the
+	// Project status / Built-in tabs.
+	HasProjectPage bool
 }
 
 // IssueURL links an issue's detail page.
 func (d StatusPageData) IssueURL(slug string) string { return d.Prefix + "/issue/" + slug }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	hasPage := proj.LoadWorkflow().Workbench.StatusPage != ""
+	if hasPage && r.URL.Query().Get("view") != "builtin" {
+		s.handleStatusProjectPage(w, r, proj, prefix)
+		return
+	}
 	m, err := s.loadStatus(proj, prefix)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	data := StatusPageData{StatusModel: m, SupportsGitHub: proj.SupportsGitHub}
+	data := StatusPageData{StatusModel: m, SupportsGitHub: proj.SupportsGitHub, HasProjectPage: hasPage}
 	if proj.SupportsGitHub && proj.Repo != "" {
 		data.ReleasesURL = "https://github.com/" + proj.Repo + "/releases"
 	}

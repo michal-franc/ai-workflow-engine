@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Project}} — {{.Title}}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M2 13h12v1.5H2zM3 8h2v4H3zm4-3h2v7H7zm4-3h2v10h-2z' fill='%2358a6ff'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="app">
+{{template "sidebar" (sidebar .Prefix .Active)}}
+<div class="app-main project-page" data-testid="page.view">
+    <header class="project-page-head{{if .IsStatus}} with-tabs{{end}}">
+        <div class="project-page-title-row">
+            <h1 class="page-title">{{.Title}}</h1>
+            <span class="project-page-source" data-testid="page.source">Project page <span class="mono">{{.Path}}</span>{{if .RawURL}} · changed <span data-testid="page.source.age" data-changed="{{.ChangedMs}}">—</span> · <a href="{{.RawURL}}" target="_blank" rel="noopener" data-testid="page.raw_link">Open raw</a><span data-testid="page.source.reloaded" hidden> · reloaded</span>{{end}}</span>
+        </div>
+        {{if .IsStatus}}{{template "status-tabs" (statusTabs .Prefix false)}}{{end}}
+    </header>
+    {{if .Problem}}
+    <div class="project-page-body">
+        <section class="card status-card project-page-missing" data-testid="page.missing" aria-labelledby="page-missing-h">
+            <h2 id="page-missing-h">{{.ProblemTitle}}</h2>
+            <p>{{.Problem}}</p>
+            <p class="status-hint"><code>issue-cli process workflow</code> warns about a bad path under <span class="mono">== Warnings (workflow.yaml) ==</span>.</p>
+            {{if .IsStatus}}<div><a class="btn" href="{{.Prefix}}/status?view=builtin" data-testid="page.missing.builtin_link">Show the built-in status</a></div>{{end}}
+        </section>
+    </div>
+    {{else}}
+    <iframe class="project-page-frame" data-testid="page.frame" title="{{.Title}}" sandbox="{{.Sandbox}}" src="{{.RawURL}}"></iframe>
+    {{end}}
+</div>
+</div>
+{{if not .Problem}}
+<script>
+// Project page frame (docs/workbench-files.md, "Project pages"). Reloads the
+// iframe when a file under the page folders changes (/hash "pages") and
+// posts the Status model to the page: on load, when the issues change, and
+// when the page asks with {type: "issue-viewer.status.request"}.
+(function() {
+    var prefix = {{.Prefix}};
+    var project = {{.Project}};
+    var frame = document.querySelector('[data-testid="page.frame"]');
+    var age = document.querySelector('[data-testid="page.source.age"]');
+    var reloaded = document.querySelector('[data-testid="page.source.reloaded"]');
+    var pagesHash = {{.PagesHash}};
+    var issuesHash = null;
+    var changed = age ? Number(age.getAttribute('data-changed')) : 0;
+
+    function showAge() {
+        if (!age || !changed) return;
+        var s = Math.max(0, Math.round((Date.now() - changed) / 1000));
+        age.textContent = s < 60 ? 'just now' : s < 3600 ? Math.floor(s / 60) + 'm ago' :
+            s < 86400 ? Math.floor(s / 3600) + 'h ago' : Math.floor(s / 86400) + 'd ago';
+    }
+
+    function postStatus() {
+        fetch(prefix + '/status.json').then(function(r) { return r.json(); }).then(function(status) {
+            // The frame has an opaque origin, so "*" is the only target.
+            if (frame.contentWindow) frame.contentWindow.postMessage({type: 'issue-viewer.status', project: project, status: status}, '*');
+        }).catch(function() {});
+    }
+
+    frame.addEventListener('load', postStatus);
+    window.addEventListener('message', function(e) {
+        if (e.source !== frame.contentWindow || !e.data || e.data.type !== 'issue-viewer.status.request') return;
+        postStatus();
+    });
+
+    function poll() {
+        fetch(prefix + '/hash').then(function(r) { return r.json(); }).then(function(data) {
+            if ((data.pages || '') !== pagesHash) {
+                pagesHash = data.pages || '';
+                changed = Date.now();
+                frame.src = frame.src; // reload; the load event posts the status
+                if (reloaded) reloaded.hidden = false;
+            } else if (issuesHash !== null && data.hash !== issuesHash) {
+                postStatus();
+            }
+            issuesHash = data.hash;
+            showAge();
+        }).catch(function() {});
+    }
+
+    showAge();
+    poll();
+    setInterval(poll, 2000);
+})();
+</script>
+{{end}}
+</body>
+</html>

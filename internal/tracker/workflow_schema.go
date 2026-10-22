@@ -97,6 +97,7 @@ func WorkflowSchemaSections() []SchemaSection {
 		{Path: "workbench.systems[<name>].families[<name>]", Title: "WorkbenchFamily", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchFamily{}))},
 		{Path: "workbench.metrics", Title: "WorkbenchMetrics", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchMetrics{}))},
 		{Path: "workbench.balance", Title: "WorkbenchBalance", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchBalance{}))},
+		{Path: "workbench.pages[]", Title: "WorkbenchPage", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchPage{}))},
 	}
 }
 

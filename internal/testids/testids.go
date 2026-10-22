@@ -28,6 +28,7 @@ var IDs = []string{
 	"nav.panel.legend",
 	"nav.panel.family.*",
 	"nav.panel.row.*",
+	"nav.page.#",
 	"nav.actions",
 	"nav.theme.*",
 	"header.count",
@@ -54,6 +55,9 @@ var IDs = []string{
 	"marker.*",
 	// Status (/p/<project>/status).
 	"status.page",
+	"status.tabs",
+	"status.tab.project",
+	"status.tab.builtin",
 	"status.copy_md",
 	"status.raw_md",
 	"status.where",
@@ -340,6 +344,27 @@ var IDs = []string{
 	"balance.unsorted.row.#",
 	"balance.unsorted.row.#.more",
 	"balance.toast",
+	// Project page frame (templates/page.html): /status with a status_page
+	// and /pages/<n>.
+	"page.view",
+	"page.frame",
+	"page.source",
+	"page.source.age",
+	"page.source.reloaded",
+	"page.raw_link",
+	"page.missing",
+	"page.missing.builtin_link",
+}
+
+// FixtureIDs lists the ids that playtest scenario pages carry: project
+// pages (playtest/scenarios/*/root/**/*.html) whose scripts a session
+// checks by opening the raw page. TestTemplateTestIDs checks them against
+// those files instead of the templates.
+var FixtureIDs = []string{
+	"fixture.page.title",
+	"fixture.page.script_ran",
+	"fixture.page.post_result",
+	"fixture.page.status_open",
 }
 
 // Segment turns a free-form value (a status, a slug) into one id segment:
@@ -411,9 +436,11 @@ func isDigits(s string) bool {
 	return true
 }
 
+func allIDs() []string { return append(append([]string(nil), IDs...), FixtureIDs...) }
+
 // Known reports whether id (concrete or a pattern) matches an entry in IDs.
 func Known(id string) bool {
-	for _, e := range IDs {
+	for _, e := range allIDs() {
 		if Compatible(e, id) {
 			return true
 		}
@@ -428,7 +455,7 @@ func Known(id string) bool {
 func Suggest(id string) string {
 	best, bestD := "", len(id)/2+2
 	idSegs := strings.Split(id, ".")
-	for _, e := range IDs {
+	for _, e := range allIDs() {
 		filled := e
 		if segs := strings.Split(e, "."); len(segs) == len(idSegs) {
 			for i, s := range segs {

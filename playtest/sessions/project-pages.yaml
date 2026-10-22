@@ -1,0 +1,136 @@
+session: project-pages
+issue: ui/project-status-pages-custom-html-status-and-static-pages-in-the-viewer
+title: Project pages - the project's own status page and sidebar pages, sandboxed
+scenario: project-pages
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+  # The status page's script POSTs to the viewer on purpose (TP7): the
+  # failed request it logs is the refusal under test.
+  console_ignore:
+    - "issue/ui/route-planner-panel/dispatch"
+
+steps:
+  - id: TP4
+    title: /status shows the project's page by default, in the viewer frame, with the two tabs
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - visible: [nav.sidebar, page.view, page.frame, status.tabs, status.tab.project, status.tab.builtin]
+      - selected: status.tab.project
+      - text_contains: { target: page.source, text: docs/status/index.html }
+      - visible: page.raw_link
+      - absent: status.where
+      - below: [status.tabs, page.frame]
+      - size: { target: page.frame, min_height: 500 }
+      - http: { path: "/p/{project}/status", contains: "sandbox=\"allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation\"" }
+
+  - id: TP5
+    title: The Built-in tab shows the built-in Status page; status.md stays built-in
+    setup:
+      - open: /p/{project}/status
+    act:
+      - click: status.tab.builtin
+    checks:
+      - url: { contains: "view=builtin" }
+      - visible: [status.where, status.tabs]
+      - selected: status.tab.builtin
+      - absent: page.frame
+      - http: { path: "/p/{project}/status.md", contains: "# Atlas status" }
+
+  - id: TP6
+    title: The pages entry shows under Status in the sidebar and opens in the same frame
+    setup:
+      - open: /p/{project}/workboard
+    act:
+      - check: { text_equals: { target: nav.page.0, text: Balance report } }
+      - click: nav.page.0
+    checks:
+      - url: { contains: "/pages/0" }
+      - selected: nav.page.0
+      - visible: page.frame
+      - text_contains: { target: page.source, text: docs/reports/balance.html }
+      - absent: status.tabs
+      - http: { path: "/p/{project}/page-raw/docs/reports/balance.html", contains: "Routing weights" }
+
+  - id: TP7
+    title: The page's script runs, but its POST to the viewer is refused and files outside the page folders are not served
+    setup:
+      - open: /p/{project}/page-raw/docs/status/index.html
+    act:
+      - wait_for: { text_equals: { target: fixture.page.script_ran, text: "yes" } }
+      - wait_for: { text_equals: { target: fixture.page.post_result, text: blocked } }
+      - post: { path: "/p/{project}/issue/ui/route-planner-panel/dispatch", headers: { Origin: "null" }, status: 403 }
+    checks:
+      - http: { path: "/p/{project}/page-raw/docs/status/app.js", status: 200 }
+      - http: { path: "/p/{project}/page-raw/docs/private/notes.json", status: 404 }
+      - http: { path: "/p/{project}/page-raw/workflow.yaml", status: 404 }
+      - http: { path: "/p/{project}/page-raw/docs/status/", status: 404 }
+      - issue: { slug: ui/route-planner-panel, field: assignee, equals: "" }
+
+  - id: TP8
+    title: Rewriting the page file reloads it in the open frame
+    setup:
+      - open: /p/{project}/status
+    act:
+      - wait_for: page.frame
+      - check: { hidden: page.source.reloaded }
+      - write: { path: docs/status/index.html, text: "<!DOCTYPE html><h1>Atlas status, rewritten by an agent</h1>" }
+      - wait_for: { visible: page.source.reloaded, ms: 8000 }
+    checks:
+      - text_equals: { target: page.source.age, text: just now }
+      - http: { path: "/p/{project}/page-raw/docs/status/index.html", contains: "rewritten by an agent" }
+
+  - id: TP9
+    title: The page gets live counts from the viewer through postMessage
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - http: { path: "/p/{project}/status.json", json: { "project": "Atlas", "open": 3 } }
+    do: Look at the three tiles in the project page.
+    expect: |
+      "Open issues" reads 3 (sent by the viewer, not written in the file),
+      "Script" reads yes and "POST to the viewer" reads blocked.
+    why: the runner can't read inside the sandboxed iframe; the bridge only works framed.
+
+  - id: TP10
+    title: The page reads like the mockup, and a link in it opens the board in the whole tab
+    setup:
+      - open: /p/{project}/status
+    do: |
+      Compare with the approved mockup, switch the Dracula and light themes,
+      then click "Open the board" inside the page.
+    expect: |
+      The viewer header (Status, the source line, the two tabs) sits above
+      the project's cream page, which fills the column down to the window's
+      bottom with one scrollbar. Balance report is an indented row under
+      Status. The link replaces the whole tab with the Board, not just the
+      frame.
+    why: the look and top-window navigation are the owner's call.
+
+  - id: TP11
+    title: Without status_page and pages the Status page and the sidebar are as before
+    # The same workflow without its workbench: block.
+    setup:
+      - write:
+          path: workflow.yaml
+          text: |
+            statuses:
+              - name: "idea"
+              - name: "in design"
+              - name: "backlog"
+              - name: "in progress"
+              - name: "done"
+            transitions:
+              - from: "in design"
+                to: "backlog"
+                actions:
+                  - type: "require_human_approval"
+                    status: "backlog"
+      - open: /p/{project}/status
+    checks:
+      - visible: status.where
+      - absent: [status.tabs, page.frame, nav.page.0]
+      - http: { path: "/p/{project}/page-raw/docs/status/index.html", status: 404 }

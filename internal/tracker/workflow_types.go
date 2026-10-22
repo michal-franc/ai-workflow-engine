@@ -189,13 +189,14 @@ func restrictToPath(statuses []WorkflowStatus, transitions []WorkflowTransition,
 	return ss, ts
 }
 
-// Lint reports problems in the types: configuration. Projects without types
-// get no warnings. See docs/Workflow/types.md "Lint".
+// Lint reports problems in the types: configuration and the workbench:
+// block. Projects without types or a workbench block get no warnings. See
+// docs/Workflow/types.md "Lint".
 func (w *WorkflowConfig) Lint() []string {
+	out := w.Workbench.Validate()
 	if !w.HasTypes() {
-		return nil
+		return out
 	}
-	var out []string
 	names := w.TypeNames()
 	if strings.TrimSpace(w.DefaultType) == "" {
 		out = append(out, fmt.Sprintf("default_type is not set: issues without a type: walk the full base path (set default_type to one of %s)", strings.Join(names, ", ")))

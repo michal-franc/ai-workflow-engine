@@ -191,7 +191,7 @@ func printTypesBlock(w io.Writer, wf *tracker.WorkflowConfig) {
 	fmt.Fprintln(w, "An issue's type: frontmatter picks its path. Details: issue-cli process workflow --type <name>; create with --type; change with set-type (first status only).")
 }
 
-// printLintBlock prints workflow.yaml type-configuration warnings.
+// printLintBlock prints workflow.yaml warnings: types: and workbench: problems.
 func printLintBlock(w io.Writer, wf *tracker.WorkflowConfig) {
 	warnings := wf.Lint()
 	if len(warnings) == 0 {

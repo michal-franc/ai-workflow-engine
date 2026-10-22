@@ -1,0 +1,11 @@
+{{/*
+The Status page's two tabs when workbench.status_page is set: the project's
+own page (/status) and the built-in one (/status?view=builtin). Data is a
+StatusTabs from the statusTabs template func.
+*/}}
+{{define "status-tabs"}}
+<nav class="status-tabs" data-testid="status.tabs" aria-label="Status view">
+    <a href="{{.Prefix}}/status" class="status-tab{{if not .Builtin}} active{{end}}" data-testid="status.tab.project"{{if not .Builtin}} aria-current="page"{{end}}>Project status</a>
+    <a href="{{.Prefix}}/status?view=builtin" class="status-tab{{if .Builtin}} active{{end}}" data-testid="status.tab.builtin"{{if .Builtin}} aria-current="page"{{end}}>Built-in</a>
+</nav>
+{{end}}

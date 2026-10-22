@@ -22,7 +22,8 @@ A page with a screen panel renders "sidebar-open", its panel, then
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 2v12M2 8h12"/></svg>New issue
     {{if .CreateInPage}}</button>{{else}}</a>{{end}}
     <nav class="sidebar-nav" aria-label="Views">
-        {{range .Main}}{{template "sidebar-item" .}}{{end}}
+        {{range .Main}}{{template "sidebar-item" .}}{{if eq .Key "status"}}{{range $.Pages}}
+        <a href="{{.Href}}" class="nav-sub{{if .Active}} active{{end}}" data-testid="nav.page.{{.Key}}"{{if .Active}} aria-current="page"{{end}}>{{.Label}}</a>{{end}}{{end}}{{end}}
         <details class="sidebar-more" data-testid="nav.more"{{if .MoreActive}} open data-pinned{{end}}>
             <summary class="nav-item">More <svg class="sidebar-chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary>
             <div class="sidebar-more-list">

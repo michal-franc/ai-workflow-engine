@@ -19,6 +19,16 @@ type WorkbenchConfig struct {
 	// Changelog is the release history the Status page lists recent releases
 	// from; empty means CHANGELOG.md when the project root has one.
 	Changelog string `yaml:"changelog,omitempty" desc:"Changelog file the Status page reads recent releases from (default CHANGELOG.md), relative to the project root"`
+	// StatusPage and Pages are the project's own HTML pages, shown sandboxed
+	// in the viewer frame (docs/workbench-files.md, "Project pages").
+	StatusPage string          `yaml:"status_page,omitempty" desc:"Project HTML page /status shows by default (the built-in page stays one tab away), relative to the project root"`
+	Pages      []WorkbenchPage `yaml:"pages,omitempty" desc:"Extra project HTML pages listed in the sidebar under Status, each with a title and a path relative to the project root"`
+}
+
+// WorkbenchPage is one `pages:` entry: a static HTML page in the project.
+type WorkbenchPage struct {
+	Title string `yaml:"title" desc:"Sidebar label and page heading (required)"`
+	Path  string `yaml:"path" desc:"HTML file relative to the project root (required); its folder's assets are served with it"`
 }
 
 // WorkbenchSystem describes one system page. Every key is optional: a system
@@ -92,7 +102,42 @@ type WorkbenchBalance struct {
 
 // IsZero reports whether the block was left out.
 func (c WorkbenchConfig) IsZero() bool {
-	return len(c.Systems) == 0 && c.Metrics == (WorkbenchMetrics{}) && len(c.Tuning) == 0 && c.Balance == (WorkbenchBalance{}) && c.Changelog == ""
+	return len(c.Systems) == 0 && c.Metrics == (WorkbenchMetrics{}) && len(c.Tuning) == 0 && c.Balance == (WorkbenchBalance{}) && c.Changelog == "" &&
+		c.StatusPage == "" && len(c.Pages) == 0
+}
+
+// PagePaths lists every configured project page: the status page first,
+// then the pages: entries in order. Empty paths are left out.
+func (c WorkbenchConfig) PagePaths() []string {
+	var out []string
+	if c.StatusPage != "" {
+		out = append(out, c.StatusPage)
+	}
+	for _, p := range c.Pages {
+		if p.Path != "" {
+			out = append(out, p.Path)
+		}
+	}
+	return out
+}
+
+// PageDirs lists the folders of the configured project pages, cleaned and
+// slash-separated ("." for a page at the root). Only files under these are
+// served raw (ui/project-status-pages-custom-html-status-and-static-pages-in-the-viewer#D-2).
+func (c WorkbenchConfig) PageDirs() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, p := range c.PagePaths() {
+		if checkProjectRelativePath(p) != nil {
+			continue
+		}
+		dir := filepath.ToSlash(filepath.Dir(filepath.Clean(p)))
+		if !seen[dir] {
+			seen[dir] = true
+			out = append(out, dir)
+		}
+	}
+	return out
 }
 
 // HasSystems reports whether the Systems view should be shown.
@@ -143,6 +188,29 @@ func (c WorkbenchConfig) Validate() []string {
 	for i, path := range c.Tuning {
 		check(fmt.Sprintf("tuning[%d]", i), path)
 	}
+	checkPage := func(key, path string) {
+		if err := checkProjectRelativePath(path); err != nil {
+			problems = append(problems, fmt.Sprintf("workbench.%s: %v", key, err))
+			return
+		}
+		if ext := strings.ToLower(filepath.Ext(path)); ext != ".html" && ext != ".htm" {
+			problems = append(problems, fmt.Sprintf("workbench.%s: %q is not an .html file", key, path))
+		}
+	}
+	if c.StatusPage != "" {
+		checkPage("status_page", c.StatusPage)
+	}
+	for i, p := range c.Pages {
+		key := fmt.Sprintf("pages[%d]", i)
+		if strings.TrimSpace(p.Title) == "" {
+			problems = append(problems, fmt.Sprintf("workbench.%s: title is required", key))
+		}
+		if strings.TrimSpace(p.Path) == "" {
+			problems = append(problems, fmt.Sprintf("workbench.%s: path is required", key))
+			continue
+		}
+		checkPage(key+".path", p.Path)
+	}
 	return problems
 }
 
@@ -177,5 +245,6 @@ func cloneWorkbench(c WorkbenchConfig) WorkbenchConfig {
 		}
 	}
 	out.Tuning = append([]string(nil), c.Tuning...)
+	out.Pages = append([]WorkbenchPage(nil), c.Pages...)
 	return out
 }

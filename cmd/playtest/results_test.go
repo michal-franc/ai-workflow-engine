@@ -20,6 +20,11 @@ func TestDiffIgnoresPathsAndTimes(t *testing.T) {
 	if d := Diff(a, b); d != "" {
 		t.Errorf("runs that only differ in timestamps and the scenario dir inside a check's actual differ:\n%s", d)
 	}
+	a.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "http /status.md", Pass: true, Actual: `200 # Atlas status, 2026-10-22 13:39`}}
+	b.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "http /status.md", Pass: true, Actual: `200 # Atlas status, 2026-10-22 13:40`}}
+	if d := Diff(a, b); d != "" {
+		t.Errorf("runs a minute apart differ in a minute-only stamp:\n%s", d)
+	}
 	a.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "http /x.json", Pass: true, Actual: `200 {"dir":"/tmp/pt-1/tmux","next":"abc…`}}
 	b.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "http /x.json", Pass: true, Actual: `200 {"dir":"/tmp/pt-3864846610/tmux","ne…`}}
 	if d := Diff(a, b); d != "" {

@@ -1,0 +1,29 @@
+session: layout-checks
+issue: workflow/playtest-layout-checks-styles-applied-rule-and-besidebelowcsssize-checks
+title: Shape checks in the owner's overlay
+scenario: status
+
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: The overlay runs beside, below, size and css live and shows what it measured
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - beside: [status.where, status.waiting]
+      - below: [status.where, status.working]
+      - size: { target: status.all_progress.bar, min_width: 30, min_height: 4 }
+      - css: { target: status.page, property: display, not: none }
+    targets:
+      - { id: status.where, note: Left column }
+      - { id: status.waiting, note: Right column, beside it }
+    do: Look at the four checks in the dock, then hover the mark next to "beside [status.where, status.waiting]".
+    expect: |
+      All four checks show ✓. The tooltip reads "actual: status.where x … y …,
+      status.waiting x … y …" with the right column's x starting after the
+      left column's.
+    why: ux-test runs the same checks headless; only you see the overlay's dock and tooltips.

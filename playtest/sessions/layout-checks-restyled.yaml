@@ -1,0 +1,30 @@
+session: layout-checks-restyled
+issue: workflow/playtest-layout-checks-styles-applied-rule-and-besidebelowcsssize-checks
+title: Classes styles_applied found unstyled keep their look after the fix
+scenario: workbench
+
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP5
+    title: A replaced decision's text is still dimmed (.decision-replaced instead of .decision-row.dim)
+    setup:
+      - open: /p/{project}/decisions
+    act:
+      - cli: [decide, sim/et-style-objective-format-6v6, --text, "The continuous raid becomes an ET-style objective format, 6v6.", --how, chat, --quote, "The old continuous raid had no readable tension.", --replaces, "sim/gdd-match-phases#D-1"]
+      - wait_for: { visible: decisions.row.sim/et-style-objective-format-6v6.d-1, ms: 12000 }
+    checks:
+      # --text-secondary in the default theme; a live row keeps --text.
+      - css: { target: decisions.row.sim/gdd-match-phases.d-1.text, property: color, equals: "rgb(143, 153, 166)" }
+      - css: { target: decisions.row.sim/et-style-objective-format-6v6.d-1.text, property: color, not: "rgb(143, 153, 166)" }
+
+  - id: TP6
+    title: The balance board's Not this branch chip has its own grey, like the decision state
+    setup:
+      - open: /p/{project}/balance
+    checks:
+      - visible: balance.filter.not_this_branch
+      - css: { target: balance.filter.not_this_branch, property: color, equals: "rgb(143, 153, 166)" }

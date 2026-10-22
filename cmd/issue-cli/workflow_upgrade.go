@@ -363,6 +363,20 @@ func projectWorkflowFile(p *tracker.Project) string {
 	return ""
 }
 
+// workflowFileLabel names the workflow file p runs on as an absolute path,
+// or "built-in default" when it has none, for the "Workflow file:" line in
+// process and show output.
+func workflowFileLabel(p *tracker.Project) string {
+	path := projectWorkflowFile(p)
+	if path == "" {
+		return "built-in default"
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return path
+}
+
 // workflowUpgradeHint is the one-line notice `start` and `process workflow`
 // print when the project's workflow.yaml has features to propose. It returns
 // "" when there is nothing to say or anything goes wrong — a hint must never

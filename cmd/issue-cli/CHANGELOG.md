@@ -31,6 +31,8 @@ release nothing.
   - Dispatch prompts name the project lead and the issue's epic, with no `## Base branch` section.
   - The agents canvas lists a leftover `lead-<epic>` session with the other sessions; `agents.json` epics keep only the issue and children counts. The detail page's Lead section always names the project lead. The issues canvas no longer shows an epic's base branch.
   - Old `base:` and `lead:` fields on epics still load as plain custom fields; nothing writes them. An old `leads.epic` brief in `workflow.yaml` still loads, is ignored, and `issue-cli process workflow` warns about it.
+- **issue-cli loads the right workflow without `--project`.** Run from a project root with `./issues/`, issue-cli used to take the workflow of the *last* project in `projects.yaml`. From `~/Work/issue-viewer`, that was Demo's. It now uses `./project.yaml`, then `./workflow.yaml`, then the configured project whose `workdir` or `issues` is that directory. If several match, it fails with the `--project` hint.
+- `process workflow`, `process transitions` and `show` print `Workflow file: <path>`, and `show --json` adds `workflow_file`.
 
 ## v0.51.0 — 2026-10-22
 

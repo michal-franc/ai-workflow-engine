@@ -47,7 +47,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli replace <slug>`       | Replace content of an existing section   |
 | `issue-cli set-meta <slug>`      | Set or clear a frontmatter field (refuses `type` in projects with types — use `set-type`; checks every slug in `depends_on`) |
 | `issue-cli set-type <slug> <t>`  | Change an issue's type of work; agents only while it is at its type's first status. See [Types of Work](../Workflow/types.md) |
-| `issue-cli process workflow`     | Print the active workflow, the `== Types ==` block and `workflow.yaml` lint warnings; `--type <t>` prints one type's lifecycle |
+| `issue-cli process workflow`     | Print the workflow file in use (`Workflow file:`), the active workflow, the `== Types ==` block and `workflow.yaml` lint warnings; `--type <t>` prints one type's lifecycle |
 | `issue-cli process transitions`  | Print transition rules (default workflow, or scoped via `--system <name>`, `--type <t>` or `<issue-slug>`) |
 | `issue-cli process schema`       | Print the `workflow.yaml` schema (fields, action types, validation rules) |
 | `issue-cli process changes`      | Print the release history (last 20 versions) |
@@ -314,6 +314,8 @@ These checks read the environment and the session name; they are guardrails for 
 
 ### `process transitions`
 
+**Workflow file line.** `process workflow`, `process transitions` and `show` print `Workflow file: <absolute path>` under their header (`built-in default` when the project has no workflow file), so an agent can see which workflow it is being walked through. `show --json` carries it as `workflow_file`.
+
 Rules are rendered from the loaded workflow rather than a hardcoded list. Each
 row lists the validation rules, human-approval gates, and side effects
 (`set_fields`, `append_section`, `inject_prompt`) attached to the transition;
@@ -461,6 +463,7 @@ issue-cli --project cli projects   # marks "cli" as active
 
 1. **Explicit `--project <slug>` always wins.** A bot inside one project workdir (with its own `./issues/`) can still query a sibling project by passing `--project`. The bootstrap auto-detection on cwd yields to an explicit flag.
 2. **No `--project` + a local `./issues/`** → bootstrap mode synthesizes a single project from cwd. `--project` is unused; `len(allProjects) == 1`.
+   The workflow file comes from, in order: `workflow:` in `./project.yaml`, then `./workflow.yaml`, then the one `projects.yaml` entry whose `workdir` is cwd or whose `issues` is `cwd/issues` (paths compared absolute, symlinks resolved). `version` comes from `./project.yaml` or that same entry. An entry for any other directory contributes nothing. When no local file sets the workflow and several entries match cwd, it returns `errAmbiguousProject` and lists only the matching slugs. With no match and no local file, the project runs on the built-in default workflow.
 3. **No `--project` + no local `./issues/`** → consult `projects.yaml`. With `>1` project this returns `errAmbiguousProject` (exit non-zero) and lists configured slugs so the bot retries with the right `--project`. Single-project setups silently use `projects[0]` — byte-identical to pre-multiproject behaviour.
 
 **Error message contract.** When an issue isn't found in a multi-project setup, the error appends `Searched project: <slug>` and an `Available projects:` enumeration with a `Retry with: issue-cli --project <slug> ...` hint. Single-project setups keep the historical `issue not found: <slug>\n\nRun: issue-cli list` message verbatim — this is the regression guard for bots that already grep for it.

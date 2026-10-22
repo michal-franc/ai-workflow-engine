@@ -145,6 +145,23 @@ A project can still set its own `terminal:` or `tmux_session:`; its own value wi
    - `prefix s` picks another project's session, which means another lead and its workers.
 5. **Reach a specific agent:** clicking it on the agents canvas selects its window. **Copy switch** in its panel copies `tmux switch-client -t '=<slug>:=agent-…'`; paste it anywhere inside tmux to jump there.
 
+**See every project in the status bar.** `prefix s` lists the sessions on demand. To keep them in view all the time, add this to `~/.tmux.conf` (tmux 3.2 or newer):
+
+```
+set -g status-left-length 120
+set -g status-left '#{S:#{?#{m:_*,#{session_name}},,#{?session_attached,#[fg=black#,bg=colour114#,bold],#[fg=colour250]} #{session_name}#{?#{e|>:#{session_windows},1}, +#{e|-:#{session_windows},1},}#{?session_alerts, !,} #[default]}}#[fg=colour240]│ #[default]'
+```
+
+```
+ issue-viewer +2  roguetech +1 !  │ 0:lead-issue-viewer* 1:agent-a 2:agent-b
+```
+
+- Every session is listed (one per project, so one per lead); the one you're in is highlighted.
+- `+N` counts its workers: the windows besides the lead.
+- `!` marks a session where a window rang the bell or has an alert.
+- Sessions whose names start with `_` are left out.
+- Reload with `tmux source-file ~/.tmux.conf`.
+
 Epic sub-leads (`lead-<epic>`) and their workers live in the same project session, so the grouping is per project, not per epic.
 
 ## Per-issue Worktrees

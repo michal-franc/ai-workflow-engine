@@ -51,3 +51,21 @@ func TestBuildDispatchPrompt(t *testing.T) {
 		t.Fatalf("without worktree: %+v", noWT)
 	}
 }
+
+// The Workflow review block's retrospective command must name the issue's
+// slug: `retrospective <System>` fuzzy-matches some other issue of that
+// system and files the retro there.
+func TestBuildAgentPrompt_RetrospectiveNamesSlugNotSystem(t *testing.T) {
+	issue := &Issue{Slug: "campaign/fix-loot", Title: "Fix loot", Status: "idea", System: "Campaign", BodyRaw: "Body."}
+	prompt := BuildAgentPrompt(nil, issue, nil, "", "")
+
+	if !strings.Contains(prompt, `issue-cli retrospective campaign/fix-loot --body "Base workflow: ...\nSubsystem workflow for Campaign: ...`) {
+		t.Fatalf("workflow review block does not name the slug:\n\n%s", prompt)
+	}
+	if strings.Contains(prompt, "retrospective Campaign") {
+		t.Fatalf("retrospective command names the system:\n\n%s", prompt)
+	}
+	if !strings.Contains(prompt, "system-specific instructions that should be added for Campaign\n") {
+		t.Fatalf("missing-instructions line does not name the system:\n\n%s", prompt)
+	}
+}

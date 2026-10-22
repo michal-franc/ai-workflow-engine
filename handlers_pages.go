@@ -358,7 +358,7 @@ func buildStatusJSON(m *StatusModel) statusJSON {
 		out.Waiting = append(out.Waiting, statusJSONWaiting{Slug: w.Issue.Slug, Title: w.Issue.Title, Kind: w.Kind, To: w.Target})
 	}
 	for _, r := range m.Releases {
-		out.Shipped = append(out.Shipped, statusJSONRelease{Version: r.Version, Date: r.Date, Text: r.Summary})
+		out.Shipped = append(out.Shipped, statusJSONRelease{Version: r.Version, Date: r.Date, Text: r.SummaryText()})
 	}
 	return out
 }

@@ -74,6 +74,8 @@ Behavior:
 
 `WorkflowConfig.DefaultNextStatus(current)` returns `(required, optionals)` — the first non-optional status after `current`, plus the optional statuses skipped to get there. If every remaining status is optional, `required` is empty and `optionals` holds all of them so callers render alternatives rather than silently picking one. The JSON shape from `issue-cli transition --json` carries these as `next_status` (required) and `optional_next_statuses` (skipped optionals).
 
+Side statuses are never suggested as the next step. `WorkflowConfig.IsSideStatus(name)` is true for an optional status that is `global` or reached only by a `from: "*"` edge, such as `parked`. When no required status is left, `issue-cli transition` and `start` drop side statuses from the remaining optionals. An optional status with its own lifecycle edge (say `done → archived`) is still offered. If nothing is left and the status is not optional, `transition` prints `== Done ==` instead of `== Next ==`. `--json` sets `done: true`, and the next status's entry guidance (parked's "Don't work on it") is never printed. Parking an issue is not done: a move to `parked` prints parked's guidance.
+
 ### Approvals on Optional Side-Paths
 
 When a transition targets an `optional: true` status **and** has a `require_human_approval` action, the detail view does not render the approval checkbox inline alongside the required-path approval — that would put two pending approvals side-by-side and obscure the default next step. Instead:

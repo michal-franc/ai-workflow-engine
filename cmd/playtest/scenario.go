@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -52,8 +53,9 @@ type ScenarioSpec struct {
 
 // ScenarioGenerate writes Count issues titled Title (a fmt pattern with one
 // %d, numbered from 1), all in Status, under issues/<Dir>/ with Dir as their
-// system. Created pins their mtime like a fixture's created:; Extra is raw
-// frontmatter added to each, Body their body.
+// system. Created pins their mtime like a fixture's created:; "-3d" is three
+// days before the run, for views that look at the last few days. Extra is
+// raw frontmatter added to each, Body their body.
 type ScenarioGenerate struct {
 	Count   int    `yaml:"count"`
 	Dir     string `yaml:"dir"`
@@ -124,7 +126,7 @@ func generateIssues(dir string, gens []ScenarioGenerate) error {
 				fmt.Fprintf(&b, "system: %q\n", g.Dir)
 			}
 			if g.Created != "" {
-				fmt.Fprintf(&b, "created: %q\n", g.Created)
+				fmt.Fprintf(&b, "created: %q\n", createdDate(g.Created, time.Now()))
 			}
 			if extra := strings.TrimRight(g.Extra, "\n"); extra != "" {
 				b.WriteString(extra + "\n")
@@ -140,6 +142,19 @@ func generateIssues(dir string, gens []ScenarioGenerate) error {
 		}
 	}
 	return nil
+}
+
+// daysAgoRe is a relative created: date, "-3d".
+var daysAgoRe = regexp.MustCompile(`^-(\d+)d$`)
+
+// createdDate resolves a relative created: ("-3d") against now; any other
+// value is kept as written.
+func createdDate(created string, now time.Time) string {
+	if m := daysAgoRe.FindStringSubmatch(created); m != nil {
+		n, _ := strconv.Atoi(m[1])
+		return now.AddDate(0, 0, -n).Format("2006-01-02")
+	}
+	return created
 }
 
 // generatedName is a title's file name: lower case, runs of other characters

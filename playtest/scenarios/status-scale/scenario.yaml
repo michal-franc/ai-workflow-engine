@@ -1,0 +1,63 @@
+# Status page at scale: about 300 issues in 9 areas, most generated, so every
+# list on /status passes its cap. Milestone 0.1 (v0.0.9 is the last release)
+# has 13 done and 20 open in 7 areas; 29 open epics, 10 of them in Campaign
+# (0.2 children), 5 started in 0.1. 20 issues done in the last few days in 9
+# areas (created: "-Nd"), 40 done long ago. 7 ready gates, 11 in progress,
+# 8 in backlog, 6 parked, 150 pilot ideas in 0.3. root/ holds a changelog
+# with 3 releases (bold and code in their summaries) and 8 Unreleased lines.
+title: Status page at scale
+project:
+  name: Status Scale
+  slug: scale
+issues: tracker
+workflow: workflow.yaml
+root: root
+generate:
+  # Open epics.
+  - { count: 10, dir: Campaign, title: "Campaign epic %02d", status: idea, created: "2026-09-01", extra: "type: \"epic\"" }
+  - { count: 2, dir: Data, title: "Data epic %d", status: idea, created: "2026-09-01", extra: "type: \"epic\"" }
+  - { count: 2, dir: Combat, title: "Combat epic %d", status: idea, created: "2026-09-01", extra: "type: \"epic\"" }
+  - { count: 2, dir: UI, title: "UI epic %d", status: idea, created: "2026-09-01", extra: "type: \"epic\"" }
+  - { count: 3, dir: Mechs, title: "Mechs epic %d", status: idea, created: "2026-09-01", extra: "type: \"epic\"" }
+  - { count: 2, dir: Pilots, title: "Pilots epic %d", status: idea, created: "2026-09-01", extra: "type: \"epic\"" }
+  - { count: 4, dir: Weapons, title: "Weapons epic %d", status: idea, created: "2026-09-01", extra: "type: \"epic\"" }
+  - { count: 1, dir: Economy, title: "Economy epic %d", status: idea, created: "2026-09-01", extra: "type: \"epic\"" }
+  - { count: 3, dir: Map, title: "Map epic %d", status: idea, created: "2026-09-01", extra: "type: \"epic\"" }
+  # Milestone 0.1: done in the last days, and open.
+  - { count: 6, dir: Data, title: "Data shipped %d", status: done, created: "-2d", extra: "version: \"0.1\"\nparent: \"data/data-epic-1\"" }
+  - { count: 3, dir: Data, title: "Data todo %d", status: idea, created: "2026-09-20", extra: "version: \"0.1\"\nparent: \"data/data-epic-1\"" }
+  - { count: 3, dir: Campaign, title: "Campaign shipped %d", status: done, created: "-3d", extra: "version: \"0.1\"\nparent: \"campaign/campaign-epic-01\"" }
+  - { count: 4, dir: Campaign, title: "Campaign todo %d", status: idea, created: "2026-09-20", extra: "version: \"0.1\"\nparent: \"campaign/campaign-epic-01\"" }
+  - { count: 1, dir: Campaign, title: "Campaign landed %d", status: done, created: "-1d", extra: "version: \"0.1\"\nparent: \"campaign/campaign-epic-02\"" }
+  - { count: 2, dir: Campaign, title: "Campaign draft %d", status: in design, created: "2026-09-25", extra: "version: \"0.1\"\nparent: \"campaign/campaign-epic-02\"", body: "## Design\n- [ ] Approach documented" }
+  - { count: 2, dir: UI, title: "UI shipped %d", status: done, created: "-4d", extra: "version: \"0.1\"\nparent: \"ui/ui-epic-1\"" }
+  - { count: 3, dir: UI, title: "UI todo %d", status: idea, created: "2026-09-20", extra: "version: \"0.1\"\nparent: \"ui/ui-epic-1\"" }
+  - { count: 1, dir: Combat, title: "Combat shipped %d", status: done, created: "-5d", extra: "version: \"0.1\"\nparent: \"combat/combat-epic-1\"" }
+  - { count: 1, dir: Combat, title: "Combat underway %d", status: in progress, created: "2026-10-01", extra: "version: \"0.1\"\nparent: \"combat/combat-epic-1\"", body: "## Plan\n- [ ] Do it" }
+  - { count: 3, dir: Mechs, title: "Mechs todo %d", status: idea, created: "2026-09-20", extra: "version: \"0.1\"\nparent: \"mechs/mechs-epic-1\"" }
+  - { count: 2, dir: Map, title: "Map todo %d", status: idea, created: "2026-09-20", extra: "version: \"0.1\"\nparent: \"map/map-epic-1\"" }
+  - { count: 2, dir: Economy, title: "Economy todo %d", status: idea, created: "2026-09-20", extra: "version: \"0.1\"\nparent: \"economy/economy-epic-1\"" }
+  # 0.2: two children for each Campaign epic, nothing started.
+  - { count: 2, dir: Campaign, title: "Campaign 01 later %d", status: idea, created: "2026-09-02", extra: "version: \"0.2\"\nparent: \"campaign/campaign-epic-01\"" }
+  - { count: 2, dir: Campaign, title: "Campaign 02 later %d", status: idea, created: "2026-09-02", extra: "version: \"0.2\"\nparent: \"campaign/campaign-epic-02\"" }
+  - { count: 2, dir: Campaign, title: "Campaign 03 later %d", status: idea, created: "2026-09-02", extra: "version: \"0.2\"\nparent: \"campaign/campaign-epic-03\"" }
+  - { count: 2, dir: Campaign, title: "Campaign 04 later %d", status: idea, created: "2026-09-02", extra: "version: \"0.2\"\nparent: \"campaign/campaign-epic-04\"" }
+  - { count: 2, dir: Campaign, title: "Campaign 05 later %d", status: idea, created: "2026-09-02", extra: "version: \"0.2\"\nparent: \"campaign/campaign-epic-05\"" }
+  - { count: 2, dir: Campaign, title: "Campaign 06 later %d", status: idea, created: "2026-09-02", extra: "version: \"0.2\"\nparent: \"campaign/campaign-epic-06\"" }
+  - { count: 2, dir: Campaign, title: "Campaign 07 later %d", status: idea, created: "2026-09-02", extra: "version: \"0.2\"\nparent: \"campaign/campaign-epic-07\"" }
+  - { count: 2, dir: Campaign, title: "Campaign 08 later %d", status: idea, created: "2026-09-02", extra: "version: \"0.2\"\nparent: \"campaign/campaign-epic-08\"" }
+  - { count: 2, dir: Campaign, title: "Campaign 09 later %d", status: idea, created: "2026-09-02", extra: "version: \"0.2\"\nparent: \"campaign/campaign-epic-09\"" }
+  - { count: 2, dir: Campaign, title: "Campaign 10 later %d", status: idea, created: "2026-09-02", extra: "version: \"0.2\"\nparent: \"campaign/campaign-epic-10\"" }
+  # Done recently outside epics, so shipped spans 9 areas.
+  - { count: 2, dir: Pilots, title: "Pilots shipped %d", status: done, created: "-1d" }
+  - { count: 2, dir: Weapons, title: "Weapons shipped %d", status: done, created: "-2d" }
+  - { count: 1, dir: Mechs, title: "Mechs shipped %d", status: done, created: "-3d" }
+  - { count: 1, dir: Map, title: "Map shipped %d", status: done, created: "-6d" }
+  - { count: 1, dir: Economy, title: "Economy shipped %d", status: done, created: "-2d" }
+  - { count: 40, dir: Combat, title: "Combat archive %02d", status: done, created: "2026-06-01" }
+  # Needs you, working on, next.
+  - { count: 7, dir: UI, title: "Design ready %d", status: in design, created: "2026-10-05", body: "## Design\n- [x] Approach documented" }
+  - { count: 10, dir: Combat, title: "Build %02d", status: in progress, created: "2026-10-10", body: "## Plan\n- [ ] Build it" }
+  - { count: 8, dir: Weapons, title: "Chore %d", status: backlog, created: "2026-09-15" }
+  - { count: 6, dir: Map, title: "Parked %d", status: parked, created: "2026-08-15", body: "## Parked Record\n- **Why is it parked? (blocked on…, deferred until…, or won't do because…):** deferred" }
+  - { count: 150, dir: Pilots, title: "Pilot idea %03d", status: idea, created: "2026-08-01", extra: "version: \"0.3\"" }

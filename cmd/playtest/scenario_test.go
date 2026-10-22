@@ -231,6 +231,16 @@ func TestGenerateIssues(t *testing.T) {
 	}
 }
 
+// TestCreatedDate: "-3d" is three days before now; a date stays as written.
+func TestCreatedDate(t *testing.T) {
+	now := time.Date(2026, 10, 22, 9, 0, 0, 0, time.UTC)
+	for in, want := range map[string]string{"-3d": "2026-10-19", "-0d": "2026-10-22", "2026-08-01": "2026-08-01", "-3": "-3"} {
+		if got := createdDate(in, now); got != want {
+			t.Errorf("createdDate(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestLoadScenarioSpec_RejectsBadGenerate(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "scenario.yaml"), []byte("generate:\n  - count: 5\n    status: idea\n    title: No number\n"), 0o644)

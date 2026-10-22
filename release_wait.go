@@ -211,7 +211,11 @@ func releaseWaitMarkdown(b *strings.Builder, rw *ReleaseWait, now time.Time) {
 		default:
 			fmt.Fprintf(b, "ready to cut %s: tag it and push (with the owner's go-ahead)\n", ms.Cut)
 		}
-		for _, issue := range ms.Open {
+		for i, issue := range ms.Open {
+			if i == capMDList {
+				fmt.Fprintf(b, "  - +%d more: issue-cli list --version %s --status open\n", len(ms.Open)-i, ms.Version)
+				break
+			}
 			who := issue.Assignee
 			if who == "" {
 				who = "no assignee"
@@ -224,7 +228,11 @@ func releaseWaitMarkdown(b *strings.Builder, rw *ReleaseWait, now time.Time) {
 			fmt.Fprintf(b, "- Unreleased in %s: nothing under ## Unreleased\n", rw.Changelog)
 		} else {
 			fmt.Fprintf(b, "- Unreleased in %s (%d):\n", rw.Changelog, len(rw.Unreleased))
-			for _, e := range rw.Unreleased {
+			for i, e := range rw.Unreleased {
+				if i == capMDList {
+					fmt.Fprintf(b, "  - +%d more in %s\n", len(rw.Unreleased)-i, rw.Changelog)
+					break
+				}
 				fmt.Fprintf(b, "  - %s\n", e)
 			}
 		}

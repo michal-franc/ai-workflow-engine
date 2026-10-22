@@ -67,7 +67,8 @@ Each step at each viewport starts a fresh scenario:
   checkout, once per run, and put first on `PATH`.
 - **Its own board:** on a free port.
 - **Its own environment:**
-  - `HOME` and the XDG dirs point into the temp dir.
+  - `HOME` and the XDG dirs point into the temp dir, so the scenario
+    viewer's `viewer.json` never replaces the real one.
   - `ISSUE_VIEWER_CONFIG` is the scenario's config.
   - `TMUX` is unset, and `TMUX_TMPDIR` is a private dir that also holds a
     marker. tmux calls refuse to run without the marker, and teardown's

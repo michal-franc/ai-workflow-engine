@@ -12,6 +12,8 @@ children:
   - cli/dispatch-preflight-check-the-run-before-an-agent-starts
   - ui/health-section-on-the-status-page
   - cli/agent-process-safety-prompt-off-the-command-line-clean-stop-env-allowlist
+version: "0.56"
+
 ---
 Umbrella for ideas taken from RigOne, a closed-source macOS control room for coding agents (Claude Code, Codex,
 OpenCode). Its app code is not public; the ideas come from its user guide and README (`source`). We already share

@@ -6,6 +6,8 @@ priority: "high"
 type: "feature"
 parent: "cli/adoption-make-ai-workflow-engine-easy-to-set-up-start-and-use"
 created: "2026-10-06"
+version: "0.56"
+
 ---
 
 Most people who would use this tool already run Claude Code or Codex. The shortest route to adoption is to let

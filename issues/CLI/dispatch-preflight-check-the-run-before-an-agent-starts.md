@@ -6,6 +6,8 @@ priority: "medium"
 type: "feature"
 parent: "workflow/harness-checks-the-work-ideas-from-rigone"
 created: "2026-10-22"
+version: "0.56"
+
 ---
 
 Today dispatch (`internal/agentrun.Start`) creates the worktree and tmux session and types the launch command. If

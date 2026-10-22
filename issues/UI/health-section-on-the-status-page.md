@@ -6,6 +6,8 @@ priority: "medium"
 type: "feature"
 parent: "workflow/harness-checks-the-work-ideas-from-rigone"
 created: "2026-10-22"
+version: "0.56"
+
 ---
 
 When something the engine needs is broken (claude not signed in, tmux missing, a bad `workflow.yaml`, a full disk),

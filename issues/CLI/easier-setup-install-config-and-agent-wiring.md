@@ -7,6 +7,8 @@ type: "feature"
 parent: "cli/adoption-make-ai-workflow-engine-easy-to-set-up-start-and-use"
 created: "2026-10-06"
 ideas: "https://claude.ai/artifact/EQ1ttCchKDkjnC8M4Mi3o1"
+version: "0.53"
+
 ---
 
 Getting the binaries, config and agent tooling in place without reading three docs pages. Ideas #1–#7 from the

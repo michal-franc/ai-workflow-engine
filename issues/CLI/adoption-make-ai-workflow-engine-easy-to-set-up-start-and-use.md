@@ -12,6 +12,8 @@ children:
   - cli/one-name-one-binary
   - cli/agent-led-onboarding-claude-sets-the-project-up-and-explains-it
   - workflow/issue-cli-doctor-check-workflow-yaml-and-suggest-improvements
+version: "0.56"
+
 ---
 Umbrella for the adoption work. The core idea of the engine works: markdown issues, one `workflow.yaml`, agents
 that can't skip a step, and a human who ticks the gates. What holds adoption back is everything before the first

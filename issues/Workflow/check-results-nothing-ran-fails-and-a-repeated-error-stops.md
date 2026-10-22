@@ -6,6 +6,8 @@ priority: "high"
 type: "feature"
 parent: "workflow/harness-checks-the-work-ideas-from-rigone"
 created: "2026-10-22"
+version: "0.54"
+
 ---
 
 `command_succeeds` (`internal/tracker/validations/command_succeeds.go`) passes on exit code 0 and nothing else. A

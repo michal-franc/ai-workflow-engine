@@ -7,6 +7,8 @@ type: "feature"
 parent: "cli/adoption-make-ai-workflow-engine-easy-to-set-up-start-and-use"
 created: "2026-10-06"
 ideas: "https://claude.ai/artifact/EQ1ttCchKDkjnC8M4Mi3o1"
+version: "1.0"
+
 ---
 
 The product is AI Workflow Engine, the board is `issue-viewer`, the agent CLI is `issue-cli`, and the Go module

@@ -1,0 +1,26 @@
+session: frontmatter-escapes
+issue: api/frontmatter-writes-expand-dollar-references-and-break-on-newlines
+title: Titles and meta values with $, quotes, backslashes and newlines save exactly
+scenario: basic
+
+steps:
+  - id: TP2
+    title: The repro values round-trip through the UI edit, set-meta and update --title, and a later edit stays clean
+    setup:
+      # The UI edit: the detail page posts the new title to this endpoint.
+      - post:
+          path: /p/{project}/issue/ui/sticky-board-header
+          json: { title: "Sticky $1 ${x} \"header\" \\ end\nline two" }
+      - cli: [set-meta, ui/sticky-1-x-header-endline-two, --key, note, --value, "cost $1 ${x} \"q\" back\\slash\nline two"]
+      - check: { issue: { slug: ui/sticky-1-x-header-endline-two, field: title, equals: "Sticky $1 ${x} \"header\" \\ end\nline two" } }
+      - check: { issue: { slug: ui/sticky-1-x-header-endline-two, field: note, equals: "cost $1 ${x} \"q\" back\\slash\nline two" } }
+      - open: /p/{project}/issue/ui/sticky-1-x-header-endline-two
+      - check: { text_contains: { target: detail.title, text: "Sticky $1 ${x} \"header\" \\ end" } }
+    act:
+      # A later write after a multi-line value used to leave the old second
+      # line behind and break the file.
+      - cli: [update, ui/sticky-1-x-header-endline-two, --title, "Sticky $2"]
+    checks:
+      - issue: { slug: ui/sticky-2, field: title, equals: "Sticky $2" }
+      - issue: { slug: ui/sticky-2, field: note, equals: "cost $1 ${x} \"q\" back\\slash\nline two" }
+      - issue: { slug: ui/sticky-2, field: status, equals: done }

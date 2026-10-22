@@ -481,25 +481,8 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 	fmRaw := parts[0]
 	body := parts[1]
 
-	setScalar := func(fm, key, value string) string {
-		re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `:.*$`)
-		newLine := key + `: "` + value + `"`
-		if re.MatchString(fm) {
-			return re.ReplaceAllString(fm, newLine)
-		}
-		return strings.TrimRight(fm, "\n") + "\n" + newLine + "\n"
-	}
-
-	removeField := func(fm, key string) string {
-		re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `:.*\n?`)
-		fm = re.ReplaceAllString(fm, "")
-		reList := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `:\s*\n([ \t]+-[^\n]*\n?)*`)
-		fm = reList.ReplaceAllString(fm, "")
-		return fm
-	}
-
 	setLabels := func(fm string, labels []string) string {
-		fm = removeField(fm, "labels")
+		fm = removeFrontmatterKey(fm, "labels")
 		if len(labels) == 0 {
 			return fm
 		}
@@ -512,59 +495,59 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 	}
 
 	if update.Title != nil {
-		fmRaw = setScalar(fmRaw, "title", *update.Title)
+		fmRaw = setFrontmatterScalar(fmRaw, "title", *update.Title)
 	}
 	if update.Status != nil {
-		fmRaw = setScalar(fmRaw, "status", *update.Status)
+		fmRaw = setFrontmatterScalar(fmRaw, "status", *update.Status)
 	}
 	if update.Priority != nil {
 		if *update.Priority == "" {
-			fmRaw = removeField(fmRaw, "priority")
+			fmRaw = removeFrontmatterKey(fmRaw, "priority")
 		} else {
-			fmRaw = setScalar(fmRaw, "priority", *update.Priority)
+			fmRaw = setFrontmatterScalar(fmRaw, "priority", *update.Priority)
 		}
 	}
 	if update.Version != nil {
 		if *update.Version == "" {
-			fmRaw = removeField(fmRaw, "version")
+			fmRaw = removeFrontmatterKey(fmRaw, "version")
 		} else {
-			fmRaw = setScalar(fmRaw, "version", *update.Version)
+			fmRaw = setFrontmatterScalar(fmRaw, "version", *update.Version)
 		}
 	}
 	if update.Assignee != nil {
 		if *update.Assignee == "" {
-			fmRaw = removeField(fmRaw, "assignee")
+			fmRaw = removeFrontmatterKey(fmRaw, "assignee")
 		} else {
-			fmRaw = setScalar(fmRaw, "assignee", *update.Assignee)
+			fmRaw = setFrontmatterScalar(fmRaw, "assignee", *update.Assignee)
 		}
 	}
 	if update.HumanApproval != nil {
-		fmRaw = removeField(fmRaw, "approved_for")
+		fmRaw = removeFrontmatterKey(fmRaw, "approved_for")
 		if *update.HumanApproval == "" {
-			fmRaw = removeField(fmRaw, "human_approval")
+			fmRaw = removeFrontmatterKey(fmRaw, "human_approval")
 		} else {
-			fmRaw = setScalar(fmRaw, "human_approval", *update.HumanApproval)
+			fmRaw = setFrontmatterScalar(fmRaw, "human_approval", *update.HumanApproval)
 		}
 	}
 	if update.QueuedApproval != nil {
 		if *update.QueuedApproval == "" {
-			fmRaw = removeField(fmRaw, "queued_approval")
+			fmRaw = removeFrontmatterKey(fmRaw, "queued_approval")
 		} else {
-			fmRaw = setScalar(fmRaw, "queued_approval", *update.QueuedApproval)
+			fmRaw = setFrontmatterScalar(fmRaw, "queued_approval", *update.QueuedApproval)
 		}
 	}
 	if update.StartedAt != nil {
 		if *update.StartedAt == "" {
-			fmRaw = removeField(fmRaw, "started_at")
+			fmRaw = removeFrontmatterKey(fmRaw, "started_at")
 		} else {
-			fmRaw = setScalar(fmRaw, "started_at", *update.StartedAt)
+			fmRaw = setFrontmatterScalar(fmRaw, "started_at", *update.StartedAt)
 		}
 	}
 	if update.DoneAt != nil {
 		if *update.DoneAt == "" {
-			fmRaw = removeField(fmRaw, "done_at")
+			fmRaw = removeFrontmatterKey(fmRaw, "done_at")
 		} else {
-			fmRaw = setScalar(fmRaw, "done_at", *update.DoneAt)
+			fmRaw = setFrontmatterScalar(fmRaw, "done_at", *update.DoneAt)
 		}
 	}
 	if update.Labels != nil {
@@ -660,17 +643,27 @@ var ProtectedFrontmatterFields = map[string]bool{
 
 var frontmatterKeyRe = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
+// yamlScalarEscaper keeps a double-quoted scalar on one line: the frontmatter
+// writers edit line by line, so a raw newline would split the value.
+var yamlScalarEscaper = strings.NewReplacer(
+	`\`, `\\`,
+	`"`, `\"`,
+	"\n", `\n`,
+	"\r", `\r`,
+	"\t", `\t`,
+)
+
 func escapeYAMLScalar(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `"`, `\"`)
-	return s
+	return yamlScalarEscaper.Replace(s)
 }
 
+// setFrontmatterScalar is the one writer for scalar frontmatter keys. The
+// replacement is literal so `$1` or `${x}` in a value is not expanded.
 func setFrontmatterScalar(fm, key, value string) string {
 	re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `:.*$`)
 	newLine := key + `: "` + escapeYAMLScalar(value) + `"`
 	if re.MatchString(fm) {
-		return re.ReplaceAllString(fm, newLine)
+		return re.ReplaceAllLiteralString(fm, newLine)
 	}
 	return strings.TrimRight(fm, "\n") + "\n" + newLine + "\n"
 }

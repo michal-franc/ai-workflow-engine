@@ -65,9 +65,10 @@ steps:
       - type: { target: detail.title.input, text: "Dark mode toggle in the header" }
       - click: detail.title.save
       - wait_for: { text_contains: { target: detail.title, text: in the header } }
+      # In act, not checks: the owner types their own title in a playtest.
+      - check: { text_contains: { target: detail.title, text: Dark mode toggle in the header } }
     checks:
       - url: { contains: /issue/ui/dark-mode-toggle }
-      - text_contains: { target: detail.title, text: Dark mode toggle in the header }
       - issue: { slug: ui/dark-mode-toggle, field: slug, equals: dark-mode-toggle }
       - http: { path: "/p/{project}/issue/ui/dark-mode-toggle", status: 200 }
     targets:

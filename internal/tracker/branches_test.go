@@ -135,7 +135,8 @@ func TestOpenBranchesListsWorktreesAndOpenWorkBranches(t *testing.T) {
 	}
 }
 
-func TestOpenBranchesUsesEpicBase(t *testing.T) {
+// An old base: on an epic no longer moves its children off main.
+func TestOpenBranchesIgnoresEpicBase(t *testing.T) {
 	r := newGitRepo(t)
 	r.git("branch", "base/epic", "main")
 	r.git("checkout", "-q", "base/epic")
@@ -152,7 +153,7 @@ func TestOpenBranchesUsesEpicBase(t *testing.T) {
 	}
 	got := OpenBranches(r.root, "main", issues)
 	child := findBranch(got, "work/ui/child")
-	if child == nil || child.Base != "base/epic" || child.Ahead != 1 {
+	if child == nil || child.Base != "main" || child.Ahead != 2 {
 		t.Fatalf("child = %+v (all %v)", child, branchNames(got))
 	}
 }

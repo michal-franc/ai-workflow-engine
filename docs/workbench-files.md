@@ -104,13 +104,12 @@ The Branches tab and the detail page's Shared files row use git only; no file is
 
 - **Open branches:** every git worktree except the main checkout, plus unmerged `work/*` branches whose issue exists and is not done or parked. A branch maps to its issue by name: `work/<slug>`.
 - **The base a branch is compared with:**
-  1. its epic's `base:`;
-  2. otherwise, the open branch its head descends from (it was forked from that branch);
-  3. otherwise, main (`origin/HEAD`, then `main`, then `master`).
+  1. the open branch its head descends from (it was forked from that branch);
+  2. otherwise, main (`origin/HEAD`, then `main`, then `master`).
 - **Hot files:** a file changed on two or more open branches. "Hot" means three or more.
 - **Shared changes:** a change is marked shared, and hidden by default, when it is not real overlap. That is either:
   - a branch carrying another branch's commits (forked from it): the commits count once, for the branch nearer the fork point;
-  - the change of a branch that another branch touching the file is stacked on (an epic's base).
+  - the change of a branch that another branch touching the file is stacked on.
 - **Cost:** git calls time out after 5 s, so a slow repo shows "git timed out" rather than hanging the page. Calls keyed by commit sha are cached for the life of the server.
 
 ## Dependencies

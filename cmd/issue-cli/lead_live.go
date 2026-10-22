@@ -48,10 +48,6 @@ var currentTmuxNames = func() (session, window string) {
 	return session, window
 }
 
-// commitsBehind counts the commits on the main branch that base lacks. A var
-// for tests.
-var commitsBehind = agentrun.MainAhead
-
 // workingDir is os.Getwd, a var so tests don't depend on where they run.
 var workingDir = os.Getwd
 
@@ -61,7 +57,7 @@ type Identity struct {
 	// Name is the session name (lead-x, agent-y); "" when unmanaged or
 	// unknown.
 	Name string
-	// Scope is "project" or the epic slug for leads.
+	// Scope is "project" for the lead.
 	Scope string
 	// Slug is the worker's issue ("" when unknown).
 	Slug string
@@ -69,13 +65,14 @@ type Identity struct {
 	Signal string
 }
 
-// whoAmI detects the current session's role, in order: the lead scope a
-// spawned lead exports, the issue slug a dispatched worker exports, the tmux
-// session or window name, and a cwd under .worktrees/. Anything else is
-// unmanaged — a human, or a lead started by hand.
+// whoAmI detects the current session's role, in order: the lead scope the
+// spawned project lead exports, the issue slug a dispatched worker exports,
+// the tmux session or window name, and a cwd under .worktrees/. Anything else
+// is unmanaged — a human, or a lead started by hand. Only the project lead's
+// scope and name count as a lead.
 func whoAmI(proj *tracker.Project, issues []*tracker.Issue) Identity {
-	if scope := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_LEAD_SCOPE")); scope != "" {
-		return leadIdentity(proj, scope, "ISSUE_VIEWER_LEAD_SCOPE")
+	if strings.TrimSpace(os.Getenv("ISSUE_VIEWER_LEAD_SCOPE")) == tracker.LeadScopeProject {
+		return projectLeadIdentity(proj, "ISSUE_VIEWER_LEAD_SCOPE")
 	}
 	if slug := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_ISSUE_SLUG")); slug != "" {
 		return Identity{Role: tracker.RoleWorker, Name: tracker.AgentSessionName(slug), Slug: slug, Signal: "ISSUE_VIEWER_ISSUE_SLUG"}
@@ -83,15 +80,8 @@ func whoAmI(proj *tracker.Project, issues []*tracker.Issue) Identity {
 	session, window := currentTmuxNames()
 	for _, name := range []string{session, window} {
 		switch {
-		case strings.HasPrefix(name, "lead-"):
-			if name == tracker.LeadSessionName(proj, tracker.LeadScopeProject) {
-				return leadIdentity(proj, tracker.LeadScopeProject, "tmux name "+name)
-			}
-			for _, issue := range issues {
-				if tracker.LeadSessionName(proj, issue.Slug) == name {
-					return leadIdentity(proj, issue.Slug, "tmux name "+name)
-				}
-			}
+		case name != "" && name == tracker.LeadSessionName(proj):
+			return projectLeadIdentity(proj, "tmux name "+name)
 		case strings.HasPrefix(name, "agent-"):
 			id := Identity{Role: tracker.RoleWorker, Name: name, Signal: "tmux name " + name}
 			for _, issue := range issues {
@@ -108,12 +98,8 @@ func whoAmI(proj *tracker.Project, issues []*tracker.Issue) Identity {
 	return Identity{Role: tracker.RoleUnmanaged, Signal: "no lead or worker signal"}
 }
 
-func leadIdentity(proj *tracker.Project, scope, signal string) Identity {
-	role := tracker.RoleSubLead
-	if scope == tracker.LeadScopeProject {
-		role = tracker.RoleProjectLead
-	}
-	return Identity{Role: role, Name: tracker.LeadSessionName(proj, scope), Scope: scope, Signal: signal}
+func projectLeadIdentity(proj *tracker.Project, signal string) Identity {
+	return Identity{Role: tracker.RoleProjectLead, Name: tracker.LeadSessionName(proj), Scope: tracker.LeadScopeProject, Signal: signal}
 }
 
 // sender is how a message from this identity is signed.

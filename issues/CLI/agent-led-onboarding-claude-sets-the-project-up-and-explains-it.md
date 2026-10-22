@@ -6,7 +6,7 @@ priority: "high"
 type: "feature"
 parent: "cli/adoption-make-ai-workflow-engine-easy-to-set-up-start-and-use"
 created: "2026-10-06"
-version: "0.57"
+version: "0.58"
 
 ---
 

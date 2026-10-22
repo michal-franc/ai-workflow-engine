@@ -4,9 +4,10 @@ title: Lead agents from the CLI, dispatch routing, the agents canvas and its spa
 scenario: leads
 
 # Live agents are faked with `cat` sessions on the scenario's private tmux
-# server. A spawn or dispatch onto one takes the re-attach path: the worktree,
-# base: and lead: are still written, but no real agent starts. Real Claude
-# behaviour (the brief, -n, ListAgents) is a written step under ### Manual.
+# server. A spawn or dispatch onto one takes the re-attach path: the worktree
+# is still created, but no real agent starts. One lead per project: sub-leads
+# were removed (see the remove-sub-leads session). Real Claude behaviour (the
+# brief, -n, ListAgents) is a written step under ### Manual.
 #
 # Every cli: call passes --project crew: in a directory with ./issues the CLI
 # otherwise builds a project from the folder name and ignores the config.
@@ -30,81 +31,58 @@ steps:
       - tmux: { session: lead-crew, present: true }
       - cli: { args: [--project, crew, lead, list], contains: "lead-crew" }
 
-  - id: TP3
-    title: lead spawn --epic creates the base branch from main and its worktree, and records base and lead
-    setup:
-      - tmux: [new-session, -d, -s, lead-ui-epic, cat]
-    act:
-      - cli: [--project, crew, lead, spawn, --epic, ui/epic]
-      - open: /p/{project}/agents
-    checks:
-      - issue: { slug: ui/epic, field: base, equals: base/ui/epic }
-      - issue: { slug: ui/epic, field: lead, equals: lead-ui-epic }
-      # main_ahead_known is true only when git can resolve base/ui/epic.
-      - http: { path: "/p/{project}/agents.json", json: { "epics.0.base": base/ui/epic, "epics.0.main_ahead_known": true, "epics.0.main_ahead": 0, "epics.0.has_sub_lead": true } }
-      - http: { path: "/p/{project}/agents/detail?session=lead-ui-epic&issue=ui/epic", json: { "branch": base/ui/epic, "against": main } }
-
   - id: TP4
-    title: lead spawn --epic on a non-epic, and approve without the human's words, are refused with a hint
+    title: approve without the human's words is refused with a hint
     setup:
       - open: /p/{project}/agents
     checks:
-      - cli: { args: [--project, crew, lead, spawn, --epic, cli/loner], exit: 1, contains: "cli/loner is not an epic" }
-      - cli: { args: [--project, crew, lead, spawn, --epic, cli/loner], exit: 1, contains: "set-meta <child-slug> --key parent --value cli/loner" }
       - cli: { args: [--project, crew, approve, ui/child, --to, testing], exit: 1, contains: "--quote" }
 
   - id: TP5
-    title: lead list shows both leads live, the base, main commits not in base and children running
+    title: lead list shows the live project lead and the epic with its children running
     setup:
       - tmux: [new-session, -d, -s, lead-crew, cat]
-      - tmux: [new-session, -d, -s, lead-ui-epic, cat]
       - tmux: [new-session, -d, -s, agent-ui-child, cat]
-      - cli: [--project, crew, lead, spawn, --epic, ui/epic]
       - open: /p/{project}/agents
     checks:
       - cli: { args: [--project, crew, lead, list], contains: "project lead  live" }
-      - cli: { args: [--project, crew, lead, list], contains: "sub-lead      live  epic ui/epic" }
-      - cli: { args: [--project, crew, lead, list], contains: "base base/ui/epic · main commits not in base: 0 · children running 1/2" }
-      - cli: { args: [--project, crew, lead, list], not_contains: "Epics without a sub-lead" }
+      - cli: { args: [--project, crew, lead, list], contains: "ui/epic (in progress) · children running 1/2" }
+      - cli: { args: [--project, crew, lead, list], not_contains: "sub-lead" }
 
   - id: TP6
     title: lead message pastes the text, signed, into the target session
     setup:
-      - tmux: [new-session, -d, -s, lead-ui-epic, cat]
+      - tmux: [new-session, -d, -s, lead-crew, cat]
     act:
-      - cli: [--project, crew, lead, message, lead-ui-epic, ping from the human]
+      - cli: [--project, crew, lead, message, project, ping from the human]
       - open: /p/{project}/agents
     checks:
-      - tmux: { pane: lead-ui-epic, contains: "[from human] ping from the human" }
+      - tmux: { pane: lead-crew, contains: "[from human] ping from the human" }
 
   - id: TP7
-    title: A child of the epic is dispatched from the base, and its prompt names the live sub-lead and the base branch
+    title: A child of the epic is dispatched from main, and its prompt names the live project lead and its epic
     setup:
-      - tmux: [new-session, -d, -s, lead-ui-epic, cat]
-      - cli: [--project, crew, lead, spawn, --epic, ui/epic]
+      - tmux: [new-session, -d, -s, lead-crew, cat]
       - tmux: [new-session, -d, -s, agent-ui-child, cat]
     act:
       - post: { path: "/p/{project}/issue/ui/child/dispatch", json: { agent: claude }, status: 200 }
       - open: /p/{project}/agents
     checks:
-      - http: { path: "/p/{project}/issue/ui/child/dispatch-prompt", contains: "You report to lead-ui-epic, the sub-lead of epic ui/epic (live)." }
-      - http: { path: "/p/{project}/issue/ui/child/dispatch-prompt", contains: "## Base branch" }
-      - http: { path: "/p/{project}/issue/ui/child/dispatch-prompt", contains: "Ship into base/ui/epic" }
-      - http: { path: "/p/{project}/agents/detail?session=agent-ui-child&issue=ui/child", json: { "branch": work/ui/child, "against": base/ui/epic } }
+      - http: { path: "/p/{project}/issue/ui/child/dispatch-prompt", contains: "You report to the project lead lead-crew (live). Your issue is part of epic ui/epic." }
+      - cli: { args: [--project, crew, dispatch-prompt, ui/child], not_contains: "## Base branch" }
+      - http: { path: "/p/{project}/agents/detail?session=agent-ui-child&issue=ui/child", json: { "branch": work/ui/child, "against": main } }
 
   - id: TP8
-    title: The canvas shows the hierarchy You → lead → the live sub-lead and workers, their states, and the unfinished jobs
+    title: The canvas shows the hierarchy You → lead → workers, their states, and the unfinished jobs
     setup:
       - tmux: [new-session, -d, -s, lead-crew, cat]
-      - tmux: [new-session, -d, -s, lead-ui-epic, cat]
-      - cli: [--project, crew, lead, spawn, --epic, ui/epic]
       - tmux: [new-session, -d, -s, agent-ui-child, cat]
       - tmux: [new-session, -d, -s, agent-ui-legacy, cat]
       - open: /p/{project}/agents
     checks:
-      - visible: [agents.you, agents.node.lead-crew, agents.node.lead-ui-epic]
+      - visible: [agents.you, agents.node.lead-crew]
       - count: { pattern: agents.node.agent-ui-child, within: agents.tree, equals: 1 }
-      - http: { path: "/p/{project}/agents.json", json: { "epics.0.base": base/ui/epic, "epics.0.children_running": 2, "epics.0.children_total": 2 } }
+      - http: { path: "/p/{project}/agents.json", json: { "epics.0.children_running": 2, "epics.0.children_total": 2 } }
       - text_contains: { target: agents.node.agent-ui-child.state, text: "at gate · testing" }
       - text_contains: { target: agents.node.agent-ui-legacy.state, text: question }
       - visible: agents.node.agent-ui-child.issue
@@ -116,8 +94,7 @@ steps:
       # one above it, nodes with real size.
       - below: [agents.toolbar, agents.canvas]
       - below: [agents.you, agents.node.lead-crew]
-      - below: [agents.node.lead-crew, agents.node.lead-ui-epic]
-      - below: [agents.node.lead-ui-epic, agents.node.agent-ui-child]
+      - below: [agents.node.lead-crew, agents.node.agent-ui-child]
       - below: [agents.tree, agents.unfinished]
       - size: { target: agents.node.lead-crew, min_width: 100, min_height: 20 }
 
@@ -134,21 +111,21 @@ steps:
       - selected: agents.layout.radial
 
   - id: TP10
-    title: Clicking a live sub-lead opens its tmux session and shows its issue and base branch; a stopped one opens nothing
+    title: Clicking a live agent opens its tmux session and shows its issue and branch; a stopped one opens nothing
     from: TP8
     act:
-      - click: agents.node.lead-ui-epic
+      - click: agents.node.agent-ui-child
       - wait_for: agents.panel.branch
-      - check: { text_equals: { target: agents.panel.title, text: lead-ui-epic } }
+      - check: { text_equals: { target: agents.panel.title, text: agent-ui-child } }
       - check: { visible: [agents.panel.open, agents.panel.copy, agents.panel.issue] }
-      - check: { text_contains: { target: agents.panel.branch, text: "base/ui/epic vs main" } }
+      - check: { text_contains: { target: agents.panel.branch, text: "work/ui/child vs main" } }
       # The scenario is headless (terminal: none), so opening reports the
       # switch and attach commands instead of a window; with a terminal set it
       # opens one. The board runs on the scenario's private tmux server, so
       # the attach command names it (TMUX_TMPDIR=…) and works when pasted
       # into any shell.
       - check: { text_contains: { target: agents.panel.open_status, text: "From a shell: TMUX_TMPDIR=" } }
-      - check: { text_contains: { target: agents.panel.open_status, text: "tmux attach -t lead-ui-epic" } }
+      - check: { text_contains: { target: agents.panel.open_status, text: "tmux attach -t agent-ui-child" } }
       - click: agents.node.agent-cli-loner
     checks:
       - text_equals: { target: agents.panel.title, text: agent-cli-loner }
@@ -183,7 +160,7 @@ steps:
     title: The canvas reads well at desktop and phone width, in Tree and Radial
     from: TP8
     targets:
-      - { id: agents.tree, note: "The hierarchy: you, the project lead, the live sub-lead and the workers (no epic boxes)" }
+      - { id: agents.tree, note: "The hierarchy: you, the project lead and the workers (no epic boxes)" }
       - { id: agents.unfinished, note: "Issues with work in flight and no live agent" }
       - { id: agents.layout.radial, note: "Switch layouts here" }
     checks:
@@ -191,14 +168,14 @@ steps:
     do: |
       1. Look over the Tree at this window size: who leads whom, each worker's
          state, the dashed links to issue cards, the Unfinished jobs lane.
-      2. Click lead-ui-epic and read the panel. Clicking a live agent opens its
+      2. Click agent-ui-child and read the panel. Clicking a live agent opens its
          tmux session; this scenario has no terminal, so the panel shows the
          attach command instead.
       3. Switch to Radial and back.
       4. Make the window narrow (about phone width, or DevTools at 390px) and
          look again.
     expect: |
-      The hierarchy (you → lead-crew → the live sub-lead and the workers) is
+      The hierarchy (you → lead-crew → the workers) is
       clear at a glance, states and issue cards are readable, the panel is easy
       to use, and nothing you need is cut off at phone width.
     why: ux-test checks the structure and layout rules; only you can say whether the canvas reads well.

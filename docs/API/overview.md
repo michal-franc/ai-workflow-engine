@@ -74,10 +74,10 @@ When working on API changes:
 | GET    | `/pages/<n>`                                  | A `workbench.pages` entry in the viewer frame |
 | GET    | `/page-raw/<path>`                            | A project page or asset under a configured page's folder, with CSP `sandbox`, `nosniff`; 404 otherwise |
 | GET    | `/agents`                                     | Agents canvas (see [UI](../UI/overview.md#agents-canvas)) |
-| GET    | `/agents.json`                                | Canvas model: `project_lead`, `epics` (sub-lead, base, `main_ahead`, children running/total), `workers`, `unfinished`, `others`, `listed_at` |
+| GET    | `/agents.json`                                | Canvas model: `project_lead`, `epics` (each open epic's issue and children running/total), `workers`, `unfinished`, `others`, `listed_at` |
 | GET    | `/agents/detail?session=<name>&issue=<slug>`  | Selected-agent panel: the issue's last 5 comments, `branch`/`against`/`diff_stat`. `400` unless `session` is an `agent-*`/`lead-*` name |
 | POST   | `/agents/open`                                | Open a live session in a terminal, like a dispatch re-attach — body `{session}`. Returns `{status: "opened", steps, attach_cmd, switch_cmd}`. When a terminal is already attached it opens none: `status: "focused"` when i3 brought the window titled with the session name to the front, else `"already-open"`. With `terminal: none` it opens nothing: in `tmux_session` mode it selects the agent's window (`"selected"`); `409` with `status: "no-session"` when it isn't running, `400` for a name that isn't `agent-*`/`lead-*` |
-| POST   | `/lead/spawn`                                 | Start (or re-attach) the project lead, or with `{"epic": "<slug>"}` that epic's sub-lead; optional `agent`. Returns the dispatch `{status, session, steps}`; `422` for a non-epic, `404` for an unknown slug |
+| POST   | `/lead/spawn`                                 | Start (or re-attach) the project lead; optional `agent`. Returns the dispatch `{status, session, steps}`. A body with `epic` gets `422`: one lead per project |
 
 ## Edit in nvim
 

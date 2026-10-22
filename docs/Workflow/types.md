@@ -23,7 +23,7 @@ What already exists, and why it isn't enough:
 | `field_in` on a frontmatter key | gate a skip edge to `type: tweak` | hints, `process` and approve buttons still show the feature path |
 | conventions in prompt text | "Umbrella issues: …" paragraphs | every agent reads every branch; nothing is enforced |
 
-Parent/child links (epic ↔ children, `base` branch inheritance) are **not** part of this design. They belong to
+Parent/child links (epic ↔ children) are **not** part of this design. They belong to
 `umbrella-issue-grouping-multiple-issues`. Here, `epic` is only a type with its own path and prompts.
 
 ## Owner's choices (2026-10-06)
@@ -271,13 +271,13 @@ types:
           - *shipping_section
 
   epic:
-    description: "Umbrella: owns the design and the base branch; children ship into it; balance and polish playtest happen once, here"
+    description: "Umbrella: owns the design; children ship to master on their own; balance and polish playtest happen once, here"
     # no path: the full lifecycle, with the umbrella's own meaning per status
     statuses:
       - name: "in progress"
         prompt: |
-          Epic: nothing is built on this issue. Children (issues with `parent: <this slug>`) build on the `base` branch; its sub-lead (`issue-cli lead spawn --epic <this slug>`) merges them in.
-          Tick Implementation when every child has shipped into the base branch, and list them.
+          Epic: nothing is built on this issue. Children (issues with `parent: <this slug>`) branch from master and ship to master like any issue.
+          Tick Implementation when every child has shipped, and list them.
       - name: "balance"
         prompt: |
           The joint pass: fold the children's `balance:` comments into a list, tune to the targets this design names,
@@ -285,7 +285,7 @@ types:
       - name: "playtest"
         prompt: "The polish playtest for the whole feature, with cases as usual."
       - name: "shipping"
-        prompt: "Take the base branch to master when the human decides; run `make test` on master after the merge."
+        prompt: "Close the epic when the human decides; run `make test` on master first."
     transitions:
       - from: "backlog"
         to: "in progress"
@@ -299,9 +299,8 @@ types:
             type: append_section
             title: Implementation
             body: |
-              - [ ] Base branch created and set as the `base` meta
-              - [ ] Every child shipped into the base branch (listed with #slug)
-              - [ ] `make test` green on the base branch
+              - [ ] Every child shipped to master (listed with #slug)
+              - [ ] `make test` green on master
       - from: "design"                     # the fast lane needs the same replacement
         to: "in progress"
         replace: true

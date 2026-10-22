@@ -21,6 +21,10 @@ Entries are newest-first. Each entry has the form:
 - **Breaking:** `--wait`, `--timeout` and `--interval` are removed from `issue-cli transition` and `issue-cli start`. At a human-approval gate an agent tells the human what to approve, then stops and ends its turn; the viewer's approve button nudges its tmux session to resume. Passing one of the flags fails with `--wait was removed in v0.49.0: stop and end your turn; the approval nudge resumes you`. Exit code 3 and the `wait_timeout` telemetry class are gone, `transition --dry-run` suggests stopping instead of a `--wait` command, and `transition --json` no longer has a `wait` object.
 - The stats sidecar no longer writes `pending_wait` or per-row `wait_started_at`. Older sidecars that hold them still load; the fields are dropped on the next save.
 
+## v0.48.1 — 2026-10-22
+
+- Fix: the Status and Metrics pages lost their layout on desktop. A merge dropped the closing `}` of the system pages' `@media (max-width: 900px)` block in `static/style.css`, so every later rule only applied below 900px. A new test fails on unbalanced braces in `style.css`.
+
 ## v0.48.0 — 2026-10-22
 
 - **System pages** (`/p/<project>/systems`, `/systems/<System>`, `/systems/<System>/<Family>`). They are read-only, and every project whose issues set `system:` gets them, with or without config.

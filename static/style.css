@@ -3539,6 +3539,7 @@ a.marker:hover { text-decoration: underline; }
 .sys-decision-text { font-size: 14px; line-height: 1.45; }
 @media (max-width: 900px) {
     .sys-grid, .sys-panels { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Metrics view (templates/metrics.html) and the system-page panels */
 .mono { font-family: var(--font-mono); }

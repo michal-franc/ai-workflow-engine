@@ -7,7 +7,7 @@ type: "feature"
 parent: "cli/adoption-make-ai-workflow-engine-easy-to-set-up-start-and-use"
 created: "2026-10-06"
 ideas: "https://claude.ai/artifact/EQ1ttCchKDkjnC8M4Mi3o1"
-version: "0.55"
+version: "0.56"
 
 ---
 

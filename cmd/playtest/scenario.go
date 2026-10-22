@@ -21,9 +21,8 @@ import (
 )
 
 // ScenarioSpec is playtest/scenarios/<name>/scenario.yaml: a named starting
-// state. Its issue fixtures live in a folder that is not called `issues/`
-// (the sparse-checkout pattern `!issues/` would hide it in dispatched
-// worktrees); they are copied to issues/ in the throwaway project.
+// state. Its issue fixtures live in tracker/, not issues/, so they never read
+// as a real issues tree; they are copied to issues/ in the throwaway project.
 type ScenarioSpec struct {
 	Title   string `yaml:"title"`
 	Project struct {

@@ -3754,6 +3754,22 @@ a.chip { text-decoration: none; }
 .status-release { display: flex; flex-direction: column; gap: 3px; }
 .status-version { font-weight: 600; font-size: 13px; color: var(--green); }
 .status-summary { font-size: 13px; color: var(--text-nav); line-height: 1.45; }
+/* Waiting for release: readiness checks, the ready box, Unreleased entries. */
+.status-ready-card { border-color: var(--green-border); }
+.status-check { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; font-size: 13px; }
+.status-check + .status-check { border-top: 1px solid var(--border-subtle, var(--border)); }
+.status-check > svg { flex-shrink: 0; margin-top: 2px; }
+.status-check > .status-row-stack { flex-grow: 1; }
+.status-check > a, .status-check-meta { font-size: 12px; white-space: nowrap; }
+.status-check-ok > svg { color: var(--green); }
+.status-check-no > svg, .status-check-no .status-check-meta, .status-check-detail { color: var(--red); }
+.status-check-meta { color: var(--text-secondary); }
+.status-check-detail { font-size: 11px; overflow-wrap: anywhere; }
+.status-ready { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 6px; background: var(--green-bg); border: 1px solid var(--green-border); }
+.status-ready-title { font-size: 15px; font-weight: 700; color: var(--green); }
+.status-ready ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.5; color: var(--text-nav); }
+.status-entry { padding: 4px 0; overflow-wrap: anywhere; }
+.status-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-count { font-size: 11px; }
 .btn-small { white-space: nowrap; }
 @media (max-width: 600px) {

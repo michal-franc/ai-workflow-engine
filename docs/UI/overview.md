@@ -216,6 +216,16 @@ workbench:
   - while red: the failing command and tests, the issues that landed since the last green run (and how many commits had no issue), the bugfix issue with `on_red: file_issue`, and the log tail in a `<details>`
   - red CI is the first entry under Waiting on you (`status.waiting.ci`) and adds one to the waiting count and the sidebar's Status number; `status.md` gets a `Local CI:` line, the tail while red, and the waiting entry
   - the same state gives the merged issues a red `ci-red` card marker (`markers.go`, `ciMarkers`), which done workboard cards get too
+- **Waiting for release** (`release_wait.go`), between Waiting on you and Recently shipped:
+  - **Milestone:** the lowest issue `version:` after the newest released version (the top `## vX.Y.Z` changelog heading, else the newest git tag). `0.53` and `v0.53.0` compare equal. Parked issues don't count, and a version with only parked issues is skipped. With no release yet, it is the lowest version with an open issue. It shows done/total, its open issues (furthest along first, with status and assignee), and a chip: amber `vX.Y.0 not ready` or green `ready to cut`.
+  - **Checks** (`status.release_wait.check.<key>`, `data-ok`):
+    - `issues`: every milestone issue done.
+    - `ci`: only with a `ci:` block. Local CI is green and its green commit is the branch head, read from `.ci/state.json` (nothing re-runs). When it fails, a red second line says why (red since, head not tested yet, can't run, no run yet), with a link to the Local CI card.
+    - `changelog`: only with a changelog. At least one entry under `## Unreleased`.
+  - **Ready to cut vX.Y.0** (`status.release_wait.ready`), when every check passes: rename `## Unreleased` to `## vX.Y.0 — <today>` with a focus summary, then push with the owner's go-ahead.
+  - **Unreleased:** each top-level bullet under `## Unreleased` (wrapped lines joined, nested bullets left out, clipped at 140 characters), with a count. Hidden without a changelog, or when the changelog has no `## Unreleased` and there is no milestone.
+  - **Not pushed:** commits on the branch (`ci.branch`, else the checked-out one) that aren't on its upstream, and the age of the newest. Hidden without an upstream (or when it is gone). It costs one `git for-each-ref` per render (`gitBranchState`, a var for tests).
+  - A row with no data is hidden; with nothing to show, the card is hidden. `status.md` gets a `## Waiting for release` block after Recently shipped, with the verdict and reasons on the milestone line.
 - **Recently shipped:** the newest 3 `## vX.Y.Z — date` entries of the changelog, then issues that reached the final status in the last 7 days.
   - The changelog is `workbench.changelog` in `workflow.yaml` (relative to the project root), or `CHANGELOG.md` when that exists.
   - Without either, the page lists the newest 3 git tags.

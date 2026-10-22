@@ -42,6 +42,9 @@ type ScenarioSpec struct {
 	Commits []ScenarioCommit `yaml:"commits"`
 	// Branches are created after the commits, each from main (or From).
 	Branches []ScenarioBranch `yaml:"branches"`
+	// Upstream, when set, is a branch main tracks (git branch -u), for views
+	// that compare main with its upstream (the Status page's Not pushed).
+	Upstream string `yaml:"upstream"`
 	// Generate writes issues into the project next to the fixtures, for
 	// scenarios that need volume (hundreds of issues) without a committed
 	// fixture per issue.
@@ -361,6 +364,9 @@ func (s *Scenario) buildHistory(src string) error {
 				return err
 			}
 		}
+	}
+	if s.Spec.Upstream != "" {
+		return gitIn(s.Proj, "branch", "-q", "--set-upstream-to="+s.Spec.Upstream, "main")
 	}
 	return nil
 }

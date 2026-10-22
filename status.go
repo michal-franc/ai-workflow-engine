@@ -143,6 +143,9 @@ type StatusModel struct {
 	DoneRecent    []DoneRow
 	// CI is the Local CI card; nil without a ci: block.
 	CI *CIRow
+	// ReleaseWait is the Waiting for release card; nil when it has nothing
+	// to show.
+	ReleaseWait *ReleaseWait
 }
 
 // WaitingCount is the number shown on the sidebar's Status entry: the
@@ -284,7 +287,13 @@ func buildStatus(proj *tracker.Project, issues []*tracker.Issue, agents *AgentsM
 	m.CI = ciRow(proj, issues, now)
 	root := projectRoot(proj)
 	m.Next = leadNextSteps(root, tracker.LeadSessionName(proj), now)
-	m.Releases, m.ReleaseSource = recentReleases(root, wf.Workbench.Changelog, statusReleases)
+	text, changelog := readChangelog(root, wf.Workbench.Changelog)
+	m.Releases, m.ReleaseSource = recentReleasesFrom(root, text, changelog, statusReleases)
+	released := ""
+	if len(m.Releases) > 0 {
+		released = m.Releases[0].Version
+	}
+	m.ReleaseWait = buildReleaseWait(proj, wf, cs, byVersion, released, changelog, text, now)
 	return m
 }
 
@@ -404,13 +413,29 @@ func relTo(root, path string) string {
 // recentReleases reads the newest n releases from the changelog (configured,
 // else CHANGELOG.md), else from git tags. source names where they came from.
 func recentReleases(root, configured string, n int) (rels []Release, source string) {
-	name := configured
+	text, name := readChangelog(root, configured)
+	return recentReleasesFrom(root, text, name, n)
+}
+
+// readChangelog reads the changelog (configured, else CHANGELOG.md). name is
+// its slash path, "" when there is none.
+func readChangelog(root, configured string) (text, name string) {
+	name = configured
 	if name == "" {
 		name = "CHANGELOG.md"
 	}
-	if data, err := os.ReadFile(filepath.Join(root, name)); err == nil {
-		if rels = parseChangelog(string(data), n); len(rels) > 0 {
-			return rels, filepath.ToSlash(name)
+	data, err := os.ReadFile(filepath.Join(root, name))
+	if err != nil {
+		return "", ""
+	}
+	return string(data), filepath.ToSlash(name)
+}
+
+// recentReleasesFrom is recentReleases on a changelog already read.
+func recentReleasesFrom(root, text, name string, n int) (rels []Release, source string) {
+	if name != "" {
+		if rels = parseChangelog(text, n); len(rels) > 0 {
+			return rels, name
 		}
 	}
 	if rels = gitTags(root, n); len(rels) > 0 {
@@ -532,6 +557,9 @@ func statusMarkdown(m *StatusModel) string {
 	}
 	if len(m.Releases) == 0 && len(m.DoneRecent) == 0 {
 		b.WriteString("- Nothing in the last 7 days\n")
+	}
+	if m.ReleaseWait != nil {
+		releaseWaitMarkdown(&b, m.ReleaseWait, m.AsOf)
 	}
 
 	b.WriteString("\n## Working on\n")

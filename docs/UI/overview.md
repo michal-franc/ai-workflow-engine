@@ -22,6 +22,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/balance.html` — balance board (`handlers_balance.go`, board built by `tracker.BuildBalanceBoard`). Its sidebar entry shows only when `workbench.balance` is set
 - `templates/status.html` — the project Status page (`handlers_status.go`; the model is `buildStatus` in `status.go`, the "waiting on you" rule is `attention.go`)
 - `templates/decisions.html` — generated decisions index (`handlers_decisions.go`, index built by `tracker.BuildDecisionIndex`)
+- `templates/systems.html`, `templates/system.html` — systems index and the system / family pages (`handlers_systems.go`; the model is built in `systems.go`, the design doc panel in `docsections.go`). See [System pages](#system-pages)
 - `templates/metrics.html` — Metrics view: guard metrics, knobs, branches (`handlers_metrics.go`; readers in `internal/tracker/metrics.go`, `knobs.go`, `branches.go`, `deps.go`)
 - `templates/_metrics_panels.html` — the `system-guard-metrics` and `system-knobs` partials a system page embeds, fed by `systemMetricsPanels` (`handlers_metrics_panels.go`)
 - `static/style.css` — all CSS: theme tokens for dark, Dracula and light, then the shared pieces and each view
@@ -34,11 +35,11 @@ Every project page has the left sidebar from `templates/_sidebar.html`:
 
 - **All projects** link and the **project block**: name, version (projects.yaml `version`) and open-issue count.
 - **New issue**. On list and board it opens the create modal; elsewhere it links to `/?new=1`, which opens the modal on the list.
-- **Views**: Status (with an amber count of what waits on the owner), Board, List, Balance (when `workbench.balance` is set), Decisions and Docs, then a **More** group with Graph, Canvas, Agents, Retros, Stats and GitHub (when `supports_github` is set).
+- **Views**: Status (with an amber count of what waits on the owner), Systems (when any issue has a `system`, or `workbench.systems` is set), Board, List, Balance (when `workbench.balance` is set), Decisions and Docs, then a **More** group with Graph, Canvas, Agents, Retros, Stats and GitHub (when `supports_github` is set).
   - The current view has `aria-current="page"`.
   - More opens on load when the current view is in it; otherwise the browser remembers it open or closed (`localStorage` key `nav.more`).
 - **N agents running**, linking to Agents. It is hidden at 0, and `auto-refresh.js` updates it.
-- A **screen panel**. The Board shows a Systems list here (open counts, each a `?system=` filter).
+- A **screen panel**. The Board shows a Systems list here (open counts, each a `?system=` filter). The systems pages show the same list linking to the system pages, with configured families indented under their system and the current one marked.
 - **Actions** (Spawn lead and the `project_actions:` buttons) and the **theme swatches**, at the bottom.
 
 Below 900px the sidebar stacks above the page. There is no phone menu yet.
@@ -88,7 +89,9 @@ Status colours stay per status (`statusColor`). A status chip tints its colour w
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
 | `/issue/<slug>`   | `detail.html` | Detail with edit, approve, dispatch, comments    |
 | `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
-| `/balance`        | `balance.html` | Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise its sidebar entry is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
+| `/balance`        | `balance.html` | `?system=` scopes it to one system's issues (the system pages link here). Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise its sidebar entry is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
+| `/systems`        | `systems.html` | One card per system, most open first: summary and design doc (from `workbench.systems`), open / done counts, status bar, waiting-on-you count and family chips, plus a "No system" line. See [System pages](#system-pages) |
+| `/systems/<System>[/<Family>]` | `system.html` | One page per system or configured family. Unknown names get a 404 listing the systems. See [System pages](#system-pages) |
 | `/status`         | `status.html` | Where the project stands: progress, work in flight, next steps, what waits on the owner, what shipped. See [Status page](#status-page) |
 | `/status.md`      | (text)        | The Status page as markdown (`text/markdown`), for pasting as a stand-up |
 | `/decisions`      | `decisions.html` | Generated index of every `D-n` decision: how it was made, recording issue, citing issues, state (active / deferred / replaced / replaced · stale). System and state chips (`?system=`, `?state=`); reloads when `/hash` changes. The page renders the `/hash` value it was built from as the polling baseline, so a change made before the first 5 s poll still triggers a reload |
@@ -96,6 +99,45 @@ Status colours stay per status (`statusColor`). A status chip tints its colour w
 | `/metrics`        | `metrics.html` | Guard metrics, knobs and branch overlap, read from the project's files and git (see [Metrics view](#metrics-view)). `/metrics.json` returns the same data; `?sig=1` only the reload signature |
 
 In projects whose `workflow.yaml` defines `types:` ([Types of Work](../Workflow/types.md)), the list and board show a type badge and an "All types" filter (`?type=`), `type` joins the default board card fields, `/graph?type=<t>` draws that type's path, and the detail sidebar has a **Type** select (`POST /p/<project>/issue/<slug>/type`; a `409` with `statuses` asks the human which status on the new path to move to). Without `types:` none of these controls render.
+
+## System pages
+
+`/systems/<System>` joins one system's issues, families, design doc, decisions and balance notes on one read-only page. A family page, `/systems/<System>/<Family>`, is the same page scoped to an umbrella's children inside that system (ui/workbench-sidebar-and-system-pages D-1). The whole page is rebuilt from the repo files on each request, and it reloads when `/hash` changes.
+
+- **Which systems.** A system is every distinct issue `system` value, matched case-insensitively, plus every key under `workbench.systems`. A project without the block still gets a page per system (D-2). Summary, design doc and families need the block, and an unconfigured page shows a hint naming `workbench.systems.<name>`.
+- **Header.**
+  - the summary;
+  - chips: open / done counts (side statuses such as `obsolete` are counted separately), one chip per family (or the system's `umbrella`), and **N waiting on you** from `waitingOnOwner` in `attention.go` (the status page's rule: gate ready, open question, playtest to run);
+  - links: the design doc, Board and List filtered by `?system=`, and the decisions count.
+- **Issues.**
+  - The status bar runs in workflow order without side statuses.
+  - Chips are toned by position: the final status green, the first neutral, the first half blue, the second half amber.
+  - Rows are ordered furthest along first, then by the newest status change. A system page shows 8 rows and a family page 30, with a footer counting the rest and linking to the list.
+- **Families and epics.** Configured families come first, with progress over their children in this system. Then come the epics that the system's issues name in `parent:` (with the whole-epic count when an epic spans systems), and finally the number of open issues in neither.
+- **Design doc sections.** The doc is read from the project root and split on `## ` headings (frontmatter dropped, fences ignored). Each section is marked:
+  - **stale** when it cites a `<slug>#D-n` that the decisions index marks replaced;
+  - **changed / new / removed on branch** when an open branch (`tracker.OpenBranches`) edited it since its merge-base. The branch's copy is compared with the merge-base copy, not with main's, so an old branch that is behind main marks nothing;
+  - **current** otherwise.
+
+  Results are cached by branch head. Section names link to the heading ids that doc pages now render (goldmark `WithAutoHeadingID`). A doc that exists only on branches is reported as such.
+- **Recent decisions.** The 3 newest indexed decisions of the members, with "All N" linking to `/decisions?system=`. When none are indexed but members keep free-form `## Decisions` sections, the panel points at `issue-cli decide`.
+- **Balance notes.** Up to 3 open or unsorted `balance:` notes. They link to `/balance?system=` when the Balance view exists, and the panel is hidden without notes.
+- **Guard metrics and knobs.** `systemMetricsPanels` (`handlers_metrics_panels.go`) builds them from the system's (or family's) `metrics:` / `knobs:` lists. They render through the `system-guard-metrics` / `system-knobs` partials in `templates/_metrics_panels.html`, and are left out when the project has no metric or tuning source or the system lists none.
+
+Config, in `workflow.yaml`:
+
+```yaml
+workbench:
+  systems:
+    UI:
+      summary: "Templates, views and client-side behaviour"
+      design_doc: docs/UI/overview.md
+      families:
+        Workbench:
+          umbrella: ui/workbench-redesign-inbox-system-pages-balance-board-and-decisions-index
+```
+
+`issue-cli process schema` lists every key (`WorkbenchSystem`, `WorkbenchFamily`).
 
 ## Status page
 

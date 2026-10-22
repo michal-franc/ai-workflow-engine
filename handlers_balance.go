@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -57,6 +58,7 @@ type BalanceData struct {
 	Enabled       bool
 	CommentPrefix string
 	State         string // filter
+	System        string // filter: only this system's issues (system pages link here)
 	Chips         []BalanceStateChip
 	Groups        []BalanceGroupView
 	Unsorted      []LooseNoteView
@@ -69,10 +71,17 @@ type BalanceData struct {
 
 // StateURL links the Balance tab with a state filter.
 func (d *BalanceData) StateURL(state string) string {
-	if state == "" {
+	q := url.Values{}
+	if d.System != "" {
+		q.Set("system", d.System)
+	}
+	if state != "" {
+		q.Set("state", state)
+	}
+	if len(q) == 0 {
 		return d.Prefix + "/balance"
 	}
-	return d.Prefix + "/balance?state=" + strings.ReplaceAll(state, " ", "+")
+	return d.Prefix + "/balance?" + q.Encode()
 }
 
 // StateClass is the CSS modifier for a state chip.
@@ -95,6 +104,7 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request, proj *tra
 		Enabled:       wb.HasBalance(),
 		CommentPrefix: wb.Balance.CommentPrefix,
 		State:         tracker.NormalizeBalanceState(r.URL.Query().Get("state")),
+		System:        strings.TrimSpace(r.URL.Query().Get("system")),
 	}
 	if data.CommentPrefix == "" {
 		data.CommentPrefix = tracker.DefaultBalancePrefix
@@ -104,6 +114,15 @@ func (s *Server) handleBalance(w http.ResponseWriter, r *http.Request, proj *tra
 		return
 	}
 
+	if data.System != "" {
+		var scoped []*tracker.Issue
+		for _, issue := range issues {
+			if strings.EqualFold(strings.TrimSpace(issue.System), data.System) {
+				scoped = append(scoped, issue)
+			}
+		}
+		issues = scoped
+	}
 	board := tracker.BuildBalanceBoard(issues, loadIssueCommentsQuiet, data.CommentPrefix, tracker.ClosedIssueFunc(proj))
 	guards := map[string]*tracker.GuardMetric{}
 	if wb.Metrics != (tracker.WorkbenchMetrics{}) {

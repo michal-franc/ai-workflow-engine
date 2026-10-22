@@ -16,10 +16,27 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
-## v0.48.0 — 2026-10-21
+## v0.49.0 — 2026-10-22
 
-- **Breaking:** `--wait`, `--timeout` and `--interval` are removed from `issue-cli transition` and `issue-cli start`. At a human-approval gate an agent tells the human what to approve, then stops and ends its turn; the viewer's approve button nudges its tmux session to resume. Passing one of the flags fails with `--wait was removed in v0.48.0: stop and end your turn; the approval nudge resumes you`. Exit code 3 and the `wait_timeout` telemetry class are gone, `transition --dry-run` suggests stopping instead of a `--wait` command, and `transition --json` no longer has a `wait` object.
+- **Breaking:** `--wait`, `--timeout` and `--interval` are removed from `issue-cli transition` and `issue-cli start`. At a human-approval gate an agent tells the human what to approve, then stops and ends its turn; the viewer's approve button nudges its tmux session to resume. Passing one of the flags fails with `--wait was removed in v0.49.0: stop and end your turn; the approval nudge resumes you`. Exit code 3 and the `wait_timeout` telemetry class are gone, `transition --dry-run` suggests stopping instead of a `--wait` command, and `transition --json` no longer has a `wait` object.
 - The stats sidecar no longer writes `pending_wait` or per-row `wait_started_at`. Older sidecars that hold them still load; the fields are dropped on the next save.
+
+## v0.48.0 — 2026-10-22
+
+- **System pages** (`/p/<project>/systems`, `/systems/<System>`, `/systems/<System>/<Family>`). They are read-only, and every project whose issues set `system:` gets them, with or without config.
+  - **Index:** one card per system, most open first: summary, design doc, open / done counts, a status bar, what waits on you, and family chips. A "No system" line counts the rest.
+  - **System page:**
+    - the header: summary, counts, family or umbrella progress, "N waiting on you", and links to Board, List and Decisions filtered by system;
+    - the issues: furthest along first, with a status bar;
+    - families, then the epics the system's issues belong to (with whole-epic counts when an epic spans systems);
+    - design-doc sections marked **current**, **stale** (the section cites a replaced decision) or **changed / new / removed on branch** (edited on an open branch since it left main; old branches behind main mark nothing);
+    - the latest decisions, open balance notes, and the guard-metrics and knobs panels from the Metrics view.
+  - **Family page:** the same page, scoped to an umbrella's children inside the system.
+  - A system without config shows a hint naming `workbench.systems.<name>`. An unknown name returns a 404 that lists the systems.
+- **`workbench.systems.<name>.families.<family>`**: `umbrella` (required), `summary`, `design_doc`, `metrics`, `knobs`. `issue-cli process schema` lists them.
+- **Sidebar:** **Systems** comes after Status whenever an issue has a system. On the systems pages, its panel lists the systems with their families indented under them.
+- **Balance board** takes `?system=`. **Doc pages** give headings ids, so a section can be linked.
+- issue-viewer's own `workflow.yaml` declares its UI, CLI, Workflow and API systems and the UI › Workbench family.
 
 ## v0.47.0 — 2026-10-22
 

@@ -238,12 +238,12 @@ func TestRemovedWaitFlagsFailWithStopHint(t *testing.T) {
 		args []string
 		want string
 	}{
-		{runTransition, []string{"cli/sample", "--to", "backlog", "--wait"}, "--wait was removed in v0.48.0: stop and end your turn; the approval nudge resumes you"},
-		{runTransition, []string{"cli/sample", "--to", "backlog", "--wait", "--timeout", "9m"}, "--wait was removed in v0.48.0: stop and end your turn; the approval nudge resumes you"},
-		{runTransition, []string{"cli/sample", "--to", "backlog", "-wait=true"}, "--wait was removed in v0.48.0: stop and end your turn; the approval nudge resumes you"},
-		{runTransition, []string{"cli/sample", "--to", "backlog", "--timeout=9m"}, "--timeout was removed in v0.48.0 along with --wait: stop and end your turn; the approval nudge resumes you"},
-		{runStart, []string{"cli/sample", "--wait", "--timeout", "9m"}, "--wait was removed in v0.48.0: stop and end your turn; the approval nudge resumes you"},
-		{runStart, []string{"cli/sample", "--interval", "2s"}, "--interval was removed in v0.48.0 along with --wait: stop and end your turn; the approval nudge resumes you"},
+		{runTransition, []string{"cli/sample", "--to", "backlog", "--wait"}, "--wait was removed in v0.49.0: stop and end your turn; the approval nudge resumes you"},
+		{runTransition, []string{"cli/sample", "--to", "backlog", "--wait", "--timeout", "9m"}, "--wait was removed in v0.49.0: stop and end your turn; the approval nudge resumes you"},
+		{runTransition, []string{"cli/sample", "--to", "backlog", "-wait=true"}, "--wait was removed in v0.49.0: stop and end your turn; the approval nudge resumes you"},
+		{runTransition, []string{"cli/sample", "--to", "backlog", "--timeout=9m"}, "--timeout was removed in v0.49.0 along with --wait: stop and end your turn; the approval nudge resumes you"},
+		{runStart, []string{"cli/sample", "--wait", "--timeout", "9m"}, "--wait was removed in v0.49.0: stop and end your turn; the approval nudge resumes you"},
+		{runStart, []string{"cli/sample", "--interval", "2s"}, "--interval was removed in v0.49.0 along with --wait: stop and end your turn; the approval nudge resumes you"},
 	}
 	for _, c := range cases {
 		ctx, _, stderr := newTestContext(proj, false)

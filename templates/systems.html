@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — Systems</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z' fill='%2358a6ff'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="app">
+{{template "sidebar" (sidebar .Prefix .NavActive)}}
+<div class="app-main">
+    <main class="container wb-page systems" data-testid="systems.index">
+        {{if .NotFound}}
+        <div class="sys-notfound" data-testid="systems.notfound" role="alert">No system or family named <strong>{{.NotFound}}</strong>. Known systems are listed below.</div>
+        {{end}}
+        <div class="page-head sys-index-head">
+            <div>
+                <h1 class="page-title">Systems</h1>
+                <p class="page-sub">{{len .Cards}} system{{if ne (len .Cards) 1}}s{{end}}, most open first. {{if .Configured}}Summaries and design docs come from <code>workbench.systems</code> in workflow.yaml.{{else}}Built from each issue's <code>system</code> field; add <code>workbench.systems</code> to workflow.yaml for summaries, design docs and families.{{end}}</p>
+            </div>
+            {{if .Cards}}
+            <div class="wb-stats">
+                <div class="wb-stat"><span class="wb-stat-num">{{.OpenInSystems}}</span><span class="wb-stat-label">open in systems</span></div>
+                <div class="wb-stat{{if .Waiting}} waiting{{end}}" data-testid="systems.waiting"><span class="wb-stat-num">{{.Waiting}}</span><span class="wb-stat-label">waiting on you</span></div>
+            </div>
+            {{end}}
+        </div>
+
+        {{if not .Cards}}
+        <div class="wb-empty" data-testid="systems.empty">
+            <h3>No systems yet</h3>
+            <p>A system page appears for every <code>system:</code> value in the issues' frontmatter, or for each entry under <code>workbench.systems</code> in workflow.yaml.</p>
+        </div>
+        {{else}}
+        <div class="sys-grid">
+            {{range .Cards}}
+            <a class="card sys-card" href="{{.Href}}" data-testid="systems.card.{{tid .Name}}">
+                <div class="sys-card-head">
+                    <span class="sys-card-name">{{.Name}}</span>
+                    <span class="sys-chips">
+                        {{if .Waiting}}<span class="chip chip-amber">{{.Waiting}} waiting on you</span>{{end}}
+                        <span class="chip">{{.Open}} open · {{.Done}} done{{if .Side}} · {{.Side}}{{end}}</span>
+                    </span>
+                </div>
+                {{if .Summary}}<p class="sys-card-summary">{{.Summary}}</p>{{end}}
+                {{template "system-bar" .Bar}}
+                <div class="sys-card-foot">
+                    {{if .DesignDoc}}<span class="mono muted">{{.DesignDoc}}</span>{{else}}<span></span>{{end}}
+                    <span class="sys-chips">{{range .Families}}<span class="chip chip-blue">{{.Name}}{{if .Progress}} · {{.Progress}}{{end}}</span>{{end}}</span>
+                </div>
+            </a>
+            {{end}}
+        </div>
+        {{if or .NoSystemOpen .NoSystemDone}}
+        <div class="sys-nosystem" data-testid="systems.nosystem">No system: {{.NoSystemOpen}} open, {{.NoSystemDone}} done. These issues have no <code>system</code> field.</div>
+        {{end}}
+        {{end}}
+    </main>
+    {{template "system-reload" .}}
+</div>
+</div>
+</body>
+</html>
+
+{{define "system-bar"}}{{if .}}<div class="sys-bar" data-testid="system.statusbar" role="img" aria-label="{{range $i, $s := .}}{{if $i}}, {{end}}{{$s.Count}} {{$s.Status}}{{end}}">{{range .}}<span class="sys-seg tone-{{if .Tone}}{{.Tone}}{{else}}neutral{{end}}" style="flex: {{.Count}}" title="{{.Count}} {{.Status}}"></span>{{end}}</div>{{end}}{{end}}
+
+{{define "system-reload"}}
+<script>
+// Generated view: reload when any issue file changes (baseline: the hash at
+// render time, so a change before the first poll is not missed).
+(function() {
+    var prefix = {{.Prefix}};
+    var last = {{.Hash}} || null;
+    setInterval(function() {
+        fetch(prefix + '/hash').then(function(r) { return r.json(); }).then(function(d) {
+            if (last !== null && d.hash !== last) location.reload();
+            last = d.hash;
+        }).catch(function() {});
+    }, 5000);
+})();
+</script>
+{{end}}

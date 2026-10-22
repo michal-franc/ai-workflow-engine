@@ -38,9 +38,17 @@ type markerCtx struct {
 
 // newMarkerCtx reads ownerAttention for every issue once.
 func newMarkerCtx(proj *tracker.Project, prefix string, issues []*tracker.Issue, now time.Time) *markerCtx {
+	return newMarkerCtxFor(proj, prefix, issues, issues, now)
+}
+
+// newMarkerCtxFor reads ownerAttention only for the issues a view shows
+// (a system page's rows); blocked_on still resolves against all issues.
+func newMarkerCtxFor(proj *tracker.Project, prefix string, all, shown []*tracker.Issue, now time.Time) *markerCtx {
 	ctx := &markerCtx{prefix: prefix, now: now, bySlug: map[string]*tracker.Issue{}, attention: map[string]Attention{}}
-	for _, issue := range issues {
+	for _, issue := range all {
 		ctx.bySlug[strings.ToLower(issue.Slug)] = issue
+	}
+	for _, issue := range shown {
 		if issue.Status != "done" {
 			ctx.attention[issue.Slug] = ownerAttention(proj, issue)
 		}

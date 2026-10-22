@@ -234,3 +234,42 @@ func SectionText(body, title string) (text string, ok bool) {
 	m := matches[0]
 	return strings.TrimSpace(strings.Join(lines[m.StartLine+1:m.EndLine], "\n")), true
 }
+
+// MarkdownSection is one level-2 section of a markdown document.
+type MarkdownSection struct {
+	Title string // heading text, without the "## "
+	Text  string // content up to the next level-1 or level-2 heading
+}
+
+// SplitSections splits body on its "## " headings, ignoring fenced code.
+// Text before the first one is not returned.
+func SplitSections(body string) []MarkdownSection {
+	lines := strings.Split(body, "\n")
+	fence := computeFenceFlags(lines)
+	var out []MarkdownSection
+	cur := -1
+	start := 0
+	flush := func(end int) {
+		if cur >= 0 {
+			out[cur].Text = strings.TrimSpace(strings.Join(lines[start:end], "\n"))
+		}
+	}
+	for i, line := range lines {
+		if fence[i] {
+			continue
+		}
+		level, title, ok := parseHeadingLine(line)
+		if !ok || level > 2 {
+			continue
+		}
+		flush(i)
+		cur = -1
+		if level == 2 {
+			out = append(out, MarkdownSection{Title: title})
+			cur = len(out) - 1
+			start = i + 1
+		}
+	}
+	flush(len(lines))
+	return out
+}

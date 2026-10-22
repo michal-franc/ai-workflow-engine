@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — {{.System}}{{if .Family}} › {{.Family}}{{end}}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z' fill='%2358a6ff'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="app">
+{{template "sidebar" (sidebar .Prefix .NavActive)}}
+<div class="app-main">
+    <main class="container wb-page system-page">
+        <header class="sys-header" data-testid="system.header">
+            <nav class="sys-crumbs" aria-label="Breadcrumb"><a href="{{.Prefix}}/systems">Systems</a> / {{if .Family}}<a href="{{.SystemHref}}">{{.System}}</a> / {{.Family}}{{else}}{{.System}}{{end}}</nav>
+            <div class="sys-title-row">
+                <div class="sys-title-block">
+                    <h1 class="page-title">{{.Title}}</h1>
+                    {{if .Summary}}<p class="sys-summary" data-testid="system.summary">{{.Summary}}</p>{{end}}
+                </div>
+                <div class="sys-chips">
+                    <span class="chip" data-testid="system.chip.counts">{{.Open}} open · {{.Done}} done{{if .Side}} · {{.Side}}{{end}}</span>
+                    {{with .Umbrella}}<a class="chip {{if .Found}}chip-blue{{else}}chip-red{{end}}" href="{{.Href}}" data-testid="system.chip.umbrella"{{if .Whole}} title="{{.Whole}}"{{end}}>{{.Label}}</a>{{end}}
+                    {{if not .Family}}{{range .Families}}<a class="chip chip-blue" href="{{.Href}}">{{.Name}} · {{.Done}} of {{.Total}} done</a>{{end}}{{end}}
+                    {{if .Waiting.Count}}<a class="chip chip-amber" href="{{.Waiting.Href}}" title="{{.Waiting.Title}}" data-testid="system.chip.waiting">{{.Waiting.Count}} waiting on you</a>{{end}}
+                </div>
+            </div>
+            {{if not .Configured}}
+            <div class="sys-hint" data-testid="system.hint">No summary, design doc or families for {{.System}}. Add them under <code>workbench.systems.{{.System}}</code> in workflow.yaml (<code>issue-cli process schema</code> lists the keys). Everything below is built from the issues alone.</div>
+            {{end}}
+            <div class="sys-links" data-testid="system.links">
+                {{with .Umbrella}}{{if $.Family}}<span>Umbrella <a class="mono" href="{{.Href}}">{{.Slug}}</a>{{if .Whole}} · {{.Whole}}{{end}}</span>{{end}}{{end}}
+                {{if .DesignDoc}}<span>Design doc {{if .DesignDocHref}}<a class="mono" href="{{.DesignDocHref}}">{{.DesignDoc}}</a>{{else}}<span class="mono">{{.DesignDoc}}</span>{{end}}{{if .DocInherited}} (the system's){{end}}</span>{{end}}
+                <span>Open on <a href="{{.BoardHref}}">Board</a> · <a href="{{.ListHref}}">List</a></span>
+                <span><a href="{{.DecisionsHref}}">{{.DecisionsTotal}} decision{{if ne .DecisionsTotal 1}}s{{end}}</a></span>
+                {{if .ConfigKey}}<span>From <span class="mono">workflow.yaml › {{.ConfigKey}}</span></span>{{end}}
+            </div>
+        </header>
+
+        <div class="sys-panels">
+            <div class="sys-col">
+                <section class="card sys-panel" data-testid="system.issues" aria-labelledby="sys-issues-h">
+                    <div class="sys-panel-head"><h2 id="sys-issues-h">Issues in this {{if .Family}}family{{else}}system{{end}}</h2><span class="label">{{if .Family}}Children of the umbrella{{else}}By status{{end}}</span></div>
+                    {{template "system-bar" .Bar}}
+                    {{if .Bar}}<div class="sys-legend">{{range .Bar}}<span class="tone-text-{{if .Tone}}{{.Tone}}{{else}}neutral{{end}}">● {{.Count}} {{.Status}}</span>{{end}}{{if .Side}}<span>{{.Side}} not counted</span>{{end}}</div>{{end}}
+                    {{if .Rows}}
+                    <ul class="sys-rows">
+                        {{range .Rows}}
+                        <li class="sys-row" data-testid="system.issue.{{tid .Issue.Slug}}">
+                            <a class="sys-row-main" href="{{.Href}}"><span class="sys-row-title">{{.Issue.Title}}</span><span class="sys-row-slug mono">{{.Issue.Slug}}</span></a>
+                            <span class="sys-chips">
+                                {{if .Epic}}<span class="chip chip-blue">epic · {{.Epic}}</span>{{end}}
+                                {{if .Agent}}<span class="chip chip-green">agent running</span>{{end}}
+                                {{template "marker-chips" .Markers}}
+                                <span class="chip{{if .Tone}} chip-{{.Tone}}{{end}}">{{.Issue.Status}}</span>
+                            </span>
+                        </li>
+                        {{end}}
+                    </ul>
+                    {{else}}
+                    <p class="muted">No issues {{if .Family}}name the umbrella as their parent in {{.System}}{{else}}in this system yet{{end}}.</p>
+                    {{end}}
+                    <div class="sys-panel-foot" data-testid="system.issues.more"><span class="muted">{{.HiddenNote}}</span><a href="{{.ListHref}}">All {{.Total}} in the list ›</a></div>
+                </section>
+            </div>
+
+            <div class="sys-col">
+                {{if or .Families .Epics}}
+                <section class="card sys-panel" data-testid="system.families" aria-labelledby="sys-fam-h">
+                    <div class="sys-panel-head"><h2 id="sys-fam-h">{{if .Families}}Families{{else}}Epics with issues here{{end}}</h2><span class="label">{{if .Families}}workbench.systems.{{.System}}.families{{else}}From parent: links{{end}}</span></div>
+                    {{range .Families}}
+                    <a class="sys-group" href="{{.Href}}" data-testid="system.family.{{tid .Name}}">
+                        <span class="sys-group-head"><span class="sys-group-name">{{.Name}}</span>{{if .Waiting}}<span class="chip chip-amber">{{.Waiting}} waiting on you</span>{{end}}{{if not .Found}}<span class="chip chip-red">umbrella not found</span>{{end}}</span>
+                        {{if .Summary}}<span class="sys-group-summary">{{.Summary}}</span>{{end}}
+                        <span class="sys-progress"><span class="sys-progress-track"><span style="width: {{.Pct}}%"></span></span><span class="muted">{{.Done}} of {{.Total}} done</span></span>
+                        <span class="mono muted sys-group-slug">umbrella {{.Umbrella}}</span>
+                    </a>
+                    {{end}}
+                    {{if and .Families .Epics}}<span class="label sys-subhead">Other epics with issues here</span>{{end}}
+                    {{range .Epics}}
+                    <a class="sys-group" href="{{.Href}}" data-testid="system.epic.{{tid .Slug}}">
+                        <span class="sys-group-head"><span class="sys-group-name">{{.Title}}</span><span class="chip{{if .Tone}} chip-{{.Tone}}{{end}}">{{.State}}</span></span>
+                        <span class="mono muted sys-group-slug">{{.Slug}}</span>
+                        <span class="sys-progress"><span class="sys-progress-track"><span style="width: {{.Pct}}%"></span></span><span class="muted">{{.Done}} of {{.Total}} {{$.System}} issues done</span></span>
+                        {{if .Whole}}<span class="muted sys-group-summary">{{.Whole}}</span>{{end}}
+                    </a>
+                    {{end}}
+                    <span class="muted">{{.Unfamilied}} open {{.System}} issue{{if ne .Unfamilied 1}}s are{{else}} is{{end}} in no {{if .Families}}family{{else}}epic{{end}}.</span>
+                </section>
+                {{end}}
+
+                {{with .Metrics}}{{template "system-guard-metrics" .}}{{end}}
+                {{with .Knobs}}{{template "system-knobs" .}}{{end}}
+
+                {{with .Doc}}
+                <section class="card sys-panel" data-testid="system.doc" aria-labelledby="sys-doc-h">
+                    <div class="sys-panel-head"><h2 id="sys-doc-h">Design doc sections</h2>{{if .Href}}<a class="label mono" href="{{.Href}}">{{.Path}}</a>{{else}}<span class="label mono">{{.Path}}</span>{{end}}</div>
+                    {{if .Missing}}
+                    <p class="muted" data-testid="system.doc.missing">Not on main{{if .OnBranches}}; it exists on {{len .OnBranches}} branch{{if ne (len .OnBranches) 1}}es{{end}}: <span class="mono">{{index .OnBranches 0}}</span>{{if gt (len .OnBranches) 1}} and others{{end}}{{end}}.</p>
+                    {{else}}
+                    <div class="sys-legend"><span>{{.Current}} current</span>{{if .Changed}}<span class="tone-text-amber">{{.Changed}} changed on {{.Branches}} open branch{{if ne .Branches 1}}es{{end}}</span>{{end}}<span{{if .Stale}} class="tone-text-red"{{end}}>{{.Stale}} stale</span>{{if .ScanSkipped}}<span>branch scan skipped (git too slow)</span>{{end}}</div>
+                    <ul class="sys-rows">
+                        {{range .Sections}}
+                        <li class="sys-row sys-doc-row" data-testid="system.doc.section.{{tid .Title}}" data-state="{{.State}}">
+                            {{if .Href}}<a class="sys-doc-title" href="{{.Href}}">{{.Title}}</a>{{else}}<span class="sys-doc-title">{{.Title}}</span>{{end}}
+                            <span class="sys-chips">
+                                {{if .Note}}{{if .NoteHref}}<a class="mono muted sys-note" href="{{.NoteHref}}">{{.Note}}</a>{{else}}<span class="mono muted sys-note">{{.Note}}</span>{{end}}{{end}}
+                                <span class="chip chip-{{.Tone}}">{{.State}}</span>
+                            </span>
+                        </li>
+                        {{end}}
+                    </ul>
+                    {{end}}
+                </section>
+                {{end}}
+
+                <section class="card sys-panel" data-testid="system.decisions" aria-labelledby="sys-dec-h">
+                    <div class="sys-panel-head"><h2 id="sys-dec-h">Recent decisions</h2>{{if .DecisionsTotal}}<a href="{{.DecisionsHref}}">All {{.DecisionsTotal}} ›</a>{{else}}<span class="label">0 indexed</span>{{end}}</div>
+                    {{range .Decisions}}
+                    <div class="sys-decision" data-testid="system.decision.{{tid .ID}}">
+                        <div class="sys-decision-meta"><span class="mono tone-text-amber">{{.ID}}</span><span class="muted">{{.Date}} · {{.How}}</span>{{if .Replaces}}<span class="chip">{{.Replaces}}</span>{{end}}</div>
+                        <span class="sys-decision-text">{{.Text}}</span>
+                        <a class="mono sys-note" href="{{.Href}}">{{.Slug}}</a>
+                    </div>
+                    {{else}}
+                    <div class="sys-hint">{{if .DecisionsHint}}{{.DecisionsHint}} {{.System}} issue{{if ne .DecisionsHint 1}}s keep{{else}} keeps{{end}} a <code>## Decisions</code> section, but none uses the indexed line <code>- **D-n** · date · how: text</code>. {{end}}Decisions recorded with <code>issue-cli decide</code> show up here.</div>
+                    {{end}}
+                </section>
+
+                {{if .Balance}}
+                <section class="card sys-panel" data-testid="system.balance" aria-labelledby="sys-bal-h">
+                    <div class="sys-panel-head"><h2 id="sys-bal-h">Balance notes</h2>{{if .BalanceHref}}<a href="{{.BalanceHref}}">Balance board ›</a>{{else}}<span class="label">balance: comments</span>{{end}}</div>
+                    {{range .Balance}}
+                    <div class="sys-decision">
+                        <div class="sys-decision-meta">{{if .Metric}}<span class="mono">{{.Metric}}</span>{{end}}<span class="chip{{if eq .State "open"}} chip-amber{{end}}">{{.State}}</span><span class="muted">{{.Date}}</span></div>
+                        <span class="sys-decision-text">{{.Text}}</span>
+                        <a class="mono sys-note" href="{{.Href}}">{{.Slug}}</a>
+                    </div>
+                    {{end}}
+                </section>
+                {{end}}
+            </div>
+        </div>
+    </main>
+    {{template "system-reload" .}}
+</div>
+</div>
+</body>
+</html>

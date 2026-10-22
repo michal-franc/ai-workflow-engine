@@ -20,7 +20,7 @@ func (e *exitCodeError) Error() string { return e.Msg }
 
 // removedWaitVersion is the release that removed --wait (decision
 // ui/workbench-board-card-markers-and-agent-footer#D-5).
-const removedWaitVersion = "v0.48.0"
+const removedWaitVersion = "v0.49.0"
 
 // stopAtGate is what an agent does at a human-approval gate instead of
 // blocking: the viewer's approve button nudges its tmux session to resume.

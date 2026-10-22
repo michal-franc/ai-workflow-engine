@@ -1,13 +1,16 @@
 {{/*
 Card marker partials (markers.go), shared by every view that shows issue
 cards or rows: the workboard, and the system pages.
-  {{template "markers" .Markers}}       []Marker
+  {{template "markers" .Markers}}       []Marker, wrapped in a .markers row
+  {{template "marker-chips" .Markers}}  the same chips, bare, for a row of chips
   {{template "epic-progress" .Progress}} *CardProgress
   {{template "agent-footer" .Agent}}     *CardAgent
   {{template "card-legend"}}             the sidebar legend panel
 */}}
 
-{{define "markers"}}{{if .}}<div class="markers">{{range .}}{{if .Href}}<a href="{{.Href}}"{{else}}<span{{end}} class="chip marker marker-{{.Tone}}{{if .Struck}} marker-struck{{end}}" data-testid="marker.{{.Kind}}" title="{{.Title}}">{{.Label}}{{if .Href}}</a>{{else}}</span>{{end}}{{end}}</div>{{end}}{{end}}
+{{define "markers"}}{{if .}}<div class="markers">{{template "marker-chips" .}}</div>{{end}}{{end}}
+
+{{define "marker-chips"}}{{range .}}{{if .Href}}<a href="{{.Href}}"{{else}}<span{{end}} class="chip marker marker-{{.Tone}}{{if .Struck}} marker-struck{{end}}" data-testid="marker.{{.Kind}}" title="{{.Title}}">{{.Label}}{{if .Href}}</a>{{else}}</span>{{end}}{{end}}{{end}}
 
 {{define "epic-progress"}}{{if .}}<div class="epic-progress">
     <span class="epic-progress-text">{{if .Own}}{{if .Total}}{{.Done}} of {{.Total}} children done{{else}}no children yet{{end}}{{else}}{{.Done}} of {{.Total}} · in <a href="{{.Href}}" title="{{.Title}}">{{.Title}}</a>{{end}}</span>

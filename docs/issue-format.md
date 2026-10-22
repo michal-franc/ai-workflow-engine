@@ -171,6 +171,27 @@ pass: 3
 
 The viewer's **Balance** tab (`/p/<project>/balance`) is generated from these comments and is shown only when `workflow.yaml` has a `workbench.balance` block.
 
+## Systems and families
+
+The `system` field groups issues into a **system page** (`/p/<project>/systems/<System>`), and every distinct value gets one even when nothing is configured. To add a summary, a design doc and **families**, give the system an entry under `workbench.systems` in `workflow.yaml`. A family is a group of mechanics inside a system: an umbrella issue, whose children (`parent: <umbrella>`) in that system make up the family page.
+
+```yaml
+workbench:
+  systems:
+    UI:                                  # matches system: "UI" (case-insensitive)
+      summary: "Templates, views and client-side behaviour"
+      design_doc: docs/UI/overview.md    # relative to the project root
+      metrics: [page-load]               # guard metrics for this page (metric views)
+      knobs: ["Theme.*"]                 # tuning knobs, globs allowed
+      families:
+        Workbench:
+          umbrella: ui/workbench-redesign-inbox-system-pages-balance-board-and-decisions-index   # required
+          summary: "The workbench redesign"
+          design_doc: ""                 # empty: the system's doc applies
+```
+
+Paths must stay inside the project, and a family without an `umbrella` is rejected. `issue-cli process schema` lists every key. A design-doc section that cites a replaced decision (`<slug>#D-n`) is marked stale on the system page. See [System pages](UI/overview.md#system-pages).
+
 ## Images
 
 Standard markdown images render in issue bodies and doc pages:

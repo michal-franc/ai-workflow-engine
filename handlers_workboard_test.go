@@ -324,3 +324,19 @@ func TestCardMarkers_Parked(t *testing.T) {
 		t.Errorf("parked marker = %+v", got)
 	}
 }
+
+func TestSystemPage_RowsCarryCardMarkers(t *testing.T) {
+	f := workboardFixture(t, time.Now())
+	withMockTmuxSessions(t, nil)
+	ts := newTestServer(t, []tracker.Project{f.proj})
+	defer ts.Close()
+	code, html := getBody(t, ts.URL+"/p/wb/systems/Economy")
+	if code != 200 {
+		t.Fatalf("status %d", code)
+	}
+	for _, want := range []string{`data-testid="marker.blocked-on"`, "blocked on ready", `data-testid="marker.needs-revision"`, "needs revision · D-5", `data-testid="marker.gate"`} {
+		if !strings.Contains(html, want) {
+			t.Errorf("system page rows: missing %s", want)
+		}
+	}
+}

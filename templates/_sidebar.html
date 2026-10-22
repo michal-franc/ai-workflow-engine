@@ -37,7 +37,11 @@ A page with a screen panel renders "sidebar-open", its panel, then
         <span class="label">Systems</span>
         {{range .Systems}}
         {{if .Href}}
-        <a href="{{.Href}}" class="sidebar-panel-row" data-testid="nav.panel.system.{{tid .Name}}">{{.Name}} <span>{{.Count}}</span></a>
+        {{if .Family}}
+        <a href="{{.Href}}" class="sidebar-panel-row family{{if .Active}} active{{end}}" data-testid="nav.panel.family.{{tid .Name}}"{{if .Active}} aria-current="page"{{end}}>{{.Name}} <span>{{.Count}}</span></a>
+        {{else}}
+        <a href="{{.Href}}" class="sidebar-panel-row{{if .Active}} active{{end}}" data-testid="nav.panel.system.{{tid .Name}}"{{if .Active}} aria-current="page"{{end}}>{{.Name}} <span>{{.Count}}</span></a>
+        {{end}}
         {{else}}
         <span class="sidebar-panel-row muted">{{.Name}} <span>{{.Count}}</span></span>
         {{end}}

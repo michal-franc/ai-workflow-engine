@@ -22,7 +22,9 @@ renames `## Unreleased` to `## vX.Y.Z — YYYY-MM-DD` and pushes, and the
 release-marker Action tags and builds it. Pushes with `## Unreleased` on top
 release nothing.
 
-## Unreleased
+## v0.52.0 — 2026-10-22
+
+Focus: project status pages. Two Safe core (0.53) fixes that landed early ship with it: one lead per project, and the bootstrap workflow lookup.
 
 - **One lead per project: sub-leads are gone.** Every worker reports to the project lead, epic children included, and epics get no base branch of their own: children branch from `main` and ship to `main` like any issue.
   - `issue-cli lead spawn --epic` fails with one line, and the `lead/spawn` endpoint answers `422` to a body naming an epic.

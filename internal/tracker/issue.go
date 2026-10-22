@@ -1085,6 +1085,30 @@ func CheckByIndex(body, section string, index int) (newBody string, item Checkbo
 	return strings.Join(lines, "\n"), *target, false, true
 }
 
+// EditCheckboxText replaces the text of the box ref names (short "D3" or
+// long "Design#3", as ResolveCheckboxRef reads them), keeping its tick state
+// and indentation. A leading copy of the box's own id in text is dropped.
+// Returns the new body and the box as it was.
+func EditCheckboxText(body, ref, text string) (string, CheckboxItem, error) {
+	items := ListCheckboxes(body)
+	item, st := ResolveCheckboxRef(items, ref)
+	if st != RefFound {
+		var ids []string
+		for _, it := range items {
+			if it.ID != "" {
+				ids = append(ids, it.ID)
+			}
+		}
+		return body, CheckboxItem{}, fmt.Errorf("no checkbox %q; ids in this issue: %s", ref, strings.Join(ids, " "))
+	}
+	text = StripCheckboxID(item.ID, strings.TrimSpace(text))
+	lines := strings.Split(body, "\n")
+	line := lines[item.Line]
+	marker := strings.Index(line, "- [")
+	lines[item.Line] = line[:marker+len("- [ ]")] + " " + text
+	return strings.Join(lines, "\n"), item, nil
+}
+
 // MatchUncheckedByText returns every unchecked checkbox whose label contains
 // query (case-insensitive), scoped to a "## " section when section is
 // non-empty. Boxes inside fenced code blocks are ignored.

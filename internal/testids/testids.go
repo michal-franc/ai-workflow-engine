@@ -81,6 +81,7 @@ var IDs = []string{
 	"status.waiting.question.*",
 	"status.waiting.not_ready",
 	"status.waiting.ci",
+	"status.waiting.cli_bugs",
 	"status.ci",
 	"status.ci.state",
 	"status.ci.line",

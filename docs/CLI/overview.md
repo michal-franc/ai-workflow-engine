@@ -54,7 +54,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli process schema`       | Print the `workflow.yaml` schema (fields, action types, validation rules) |
 | `issue-cli process changes`      | Print the release history (last 20 versions) |
 | `issue-cli process playtest [web\|game]` | Print the shared playtest-session contract, or one of the two worked examples (web app with chromedp, game engine). The guides are embedded; `docs/patterns/playtest/` holds the same files |
-| `issue-cli report-bug "..."`     | File a bug report about issue-cli itself |
+| `issue-cli report-bug "..."`     | Report a bug in issue-cli or the engine: it becomes a `cli-bug` issue on the engine board (see [`report-bug`](#report-bug)) |
 | `issue-cli retrospective <slug>` | Save a workflow retrospective            |
 | `issue-cli data <sub> <slug>`    | Per-issue structured data store — see [Per-issue Data Store](../data-store.md) |
 | `issue-cli workflow init`        | Bootstrap a new project: writes `workflow.yaml` from a bundled template and scaffolds `issues/`, `docs/` |
@@ -336,6 +336,39 @@ The test names come from the command's `failures:` regex. While red, `start` and
 - for Human Testing, always: the human approves that in the viewer.
 
 These checks read the environment and the session name; they are guardrails for agents, not security.
+
+### `report-bug`
+
+`issue-cli report-bug "<what went wrong>"` is for bugs in issue-cli or the workflow engine, from any project. A project's own bugs go on its own board with `issue-cli create`.
+
+**Where it goes.** The engine project in the same `projects.yaml`: `engine_project: <slug>` at the top, else the project whose `repo:` is `michal-franc/ai-workflow-engine` (or the old `michal-franc/ai-native-project-viewer`). The reporter needs no setup, and `--project` is optional.
+
+**What it files.** An issue in the engine project at the bugfix type's first status (`idea`), system `CLI`, label `cli-bug`, with:
+
+- the first sentence as the title (cut near 80 characters)
+- a `## Report` section: the full text, plus the reporter's project and issue slug, agent, issue-cli version and OS, and the command. The command is `--cmd "<command line>"` if given, otherwise the agent's previous issue-cli call from its clilog (if it's under 10 minutes old)
+- `reported_from: <project>:<issue slug>` and `reported_by: <agent>`
+
+The `## Repro` section is left for triage, so the bugfix gate still needs a human repro.
+
+**Dedupe.** If an open `cli-bug` issue has the same title after normalizing (lowercase, punctuation dropped, spaces collapsed), the report becomes a `report:` comment on it instead. If the only match is closed (done or parked), a new issue `<title> (again)` is filed, linking the old one. A lock makes two agents reporting at once produce one issue.
+
+**No engine project, or its issues directory is missing.** The report is saved in `${XDG_DATA_HOME:-~/.local/share}/issue-cli/bug-reports/` (per user) and the output says `saved locally, not sent` and why. The next report-bug that finds the engine sends the queue, oldest first, and so does `issue-cli report-bug --send`. Until then, the Status page shows *N issue-cli bug reports not sent* under Waiting on you.
+
+**Old reports.** `issue-cli report-bug --import ~/Work/bugs/*.json` files the old JSON reports with the same dedupe. It finds the reporter's project from the `issue_slug`, and moves each filed file into `imported/` next to it, which the Retros page skips.
+
+**Output.** Agent-facing; it always names the issue or the queue file:
+
+```
+✓ Reported as new cli-bug issue cli/<slug> on the issue-viewer board
+✓ Already reported: added your report to cli-bug issue cli/<slug> on the issue-viewer board (3 reports)
+saved locally, not sent: ~/.local/share/issue-cli/bug-reports/<file>.json
+✓ Sent 2 queued report(s): cli/<a>, cli/<b>
+```
+
+`--json` prints `{"result": "created|commented|queued", "project", "slug", "file", "reports", "queued", "reason", "imported": [...], "sent_from_queue": [...], "still_queued"}`.
+
+The `Sender` interface in `internal/clibug` is where a second transport (GitHub issues, for machines without the board) plugs in.
 
 ### `process transitions`
 

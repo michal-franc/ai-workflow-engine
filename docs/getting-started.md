@@ -103,6 +103,8 @@ issue-viewer -config projects.yaml
 - `terminal:`, e.g. `none`
 - `tmux_session_per_project: true`, which gives each project its own tmux session for its lead and workers
 
+`engine_project: <slug>` names the project that `issue-cli report-bug` files issue-cli bugs into. Without it, report-bug uses the project whose `repo:` is `michal-franc/ai-workflow-engine`; see [`report-bug`](CLI/overview.md#report-bug).
+
 With one terminal and tmux, as on a Mac, see [One terminal, a session per project](agent-dispatch.md#one-terminal-a-session-per-project).
 
 For a quick look at a single folder without a config file:

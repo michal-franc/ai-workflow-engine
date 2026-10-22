@@ -80,10 +80,12 @@ These are safe to run without asking the user:
 
 ## CRITICAL: NEVER modify issue .md files manually. Always use issue-cli commands.
 
-## If you encounter a bug in issue-cli itself, report it:
+## If you hit a bug in issue-cli or the workflow engine itself, report it:
   issue-cli report-bug "description of what went wrong"
-This saves a bug report under bugs/ in the server root.
-The current issue slug is attached automatically for dispatched sessions.
+It becomes a cli-bug issue on the issue-viewer board, or a comment on the
+existing one; the output names the issue. Your project and issue slug are
+attached automatically. Bugs in this project itself go on this board with
+issue-cli create, not report-bug.
 
 ## Workflow review
 

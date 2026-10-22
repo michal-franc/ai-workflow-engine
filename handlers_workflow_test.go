@@ -278,7 +278,7 @@ func TestBuildAgentPrompt_IncludesCurrentStatusGuidanceAndRetrospectiveTrigger(t
 		"Subsystem workflow for Combat:",
 		"Missing system-specific instructions:",
 		"issue-cli report-bug",
-		"bugs/ in the server root",
+		"cli-bug issue on the issue-viewer board",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("expected prompt to contain %q\n\n%s", want, prompt)
@@ -358,5 +358,22 @@ func TestWorkflowDesignerRemoved(t *testing.T) {
 	}
 	if _, err := os.Stat("static/workflow-designer-v2.js"); err == nil {
 		t.Error("static/workflow-designer-v2.js still exists")
+	}
+}
+
+func TestLoadRelatedToolBugsSkipsImported(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	report := []byte(`{"ts":"2026-10-22T10:00:00Z","description":"x","tool":"issue-cli","issue_slug":"cli/a"}`)
+	os.MkdirAll(filepath.Join("bugs", "imported"), 0755)
+	os.WriteFile(filepath.Join("bugs", "one.json"), report, 0644)
+	os.WriteFile(filepath.Join("bugs", "imported", "two.json"), report, 0644)
+
+	bugs, err := loadRelatedToolBugs([]*tracker.Issue{{Slug: "cli/a"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bugs) != 1 || bugs[0].FileName != "one.json" {
+		t.Fatalf("bugs = %+v, want only one.json (imported/ is filed already)", bugs)
 	}
 }

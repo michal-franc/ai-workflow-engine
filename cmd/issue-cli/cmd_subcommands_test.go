@@ -674,51 +674,6 @@ func TestRunRetrospectiveRequiresBody(t *testing.T) {
 	}
 }
 
-// ------------------- report-bug -------------------
-
-func TestRunReportBugWritesFile(t *testing.T) {
-	proj, _, _ := makeSimpleProject(t, "in progress")
-	bugRoot := t.TempDir()
-	t.Setenv("ISSUE_VIEWER_SERVER_PWD", bugRoot)
-	t.Setenv("ISSUE_VIEWER_ISSUE_SLUG", "cli/sample")
-
-	ctx, stdout, _ := newTestContext(proj, false)
-	if err := runReportBug(ctx, []string{"transition rejected valid input"}); err != nil {
-		t.Fatalf("runReportBug: %v", err)
-	}
-	if !strings.Contains(stdout.String(), "Bug reported to") {
-		t.Fatalf("missing bug-reported confirmation: %q", stdout.String())
-	}
-
-	bugDir := filepath.Join(bugRoot, "bugs")
-	entries, err := os.ReadDir(bugDir)
-	if err != nil {
-		t.Fatalf("read bug dir: %v", err)
-	}
-	if len(entries) != 1 {
-		t.Fatalf("bug dir entries = %d, want 1", len(entries))
-	}
-	raw, _ := os.ReadFile(filepath.Join(bugDir, entries[0].Name()))
-	var entry map[string]interface{}
-	if err := json.Unmarshal(raw, &entry); err != nil {
-		t.Fatalf("unmarshal bug file: %v\n%s", err, raw)
-	}
-	if entry["description"] != "transition rejected valid input" {
-		t.Fatalf("description = %v", entry["description"])
-	}
-	if entry["issue_slug"] != "cli/sample" {
-		t.Fatalf("issue_slug = %v", entry["issue_slug"])
-	}
-}
-
-func TestRunReportBugRequiresDescription(t *testing.T) {
-	proj, _, _ := makeSimpleProject(t, "in progress")
-	ctx, _, _ := newTestContext(proj, false)
-	if err := runReportBug(ctx, nil); err == nil || !strings.Contains(err.Error(), "requires a description") {
-		t.Fatalf("expected description-required error, got %v", err)
-	}
-}
-
 // ------------------- search -------------------
 
 func TestRunSearchMatchesTitle(t *testing.T) {

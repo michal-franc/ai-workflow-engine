@@ -108,6 +108,8 @@ issue-cli set-meta <slug> --key waiting --clear
 
 Workflow-managed fields (`title`, `status`, `human_approval`, `queued_approval`, `approved_for`, `started_at`, `done_at`, `number`, `repo`, `created`, `labels`) are refused — use the dedicated commands (`transition`, `update --title`, etc.) for those.
 
+Every single-value write (`set-meta`, `update --title`, the detail page edits, transition fields) stores the value as one double-quoted YAML line, escaping `\`, `"`, newlines, carriage returns and tabs. Any value reads back exactly as written, including `$1`, `${x}`, `: #` or a leading `-`.
+
 `queued_approval` is written by the detail page's **Approved for backlog and in progress** button next to `human_approval: backlog`. When the `backlog` approval is consumed by its transition, the queued approval becomes the new `human_approval`, so the agent's next `start` continues into `in progress` without a second wait. Any other transition drops it.
 
 ## Scoring Fields

@@ -22,6 +22,10 @@ renames `## Unreleased` to `## vX.Y.Z — YYYY-MM-DD` and pushes, and the
 release-marker Action tags and builds it. Pushes with `## Unreleased` on top
 release nothing.
 
+## Unreleased
+
+- Canvas: lanes start folded, one compact row each with a count per status for every version. Click a lane head (or Expand all) to see its cards; open lanes stay in the URL (`?open=`). A new Epic select (`?epic=`) shows one epic and its sub-epics, unfolded. System rows fold the same way.
+
 ## v0.52.0 — 2026-10-22
 
 Focus: project status pages. Two Safe core (0.53) fixes that landed early ship with it: one lead per project, and the bootstrap workflow lookup.

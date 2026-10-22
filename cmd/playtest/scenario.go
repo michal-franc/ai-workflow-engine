@@ -33,6 +33,33 @@ type ScenarioSpec struct {
 	Issues   string `yaml:"issues"`
 	Workflow string `yaml:"workflow"`
 	Docs     string `yaml:"docs"`
+	// Root, when set, is a folder copied into the project root as is: files a
+	// view reads beside the issues (sessions/ handoff notes, a changelog,
+	// playtest/ sessions and .playtest/ runs).
+	Root string `yaml:"root"`
+	// Commits are applied on main after the first commit, in order: each
+	// overlays its folder on the project and commits it.
+	Commits []ScenarioCommit `yaml:"commits"`
+	// Branches are created after the commits, each from main (or From).
+	Branches []ScenarioBranch `yaml:"branches"`
+}
+
+// ScenarioCommit overlays Files (a folder in the scenario) and commits it
+// with Message.
+type ScenarioCommit struct {
+	Files   string `yaml:"files"`
+	Message string `yaml:"message"`
+}
+
+// ScenarioBranch is a branch the scenario creates: with Worktree it gets a
+// worktree under .worktrees/ (the name's slashes become dashes), then its
+// Commits, then Uncommitted overlaid and left uncommitted (worktree only).
+type ScenarioBranch struct {
+	Name        string           `yaml:"name"`
+	From        string           `yaml:"from"`
+	Worktree    bool             `yaml:"worktree"`
+	Commits     []ScenarioCommit `yaml:"commits"`
+	Uncommitted string           `yaml:"uncommitted"`
 }
 
 // LoadScenarioSpec reads dir/scenario.yaml and fills defaults.
@@ -100,10 +127,11 @@ type Scenario struct {
 	Port int
 	Base string // http://127.0.0.1:<port>
 
-	bins  *Binaries
-	board *exec.Cmd
-	log   io.Writer
-	env   []string
+	bins    *Binaries
+	board   *exec.Cmd
+	commits int // scenario commits made so far (pins their dates)
+	log     io.Writer
+	env     []string
 }
 
 // StartScenario copies the fixtures from scenarioDir/<name> into a fresh
@@ -150,6 +178,11 @@ func StartScenario(scenarioDir, name string, bins *Binaries, log io.Writer) (*Sc
 			return fail(fmt.Errorf("scenario %s: docs: %v", name, err))
 		}
 	}
+	if spec.Root != "" {
+		if err := copyTree(filepath.Join(src, spec.Root), s.Proj); err != nil {
+			return fail(fmt.Errorf("scenario %s: root: %v", name, err))
+		}
+	}
 	// terminal: none keeps dispatch and lead spawns headless: otherwise the
 	// board falls back to `i3-msg exec alacritty`, which opens a window on the
 	// owner's desktop attached to the real tmux server.
@@ -168,9 +201,14 @@ func StartScenario(scenarioDir, name string, bins *Binaries, log io.Writer) (*Sc
 		{"add", "-A"},
 		{"commit", "-q", "-m", "scenario " + name},
 	} {
-		if out, err := s.command("git", args...).CombinedOutput(); err != nil {
+		cmd := s.command("git", args...)
+		cmd.Env = append(cmd.Env, s.nextCommitDate()...)
+		if out, err := cmd.CombinedOutput(); err != nil {
 			return fail(fmt.Errorf("git %s: %v: %s", args[0], err, out))
 		}
+	}
+	if err := s.buildHistory(src); err != nil {
+		return fail(fmt.Errorf("scenario %s: %v", name, err))
 	}
 	s.board = s.command(bins.Viewer, "-config", s.ConfigPath(), "-port", fmt.Sprint(s.Port))
 	s.board.Stdout, s.board.Stderr = log, log
@@ -182,6 +220,85 @@ func StartScenario(scenarioDir, name string, bins *Binaries, log io.Writer) (*Sc
 		return fail(fmt.Errorf("board on %s: %v", s.Base, err))
 	}
 	return s, nil
+}
+
+// buildHistory applies the spec's commits on main and creates its branches.
+func (s *Scenario) buildHistory(src string) error {
+	gitIn := func(dir string, args ...string) error {
+		cmd := s.command("git", args...)
+		cmd.Dir = dir
+		if args[0] == "commit" {
+			cmd.Env = append(cmd.Env, s.nextCommitDate()...)
+		}
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, out)
+		}
+		return nil
+	}
+	commit := func(dir string, c ScenarioCommit) error {
+		if err := copyTree(filepath.Join(src, c.Files), dir); err != nil {
+			return fmt.Errorf("commit %q: %v", c.Message, err)
+		}
+		msg := c.Message
+		if msg == "" {
+			msg = "scenario commit"
+		}
+		if err := gitIn(dir, "add", "-A"); err != nil {
+			return err
+		}
+		return gitIn(dir, "commit", "-q", "-m", msg)
+	}
+	// Worktrees live inside the project: keep them out of its commits.
+	if len(s.Spec.Branches) > 0 {
+		if err := os.WriteFile(filepath.Join(s.Proj, ".git", "info", "exclude"), []byte(".worktrees/\n"), 0o644); err != nil {
+			return err
+		}
+	}
+	for _, c := range s.Spec.Commits {
+		if err := commit(s.Proj, c); err != nil {
+			return err
+		}
+	}
+	for _, b := range s.Spec.Branches {
+		from := b.From
+		if from == "" {
+			from = "main"
+		}
+		dir := s.Proj
+		if b.Worktree {
+			dir = filepath.Join(s.Proj, ".worktrees", strings.ReplaceAll(b.Name, "/", "-"))
+			if err := gitIn(s.Proj, "worktree", "add", "-q", "-b", b.Name, dir, from); err != nil {
+				return err
+			}
+		} else if err := gitIn(s.Proj, "checkout", "-q", "-b", b.Name, from); err != nil {
+			return err
+		}
+		for _, c := range b.Commits {
+			if err := commit(dir, c); err != nil {
+				return err
+			}
+		}
+		if b.Uncommitted != "" && b.Worktree {
+			if err := copyTree(filepath.Join(src, b.Uncommitted), dir); err != nil {
+				return err
+			}
+		}
+		if !b.Worktree {
+			if err := gitIn(s.Proj, "checkout", "-q", "main"); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// nextCommitDate pins a scenario commit's author and committer dates (an
+// hour apart from 2026-10-01 12:00 UTC), so commit shas and the dates views
+// show are the same on every run.
+func (s *Scenario) nextCommitDate() []string {
+	d := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC).Add(time.Duration(s.commits) * time.Hour).Format(time.RFC3339)
+	s.commits++
+	return []string{"GIT_AUTHOR_DATE=" + d, "GIT_COMMITTER_DATE=" + d}
 }
 
 // ConfigPath is the scenario's projects.yaml.

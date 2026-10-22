@@ -1,0 +1,78 @@
+{
+  "run": {
+    "date": "2026-10-01",
+    "n": 200,
+    "command": "make balance"
+  },
+  "metrics": [
+    {
+      "id": "full-holds",
+      "value": 7,
+      "n": 200,
+      "verdict": "Pass",
+      "probe": "Pacing"
+    },
+    {
+      "id": "stage-share",
+      "value": 43,
+      "n": 186,
+      "verdict": "Pass",
+      "probe": "Pacing"
+    },
+    {
+      "id": "open-ladder",
+      "name": "Stage 1 opened by the ladder",
+      "group": "Headline",
+      "band": {
+        "min": 15,
+        "unit": "pct"
+      },
+      "value": 11,
+      "n": 200,
+      "verdict": "Near",
+      "probe": "Pacing"
+    },
+    {
+      "id": "stuck",
+      "value": 10,
+      "probe": "Pacing"
+    },
+    {
+      "id": "spawn-kills",
+      "name": "Spawn kills per half",
+      "group": "Headline",
+      "band": {
+        "max": 0.1,
+        "unit": "count"
+      },
+      "value": 0.28,
+      "verdict": "Fail",
+      "probe": "Pacing"
+    },
+    {
+      "id": "dominant-plays",
+      "name": "Stages with a play fastest against every defence",
+      "group": "Headline",
+      "value": 1,
+      "verdict": "Fail",
+      "probe": "PlayMatrix"
+    },
+    {
+      "id": "tier2-wait",
+      "value": 132,
+      "verdict": "Fail",
+      "probe": "Economy"
+    },
+    {
+      "id": "richest-share",
+      "name": "Richest fighter's share of team gold",
+      "group": "Slice",
+      "band": {
+        "max": 30,
+        "unit": "pct"
+      },
+      "value": 27,
+      "probe": "Economy"
+    }
+  ]
+}

@@ -40,7 +40,7 @@ type WorkCard struct {
 	Age         string // time in the current status
 	AgeTitle    string
 	AgeOld      bool
-	Progress    *EpicProgress
+	Progress    *CardProgress
 	Markers     []Marker
 	Agent       *CardAgent
 	Search      string // lower-case title, slug and system for the search box
@@ -76,7 +76,7 @@ type WorkColumn struct {
 	Folded      bool
 	FoldHref    string
 	FoldWaiting int
-	Progress    *EpicProgress
+	Progress    *CardProgress
 	// MoreHref lists the whole column (the list view, or the epic's page)
 	// once it has more than workboardColumnCap cards.
 	MoreHref string

@@ -138,9 +138,9 @@ func needsRevision(issue *tracker.Issue) (why string, ok bool) {
 	return "", false
 }
 
-// EpicProgress is a progress line on a card: an epic's own children, or the
+// CardProgress is a progress line on a card: an epic's own children, or the
 // epic a child belongs to.
-type EpicProgress struct {
+type CardProgress struct {
 	Own   bool   // the card is the epic
 	Title string // the epic's title (for a child's card)
 	Href  string
@@ -149,7 +149,7 @@ type EpicProgress struct {
 }
 
 // Pct is the done share for the bar width.
-func (p EpicProgress) Pct() int {
+func (p CardProgress) Pct() int {
 	if p.Total == 0 {
 		return 0
 	}
@@ -158,7 +158,7 @@ func (p EpicProgress) Pct() int {
 
 // epicProgress is the issue's own epic progress when it is an epic, else its
 // parent epic's; nil when neither applies.
-func epicProgress(prefix string, issue *tracker.Issue, issues []*tracker.Issue) *EpicProgress {
+func epicProgress(prefix string, issue *tracker.Issue, issues []*tracker.Issue) *CardProgress {
 	count := func(slug string) (done, total int) {
 		for _, c := range tracker.EpicChildren(issues, slug) {
 			total++
@@ -170,11 +170,11 @@ func epicProgress(prefix string, issue *tracker.Issue, issues []*tracker.Issue) 
 	}
 	if tracker.IsEpic(issue, issues) {
 		done, total := count(issue.Slug)
-		return &EpicProgress{Own: true, Done: done, Total: total}
+		return &CardProgress{Own: true, Done: done, Total: total}
 	}
 	if parent := tracker.FindIssue(issues, tracker.ParentSlug(issue)); parent != nil {
 		done, total := count(parent.Slug)
-		return &EpicProgress{Title: parent.Title, Href: prefix + "/issue/" + parent.Slug, Done: done, Total: total}
+		return &CardProgress{Title: parent.Title, Href: prefix + "/issue/" + parent.Slug, Done: done, Total: total}
 	}
 	return nil
 }

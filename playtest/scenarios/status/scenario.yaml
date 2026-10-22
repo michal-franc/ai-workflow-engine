@@ -1,0 +1,17 @@
+# Status page: one epic (ui/atlas-redesign, in progress) with three
+# children: ui/route-planner-panel (in design, Design ticked: a ready gate),
+# ui/offline-map-tiles (in design, Design open: not ready) and
+# ui/search-as-you-type (human-testing, with a playtest session and no
+# judge run). ui/saved-places-sync waits on a question: comment.
+# cli/export-routes-as-gpx has sat in shipping since January (stats
+# sidecar), backlog has a high and a low issue, cli/voice-directions is
+# parked with a reason. root/
+# holds the lead's handoff note (## Next), a 4-release CHANGELOG.md and the
+# playtest session.
+title: Status page - progress, work in flight, next steps, waiting on you
+project:
+  name: Atlas
+  slug: atlas
+issues: tracker
+workflow: workflow.yaml
+root: root

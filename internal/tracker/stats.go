@@ -38,7 +38,7 @@ type ApprovalRecord struct {
 type StatsStore struct {
 	Transitions []TransitionStat `json:"transitions"`
 	// LastApproval is scratch state consumed by the next transition row that
-	// uses the approval. Sidecars written before v0.45.0 may also hold
+	// uses the approval. Sidecars written before v0.48.0 may also hold
 	// pending_wait and per-row wait_started_at (from the removed --wait);
 	// encoding/json ignores them on load and the next save drops them.
 	LastApproval *ApprovalRecord `json:"last_approval,omitempty"`

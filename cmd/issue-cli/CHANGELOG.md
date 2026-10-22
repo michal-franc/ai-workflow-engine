@@ -16,10 +16,36 @@ Entries are newest-first. Each entry has the form:
     - user-visible change
     - another user-visible change
 
+## v0.48.0 — 2026-10-21
+
+- **Breaking:** `--wait`, `--timeout` and `--interval` are removed from `issue-cli transition` and `issue-cli start`. At a human-approval gate an agent tells the human what to approve, then stops and ends its turn; the viewer's approve button nudges its tmux session to resume. Passing one of the flags fails with `--wait was removed in v0.48.0: stop and end your turn; the approval nudge resumes you`. Exit code 3 and the `wait_timeout` telemetry class are gone, `transition --dry-run` suggests stopping instead of a `--wait` command, and `transition --json` no longer has a `wait` object.
+- The stats sidecar no longer writes `pending_wait` or per-row `wait_started_at`. Older sidecars that hold them still load; the fields are dropped on the next save.
+
+## v0.47.0 — 2026-10-22
+
+- **Metrics view** (`/p/<project>/metrics`). It is read-only over JSON files the project writes, documented in `docs/workbench-files.md`.
+  - **Guard metrics** (`workbench.metrics.probe_results`, optional `targets`): band, master value, verdict and each open branch's value. Metrics are matched by id. A branch value comes from the branch's worktree file, or from the copy committed on a branch with no worktree. A branch value notes when its run is behind the branch, when the branch changes the band, when a metric exists only on the branch, and when the branch run doesn't measure it.
+  - **Knobs** (`workbench.tuning`, now a list of knob export files): each knob's value, its comment, its history on main (`30 → 20 · Play calls balance pass 2`) and the open branches that change it.
+  - **Branches** (any git project): open worktrees and `work/*` branches, each compared with its epic's base or the branch it was forked from, plus the files several branches change.
+  - In the sidebar, the view comes after Balance and shows "N off" in red. A git project without metric or knob files gets it as **Branches**.
+- **`workbench.systems`** (and their families) take `metrics:` and `knobs:` lists. A system page can embed the new `system-guard-metrics` and `system-knobs` panels.
+- **Balance board:** metric groups show their band and master value.
+- **`depends_on` frontmatter:** `issue-cli set-meta <slug> --key depends_on --value "a/b, c/d"` sets it, and refuses unknown slugs, suggesting close ones. The detail page shows Depends on, Depended on by, Decided by (cited decisions with their state) and Shared files.
+- **`issue-cli show`** prints the same links, a "Guard metrics for <system>" line and `== Shared files ==` for the issue's open branch.
+- **Playtest scenarios** take `commits:` and `branches:` (worktrees, uncommitted files). Scenario commits have fixed dates, so `REPEAT=2` runs match.
+
+## v0.46.0 — 2026-10-22
+
+- The `issue-approve` Claude Code mod (0.2.0) adds **▶ Playtest** beside the approve buttons when the issue waits on the owner's playtest and the worktree has a `make playtest` target: it runs the playtest in the agent's worktree, then **✓ Report** runs `make playtest-report APPLY=1`. Running sessions pick it up with `/reload-plugins`.
+
 ## v0.45.0 — 2026-10-21
 
-- **Breaking:** `--wait`, `--timeout` and `--interval` are removed from `issue-cli transition` and `issue-cli start`. At a human-approval gate an agent tells the human what to approve, then stops and ends its turn; the viewer's approve button nudges its tmux session to resume. Passing one of the flags fails with `--wait was removed in v0.45.0: stop and end your turn; the approval nudge resumes you`. Exit code 3 and the `wait_timeout` telemetry class are gone, `transition --dry-run` suggests stopping instead of a `--wait` command, and `transition --json` no longer has a `wait` object.
-- The stats sidecar no longer writes `pending_wait` or per-row `wait_started_at`. Older sidecars that hold them still load; the fields are dropped on the next save.
+- **Status page** (`/p/<project>/status`), the first sidebar entry. It shows where the project stands without asking the lead: overall, per-version and per-epic progress; the issues in flight with their agent and time in status (amber at 7 days, red at 14); the project lead's `## Next` list, the backlog by priority and parked issues with their reason; what waits on you; and the newest 3 releases plus issues done in the last 7 days.
+- "Waiting on you" is one rule for every view: gates where your approval is the only thing missing, human-testing issues with a playtest session and no judge run, and issues whose newest comment is a `question:`. The sidebar's Status entry shows the count on every page.
+- **Copy as markdown** and `/p/<project>/status.md` give the same summary as text, a stand-up to paste.
+- `workflow.yaml` gains `workbench.changelog` (default `CHANGELOG.md`) for the releases the Status page lists; without one it falls back to git tags. issue-viewer points it at `cmd/issue-cli/CHANGELOG.md`.
+- The project lead's brief asks for a `## Next` section in every handoff note and names `status.md` as the stand-up.
+- Playtest scenarios take `root:`, a folder copied into the project root (handoff notes, a changelog, playtest sessions).
 
 ## v0.44.0 — 2026-10-21
 

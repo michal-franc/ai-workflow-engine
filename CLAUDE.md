@@ -53,6 +53,9 @@ handlers_dispatch.go        — agent dispatch + prompt builders
 handlers_github.go          — github page, fetch, import
 handlers_stats.go           — /stats workflow token-cost view
 handlers_agents.go          — /agents canvas, agents.json, agent detail, open-in-tmux and lead spawn endpoints
+handlers_metrics.go         — /metrics view (guard metrics, knobs, branches), metrics.json; handlers_metrics_panels.go feeds the system-page partials
+handlers_status.go          — /status page and /status.md (model in status.go: buildStatus, statusMarkdown)
+attention.go                — what waits on the owner (ownerAttention, waitingOnOwner): Status page, sidebar count, system pages, board markers
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
 internal/agentrun/          — shared tmux/worktree launcher used by the server and issue-cli (leads, dispatch)
@@ -153,6 +156,7 @@ Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI
 - [Agent Dispatch](docs/agent-dispatch.md) — terminal config, approval notifications, lead sessions, epic worktrees
 - [GitHub Integration](docs/github-integration.md) — sync, issue reference, auto-close
 - [Per-issue Data Store](docs/data-store.md) — sidecar JSON, `<!-- data -->` marker, `issue-cli data` commands
+- [Workbench Files](docs/workbench-files.md) — metric runs, targets and knob exports the Metrics view reads, branch matching, hot files, `depends_on`
 - [Workflow Stats](docs/workflow-stats.md) — `/stats` tab, per-issue stats sidecar, token-cost estimation
 - [The Lead Session](docs/patterns/lead-session.md) — lead agents: project lead and per-epic sub-leads (`issue-cli lead`, `approve`), routing, authority, handoff, epics on a base branch, agents canvas
 - [Playtest Sessions](docs/patterns/playtest/README.md) — an issue's manual checks as YAML sessions: shared contract, [web app example](docs/patterns/playtest/web-app.md) (this repo, chromedp), [game example](docs/patterns/playtest/game.md); `issue-cli process playtest`

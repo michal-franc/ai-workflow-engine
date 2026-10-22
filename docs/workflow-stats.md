@@ -38,7 +38,7 @@ A per-issue sidecar `<issue>.stats.json` is written next to the markdown file ev
 
 Together these give exact gate latency: status entry (the previous row's `ts`) → approval (`approved_at`) → transition (`ts`). The Stats tab does not show them yet.
 
-Sidecars written before v0.45.0 may also hold `pending_wait` and per-row `wait_started_at`, written by the removed `issue-cli transition|start --wait`. They are ignored on load and dropped the next time the sidecar is saved.
+Sidecars written before v0.48.0 may also hold `pending_wait` and per-row `wait_started_at`, written by the removed `issue-cli transition|start --wait`. They are ignored on load and dropped the next time the sidecar is saved.
 
 `tracker.MarkIssueDoneOnce` (the rare multi-step "mark as done" fast-path) bypasses `ApplyTransitionToFile` and so does not record per-step stats. Acceptable for now — this path is uncommon.
 

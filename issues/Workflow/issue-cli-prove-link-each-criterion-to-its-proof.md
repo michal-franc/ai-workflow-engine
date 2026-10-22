@@ -45,11 +45,17 @@ Links are stored in the data sidecar. Running `prove` again on a criterion adds 
 
 | Link | Check | Shown as |
 |:--|:--|:--|
-| `--test` | the test exists in the branch and passed in the last recorded `make validate` / local CI run | passed · failed · not found |
+| `--test` | the test function exists on the branch, and a `tests:` comment was posted after the branch's last commit | reported after the last change · stale (code changed since) · not found |
 | `--step` | the step exists in a session for this issue and passed in its latest `results.yaml` (`ux-test` or judge) | passed · failed · not run |
 | `--commit` | reachable from the work branch or the merge | found · not found |
 | `--value` | none; shown as the agent wrote it, marked "reported" | reported |
 | `--shot` | the file exists; refused when the project has a playtest runner or the criterion isn't marked visual | shown · missing |
+
+Owner, 2026-10-22: the test result comes from `tests:` comments. Agents already post one before
+`testing → shipping` (`has_comment_prefix: tests:`). The check compares its time with the branch's last commit, so it
+needs the full comment timestamps from `cli/clilog-and-stats-record-what-the-timeline-needs`. The comment is free
+text, so "passed" is the agent's report; what the engine adds is that the test exists and the report is newer than
+the code.
 
 ## Agent asks (workflow.yaml)
 
@@ -59,8 +65,6 @@ Links are stored in the data sidecar. Running `prove` again on a criterion adds 
   to have at least one link that passes its check.
 - Shipping prompt: `risk:` comments for anything to watch after the ship.
 
-## Open questions
+## Open question
 
-- Where does "the test passed" come from: the `tests:` comment's run, local CI's run on the branch, or a test report
-  `make validate` writes?
 - Is a criterion with only `--value` proven, or does it need a test or step as well?

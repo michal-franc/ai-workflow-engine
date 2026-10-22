@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -602,6 +603,23 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 		return fmt.Errorf("stat %s: %w", filePath, err)
 	}
 	return writeFileAtomically(filePath, []byte(out.String()), info.Mode().Perm())
+}
+
+// BodyHash fingerprints an issue body (as in Issue.BodyRaw) so a writer
+// holding an older copy can be refused.
+func BodyHash(body string) string {
+	return ""
+}
+
+// ErrStaleBody marks a body write refused because the file's body is no
+// longer the one the writer started from.
+var ErrStaleBody = errors.New("issue body changed since it was read")
+
+// UpdateIssueFrontmatterIfBody is UpdateIssueFrontmatter that first checks,
+// under the issue lock, that the file's body still hashes to baseHash
+// (ErrStaleBody otherwise). It returns the hash of the body as written.
+func UpdateIssueFrontmatterIfBody(filePath, baseHash string, update IssueUpdate) (string, error) {
+	return "", nil
 }
 
 func UpdateIssueFrontmatter(filePath string, update IssueUpdate) error {

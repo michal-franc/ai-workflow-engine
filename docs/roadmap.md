@@ -54,6 +54,7 @@ Until 2026-10-22 every push to main cut a release (v0.34 → v0.50 in two days).
 - Local CI tests local main after every merge (`make validate`; `make ux-test` as the slow tier, `issue-cli ci run --tier slow`) and reports red to the Status page, the merged issues and the lead ([Workflow: Local CI](workflow.md#local-ci)). Nobody pushes while `issue-cli ci status` says main is red.
 - The lead pushes main to origin when the owner asks. The release-marker Action releases nothing while `## Unreleased` is the top heading.
 - When a version's last issue ships, the lead renames `## Unreleased` to `## v0.N.0 — YYYY-MM-DD`, adds a one-line focus summary, and pushes (with the owner's go-ahead). The Action tags it, writes the GitHub Release and builds the binaries.
+- The Status page's **Waiting for release** card (and `status.md`) shows the `## Unreleased` entries, the commits not pushed, and whether the current milestone is ready to cut. If it isn't, the card says what blocks it: open issues, CI not green on the head, or nothing under `## Unreleased`.
 - An urgent fix can be released alone as a patch (`v0.N.1`) the same way.
 
 ## Later

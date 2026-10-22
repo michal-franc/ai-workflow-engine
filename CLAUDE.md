@@ -63,6 +63,7 @@ handlers_metrics.go         — /metrics view (guard metrics, knobs, branches), 
 handlers_status.go          — /status page and /status.md (model in status.go: buildStatus, statusMarkdown)
 handlers_pages.go           — project pages (workbench.status_page / pages): frame, /pages/<n>, sandboxed /page-raw/, /status.json
 ci_watch.go                 — local CI watcher: polls each project's CI branch, starts detached `issue-cli ci run`
+release_wait.go             — Status "Waiting for release" card: milestone readiness, ## Unreleased entries, unpushed commits (one git call)
 ci_view.go                  — local CI on the pages: Status card (last runs boxes), waiting entry, ci-red markers
 attention.go                — what waits on the owner (ownerAttention, waitingOnOwner): Status page, sidebar count, system pages, board markers
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)

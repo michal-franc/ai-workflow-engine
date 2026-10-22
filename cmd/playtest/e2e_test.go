@@ -205,3 +205,42 @@ func TestOverlayEndToEnd(t *testing.T) {
 		}
 	}
 }
+
+// TestOverlayMovesOnToTheNextSession: with another session queued, the last
+// verdict ends this one without Alt+Q, so the next session's steps start.
+func TestOverlayMovesOnToTheNextSession(t *testing.T) {
+	r, b := newTestRunner(t)
+	s := loadRepoSession(t, "playtest-self")
+	auto, _, err := r.UXTest(b, s, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.moreSessions = true
+	r.judgeHook = func(j *judge) {
+		waitFor(t, j, "the dock", `document.querySelector('#__pt .dock') && document.querySelector('#__pt .dock').textContent.indexOf('EXPECT') >= 0`)
+		var ok any
+		pageEval(t, j, `window.__ptSend({type:'pass'}).then(function(){}), JSON.stringify(1)`, &ok)
+		waitFor(t, j, "step TP12", `document.querySelector('#__pt .steps li.cur') && document.querySelector('#__pt .steps li.cur').textContent.indexOf('TP12') >= 0 && !document.querySelector('#__pt .busy')`)
+		// TP12 wants the owner to drag first; skipping is a verdict too.
+		pageEval(t, j, `window.__ptSend({type:'skip'}).then(function(){}), JSON.stringify(1)`, &ok)
+	}
+	done := make(chan *Results, 1)
+	go func() {
+		res, _, err := r.Playtest(b, s, auto)
+		if err != nil {
+			t.Error(err)
+		}
+		done <- res
+	}()
+	select {
+	case res := <-done:
+		if res == nil || res.Step("TP11").Status != StatusPass || res.Step("TP12").Status != StatusSkip {
+			t.Errorf("TP11 = %+v, TP12 = %+v", res.Step("TP11"), res.Step("TP12"))
+		}
+	case <-time.After(2 * time.Minute):
+		t.Fatal("Playtest kept waiting for Alt+Q with another session queued")
+	}
+	if r.windowClosed {
+		t.Error("the window was not closed")
+	}
+}

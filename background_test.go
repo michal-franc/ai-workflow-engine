@@ -209,3 +209,16 @@ func writeScript(t *testing.T, path, body string) {
 		t.Fatal(err)
 	}
 }
+
+func TestWatchCI_StopsOnShutdown(t *testing.T) {
+	s := &Server{}
+	ctx, cancel := context.WithCancel(context.Background())
+	bg := newBackground(ctx)
+	bg.Go("ci watcher", func() { s.watchCI(ctx.Done()) })
+	cancel()
+	deadline, stop := context.WithTimeout(context.Background(), 5*time.Second)
+	defer stop()
+	if left := bg.Wait(deadline); left != nil {
+		t.Fatalf("still running after shutdown: %v", left)
+	}
+}

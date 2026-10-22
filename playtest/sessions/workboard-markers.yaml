@@ -1,0 +1,133 @@
+session: workboard-markers
+issue: ui/workbench-board-card-markers-and-agent-footer
+title: Workboard cards carry markers, epic progress and the agent on them
+scenario: workboard
+
+session_checks:
+  viewports: [1440x900, 1280x800]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: Each card shows its markers, read from frontmatter, labels and the workflow
+    setup:
+      - open: /p/{project}/workboard
+    checks:
+      - visible: [workboard.page, workboard.column.in_design, workboard.column.backlog, workboard.column.parked, workboard.column.done]
+      - text_contains: { target: workboard.card.ui/shop-screen.markers, text: approve backlog }
+      - absent: workboard.card.ui/lineup-panel.markers
+      - text_contains: { target: workboard.card.ui/player-card.markers, text: blocked on ui/shop-screen }
+      - text_contains: { target: workboard.card.sim/match-length.markers, text: ui/card-art done }
+      - text_contains: { target: workboard.card.sim/match-length.markers, text: sim/nope (not found) }
+      - text_contains: { target: workboard.card.sim/events.markers, text: needs revision }
+      - text_contains: { target: workboard.card.sim/lanes.markers, text: needs revision · D-5 }
+      - text_equals: { target: workboard.column.parked.count, text: "1" }
+      - text_contains: { target: workboard.card.ui/player-card.epic, text: 1 of 2 · in Redesign }
+      - text_contains: { target: workboard.card.ui/redesign.epic, text: 1 of 2 children done }
+      - text_contains: { target: workboard.card.ui/player-card.age, text: d }
+      - text_equals: { target: workboard.column.done.count, text: "1" }
+
+  - id: TP5
+    title: The footer names the agent on the card and what it is doing
+    setup:
+      - tmux: [new-session, -d, -s, agent-ui-shop-screen, cat]
+      - tmux: [new-session, -d, -s, agent-ui-lineup-panel, cat]
+      - tmux: [new-session, -d, -s, agent-sim-balance, cat]
+      - cli: [comment, sim/balance, "question: does gold carry over between stages?"]
+      - open: /p/{project}/workboard
+    checks:
+      - text_contains: { target: workboard.card.ui/shop-screen.agent, text: agent waiting on your approval }
+      - text_contains: { target: workboard.card.ui/lineup-panel.agent, text: agent working }
+      - text_contains: { target: workboard.card.sim/balance.agent, text: agent asked you a question }
+      - text_contains: { target: workboard.card.sim/balance.markers, text: question }
+      - text_contains: { target: workboard.card.ui/redesign.agent, text: agent stopped }
+      - absent: workboard.card.sim/events.agent
+      - text_contains: { target: workboard.filter.waiting, text: Waiting on you · 2 }
+
+  - id: TP6
+    title: Group by epic and system, and the waiting, version and search filters narrow the cards
+    setup:
+      - open: /p/{project}/workboard
+    act:
+      - click: workboard.group.epic
+      - wait_for: { url: { contains: group=epic } }
+      - check: { selected: workboard.group.epic }
+      - check: { visible: [workboard.column.ui/redesign, workboard.column.none] }
+      - check: { count: { pattern: workboard.card.*, within: workboard.column.ui/redesign, equals: 1 } }
+      - click: workboard.group.system
+      - wait_for: { url: { contains: group=system } }
+      - check: { visible: [workboard.column.sim, workboard.column.ui] }
+      - click: workboard.filter.waiting
+      - wait_for: { url: { contains: waiting=1 } }
+      - check: { count: { pattern: workboard.card.*, equals: 1 } }
+      - check: { visible: workboard.card.ui/shop-screen }
+      - open: /p/{project}/workboard
+      - select: { target: workboard.filter.version, value: "0.2" }
+      - wait_for: { url: { contains: version=0.2 } }
+      - check: { count: { pattern: workboard.card.*, equals: 1 } }
+      - open: /p/{project}/workboard
+      - type: { target: workboard.search, text: lanes }
+    checks:
+      - visible: workboard.card.sim/lanes
+      - absent: [workboard.card.sim/events, workboard.card.ui/shop-screen]
+
+  - id: TP7
+    title: Board in the sidebar is the workboard, with the card legend; the classic board is under More
+    setup:
+      - open: /p/{project}/workboard
+    act:
+      - check: { selected: nav.tab.workboard }
+      - check: { visible: [nav.panel.legend, nav.panel] }
+      - click: nav.more
+      - click: nav.tab.board
+      - wait_for: { url: { contains: /board } }
+    checks:
+      - selected: nav.tab.board
+      - visible: board.filters
+      - absent: nav.panel.legend
+
+  - id: TP8
+    title: issue-cli transition and start reject --wait with what to do instead
+    setup:
+      - open: /p/{project}/workboard
+    checks:
+      - cli: { args: [transition, ui/shop-screen, --to, backlog, --wait], exit: 1, contains: "--wait was removed" }
+      - cli: { args: [start, ui/lineup-panel, --wait], exit: 1, contains: "stop and end your turn" }
+      - issue: { slug: ui/shop-screen, field: status, equals: in design }
+
+  - id: TP10
+    title: The board stays readable with many issues; idle piles fold, quiet cards wait behind Show all, long columns link to the list
+    setup:
+      - open: /p/{project}/workboard
+    act:
+      - check: { text_equals: { target: workboard.column.idea.count, text: "3" } }
+      - check: { absent: [workboard.card.sim/idea-a, workboard.card.sim/chore-01, workboard.card.sim/creeps] }
+      - check: { count: { pattern: workboard.card.*, within: workboard.column.backlog, equals: 3 } }
+      - check: { text_contains: { target: workboard.filter.all, text: 13 quiet } }
+      - check: { text_equals: { target: workboard.column.backlog.quiet, text: +12 quiet } }
+      - click: workboard.filter.all
+      - wait_for: { url: { contains: all=1 } }
+      - check: { selected: workboard.filter.all }
+      - check: { count: { pattern: workboard.card.*, within: workboard.column.backlog, equals: 12 } }
+      - check: { text_contains: { target: workboard.column.backlog.more, text: 3 more in the list } }
+      - click: workboard.column.backlog.more
+      - wait_for: { url: { contains: status=backlog } }
+    checks:
+      - selected: nav.tab.list
+
+  - id: TP9
+    title: "Owner's eye: the workboard reads like the mockups and the markers make sense on real cards"
+    from: TP5
+    targets:
+      - { id: workboard.card.ui/shop-screen, note: A ready gate with its agent waiting }
+      - { id: workboard.card.ui/player-card, note: Blocked, in an epic, amber age }
+      - { id: nav.panel.legend, note: The card legend }
+    do: |
+      1. Compare the board with the mockups (issue ## Mockups: Main.png, Cards.png, ByEpic.png)
+      2. Switch Group by to Epic and to System, then back to Status
+      3. Hover a few chips and the agent footers to read their tooltips
+    expect: |
+      The cards are easy to scan: what waits on you is amber, what is blocked is red,
+      and every card says how long it has sat and which agent is on it.
+    why: Layout, tone and wording need the owner's eye; the machine checks cover the data.

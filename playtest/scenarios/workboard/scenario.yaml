@@ -1,0 +1,15 @@
+# Board card markers: a ready gate (ui/shop-screen) and an unready one
+# (ui/lineup-panel); a child of the ui/redesign epic that is blocked on the
+# ready gate and has sat in progress since 1 Oct; a backlog issue whose
+# blocked_on names a done issue and a missing one; needs-revision by label and
+# by field; a parked issue with its reason; sim/balance, where a step posts a
+# question: comment; twelve quiet backlog chores (no marker, agent or amber
+# age) and three ideas, for the folded piles and Show all. Sessions fake live
+# agents with
+# `tmux: [new-session, -d, -s, <name>, cat]` on the private server.
+title: Card markers and agent footers
+project:
+  name: Workboard Demo
+  slug: wbd
+issues: tracker
+workflow: workflow.yaml

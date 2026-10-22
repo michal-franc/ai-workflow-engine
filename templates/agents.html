@@ -75,7 +75,7 @@
     }
 
     var stateLabel = {
-        'working': 'working', 'at-gate': 'at gate', 'question': 'question',
+        'working': 'working', 'idle': 'idle', 'at-gate': 'at gate', 'question': 'question',
         'stopped': 'stopped', 'live': 'live', 'not-running': 'not running'
     };
 
@@ -254,6 +254,10 @@
         }
         var html = '<h2 data-testid="agents.panel.title">' + esc(n.name) + '</h2><p class="agents-sub">' + esc(n.kind.replace('-', ' ')) + ' · ' + esc(stateLabel[n.state] || n.state)
             + (n.display !== n.name ? ' · tmux ' + esc(n.display) : '') + '</p>';
+        if (n.last_call) {
+            html += '<p class="agents-sub" data-testid="agents.panel.last_call" title="' + esc(n.last_cmd || '') + '">last issue-cli call '
+                + esc(new Date(n.last_call).toLocaleTimeString()) + (n.last_cmd ? ': <code>' + esc(n.last_cmd.split(' ').slice(0, 2).join(' ')) + '</code>' : '') + '</p>';
+        }
         if (n.issue) {
             html += '<p><a data-testid="agents.panel.issue" href="' + esc(n.issue.url) + '">' + esc(n.issue.title) + '</a> '
                 + '<span class="agent-issue-status" style="background:' + esc(n.issue.color) + '">' + esc(n.issue.status) + '</span></p>';
@@ -362,7 +366,12 @@
         document.getElementById(p[0]).addEventListener('change', function(ev) { opts[p[1]] = ev.target.checked; render(); });
     });
 
-    load();
+    // ?agent=<session> (the board's agent footer links here) shows that agent
+    // in the panel without opening its terminal.
+    var wanted = new URLSearchParams(location.search).get('agent');
+    load().then(function() {
+        if (wanted && findNode(wanted)) { selected = wanted; render(); renderPanel(); }
+    });
     setInterval(load, 5000);
     setInterval(tick, 1000);
 })();

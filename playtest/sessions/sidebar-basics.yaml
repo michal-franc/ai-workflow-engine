@@ -12,14 +12,14 @@ steps:
   - id: TP4
     title: The sidebar lists the main views with the current one active, the rest under a closed More
     setup:
-      - open: /p/{project}/board
+      - open: /p/{project}/workboard
     checks:
-      - visible: [nav.sidebar, nav.project, nav.create, nav.tab.board, nav.tab.list, nav.tab.decisions, nav.tab.docs, nav.more, nav.actions, actions.spawn_lead]
-      - selected: nav.tab.board
+      - visible: [nav.sidebar, nav.project, nav.create, nav.tab.workboard, nav.tab.list, nav.tab.decisions, nav.tab.docs, nav.more, nav.actions, actions.spawn_lead]
+      - selected: nav.tab.workboard
       - text_contains: { target: nav.project, text: Playtest Demo }
       - text_contains: { target: nav.tab.list, text: "4" }
       # No workbench.balance in this scenario, and More starts closed.
-      - absent: [nav.tab.balance, nav.tab.graph, nav.tab.stats]
+      - absent: [nav.tab.balance, nav.tab.board, nav.tab.graph, nav.tab.stats]
 
   - id: TP5
     title: More opens to the secondary views, and a view inside it opens More on load
@@ -27,7 +27,7 @@ steps:
       - open: /p/{project}/
     act:
       - click: nav.more
-      - check: { visible: [nav.tab.graph, nav.tab.canvas, nav.tab.agents, nav.tab.retros, nav.tab.stats] }
+      - check: { visible: [nav.tab.board, nav.tab.graph, nav.tab.canvas, nav.tab.agents, nav.tab.retros, nav.tab.stats] }
       - click: nav.tab.graph
       - wait_for: { url: { contains: /graph } }
     checks:

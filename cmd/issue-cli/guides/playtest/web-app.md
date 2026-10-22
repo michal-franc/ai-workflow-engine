@@ -79,6 +79,31 @@ Each step at each viewport starts a fresh scenario:
 Slugs come from the issue title (`card-titles-overflow-on-a-phone`), with
 the system folder lower-cased (`ui/…`), not from the file name.
 
+### Generated issues
+
+A scenario that needs volume (hundreds of issues) lists them under
+`generate:` in `scenario.yaml` instead of committing one fixture per issue.
+The runner writes them into `proj/issues/` next to the fixtures, before it
+pins the times:
+
+```yaml
+generate:
+  - { count: 300, dir: Sim, title: "Sim idea %03d", status: idea, created: "2026-08-01" }
+  - { count: 6, dir: Sim, title: "Revise %02d", status: backlog, extra: "labels:\n  - needs-revision" }
+  - { count: 25, dir: Sim, title: "Build %02d", status: in progress, body: "## Plan\n- [ ] Build it" }
+```
+
+- `title` is a fmt pattern with one `%d`, numbered from 1. The slug comes
+  from it as usual (`sim/sim-idea-001`).
+- `dir` is both the folder under `issues/` and the `system`. Leave it out
+  for issues at the root.
+- `created` pins the mtime like a fixture's `created:`.
+- `extra` is raw frontmatter added to each issue, and `body` is the body.
+- A bad entry (no count, no status, or a title without one `%`) fails
+  `make playtest-check`.
+- **Example:** `playtest/scenarios/workboard-scale/` (~520 issues for the
+  workboard).
+
 ### Git history and branches
 
 A scenario that needs git history or open branches (a view over branches, knob history) adds these keys to `scenario.yaml`, next to `root:`. Each `files:` names a folder in the scenario:
@@ -197,6 +222,12 @@ A list such as `visible: [a, b]` becomes one check per item.
   - F10 hides the dock, and Alt+Q quits.
 - **Results:** the playtest reuses the last ux-test of the same build, or
   runs one first. It writes a `-judge` run.
+- **Several sessions** (an issue with two sessions):
+  - When every judgement step of a session has a verdict, the next session
+    starts in its own tab. The previous tab is blanked.
+  - After the last session, Alt+Q (or closing the window) finishes.
+  - Closing the window part-way stops the run, and names the sessions
+    still to judge.
 
 ## Report
 

@@ -310,6 +310,9 @@ func (r *Runner) Playtest(b *Browser, s *Session, auto *Results) (*Results, stri
 				j.record(ctx, m.Type, m.Note)
 				if n := j.next(); n >= 0 {
 					j.start(ctx, n)
+				} else if r.moreSessions {
+					fmt.Fprintf(r.Out, "every judgement step of %s has a verdict; on to the next session\n", s.Name)
+					return j.finish()
 				} else {
 					j.mu.Lock()
 					j.cur = -1
@@ -354,6 +357,7 @@ func (r *Runner) Playtest(b *Browser, s *Session, auto *Results) (*Results, stri
 		case <-alive.C:
 			if _, err := chromedp.Targets(b.ctx); err != nil || pg.ctx.Err() != nil {
 				fmt.Fprintln(r.Out, "the window was closed; saving what was judged")
+				r.windowClosed = true
 				return j.finish()
 			}
 		}
@@ -416,7 +420,23 @@ func cmdPlaytest(repo string, o opts, out, errw io.Writer) int {
 		return 2
 	}
 	defer b.Close()
-	for _, s := range sel {
+	for i, s := range sel {
+		if r.windowClosed {
+			var left []string
+			for _, rest := range sel[i:] {
+				if hasJudgement(rest) {
+					left = append(left, rest.Name)
+				}
+			}
+			if len(left) > 0 {
+				fmt.Fprintf(out, "the window was closed before %s; run make playtest again to judge them\n", strings.Join(left, ", "))
+			}
+			break
+		}
+		r.moreSessions = false
+		for _, rest := range sel[i+1:] {
+			r.moreSessions = r.moreSessions || hasJudgement(rest)
+		}
 		res, dir, err := r.Playtest(b, s, autos[s.Name])
 		if err != nil {
 			fmt.Fprintln(errw, "playtest:", err)
@@ -436,4 +456,14 @@ func cmdPlaytest(repo string, o opts, out, errw io.Writer) int {
 	}
 	fmt.Fprintln(out, "next: make playtest-report ISSUE=<slug> (add APPLY=1 to tick and comment)")
 	return 0
+}
+
+// hasJudgement reports whether the session has a step for the owner.
+func hasJudgement(s *Session) bool {
+	for _, st := range s.Steps {
+		if st.Judgement() {
+			return true
+		}
+	}
+	return false
 }

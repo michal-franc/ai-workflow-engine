@@ -36,9 +36,14 @@ type AgentNode struct {
 	// bound to an issue, e.g. a project action).
 	Kind string `json:"kind"`
 	Live bool   `json:"live"`
-	// State is working, at-gate, question or stopped for workers; live or
-	// not-running for leads.
+	// State is working, idle, at-gate, question or stopped for workers; live
+	// or not-running for leads. Idle: live, but no issue-cli call for
+	// agentIdleAfter.
 	State string `json:"state"`
+	// LastCall is the worker's newest issue-cli call (RFC 3339), LastCmd what
+	// it ran; empty when its clilog can't be read.
+	LastCall string `json:"last_call,omitempty"`
+	LastCmd  string `json:"last_cmd,omitempty"`
 	// Gate is the status awaiting the human's approval when State is at-gate.
 	Gate          string      `json:"gate,omitempty"`
 	Epic          string      `json:"epic,omitempty"`
@@ -187,17 +192,13 @@ func (s *Server) buildAgentsModel(proj *tracker.Project, prefix string) (*Agents
 			n.Epic = issue.Slug
 		}
 		wf := proj.LoadWorkflowForIssue(issue)
+		wt, _, _ := resolveWorktree(workDir, issue.Slug, wf)
 		if n.Live {
 			comments, _ := tracker.LoadComments(issue.FilePath)
-			// An open question blocks the agent on the human, so it wins over
-			// a gate the issue may also be waiting at.
-			switch {
-			case openQuestion(comments):
-				n.State, n.Gate = "question", pendingGate(wf, issue)
-			case pendingGate(wf, issue) != "":
-				n.State, n.Gate = "at-gate", pendingGate(wf, issue)
-			default:
-				n.State = "working"
+			call, known := lastCliCall(proj.Slug, agentLogPaths(workDir, wt, name, issue.Assignee)...)
+			n.State, n.Gate = workerState(wf, issue, comments, call, known, time.Now())
+			if known {
+				n.LastCall, n.LastCmd = call.At.Format(time.RFC3339), call.Cmd
 			}
 			model.Workers = append(model.Workers, n)
 			continue
@@ -205,7 +206,6 @@ func (s *Server) buildAgentsModel(proj *tracker.Project, prefix string) (*Agents
 		if issue.Status == "done" {
 			continue
 		}
-		wt, _, _ := resolveWorktree(workDir, issue.Slug, wf)
 		if activeStatus(wf, issue.Status) || (wt != "" && fileExists(wt)) {
 			n.State = "stopped"
 			n.RetroNotSwept = unswept[strings.ToLower(issue.Slug)]

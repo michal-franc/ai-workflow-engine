@@ -201,3 +201,40 @@ func TestPinIssueTimes(t *testing.T) {
 		t.Errorf("b mtime = %s, want the fixed default", got)
 	}
 }
+
+// TestGenerateIssues: a generate entry writes count issues with the slug the
+// viewer derives from the title, in the system folder, with its frontmatter.
+func TestGenerateIssues(t *testing.T) {
+	dir := t.TempDir()
+	err := generateIssues(dir, []ScenarioGenerate{
+		{Count: 3, Dir: "Sim", Title: "Idea %03d", Status: "idea", Created: "2026-09-01", Extra: "priority: \"low\"\n", Body: "Someday."},
+		{Count: 2, Title: "Chore #%d: tidy", Status: "backlog"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "Sim", "idea-003.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`title: "Idea 003"`, `status: "idea"`, `system: "Sim"`, `created: "2026-09-01"`, `priority: "low"`, "Someday."} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("idea-003.md lacks %s:\n%s", want, data)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "chore-2-tidy.md")); err != nil {
+		t.Errorf("no system: written at the issues root as chore-2-tidy.md: %v", err)
+	}
+	files, _ := filepath.Glob(filepath.Join(dir, "Sim", "*.md"))
+	if len(files) != 3 {
+		t.Errorf("Sim holds %d issues, want 3", len(files))
+	}
+}
+
+func TestLoadScenarioSpec_RejectsBadGenerate(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "scenario.yaml"), []byte("generate:\n  - count: 5\n    status: idea\n    title: No number\n"), 0o644)
+	if _, err := LoadScenarioSpec(dir); err == nil || !strings.Contains(err.Error(), "generate[0]") {
+		t.Errorf("err = %v, want a generate[0] error", err)
+	}
+}

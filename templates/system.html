@@ -53,6 +53,7 @@
                             <span class="sys-chips">
                                 {{if .Epic}}<span class="chip chip-blue">epic · {{.Epic}}</span>{{end}}
                                 {{if .Agent}}<span class="chip chip-green">agent running</span>{{end}}
+                                {{template "marker-chips" .Markers}}
                                 <span class="chip{{if .Tone}} chip-{{.Tone}}{{end}}">{{.Issue.Status}}</span>
                             </span>
                         </li>

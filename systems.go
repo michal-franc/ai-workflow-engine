@@ -307,6 +307,9 @@ type SystemRow struct {
 	Agent  bool   // a tmux session works the issue
 	Epic   string // "2/10" when the issue is an epic with children
 	Closed bool
+	// Markers are the workboard's card markers (markers.go): waiting on you,
+	// blocked on, needs revision, parked.
+	Markers []Marker
 }
 
 // UmbrellaView is the header's umbrella chip and link.
@@ -483,6 +486,10 @@ func (s *Server) buildSystemPage(proj *tracker.Project, issues []*tracker.Issue,
 		cap = familyRowCap
 	}
 	d.Rows, d.HiddenNote = systemRows(st, prefix, members, bySlug, issues, sessionMap, cap)
+	mctx := newMarkerCtxFor(proj, prefix, issues, open, time.Now())
+	for i := range d.Rows {
+		d.Rows[i].Markers = cardMarkers(mctx, d.Rows[i].Issue)
+	}
 
 	if fam == nil {
 		d.Families, d.Epics, d.Unfamilied = familiesAndEpics(proj, st, prefix, g, bySlug, issues)

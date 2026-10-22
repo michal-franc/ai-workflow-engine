@@ -35,6 +35,16 @@ Dependency links are a custom field too:
 |:-------------|:------------|
 | `depends_on` | The issues this one waits on, as a YAML list or a comma-separated string: `issue-cli set-meta <slug> --key depends_on --value "economy/shop-prices, ui/other"`. `set-meta` refuses unknown slugs (and suggests close ones) and the issue itself. The detail page shows **Depends on** and, on the other issue, **Depended on by**; `issue-cli show` prints both lines, plus **Decided by** for the `slug#D-n` decisions the body cites. |
 
+Blocking markers are custom fields (and one label) that the [workboard](UI/overview.md#workboard) shows as red chips on the card and on system-page rows:
+
+| Field / label    | Description |
+|:-----------------|:------------|
+| `blocked_on`     | The issue (or a YAML list of issues) this one can't move without: `issue-cli set-meta <slug> --key blocked_on --value ui/shop-screen`. A red **blocked on <slug>** chip links the target while it is open. Once the target is done, it turns into a grey struck-through **<slug> done**, and you can remove the field. An unknown slug shows **(not found)**. |
+| `needs_revision` | Why the issue must be revised before it moves on, e.g. a decision ref: `needs_revision: "D-5"`. Shows a red **needs revision · D-5** chip. |
+| `needs-revision` label | The same chip, without a reason. |
+
+They don't block transitions yet. A validator and CLI commands for them are `workflow/blocking-markers-needs-revision-blocked-on-and-deferred`.
+
 Metric and knob files, and the `metrics:` / `knobs:` lists that tie them to a system, are configured in `workflow.yaml`'s `workbench:` block: see [Workbench Files](workbench-files.md).
 
 `score_boost` and `due` take part in scoring when it's enabled (see [Scoring Fields](#scoring-fields)).

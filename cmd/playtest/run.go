@@ -23,6 +23,12 @@ type Runner struct {
 	bins *Binaries
 	// judgeHook lets a test drive the overlay the way the owner would.
 	judgeHook func(*judge)
+	// moreSessions: another session with judgement steps follows, so Playtest
+	// moves on once every step has a verdict instead of waiting for Alt+Q.
+	moreSessions bool
+	// windowClosed: the owner closed the Chrome window; later sessions can't
+	// run in it.
+	windowClosed bool
 }
 
 // stepTimeout bounds one step at one viewport.

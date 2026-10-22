@@ -270,8 +270,8 @@ func main() {
 }
 
 // printRetryHint nudges an agent stuck re-running the same failing command.
-// A missing approval is the common case and retrying cannot fix it, so point
-// at the --wait command decorateApprovalError already printed.
+// A missing approval is the common case and retrying cannot fix it, so tell
+// the agent to stop, as decorateApprovalError already did.
 func printRetryHint(w io.Writer, attempts int, err error) {
 	fmt.Fprintf(w, "\nhint: this same command has failed %d times in a row from this session.\n", attempts)
 	if errors.Is(err, tracker.ErrApprovalMissing) {
@@ -364,7 +364,6 @@ func runTraced(args []string, in io.Reader, out, errw io.Writer, inv *invocation
 		ConfigPath:  *configPath,
 		ProjectSlug: *projectSlug,
 		Now:         time.Now,
-		Sleep:       time.Sleep,
 	}
 	inv.ctx = ctx
 

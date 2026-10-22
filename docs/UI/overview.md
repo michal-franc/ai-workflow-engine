@@ -10,7 +10,9 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 ## Key Files
 
 - `templates/list.html` — filterable issue list
-- `templates/board.html` — kanban board with drag-and-drop
+- `templates/workboard.html` — the board (`/workboard`): read-only cards with markers, epic progress and the agent footer (`handlers_workboard.go`; see [Workboard](#workboard))
+- `templates/_markers.html` — card marker partials: `markers`, `marker-chips`, `epic-progress`, `agent-footer`, `card-legend` (data from `markers.go`; agent state from `agent_state.go`)
+- `templates/board.html` — the classic kanban board with drag-and-drop (More › Classic board)
 - `templates/detail.html` — issue detail with sidebar, comments, dispatch
 - `templates/graph.html` — workflow status graph
 - `templates/agents.html` — agents canvas: lead/worker tree, unfinished jobs, selected-agent panel (handlers in `handlers_agents.go`)
@@ -35,11 +37,11 @@ Every project page has the left sidebar from `templates/_sidebar.html`:
 
 - **All projects** link and the **project block**: name, version (projects.yaml `version`) and open-issue count.
 - **New issue**. On list and board it opens the create modal; elsewhere it links to `/?new=1`, which opens the modal on the list.
-- **Views**: Status (with an amber count of what waits on the owner), Systems (when any issue has a `system`, or `workbench.systems` is set), Board, List, Balance (when `workbench.balance` is set), Decisions and Docs, then a **More** group with Graph, Canvas, Agents, Retros, Stats and GitHub (when `supports_github` is set).
+- **Views**: Status (with an amber count of what waits on the owner), Systems (when any issue has a `system`, or `workbench.systems` is set), Board (the [workboard](#workboard), `/workboard`), List, Balance (when `workbench.balance` is set), Metrics, Decisions and Docs, then a **More** group with Classic board (`/board`, drag-and-drop), Graph, Canvas, Agents, Retros, Stats and GitHub (when `supports_github` is set).
   - The current view has `aria-current="page"`.
   - More opens on load when the current view is in it; otherwise the browser remembers it open or closed (`localStorage` key `nav.more`).
 - **N agents running**, linking to Agents. It is hidden at 0, and `auto-refresh.js` updates it.
-- A **screen panel**. The Board shows a Systems list here (open counts, each a `?system=` filter). The systems pages show the same list linking to the system pages, with configured families indented under their system and the current one marked.
+- A **screen panel**. The Board shows the card legend, then a Systems list (open counts, each a `?system=` filter on that board); the Classic board shows the Systems list. The systems pages show the same list linking to the system pages, with configured families indented under their system and the current one marked.
 - **Actions** (Spawn lead and the `project_actions:` buttons) and the **theme swatches**, at the bottom.
 
 Below 900px the sidebar stacks above the page. There is no phone menu yet.
@@ -82,7 +84,8 @@ Status colours stay per status (`statusColor`). A status chip tints its colour w
 | Route             | Template      | Description                                     |
 |:------------------|:--------------|:------------------------------------------------|
 | `/`               | `list.html`   | Filterable list with status, system, priority    |
-| `/board`          | `board.html`  | Kanban with configurable columns and card fields |
+| `/workboard`      | `workboard.html` | The board: cards with markers, epic progress and the agent footer, read-only. See [Workboard](#workboard) |
+| `/board`          | `board.html`  | Classic kanban with configurable columns, card fields and drag-and-drop (More › Classic board) |
 | `/graph`          | `graph.html`  | Workflow DAG with stale highlighting             |
 | `/agents`         | `agents.html` | Agents canvas: leads, workers, their issues (see below) |
 | `/canvas`         | `canvas.html` | Issues canvas: versions × epics (or systems), see [Issues canvas](#issues-canvas) |
@@ -100,6 +103,47 @@ Status colours stay per status (`statusColor`). A status chip tints its colour w
 
 In projects whose `workflow.yaml` defines `types:` ([Types of Work](../Workflow/types.md)), the list and board show a type badge and an "All types" filter (`?type=`), `type` joins the default board card fields, `/graph?type=<t>` draws that type's path, and the detail sidebar has a **Type** select (`POST /p/<project>/issue/<slug>/type`; a `409` with `statuses` asks the human which status on the new path to move to). Without `types:` none of these controls render.
 
+## Workboard
+
+`/p/<project>/workboard` is the sidebar's **Board**. It is a read-only kanban whose cards carry coordination state, rebuilt from the repo files on each request; it reloads when `/hash` changes (not while the search box has text). Writes stay where they were: the classic board (drag-and-drop), the detail page and issue-cli.
+
+**Card.**
+- **Head:** system chip, `epic` chip, and the time in the current status. That time comes from the stats sidecar's last transition into the status (tooltip "since"), else the file mtime ("last file change"). It turns amber after 24 h, except in the first status, done and global statuses (parked).
+- **Title:** links to the issue.
+- **Epic progress:** a child shows "N of M · in <epic>"; an epic shows "N of M children done", with a bar.
+- **Markers** (`cardMarkers` in `markers.go`):
+
+  | Chip | Tone | When |
+  |:--|:--|:--|
+  | `approve <status> · 2 h` | amber | the next transition's approval is the only thing missing (`GateInfo.Ready` from `attention.go`); hidden while a playtest is due |
+  | `playtest · 30 m` | amber | human-testing with a playtest session to judge |
+  | `question` | amber | the newest comment starts with `question:` |
+  | `blocked on <slug>` / `<slug> done` / `(not found)` | red / grey struck / red | `blocked_on` (see [Issue format](../issue-format.md)) |
+  | `needs revision[ · why]` | red | the `needs-revision` label or the `needs_revision` field |
+  | `parked · <reason>` | grey | status parked; the reason is the first line of `## Parked Record` |
+
+- **Agent footer** (`agent_state.go`, the same rules as the [agents canvas](#agents-canvas)): links to `/agents?agent=<session>`, and its tooltip names the last issue-cli command.
+  - green **agent working · last call N ago**;
+  - grey **agent idle**: live, but no issue-cli call for 15 minutes;
+  - amber **waiting on your approval / playtest**, **asked you a question**;
+  - hollow **agent stopped · not running**: unfinished work with no session.
+
+  An unready gate counts as working, not waiting.
+
+**Scale** (D-10: readable with hundreds of issues):
+- **Idle piles fold.** The first status, global statuses and done become count tiles that link to the list filtered on that status (`/?status=…`). A tile shows "N waiting on you" when any of its issues wait on the owner.
+- **Needs attention by default.** A card is *quiet* when it has no marker and no agent, is not an epic, and is not old in an active status (`in progress` up to done). Quiet cards are hidden. Each column links them as **+N quiet**, and **Show all** (`all=1`) draws them as one-line rows (title and age).
+- **Cap.** A column draws 12 cards, then links to the rest: **N more in the list** (or in the epic, in the epic view).
+
+**Controls.**
+- **Group by:** Status, System, or Epic (`group=`). The epic view gives one column per open epic with open children, the most first, then "No epic". System and epic views show only the waiting cards of the idle piles.
+- **Filters:** the version select (only when an issue has a version), `system=` (from the sidebar), **Waiting on you · N** (`waiting=1`), Show all, and an in-page search.
+- **Order in a column:** waiting on you first, then blocked, then the longest in status.
+
+**Reuse.** A view that lists issues builds a `markerCtx` (`newMarkerCtx`, or `newMarkerCtxFor` for a subset) and renders `{{template "markers" .Markers}}` (a row) or `{{template "marker-chips" .Markers}}` (bare chips; the [system pages](#system-pages) use it).
+
+Test ids: `workboard.*`, `marker.<kind>` and `nav.panel.legend`. The sessions `workboard-markers` (the `workboard` scenario) and `workboard-scale` (~520 generated issues) cover it.
+
 ## System pages
 
 `/systems/<System>` joins one system's issues, families, design doc, decisions and balance notes on one read-only page. A family page, `/systems/<System>/<Family>`, is the same page scoped to an umbrella's children inside that system (ui/workbench-sidebar-and-system-pages D-1). The whole page is rebuilt from the repo files on each request, and it reloads when `/hash` changes.
@@ -113,6 +157,7 @@ In projects whose `workflow.yaml` defines `types:` ([Types of Work](../Workflow/
   - The status bar runs in workflow order without side statuses.
   - Chips are toned by position: the final status green, the first neutral, the first half blue, the second half amber.
   - Rows are ordered furthest along first, then by the newest status change. A system page shows 8 rows and a family page 30, with a footer counting the rest and linking to the list.
+  - Each row carries the [workboard](#workboard)'s marker chips (waiting on you, blocked on, needs revision, parked).
 - **Families and epics.** Configured families come first, with progress over their children in this system. Then come the epics that the system's issues name in `parent:` (with the whole-epic count when an epic spans systems), and finally the number of open issues in neither.
 - **Design doc sections.** The doc is read from the project root and split on `## ` headings (frontmatter dropped, fences ignored). Each section is marked:
   - **stale** when it cites a `<slug>#D-n` that the decisions index marks replaced;
@@ -302,7 +347,8 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 
 - **Tree:** the hierarchy only: You → the project lead (`lead-<project>`) → its workers, plus any live sub-lead (`lead-<epic>`, started from the CLI). Epics are not drawn here; the [issues canvas](#issues-canvas) shows them. Nodes show the session name without `agent-`, cut at 32 characters; the full name is the tooltip. The epic data (base branch, children running, `main` ahead) stays in `agents.json`.
 - **Worker states:**
-  - *working*: live session, nothing pending;
+  - *working*: live session, nothing pending, an issue-cli call in the last 15 minutes (or no readable clilog);
+  - *idle*: live session, but its newest issue-cli call is 15 minutes old or more. The time comes from the agent's clilog (`<worktree>/.agent-logs/<session>/<session>.clilog`, else the project's). Records naming another `--project` are skipped, because test runs in the agent's shell log fixture projects;
   - *at gate*: the next transition needs a human approval not yet given (the gate's status is shown);
   - *question*: the issue's newest comment starts with `question:`;
   - *stopped*: no live session, but a worktree or an active status (`in progress` up to, not including, `done`). "retro not swept" is added when a retro for the issue is not yet processed or archived.
@@ -310,7 +356,8 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 - **Issue cards:** each worker links to its issue card with a dashed line in the status color.
 - **Toolbar:** Tree / Radial layout (radial puts the project lead in the middle with one ring of agents around it), and the Show issues and Show stopped toggles. **Spawn lead** shows while the project lead is not running.
 - **Clicking a live agent** (lead, sub-lead or worker) opens its tmux session in a terminal: `POST /p/<project>/agents/open` `{"session"}` runs the same attach as a dispatch re-attach (the project's `terminal`, or in `tmux_session` mode a `select-window` plus a terminal only when no client is attached). A session that already has a terminal attached never gets a second window: on i3 the window titled with the session name is focused (`focused`; the default i3 + alacritty terminal titles its windows that way), otherwise the panel says it is already open (`already-open`). With `terminal: none` the panel shows the attach command instead (prefixed `TMUX_TMPDIR=…` when the board runs on a private tmux server). The page never shows the pane and has no message box (D-12); you watch and type in tmux.
-- **Selected-agent panel** (shown for the clicked node): kind, state, tmux location, the issue, then:
+- **`?agent=<session>`** selects that agent on load without opening its terminal (the workboard's footer links here).
+- **Selected-agent panel** (shown for the clicked node): kind, state, tmux location, the last issue-cli call (`last_call` / `last_cmd` in agents.json), the issue, then:
   - **Approve gate** (at-gate workers) calls the issue's existing `/approve` endpoint, a direct human action;
   - **Spawn lead** when the project lead is not running (there is no sub-lead button: one lead per project for now, workbench umbrella D-13);
   - **Open in tmux** (live sessions) does the same as clicking the node again: it opens the terminal, or brings the open one to the front, and a status line says which;

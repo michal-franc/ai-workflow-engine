@@ -3,6 +3,7 @@ package tracker
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -163,21 +164,47 @@ func TestDynamicTransitionCost_AtLeastStatic(t *testing.T) {
 	}
 }
 
-func TestBeginWait_KeepsStartForSameTarget(t *testing.T) {
-	issuePath := filepath.Join(t.TempDir(), "w.md")
-	first := time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)
-
-	got, err := BeginWait(issuePath, "backlog", first)
-	if err != nil || !got.Equal(first) {
-		t.Fatalf("first BeginWait = %v, %v", got, err)
+func TestLoadStats_IgnoresRemovedWaitFields(t *testing.T) {
+	// Sidecars written while issue-cli had --wait (before v0.49.0) carry
+	// pending_wait and per-row wait_started_at. They must still load, and the
+	// next save drops them.
+	issuePath := filepath.Join(t.TempDir(), "old.md")
+	old := `{
+  "transitions": [
+    {
+      "from": "in design",
+      "to": "backlog",
+      "ts": "2026-10-02T09:10:00Z",
+      "static_tokens": 10,
+      "dynamic_tokens": 20,
+      "actual_tokens": null,
+      "wait_started_at": "2026-10-02T09:00:00Z",
+      "approved_at": "2026-10-02T09:10:00Z"
+    }
+  ],
+  "pending_wait": {"to": "in progress", "started_at": "2026-10-02T09:20:00Z"},
+  "last_approval": {"status": "in progress", "at": "2026-10-02T09:30:00Z"}
+}
+`
+	if err := os.WriteFile(StatsSidecarPath(issuePath), []byte(old), 0644); err != nil {
+		t.Fatal(err)
 	}
-	got, _ = BeginWait(issuePath, "Backlog", first.Add(time.Hour))
-	if !got.Equal(first) {
-		t.Fatalf("re-run BeginWait = %v, want original %v", got, first)
+	store, err := LoadStats(issuePath)
+	if err != nil {
+		t.Fatalf("old sidecar must load: %v", err)
 	}
-	got, _ = BeginWait(issuePath, "in progress", first.Add(2*time.Hour))
-	if !got.Equal(first.Add(2 * time.Hour)) {
-		t.Fatalf("new target must restart the wait, got %v", got)
+	if len(store.Transitions) != 1 || store.Transitions[0].To != "backlog" || store.Transitions[0].ApprovedAt == nil {
+		t.Fatalf("transitions = %+v", store.Transitions)
+	}
+	if store.LastApproval == nil || store.LastApproval.Status != "in progress" {
+		t.Fatalf("last_approval = %+v", store.LastApproval)
+	}
+	if err := SaveStats(issuePath, store); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(StatsSidecarPath(issuePath))
+	if strings.Contains(string(data), "pending_wait") || strings.Contains(string(data), "wait_started_at") {
+		t.Fatalf("removed wait fields survived a save:\n%s", data)
 	}
 }
 
@@ -202,13 +229,9 @@ func TestRecordApproval_SetAndClear(t *testing.T) {
 	}
 }
 
-func TestAppendTransitionStatLocked_AttributesWaitAndApproval(t *testing.T) {
+func TestAppendTransitionStatLocked_AttributesApproval(t *testing.T) {
 	issuePath := filepath.Join(t.TempDir(), "s.md")
-	waitStart := time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC)
-	approvedAt := waitStart.Add(10 * time.Minute)
-	if _, err := BeginWait(issuePath, "backlog", waitStart); err != nil {
-		t.Fatal(err)
-	}
+	approvedAt := time.Date(2026, 10, 2, 9, 10, 0, 0, time.UTC)
 	if err := RecordApproval(issuePath, "backlog", approvedAt); err != nil {
 		t.Fatal(err)
 	}
@@ -218,31 +241,26 @@ func TestAppendTransitionStatLocked_AttributesWaitAndApproval(t *testing.T) {
 	}
 	store, _ := LoadStats(issuePath)
 	row := store.Transitions[0]
-	if row.WaitStartedAt == nil || !row.WaitStartedAt.Equal(waitStart) || row.ApprovedAt == nil || !row.ApprovedAt.Equal(approvedAt) {
+	if row.ApprovedAt == nil || !row.ApprovedAt.Equal(approvedAt) {
 		t.Fatalf("row = %+v", row)
 	}
-	if store.PendingWait != nil || store.LastApproval != nil {
+	if store.LastApproval != nil {
 		t.Fatalf("scratch state not cleared: %+v", store)
 	}
 }
 
 func TestAppendTransitionStatLocked_IgnoresMismatchedScratch(t *testing.T) {
 	issuePath := filepath.Join(t.TempDir(), "m.md")
-	now := time.Now()
-	BeginWait(issuePath, "backlog", now)
-	RecordApproval(issuePath, "done", now)
+	RecordApproval(issuePath, "done", time.Now())
 
-	// A transition elsewhere that consumed no approval: neither field applies,
-	// the stale wait is dropped, and the unrelated approval is kept.
+	// A transition elsewhere that consumed no approval: ApprovedAt stays nil
+	// and the unrelated approval is kept.
 	if err := appendTransitionStatLocked(issuePath, TransitionStat{From: "in design", To: "obsolete"}, ""); err != nil {
 		t.Fatal(err)
 	}
 	store, _ := LoadStats(issuePath)
-	if row := store.Transitions[0]; row.WaitStartedAt != nil || row.ApprovedAt != nil {
-		t.Fatalf("row = %+v, want no wait/approval", row)
-	}
-	if store.PendingWait != nil {
-		t.Fatal("stale pending wait must be cleared by any transition")
+	if row := store.Transitions[0]; row.ApprovedAt != nil {
+		t.Fatalf("row = %+v, want no approval", row)
 	}
 	if store.LastApproval == nil {
 		t.Fatal("approval not consumed by this transition must be kept")

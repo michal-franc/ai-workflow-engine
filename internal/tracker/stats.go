@@ -21,20 +21,10 @@ type TransitionStat struct {
 	DynamicTokens int       `json:"dynamic_tokens"`
 	ActualTokens  *int      `json:"actual_tokens"`
 
-	// WaitStartedAt is when an agent began blocking on this transition with
-	// `issue-cli transition|start --wait` (the earliest start when the wait
-	// was re-run across timeouts). Nil when nobody waited.
-	WaitStartedAt *time.Time `json:"wait_started_at,omitempty"`
 	// ApprovedAt is when the viewer recorded the human approval this
 	// transition consumed. Nil when the transition needed no approval or the
 	// approval was not set through the viewer.
 	ApprovedAt *time.Time `json:"approved_at,omitempty"`
-}
-
-// PendingWait marks an agent blocked on a transition to To since StartedAt.
-type PendingWait struct {
-	To        string    `json:"to"`
-	StartedAt time.Time `json:"started_at"`
 }
 
 // ApprovalRecord is the most recent approval the viewer granted.
@@ -47,9 +37,10 @@ type ApprovalRecord struct {
 // <issue>.stats.json next to the markdown file.
 type StatsStore struct {
 	Transitions []TransitionStat `json:"transitions"`
-	// PendingWait and LastApproval are scratch state consumed by the next
-	// transition row; both are cleared once a transition is recorded.
-	PendingWait  *PendingWait    `json:"pending_wait,omitempty"`
+	// LastApproval is scratch state consumed by the next transition row that
+	// uses the approval. Sidecars written before v0.49.0 may also hold
+	// pending_wait and per-row wait_started_at (from the removed --wait);
+	// encoding/json ignores them on load and the next save drops them.
 	LastApproval *ApprovalRecord `json:"last_approval,omitempty"`
 }
 
@@ -108,49 +99,23 @@ func AppendTransitionStat(issuePath string, stat TransitionStat) error {
 	return SaveStats(issuePath, store)
 }
 
-// appendTransitionStatLocked appends stat, folding in any pending wait for the
-// same target and the viewer's timestamp for the consumed approval, then clears
-// that scratch state. Caller must hold the issue lock.
+// appendTransitionStatLocked appends stat, folding in the viewer's timestamp
+// for the consumed approval, then clears that scratch state. Caller must hold
+// the issue lock.
 func appendTransitionStatLocked(issuePath string, stat TransitionStat, consumedApproval string) error {
 	store, err := LoadStats(issuePath)
 	if err != nil {
 		return err
 	}
-	if pw := store.PendingWait; pw != nil && strings.EqualFold(pw.To, stat.To) {
-		started := pw.StartedAt
-		stat.WaitStartedAt = &started
-	}
 	if la := store.LastApproval; la != nil && consumedApproval != "" && strings.EqualFold(la.Status, consumedApproval) {
 		at := la.At
 		stat.ApprovedAt = &at
 	}
-	store.PendingWait = nil
 	if consumedApproval != "" {
 		store.LastApproval = nil
 	}
 	store.Transitions = append(store.Transitions, stat)
 	return SaveStats(issuePath, store)
-}
-
-// BeginWait records that an agent started blocking on a transition to `to`
-// and returns the wait's start time. A pending wait for the same target is
-// kept, so a wait re-run across --timeout expiries is measured end to end.
-func BeginWait(issuePath, to string, now time.Time) (time.Time, error) {
-	var started time.Time
-	err := withIssueLock(issuePath, func() error {
-		store, err := LoadStats(issuePath)
-		if err != nil {
-			return err
-		}
-		if pw := store.PendingWait; pw != nil && strings.EqualFold(pw.To, to) {
-			started = pw.StartedAt
-			return nil
-		}
-		started = now.UTC()
-		store.PendingWait = &PendingWait{To: to, StartedAt: started}
-		return SaveStats(issuePath, store)
-	})
-	return started, err
 }
 
 // RecordApproval stores the viewer's approval timestamp so the transition that

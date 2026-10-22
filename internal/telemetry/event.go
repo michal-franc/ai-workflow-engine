@@ -89,7 +89,6 @@ const (
 	ErrIssueNotFound     = "issue_not_found"
 	ErrInvalidTransition = "invalid_transition"
 	ErrValidation        = "validation"
-	ErrWaitTimeout       = "wait_timeout"
 	ErrPanic             = "panic"
 	ErrOther             = "other"
 )

@@ -42,6 +42,24 @@ type ScenarioSpec struct {
 	Commits []ScenarioCommit `yaml:"commits"`
 	// Branches are created after the commits, each from main (or From).
 	Branches []ScenarioBranch `yaml:"branches"`
+	// Generate writes issues into the project next to the fixtures, for
+	// scenarios that need volume (hundreds of issues) without a committed
+	// fixture per issue.
+	Generate []ScenarioGenerate `yaml:"generate"`
+}
+
+// ScenarioGenerate writes Count issues titled Title (a fmt pattern with one
+// %d, numbered from 1), all in Status, under issues/<Dir>/ with Dir as their
+// system. Created pins their mtime like a fixture's created:; Extra is raw
+// frontmatter added to each, Body their body.
+type ScenarioGenerate struct {
+	Count   int    `yaml:"count"`
+	Dir     string `yaml:"dir"`
+	Title   string `yaml:"title"`
+	Status  string `yaml:"status"`
+	Created string `yaml:"created"`
+	Extra   string `yaml:"extra"`
+	Body    string `yaml:"body"`
 }
 
 // ScenarioCommit overlays Files (a folder in the scenario) and commits it
@@ -84,7 +102,59 @@ func LoadScenarioSpec(dir string) (*ScenarioSpec, error) {
 	if s.Workflow == "" {
 		s.Workflow = "workflow.yaml"
 	}
+	for i, g := range s.Generate {
+		if g.Count <= 0 || g.Status == "" || strings.Count(g.Title, "%") != 1 {
+			return nil, fmt.Errorf("%s: generate[%d] needs count > 0, a status and a title with one %%d", filepath.Join(dir, "scenario.yaml"), i)
+		}
+	}
 	return &s, nil
+}
+
+// generateIssues writes the spec's generated issues under dir (the project's
+// issues/), before their times are pinned.
+func generateIssues(dir string, gens []ScenarioGenerate) error {
+	for _, g := range gens {
+		for i := 1; i <= g.Count; i++ {
+			title := fmt.Sprintf(g.Title, i)
+			var b strings.Builder
+			fmt.Fprintf(&b, "---\ntitle: %q\nstatus: %q\n", title, g.Status)
+			if g.Dir != "" {
+				fmt.Fprintf(&b, "system: %q\n", g.Dir)
+			}
+			if g.Created != "" {
+				fmt.Fprintf(&b, "created: %q\n", g.Created)
+			}
+			if extra := strings.TrimRight(g.Extra, "\n"); extra != "" {
+				b.WriteString(extra + "\n")
+			}
+			b.WriteString("---\n\n" + g.Body + "\n")
+			p := filepath.Join(dir, g.Dir, generatedName(title)+".md")
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				return err
+			}
+			if err := os.WriteFile(p, []byte(b.String()), 0o644); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// generatedName is a title's file name: lower case, runs of other characters
+// become one "-", matching the slug the viewer derives from the title.
+func generatedName(title string) string {
+	var b strings.Builder
+	dash := false
+	for _, r := range strings.ToLower(title) {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
+			b.WriteRune(r)
+			dash = false
+		} else if !dash && b.Len() > 0 {
+			b.WriteByte('-')
+			dash = true
+		}
+	}
+	return strings.TrimSuffix(b.String(), "-")
 }
 
 // Binaries are issue-viewer and issue-cli built from the current checkout,
@@ -166,6 +236,9 @@ func StartScenario(scenarioDir, name string, bins *Binaries, log io.Writer) (*Sc
 	}
 	if err := copyTree(filepath.Join(src, spec.Issues), filepath.Join(s.Proj, "issues")); err != nil {
 		return fail(fmt.Errorf("scenario %s: issues: %v", name, err))
+	}
+	if err := generateIssues(filepath.Join(s.Proj, "issues"), spec.Generate); err != nil {
+		return fail(fmt.Errorf("scenario %s: generate: %v", name, err))
 	}
 	if err := pinIssueTimes(filepath.Join(s.Proj, "issues")); err != nil {
 		return fail(err)

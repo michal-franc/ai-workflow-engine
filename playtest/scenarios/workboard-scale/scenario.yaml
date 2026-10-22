@@ -1,0 +1,23 @@
+# Board at scale: about 520 issues, most of them generated (generate:), to
+# check the workboard stays readable (D-10). 300 ideas, 60 done and 10 parked
+# fold to tiles; 30 in design (5 with a ready backlog gate), 80 in backlog
+# (6 need revision, 4 blocked on sim/build-01, 70 quiet) and 40 in progress
+# (25 builds, 15 children of sim/big-epic), all old enough to be amber.
+title: Five hundred issues
+project:
+  name: Workboard Scale
+  slug: wbs
+issues: tracker
+workflow: workflow.yaml
+generate:
+  - { count: 150, dir: Sim, title: "Sim idea %03d", status: idea, created: "2026-08-01" }
+  - { count: 150, dir: UI, title: "UI idea %03d", status: idea, created: "2026-08-01" }
+  - { count: 25, dir: UI, title: "Design draft %02d", status: in design, created: "2026-09-10", body: "## Design\n- [ ] Approach documented" }
+  - { count: 5, dir: UI, title: "Design ready %02d", status: in design, created: "2026-09-12", body: "## Design\n- [x] Approach documented" }
+  - { count: 70, dir: Sim, title: "Chore %02d", status: backlog, created: "2026-09-15" }
+  - { count: 6, dir: Sim, title: "Revise %02d", status: backlog, created: "2026-09-16", extra: "labels:\n  - needs-revision" }
+  - { count: 4, dir: Sim, title: "Waits %02d", status: backlog, created: "2026-09-17", extra: "blocked_on: \"sim/build-01\"" }
+  - { count: 25, dir: Sim, title: "Build %02d", status: in progress, created: "2026-10-01", body: "## Plan\n- [ ] Build it" }
+  - { count: 15, dir: Sim, title: "Epic task %02d", status: in progress, created: "2026-10-02", extra: "parent: \"sim/big-epic\"", body: "## Plan\n- [ ] Do it" }
+  - { count: 60, dir: UI, title: "Shipped %02d", status: done, created: "2026-07-01" }
+  - { count: 10, dir: Sim, title: "Parked %02d", status: parked, created: "2026-08-15", body: "## Parked Record\n- **Why is it parked? (blocked on…, deferred until…, or won't do because…):** deferred" }

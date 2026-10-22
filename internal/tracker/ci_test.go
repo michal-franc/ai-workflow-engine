@@ -98,3 +98,18 @@ func TestCICommandFailureNames(t *testing.T) {
 		t.Errorf("no regex: %v", got)
 	}
 }
+
+func TestLeadBriefMentionsCIOnlyWhenConfigured(t *testing.T) {
+	proj := &Project{Name: "P", Slug: "p"}
+	in := LeadBriefInput{Project: proj, Root: t.TempDir()}
+	off := LeadBrief(&WorkflowConfig{}, in)
+	if strings.Contains(off, "Local CI") {
+		t.Error("no ci: block, but the brief mentions local CI")
+	}
+	on := LeadBrief(&WorkflowConfig{CI: &CIConfig{Run: []CICommand{{Cmd: "make check"}}}}, in)
+	for _, want := range []string{"- Local CI:", "[from ci]", "issue-cli --project p ci status before any push", "never push a release while it is red"} {
+		if !strings.Contains(on, want) {
+			t.Errorf("brief missing %q", want)
+		}
+	}
+}

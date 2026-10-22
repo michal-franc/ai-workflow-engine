@@ -36,6 +36,7 @@ func BuildDispatchPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, workDi
 	route := LeadFor(proj, issue, issues, live)
 	prompt := BuildAgentPrompt(proj, issue, wf, wt.Path, wt.Branch)
 	prompt += InjectProject(proj, LeadPromptSection(issue, route))
+	prompt += InjectProject(proj, CIPromptSection(workDir, wf))
 	return DispatchPrompt{
 		Prompt:   prompt,
 		Slug:     issue.Slug,
@@ -45,6 +46,22 @@ func BuildDispatchPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, workDi
 		Session:  AgentDisplayName(proj, AgentSessionName(issue.Slug)),
 		Lead:     route.Lead,
 	}
+}
+
+// CIPromptSection is the "## Local CI" part of a worker's briefing: where
+// the integration branch stands now, and that CI runs after the merge
+// without the agent. Empty without a ci: block.
+func CIPromptSection(workDir string, wf *WorkflowConfig) string {
+	if CIStatusLine == nil {
+		return ""
+	}
+	line := CIStatusLine(workDir, wf)
+	if line == "" {
+		return ""
+	}
+	return "\n\n## Local CI\n\n" + line + "\n" +
+		"- When `make validate` or a test fails on your branch, compare with this line (`issue-cli ci status`): a failure main already has is not yours to fix.\n" +
+		"- After you fast-forward main, local CI tests it by itself. Never wait for it: close your issue and stop. If it goes red on your merge, the lead may re-open your issue.\n"
 }
 
 // LeadPromptSection is the "## Your lead" part of a worker's briefing. It

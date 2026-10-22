@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
 // OneLine is where the branch stands, in one line for agents and the lead:
@@ -56,5 +58,27 @@ func Ago(d time.Duration) string {
 
 func firstLine(s string) string {
 	line, _, _ := strings.Cut(strings.TrimSpace(s), "\n")
+	return line
+}
+
+func init() {
+	tracker.CIStatusLine = AgentLine
+}
+
+// AgentLine is the CI line for agents: the state of the branch they merge
+// into, so a failure they see can be told apart from one they caused. ""
+// without a ci: block.
+func AgentLine(workDir string, wf *tracker.WorkflowConfig) string {
+	if wf == nil || !wf.CI.Enabled() {
+		return ""
+	}
+	root := RepoRoot(workDir)
+	st, _ := ReadState(root)
+	lock, alive := ReadLock(root)
+	branch, _ := ResolveBranch(root, wf.CI)
+	line := "Local CI: " + OneLine(st, lock, alive, branch, time.Now())
+	if st.IsRed() {
+		line += " — inherited from " + st.Branch + ", not caused by your branch"
+	}
 	return line
 }

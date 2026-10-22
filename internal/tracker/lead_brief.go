@@ -63,6 +63,9 @@ func LeadBrief(wf *WorkflowConfig, in LeadBriefInput) string {
 	b.WriteString("- Authority: you may tick a gate only when the human approved it in your chat: issue-cli approve <slug> --to <status> --quote \"<the human's words>\". Never Human Testing; workers never tick.\n")
 	fmt.Fprintf(&b, "- Messaging: in Claude Code, agents on this project message each other with ListAgents / SendMessage, addressed by tmux name (yours is %s; workers are agent-<slug>). Workers may message you directly. issue-cli lead message is the tmux-paste fallback, e.g. for Codex.\n", lead)
 	b.WriteString("- Decisions: record each owner decision under ## Decisions with the human's words (issue-cli append <slug> --section Decisions --body \"- **D-n** · <date> · lead chat: ...\").\n")
+	if wf != nil && wf.CI.Enabled() {
+		b.WriteString("- Local CI: the ci: commands run on the integration branch after every move, without you (issue-cli ci status; the Status page). When it goes red you get a [from ci] message: bring it to the human and decide whether to revert, fix forward or dispatch a fix. Run issue-cli ci status before any push, and never push a release while it is red.\n")
+	}
 	notesDir := filepath.Join(in.Root, "sessions")
 	if note := NewestHandoffNote(notesDir, lead); note != "" {
 		fmt.Fprintf(&b, "- Handoff: read %s first; it is your previous handoff note.\n", note)

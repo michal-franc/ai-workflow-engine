@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/michal-franc/issue-viewer/internal/ci"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -123,7 +124,29 @@ func runTransition(ctx *Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	return printTransitionResult(ctx, buildTransitionOutput(wf, issue, from, to, result))
+	if err := printTransitionResult(ctx, buildTransitionOutput(wf, issue, from, to, result)); err != nil {
+		return err
+	}
+	if to == "done" && !ctx.JSONOutput {
+		printCIAfterDone(ctx, wf)
+	}
+	return nil
+}
+
+// printCIAfterDone tells the agent that just shipped that local CI tests
+// main without it, so it stops instead of waiting.
+func printCIAfterDone(ctx *Context, wf *tracker.WorkflowConfig) {
+	if !wf.CI.Enabled() {
+		return
+	}
+	root := ci.RepoRoot(projectRoot(ctx.Project))
+	branch, err := ci.ResolveBranch(root, wf.CI)
+	if err != nil {
+		return
+	}
+	head, _ := ci.Head(root, branch)
+	fmt.Fprintf(ctx.Stdout, "Local CI tests %s at %s by itself: don't wait for it, you are done. If it goes red on your merge, the lead may re-open this issue (%s).\n",
+		branch, ci.Short(head), tracker.InjectProject(ctx.Project, "issue-cli ci status"))
 }
 
 // runTransitionDryRun reports every unmet requirement for issue → to and

@@ -47,6 +47,17 @@ board:
     - priority
     - assignee
 
+# Local CI (opt-in; docs/workflow.md, "Local CI"): run your checks on the
+# integration branch after every move, in .worktrees/.ci, and report red to
+# the Status page, the merged issues and the lead. issue-cli ci status shows
+# the state. Uncomment and list your own commands:
+# ci:
+#   timeout: 20m
+#   run:
+#     - make test
+#     - cmd: make e2e
+#       tier: slow      # only with issue-cli ci run --tier slow
+
 statuses:
   - name: "idea"
     description: "Raw idea, needs exploration"

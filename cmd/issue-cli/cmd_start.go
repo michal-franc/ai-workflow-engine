@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/michal-franc/issue-viewer/internal/ci"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -69,6 +70,9 @@ func runStart(ctx *Context, args []string) error {
 	fmt.Fprintf(ctx.Stdout, "Status: %s%s\n", statusLabel(wf, started.FromStatus), typeLabel(wf))
 	printTypeWarnings(ctx.Stdout, wf, issue)
 	printLeadLines(ctx, issue)
+	if line := ci.AgentLine(projectRoot(ctx.Project), wf); line != "" {
+		fmt.Fprintln(ctx.Stdout, line)
+	}
 
 	// A start that transitions is always a handoff auto-advance: StartIssueOnce
 	// only sets a target status when the from-status is a handoff state. This is

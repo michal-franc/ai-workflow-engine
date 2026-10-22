@@ -206,3 +206,8 @@ func cloneCI(c *CIConfig) *CIConfig {
 	}
 	return &out
 }
+
+// CIStatusLine returns the "Local CI: …" line agents see in their dispatch
+// prompt and `start`, or "" when the project has no ci: block. internal/ci
+// sets it (it reads .ci/, and imports this package); nil means no line.
+var CIStatusLine func(workDir string, wf *WorkflowConfig) string

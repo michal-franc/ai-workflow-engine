@@ -53,8 +53,9 @@ func makeCIFixture(t *testing.T, ciBlock string) (*tracker.Project, string) {
 		}
 	}
 	write(".gitignore", "issues/\n.worktrees/\n.agent-logs/\n")
-	write("workflow.yaml", "statuses:\n  - name: \"idea\"\n  - name: \"in progress\"\n  - name: \"done\"\ntransitions: []\n"+ciBlock)
+	write("workflow.yaml", "statuses:\n  - name: \"idea\"\n  - name: \"in progress\"\n  - name: \"done\"\ntransitions:\n  - from: \"in progress\"\n    to: \"done\"\n"+ciBlock)
 	write("issues/UI/a.md", "---\ntitle: \"a\"\nstatus: \"done\"\nsystem: \"UI\"\n---\n\nBody.\n")
+	write("issues/UI/b.md", "---\ntitle: \"b\"\nstatus: \"in progress\"\nsystem: \"UI\"\n---\n\nBody.\n")
 	git("add", ".")
 	git("commit", "-q", "-m", "initial")
 	proj := &tracker.Project{Name: "Test", Slug: "test", IssueDir: filepath.Join(root, "issues"), WorkflowFile: filepath.Join(root, "workflow.yaml"), WorkDir: root}
@@ -256,7 +257,7 @@ func TestCIRunFileIssueOnRed(t *testing.T) {
 	ctx, _, _ = newTestContext(proj, false)
 	_ = runCI(ctx, []string{"run"})
 	issues, _ = tracker.LoadIssues(proj.IssueDir)
-	if n := len(issues); n != 2 {
+	if n := len(issues); n != 3 {
 		t.Errorf("a second red run filed another issue: %d issues", n)
 	}
 	if cs := comments(t, filed.FilePath); len(cs) != 2 || !strings.Contains(cs[1].Text, "still red") {
@@ -356,4 +357,60 @@ func TestShellQuote(t *testing.T) {
 func itoa(n int) string {
 	b, _ := json.Marshal(n)
 	return string(b)
+}
+
+func TestCILineForAgents(t *testing.T) {
+	proj, root := makeCIFixture(t, ciBlockFor("mark"))
+	ctx, _, _ := newTestContext(proj, false)
+	if err := runCI(ctx, []string{"run"}); err != nil {
+		t.Fatal(err)
+	}
+	landBranch(t, root, true)
+	ctx, _, _ = newTestContext(proj, false)
+	_ = runCI(ctx, []string{"run"})
+
+	// start: the red line, marked as inherited.
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runStart(ctx, []string{"ui/b"}); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	assertContains(t, stdout.String(), "Local CI: main red since ")
+	assertContains(t, stdout.String(), ": TestBroken — inherited from main, not caused by your branch")
+
+	// The dispatch prompt carries the same line and the never-wait rule.
+	ctx, stdout, _ = newTestContext(proj, false)
+	if err := runDispatchPrompt(ctx, []string{"ui/b"}); err != nil {
+		t.Fatalf("dispatch-prompt: %v", err)
+	}
+	out := stdout.String()
+	assertContains(t, out, "## Local CI\n\nLocal CI: main red since ")
+	assertContains(t, out, "Never wait for it")
+	assertContains(t, out, "issue-cli --project test ci status")
+
+	// transition --to done: CI runs without the agent.
+	ctx, stdout, _ = newTestContext(proj, false)
+	if err := runTransition(ctx, []string{"ui/b", "--to", "done"}); err != nil {
+		t.Fatalf("transition: %v", err)
+	}
+	assertContains(t, stdout.String(), "Local CI tests main at ")
+	assertContains(t, stdout.String(), "don't wait for it, you are done")
+}
+
+func TestCILineAbsentWithoutCIBlock(t *testing.T) {
+	proj, _ := makeCIFixture(t, "")
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runStart(ctx, []string{"ui/b"}); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	assertNotContains(t, stdout.String(), "Local CI")
+	ctx, stdout, _ = newTestContext(proj, false)
+	if err := runDispatchPrompt(ctx, []string{"ui/b"}); err != nil {
+		t.Fatal(err)
+	}
+	assertNotContains(t, stdout.String(), "Local CI")
+	ctx, stdout, _ = newTestContext(proj, false)
+	if err := runTransition(ctx, []string{"ui/b", "--to", "done"}); err != nil {
+		t.Fatal(err)
+	}
+	assertNotContains(t, stdout.String(), "Local CI")
 }

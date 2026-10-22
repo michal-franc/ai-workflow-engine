@@ -40,6 +40,18 @@ features:
 # session needs its own working tree to avoid stomping on uncommitted state.
 worktree: true
 
+# Local CI (docs/workflow.md, "Local CI"): every move of local main runs
+# make validate in .worktrees/.ci and reports red to the Status page, the
+# merged issues and the lead. ux-test is the slow tier, run on request:
+# issue-cli ci run --tier slow.
+ci:
+  timeout: 20m
+  run:
+    - cmd: make validate
+      failures: '--- FAIL: (\S+)'
+    - cmd: make ux-test
+      tier: slow
+
 # The Status page lists recent releases from the CLI's changelog (the repo
 # root has none: go:embed keeps it next to the CLI). System pages
 # (/p/issue-viewer/systems) take a summary and design doc per issue `system`,
@@ -134,6 +146,7 @@ statuses:
       2. Commit on your branch with a message referencing the issue.
       3. `git merge main` (the local branch, not origin/main), resolve any conflicts, and run `make validate`. Keep both sides' entries under `## Unreleased` when the CHANGELOG conflicts.
       4. Fast-forward the main checkout (the first path in `git worktree list`) to your branch: `git -C <main checkout> merge --ff-only <your branch>`. If it refuses because main moved, repeat step 3. If it refuses because the main checkout has uncommitted changes in files you touch, stop and tell the lead. Never force anything and never `git push`.
+      After the fast-forward, local CI tests main by itself (`issue-cli ci status`). Never wait for it: if it goes red on your merge, the lead may re-open your issue.
       Once your commit is on local main and the Shipping boxes are ticked, move the issue to `done` yourself (`issue-cli transition <slug> --to "done"`); it needs no human approval. Polishing the GitHub release description is the human's responsibility. Leave the worktree as it is: nobody has to remove it.
   - name: "done"
     description: "Completed"

@@ -24,6 +24,9 @@ release nothing.
 
 ## Unreleased
 
+- **issue-cli loads the right workflow without `--project`.** Run from a project root with `./issues/`, issue-cli used to take the workflow of the *last* project in `projects.yaml`. From `~/Work/issue-viewer`, that was Demo's. It now uses `./project.yaml`, then `./workflow.yaml`, then the configured project whose `workdir` or `issues` is that directory. If several match, it fails with the `--project` hint.
+- `process workflow`, `process transitions` and `show` print `Workflow file: <path>`, and `show --json` adds `workflow_file`.
+
 ## v0.51.0 — 2026-10-22
 
 - **One terminal, a session per project.** Two new top-level keys in `projects.yaml`, `terminal:` and `tmux_session_per_project: true`, set machine-wide defaults. Every project without its own value inherits them.

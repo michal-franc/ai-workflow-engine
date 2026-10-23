@@ -22,7 +22,9 @@ renames `## Unreleased` to `## vX.Y.Z — YYYY-MM-DD` and pushes, and the
 release-marker Action tags and builds it. Pushes with `## Unreleased` on top
 release nothing.
 
-## Unreleased
+## v0.53.0 — 2026-10-23
+
+Focus: safe core. The viewer listens on localhost only and refuses cross-origin writes; local CI re-tests main after every merge; a redesigned Status page that scales to hundreds of issues; report-bug files real issues; and a batch of issue-cli fixes from agents' bug reports.
 
 - **Typing during a dispatch no longer breaks the agent's start command.** Dispatch used to select the new agent window (or open its terminal) and then type `export …`, `cd …` and the start command into its shell, so whatever you were typing in the attached tmux client landed in front of it (`aclaude: command not found`, "Prompt not delivered"). The agent now starts as the window's own command, created detached in one tmux call with its environment (`-e`) and worktree (`-c`), in your login shell (`$SHELL -lic`); when it exits, or is stopped with Ctrl-C, the window keeps a shell. Dispatch never selects the new window, so the lead's window keeps focus. The pane `rawlog` (`pipe-pane`), the dispatch response's `log_file` field and `agent-log-viewer.py`, its only reader, are gone. Needs tmux 3.2+. (api/dispatch-keystrokes-typed-during-a-dispatch-corrupt-the-agent-start-command)
 - **issue-cli finds the config from any folder.** It used to look only at `--config`, `$ISSUE_VIEWER_CONFIG`, then `projects.yaml` relative to the current folder, so `--project <slug>` and `report-bug` failed in a shell the viewer did not start (`why: no projects.yaml at projects.yaml`). `issue-viewer -config` now records its config in `~/.local/state/ai-workflow-engine/viewer.json` at start, and the lookup is: `--config`, `$ISSUE_VIEWER_CONFIG`, `./projects.yaml` (only if it exists), the running viewer's config, `~/.config/ai-workflow-engine/projects.yaml`. `issue-cli projects` prints the chosen config and why; the new global `--debug` prints it on stderr. When nothing is found, the error (and report-bug's why) lists every place checked and the fix. See docs/CLI/overview.md#config-lookup.

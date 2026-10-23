@@ -54,7 +54,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli append <slug>`        | Append content to issue body             |
 | `issue-cli replace <slug>`       | Replace content of an existing section, or one line of it (`--line N`, `--match RE`). See [`replace`](#replace) |
 | `issue-cli update <slug>`        | Change the title (the slug is kept; `--rename` moves it) and/or replace the body. See [`update`](#update) |
-| `issue-cli set-meta <slug>`      | Set or clear a frontmatter field (refuses `type` in projects with types — use `set-type`; checks every slug in `depends_on`) |
+| `issue-cli set-meta <slug>`      | Set or clear a frontmatter field, replacing its whole old value (list items and block lines included); refuses a write whose YAML would not parse (refuses `type` in projects with types — use `set-type`; checks every slug in `depends_on`, and writes two or more as a YAML list) |
 | `issue-cli set-type <slug> <t>`  | Change an issue's type of work; agents only while it is at its type's first status. See [Types of Work](../Workflow/types.md) |
 | `issue-cli process workflow`     | Print the workflow file in use (`Workflow file:`), the active workflow, the `== Types ==` block and `workflow.yaml` lint warnings; `--type <t>` prints one type's lifecycle |
 | `issue-cli process transitions`  | Print transition rules (default workflow, or scoped via `--system <name>`, `--type <t>` or `<issue-slug>`) |

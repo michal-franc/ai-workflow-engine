@@ -19,7 +19,8 @@ Examples:
   issue-cli set-meta <slug> --key depends_on --value "ui/other-issue, cli/another"
 
 depends_on takes the slugs of the issues this one waits on (comma-separated);
-each must exist. The detail page and show list them, and the Metrics view's
+each must exist. Two or more are written as a YAML list. The new value
+replaces the old one: pass every slug the issue waits on. The detail page and show list them, and the Metrics view's
 Branches tab shows them per branch.`,
 	Run: runSetMeta,
 }
@@ -60,14 +61,23 @@ func runSetMeta(ctx *Context, args []string) error {
 	if key == "type" && ctx.Project.LoadWorkflow().HasTypes() {
 		return fmt.Errorf("set-meta can't change type: in a project with types (it picks the issue's path)\n\nUse:\n  issue-cli set-type %s <type>", issue.Slug)
 	}
+	var list []string
 	if key == tracker.DependsOnField && !clear {
 		slugs, err := checkDependsOn(ctx, issue, value)
 		if err != nil {
 			return err
 		}
 		value = strings.Join(slugs, ", ")
+		if len(slugs) > 1 {
+			list = slugs
+		}
 	}
-	if err := tracker.SetFrontmatterField(issue.FilePath, key, value, clear); err != nil {
+	if list != nil {
+		err = tracker.SetFrontmatterList(issue.FilePath, key, list)
+	} else {
+		err = tracker.SetFrontmatterField(issue.FilePath, key, value, clear)
+	}
+	if err != nil {
 		return fmt.Errorf("failed to set frontmatter: %w", err)
 	}
 	if clear {

@@ -6,10 +6,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/clilog"
 	"github.com/michal-franc/issue-viewer/internal/telemetry"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
@@ -26,16 +31,23 @@ func getStatsPage(t *testing.T) string {
 	proj, _ := setupTestProject(t)
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
-	resp, err := http.Get(ts.URL + "/p/test-project/stats")
-	if err != nil {
-		t.Fatal(err)
+	// The CLI usage report is read in the background; the page says so
+	// until it lands, like a reload a moment later would.
+	for i := 0; ; i++ {
+		resp, err := http.Get(ts.URL + "/p/test-project/stats")
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("stats page must not fail because of CLI usage, got %d:\n%s", resp.StatusCode, body)
+		}
+		if !strings.Contains(string(body), "being read in the background") || i == 200 {
+			return string(body)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("stats page must not fail because of CLI usage, got %d:\n%s", resp.StatusCode, body)
-	}
-	return string(body)
 }
 
 func TestStatsPageRendersCLIUsageSection(t *testing.T) {
@@ -104,4 +116,106 @@ func sectionAfter(body, id string) string {
 		return body[i:]
 	}
 	return body
+}
+
+// The time section: a bugfix done an hour ago, from its stats sidecar and
+// per-agent clilog, split per status, with its approval wait and its
+// refused transition.
+func TestStatsPageTimeSection(t *testing.T) {
+	withStubTelemetryReport(t, func(*tracker.Project) ([]byte, error) { return nil, errors.New("off") })
+	proj := fixItProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/p/test-project/stats")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	body := string(raw)
+	for _, s := range []string{
+		`data-testid="stats.time"`,
+		"1 issue done",
+		`<td>bugfix</td><td class="num">1</td><td class="num">1h 0m / 1h 0m</td>`,
+		// human-testing: 50m in it, 30m waiting on you (from the end of the
+		// refused call at 20m to the approval at 50m), the rest agent.
+		`<td>human-testing</td><td class="num">1</td><td class="num">50m / 50m</td><td class="num">20m 1s / 20m 1s</td><td class="num">30m / 30m</td><td class="num">0s / 0s</td>`,
+		`<td>human-testing→done</td><td class="num">1</td><td class="num">30m / 30m</td>`,
+		`<td>human-testing→done</td><td><code>approval_missing</code></td><td>transition</td><td class="num">1</td>`,
+	} {
+		if !strings.Contains(body, s) {
+			t.Errorf("stats page missing %q", s)
+		}
+	}
+	if t.Failed() {
+		i := strings.Index(body, `data-testid="stats.time"`)
+		t.Logf("section:\n%s", body[i:min(len(body), i+6000)])
+	}
+}
+
+// fixItProject is the test project plus fix-it, a bugfix done an hour ago:
+// 10m in progress, 50m in human-testing with a refused transition to done
+// at 20m and your approval at 50m.
+func fixItProject(t *testing.T) tracker.Project {
+	t.Helper()
+	proj, tmp := setupTestProject(t)
+	proj.WorkDir = tmp
+	t0 := time.Now().Add(-2 * time.Hour).Truncate(time.Second)
+	path := filepath.Join(proj.IssueDir, "fix-it.md")
+	if err := os.WriteFile(path, []byte("---\ntitle: \"Fix it\"\nstatus: \"done\"\ntype: \"bugfix\"\n---\n\nBody.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	approved := t0.Add(50 * time.Minute)
+	stats, _ := json.Marshal(tracker.StatsStore{Transitions: []tracker.TransitionStat{
+		{From: "in progress", To: "human-testing", TS: t0.Add(10 * time.Minute)},
+		{From: "human-testing", To: "done", TS: t0.Add(60 * time.Minute), ApprovedAt: &approved},
+	}})
+	if err := os.WriteFile(tracker.StatsSidecarPath(path), stats, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exit0, exit1, dur := 0, 1, int64(500)
+	log := clilog.AgentPath(tmp, tracker.AgentSessionName("fix-it"))
+	for _, r := range []clilog.Record{
+		{TS: t0.Format(time.RFC3339), Args: []string{"start", "fix-it"}, Exit: &exit0, DurMS: &dur},
+		{TS: t0.Add(9 * time.Minute).Format(time.RFC3339), Args: []string{"transition", "fix-it", "--to", "human-testing"}, Exit: &exit0, DurMS: &dur},
+		{TS: t0.Add(20 * time.Minute).Format(time.RFC3339), Args: []string{"transition", "fix-it", "--to", "done"}, Exit: &exit1, ErrClass: "approval_missing", DurMS: &dur},
+		{TS: t0.Add(55 * time.Minute).Format(time.RFC3339), Args: []string{"transition", "fix-it", "--to", "done"}, Exit: &exit0, DurMS: &dur},
+	} {
+		if err := clilog.Append(log, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	return proj
+}
+
+func TestParseStatsOpts(t *testing.T) {
+	for q, want := range map[string]struct {
+		days   int
+		window time.Duration
+		group  string
+	}{
+		"":                        {30, 60 * 24 * time.Hour, "type"},
+		"range=90d&group=system":  {90, 120 * 24 * time.Hour, "system"},
+		"range=all":               {0, 3650 * 24 * time.Hour, "type"},
+		"range=bogus&group=bogus": {30, 60 * 24 * time.Hour, "type"},
+		"days=45":                 {45, 75 * 24 * time.Hour, "type"},
+		"days=9999":               {30, 60 * 24 * time.Hour, "type"},
+	} {
+		v, _ := url.ParseQuery(q)
+		o := parseStatsOpts(v)
+		if o.days() != want.days || o.window() != want.window || o.Group != want.group {
+			t.Errorf("%q: days %d window %v group %q, want %+v", q, o.days(), o.window(), o.Group, want)
+		}
+	}
+	o := parseStatsOpts(url.Values{"range": {"7d"}, "hide": {"none,tweak"}, "p": {"90"}, "drill": {"status:testing"}})
+	if !o.hidden("none") || o.hidden("feature") || o.P != "90" {
+		t.Errorf("opts = %+v", o)
+	}
+	if got := o.query(false); got != "group=type&hide=none%2Ctweak&p=90&range=7d" {
+		t.Errorf("query = %q", got)
+	}
+	if got := o.query(true); !strings.Contains(got, "drill=status%3Atesting") {
+		t.Errorf("query with drill = %q", got)
+	}
 }

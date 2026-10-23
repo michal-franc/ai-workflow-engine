@@ -24,7 +24,7 @@ The board and detail views can dispatch issues to AI agents (Claude or Codex) vi
 
 ## How the prompt is delivered
 
-The prompt is saved to `<workdir>/.agent-logs/<session>/dispatch-prompt.txt`, and the agent starts with it as its positional argument (`claude "<prompt>"`, the same as codex). It is never pasted into a booting agent. Claude is also started with `-n <session name>` (`claude -n agent-<slug> "<prompt>"`, `-n lead-<project>` for the lead), so its tmux name is its address for Claude Code's built-in messaging between sessions (`ListAgents` / `SendMessage`); codex gets no name. Earlier versions typed `claude`, waited a fixed 3 s and pasted the prompt. When Claude took longer to start, the paste was dropped, yet every step still reported ok.
+The prompt is saved to `<workdir>/.agent-logs/<session>/dispatch-prompt.txt`, in the project's checkout even when the agent runs in a worktree (the agent's clilog and `messages/` sit next to it), so removing a worktree loses none of the agent's history. Each new launch on an issue is also appended to the issue's stats sidecar as `dispatches: [{at, session, agent}]` ([Workflow Stats](workflow-stats.md)); re-attaching to a live session is not. The agent starts with it as its positional argument (`claude "<prompt>"`, the same as codex). It is never pasted into a booting agent. Claude is also started with `-n <session name>` (`claude -n agent-<slug> "<prompt>"`, `-n lead-<project>` for the lead), so its tmux name is its address for Claude Code's built-in messaging between sessions (`ListAgents` / `SendMessage`); codex gets no name. Earlier versions typed `claude`, waited a fixed 3 s and pasted the prompt. When Claude took longer to start, the paste was dropped, yet every step still reported ok.
 
 ### How the agent starts
 
@@ -233,7 +233,7 @@ Model names may contain only letters, digits and `._:/[]-`; anything else is ign
 
 ## Human Approval Notifications
 
-When a human approves a status transition in the web UI, the server sends a natural-language message to the active agent's tmux session. The message is randomized from a set of conversational templates so the agent receives a human-like prompt rather than a structured signal.
+When a human approves a status transition in the web UI, the server sends a natural-language message to the active agent's tmux session. The message is randomized from a set of conversational templates so the agent receives a human-like prompt rather than a structured signal. When the human typed words into the approve box, the message is `Approved for <status>: "<words>"` instead. An approve-then keeps its "run issue-cli start" line and adds `Owner's words: "<words>"`. The words are also saved as an `approval:` comment, which `issue-cli show` lists.
 
 This nudge is the hand-off: at a gate the agent asks in chat, then stops and ends its turn, and the approval message resumes it. Agents don't block or poll (`issue-cli transition|start --wait` was removed in v0.49.0, see [CLI overview](CLI/overview.md#at-a-human-approval-gate)). If an agent wasn't reachable (no matching tmux session), tell it yourself that the approval landed. The approve handler also timestamps the approval in the issue's stats sidecar (`last_approval`), and logs nudges that fail (`agent not nudged: …`) to the server log, so their failure rate can be measured.
 
@@ -281,7 +281,7 @@ The base URL comes from:
 
 Dispatched agents start with these set (passed to tmux with `-e`):
 
-- `ISSUE_CLI_LOG` — logging path
+- `ISSUE_CLI_LOG` — the agent's own [clilog](CLI/telemetry.md#the-clilog), `<workdir>/.agent-logs/<session>/<session>.clilog` in the project checkout
 - `ISSUE_VIEWER_SERVER_PWD` — server working directory
 - `ISSUE_VIEWER_ISSUE_SLUG` — slug of the dispatched issue (attached to bug reports automatically)
 - `ISSUE_VIEWER_LEAD_SCOPE` — the lead's session only: `project`. `issue-cli lead whoami`, `approve` and `lead spawn` read it to know who is asking; any other value is ignored.

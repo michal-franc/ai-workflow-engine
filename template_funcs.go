@@ -7,8 +7,10 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/testids"
+	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -39,6 +41,8 @@ type StatusTabs struct {
 }
 
 var funcMap = template.FuncMap{
+	// commentDay is the day of a comment date stored as RFC3339 or a day.
+	"commentDay": tracker.CommentDay,
 	// sidebar is replaced per server (Server.sidebarNav): the Nav the shared
 	// sidebar partial renders for a project page.
 	"sidebar": func(prefix, active string) Nav { return Nav{Prefix: prefix} },
@@ -111,6 +115,10 @@ var funcMap = template.FuncMap{
 	// internal/testids).
 	"tid":    testids.Segment,
 	"plural": plural,
+	// statsCard pairs a chart card with its dashboard for the statsChart
+	// template; statsRangeLabel names the range ("30 days").
+	"statsCard":       func(d *Dashboard, c ChartCard) statsCardData { return statsCardData{Dash: d, Card: c} },
+	"statsRangeLabel": statsRangeLabel,
 	// head and rest split a list at n for "+K more" folds: range head 5 .X
 	// shows the first five, with rest 5 .X the others go in the fold.
 	// inlineMarkdown renders a changelog line's bold and code.
@@ -235,6 +243,19 @@ var funcMap = template.FuncMap{
 		}
 		return template.JS(b)
 	},
+	// The Timeline tab's formats (timeline.go): durations, clock times and
+	// bar widths.
+	"tlDur":   fmtDur,
+	"tlSpan":  fmtSpan,
+	"tlClock": func(t time.Time) string { return t.Local().Format("15:04") },
+	"tlDay":   func(t time.Time) string { return t.Local().Format("Mon 2 Jan") },
+	"tlDate":  func(t time.Time) string { return t.Local().Format("2 Jan 2006") },
+	"tlPct":   func(p float64) template.CSS { return template.CSS(fmt.Sprintf("%.3f%%", p)) },
+	"tlShare": func(d, total time.Duration) string { return fmt.Sprintf("%.0f%%", durPct(d, total)) },
+	"tlSub":   func(a, b time.Time) time.Duration { return a.Sub(b) },
+	// "p50 / p90" on /stats.
+	"tlP":    func(p timeline.Pct) string { return fmtDur(p.P50) + " / " + fmtDur(p.P90) },
+	"tlFrac": func(f float64) string { return fmt.Sprintf("%.0f%%", f*100) },
 }
 
 var issueRefRe = regexp.MustCompile(`#([a-zA-Z0-9][\w/.-]*)`)

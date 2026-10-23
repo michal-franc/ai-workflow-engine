@@ -13,7 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/health"
+	"github.com/michal-franc/issue-viewer/internal/milestone"
 	"github.com/michal-franc/issue-viewer/internal/telemetry"
+	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -52,6 +55,41 @@ type StatsData struct {
 	// it could not be produced, in which case CLIUsageNotice says why.
 	CLIUsage       *telemetry.Report
 	CLIUsageNotice string
+	// CLIUsageLoading: the report is being read in the background for the
+	// first time (stats_cache.go).
+	CLIUsageLoading bool
+	// Time is where the time goes over the issues done in the page's range
+	// (the cached timeline.Aggregate, filtered); TimeGroups are its status
+	// rows by type, All first.
+	Time       timeline.Report
+	TimeGroups []timeGroup
+	// Dash is the dashboard above the tables; TablesOpen unfolds the time
+	// tables (?days=N, as /stats?days=N showed them before).
+	Dash       *Dashboard
+	TablesOpen bool
+}
+
+// timeGroup is one type of work's row and its status rows on /stats.
+type timeGroup struct {
+	timeline.TypeRow
+	Statuses []timeline.StatusRow
+}
+
+// Days is the time section's window in days.
+func (d StatsData) Days() int { return int(d.Time.To.Sub(d.Time.From) / (24 * time.Hour)) }
+
+func timeGroups(rep timeline.Report) []timeGroup {
+	var out []timeGroup
+	for _, t := range rep.Types {
+		g := timeGroup{TypeRow: t}
+		for _, s := range rep.Statuses {
+			if s.Type == t.Type {
+				g.Statuses = append(g.Statuses, s)
+			}
+		}
+		out = append(out, g)
+	}
+	return out
 }
 
 // runTelemetryReport produces `issue-cli telemetry report --json` for a
@@ -126,8 +164,21 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *track
 		return
 	}
 
+	now := time.Now()
+	opts := parseStatsOpts(r.URL.Query())
+	if s.stats == nil {
+		s.stats = newStatsCache()
+	}
+	wide, aggMS := s.stats.aggregate(proj, wf, issues, opts.window(), now, s.statsBG("stats refresh "+proj.Slug))
+	dash := buildDashboard(dashIn{
+		Proj: proj, Base: prefix + "/stats", Prefix: prefix, WF: wf, Issues: issues, Opts: opts, Now: now,
+		Wide: wide, AggMS: aggMS, Snaps: health.Range(ciRootFor(proj), time.Time{}, now),
+		Released: milestone.Released(r.Context(), projectRoot(proj), wf.Workbench.Changelog),
+	})
+	timeRep := wide.Filter(dash.From, dash.To)
+
 	recorded, totals := aggregateRecordedStats(issues)
-	usage, usageNotice := loadCLIUsage(proj)
+	usage, usageNotice, usageLoading := s.stats.cliUsage(proj, now, s.statsBG("stats cli usage "+proj.Slug))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "stats.html", StatsData{
@@ -139,6 +190,11 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *track
 		IssueTotals:         totals,
 		CLIUsage:            usage,
 		CLIUsageNotice:      usageNotice,
+		CLIUsageLoading:     usageLoading,
+		Time:                timeRep,
+		TimeGroups:          timeGroups(timeRep),
+		Dash:                dash,
+		TablesOpen:          opts.Days > 0,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

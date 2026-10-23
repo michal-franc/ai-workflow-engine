@@ -60,7 +60,9 @@ func TestDemoConfig(t *testing.T) {
 	}
 	for _, path := range []string{"/p/" + projects[0].Slug + "/", "/p/" + projects[0].Slug + "/board"} {
 		rec := httptest.NewRecorder()
-		srv.Routes().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Host = "localhost" // httptest defaults to example.com, which the Host guard refuses
+		srv.Routes().ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
 			t.Errorf("GET %s: status %d", path, rec.Code)
 		}

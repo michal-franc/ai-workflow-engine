@@ -322,6 +322,11 @@ Body
 	if !strings.Contains(html, `id="approve-rejected"`) {
 		t.Fatalf("second approval button should have id=approve-rejected:\n%s", html)
 	}
+
+	// One words box serves every approve button in the section.
+	if n := strings.Count(html, `data-testid="approve_words.detail"`); n != 1 {
+		t.Fatalf("words boxes = %d, want 1", n)
+	}
 }
 
 func TestHandleDetail_OptionalApprovalUsesConfiguredCTALabel(t *testing.T) {
@@ -633,5 +638,74 @@ func TestApprovalsJSON(t *testing.T) {
 	}
 	if resp, _ := getResp(t, ts.URL+"/p/test-project/issue/no-such-issue/approvals.json"); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("unknown issue: status %d, want 404", resp.StatusCode)
+	}
+}
+
+// The Issue tab leads with the band (brief, needs you, path), keeps the full
+// body in the page for folding, and moves the dependency rows into Relations.
+func TestHandleDetail_IssueTabBand(t *testing.T) {
+	withMockTmuxSessions(t, nil)
+	proj, _ := setupTestProject(t)
+	body := `---
+title: "Queued work"
+status: "backlog"
+assignee: "agent-queued-work"
+depends_on: "fix-typo"
+---
+
+**In short:** the band shows this sentence.
+
+## Decisions
+
+- **D-1** · 2026-10-23 · lead chat: build it, "i want it now"
+
+## Acceptance Criteria
+- [ ] it works
+`
+	if err := os.WriteFile(filepath.Join(proj.IssueDir, "queued-work.md"), []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	get := func(path string) string {
+		resp, err := http.Get(ts.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: %d\n%s", path, resp.StatusCode, b)
+		}
+		return string(b)
+	}
+	page := get("/p/test-project/issue/queued-work")
+	for _, want := range []string{
+		`data-testid="detail.brief.text">The band shows this sentence.`,
+		`"i want it now"`,
+		`data-testid="detail.needs" data-state="gate"`,
+		`data-testid="detail.needs.approve.in_progress"`,
+		`data-testid="approve_words.band"`,
+		`issue-cli approve queued-work --to &#34;in progress&#34;`,
+		`data-testid="detail.path.step.in_design"`,
+		`data-testid="detail.decision.d-1"`,
+		`data-testid="detail.criteria"`,
+		`data-testid="detail.relations"`,
+		`data-testid="detail.field.depends_on"`,
+		`data-fold="[{`,
+		`data-testid="detail.fold.expand_all"`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("Issue tab is missing %s", want)
+		}
+	}
+	if n := strings.Count(page, `data-testid="detail.field.depends_on"`); n != 1 {
+		t.Errorf("depends on renders %d times, want once (in Relations)", n)
+	}
+
+	timeline := get("/p/test-project/issue/queued-work?tab=timeline")
+	if strings.Contains(timeline, `data-testid="detail.brief"`) {
+		t.Error("the band belongs to the Issue tab only")
 	}
 }

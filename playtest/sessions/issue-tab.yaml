@@ -1,0 +1,139 @@
+session: issue-tab
+issue: ui/issue-tab-brief-needs-you-bar-and-a-folded-body
+title: The Issue tab says what the issue is, where it is and what it needs from you, with the body folded
+scenario: issue-tab
+
+# ui/folded-brief's body renders as blocks 0-17: the In short paragraph (0),
+# the table (1), Decisions (2-3), Idea (4-10), Design (11-15: its prose is
+# block 13), Acceptance Criteria (16-17).
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: The band shows the brief, your words, the path and the ready gate
+    setup:
+      - open: /p/{project}/issue/ui/folded-brief
+    checks:
+      - text_contains: { target: detail.brief.text, text: "The issue page opens on a band that says what this is" }
+      - text_contains: { target: detail.brief.words, text: "the band first, the rest can wait" }
+      - text_contains: { target: detail.brief.words, text: "D-1" }
+      - text_contains: { target: detail.needs, text: "Approve the design: start it now, or queue it in backlog." }
+      - visible: [detail.needs.approve.in_progress, detail.needs.approve.backlog, approve_words.band, detail.needs.command]
+      - text_contains: { target: detail.needs.command, text: 'issue-cli approve ui/folded-brief --to "in progress"' }
+      - text_contains: { target: detail.path.step.in_progress, text: your gate }
+      - text_contains: { target: detail.approving, text: "since dispatch" }
+      - text_contains: { target: detail.approving.count.sections, text: "2 sections written: Idea, Design" }
+      - text_contains: { target: detail.approving.count.boxes, text: "I1 I2 D1 D2" }
+      - text_contains: { target: detail.decisions, text: "1 took the agent's recommendation" }
+      - text_contains: { target: detail.criteria, text: "0 / 4" }
+      - visible: [detail.agent, detail.relations, detail.field.depends_on]
+
+  - id: TP5
+    title: Approving from the band saves your words with the approval
+    setup:
+      - open: /p/{project}/issue/ui/folded-brief
+    act:
+      - type: { target: approve_words.band, text: "Band reads right, start it" }
+      - click: detail.needs.approve.in_progress
+      - wait_for: { text_contains: { target: detail.toast, text: "Approved for in progress with your words" } }
+    checks:
+      - issue: { slug: ui/folded-brief, field: human_approval, equals: in progress }
+      - issue: { slug: ui/folded-brief, comment_contains: 'approval: "Band reads right, start it" (viewer, ' }
+
+  - id: TP6
+    title: The body is folded by section; Show, Hide and Expand all work, and the state survives a reload
+    setup:
+      - open: /p/{project}/issue/ui/folded-brief
+    act:
+      - check: { hidden: detail.block.13 }
+      - check: { text_contains: { target: detail.fold.section.idea, text: "2 / 2" } }
+      - check: { text_contains: { target: detail.fold.section.idea, text: "Edge cases, Not included" } }
+      - click: detail.fold.toggle.design
+      - wait_for: detail.block.13
+      - check: { hidden: detail.block.8 }
+      - reload: true
+      - wait_for: detail.block.13
+      - click: detail.fold.toggle.design
+      - check: { hidden: detail.block.13 }
+      - click: detail.fold.expand_all
+    checks:
+      - visible: [detail.block.0, detail.block.2, detail.block.8, detail.block.13, detail.block.17]
+      - hidden: detail.fold.section.design
+      - text_equals: { target: detail.fold.expand_all, text: Fold }
+
+  - id: TP7
+    title: Comments and Edit still work on a folded body
+    setup:
+      - open: /p/{project}/issue/ui/folded-brief
+    act:
+      - click: detail.fold.toggle.idea
+      - wait_for: detail.block.6
+      - hover: detail.block.6
+      - click: detail.comment.eye.6
+      - wait_for: detail.comment.input.6
+      - type: { target: detail.comment.input.6, text: "this line reads well" }
+      - click: detail.comment.submit.6
+      - wait_for: { text_contains: { target: detail.fold.section.idea, text: "1 comment" } }
+      - click: detail.tab.edit
+    checks:
+      - visible: detail.body.textarea
+      - issue: { slug: ui/folded-brief, comment_contains: "this line reads well" }
+
+  - id: TP8
+    title: An answer under an open question is saved and clears the question
+    setup:
+      - open: /p/{project}/issue/ui/question-open
+    act:
+      - check: { text_contains: { target: detail.needs, text: "keep refused calls in the list, or only count them?" } }
+      - type: { target: detail.needs.answer, text: "only count them" }
+      - click: detail.needs.answer.send
+      - wait_for: { text_contains: { target: detail.toast, text: Answer saved } }
+      - reload: true
+    checks:
+      - issue: { slug: ui/question-open, comment_contains: "answer: only count them" }
+      - absent: detail.needs.answer
+      - text_contains: { target: detail.needs, text: "Nothing needs you." }
+
+  - id: TP9
+    title: The other states say what to do, or who has the issue
+    setup:
+      - open: /p/{project}/issue/ui/playtest-due
+    act:
+      - check: { text_contains: { target: detail.needs, text: "Run the playtest: 1 session." } }
+      - check: { text_contains: { target: detail.needs.command, text: "make playtest ISSUE=ui/playtest-due" } }
+      - check: { visible: detail.needs.copy }
+      - check: { text_contains: { target: detail.needs.also, text: "approve → done" } }
+      - open: /p/{project}/issue/ui/parked-one
+      - check: { text_contains: { target: detail.needs, text: "Nobody is on it." } }
+      - check: { text_contains: { target: detail.needs, text: "Delivered by another issue in v0.53.0." } }
+      - open: /p/{project}/issue/ui/agent-stopped
+    checks:
+      - text_contains: { target: detail.needs, text: "The agent stopped." }
+      - absent: detail.needs.approve.in_progress
+      - text_contains: { target: detail.agent, text: "agent-ui-agent-stopped" }
+
+  - id: TP10
+    title: The Issue tab answers what, where and what you need in ten seconds
+    setup:
+      - open: /p/{project}/issue/ui/folded-brief
+    targets:
+      - { id: detail.brief, note: What this is, where it is, and Needs you }
+      - { id: detail.approving, note: What was recorded since dispatch }
+      - { id: detail.fold, note: The body folded by section }
+    do: |
+      1. Look at the band for ten seconds, then look away and say what the
+         issue is, which status it is in, and what it needs from you.
+      2. Read What you're approving and Decisions.
+      3. In Full issue, open Design, then press Expand all and Fold.
+      4. Narrow the window to phone width (or open it on a phone).
+    expect: |
+      You can answer the three questions from the band alone. The approve
+      buttons, the words box and the command for the lead read as one action.
+      The folded rows tell you what each section holds without opening it,
+      and Expand all looks like today's issue page. On the phone, Needs you
+      comes right after the brief and nothing scrolls sideways.
+    why: ux-test checks what each part shows; only you can say whether the page answers fast enough to be the tab you land on.

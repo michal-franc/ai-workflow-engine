@@ -11,7 +11,12 @@ var approveCommand = &Command{
 	Name:      "approve",
 	ShortHelp: "Record a human approval for a gate, with the human's words (leads only; never workers)",
 	LongHelp: `Record that the human approved an issue for a status. It writes an
-approval: comment with the human's words, then sets human_approval (it never
+approval: comment with the human's words, the same comment the viewer's
+words box writes:
+
+  approval: "<words>" (<how>, <date>) → <status>
+
+then sets human_approval (it never
 toggles an existing approval off, unlike the viewer's button).
 
 Who may run it:
@@ -72,7 +77,7 @@ func runApprove(ctx *Context, args []string) error {
 	}
 
 	date := ctx.now().Format("2006-01-02")
-	comment := fmt.Sprintf("approval: %q (%s, %s)", quote, how, date)
+	comment := tracker.ApprovalComment(quote, how, date, to)
 	if me.Name != "" {
 		comment += " — recorded by " + me.Name
 	}

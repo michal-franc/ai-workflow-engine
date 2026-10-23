@@ -896,6 +896,18 @@ func TestRunCreateNewIssue(t *testing.T) {
 	}
 }
 
+func TestRunCreateRefusesUnparsableFrontmatter(t *testing.T) {
+	proj, _, _ := makeSimpleProject(t, "in progress")
+	ctx, _, _ := newTestContext(proj, false)
+	err := runCreate(ctx, []string{"--title", "broken one", "--priority", `high" oops: "x`})
+	if err == nil || !strings.Contains(err.Error(), "frontmatter would not parse") {
+		t.Fatalf("expected a refused create, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(proj.IssueDir, "broken-one.md")); !os.IsNotExist(err) {
+		t.Fatalf("issue file written despite the refusal")
+	}
+}
+
 func TestRunCreateRequiresTitle(t *testing.T) {
 	proj, _, _ := makeSimpleProject(t, "in progress")
 	ctx, _, _ := newTestContext(proj, false)

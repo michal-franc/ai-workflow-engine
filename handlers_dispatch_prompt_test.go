@@ -299,3 +299,41 @@ func TestRepromptURL_OnlyForTheIssuesMainSession(t *testing.T) {
 		t.Fatalf("no-issue URL = %q, want empty", got)
 	}
 }
+
+// A dispatch into a worktree keeps the session's logs in the project
+// checkout, so removing the worktree loses no history, and records its time
+// in the issue's stats sidecar.
+func TestStartAgentSession_LogsInProjectAndRecordsDispatch(t *testing.T) {
+	isolateTmux(t)
+	withPromptDeliveryTimeout(t, 5*time.Second)
+	proj, tmpDir := setupWorktreeProject(t)
+	worktree := filepath.Join(tmpDir, ".worktrees", "bug-in-login")
+	if err := os.MkdirAll(worktree, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	session := tmuxSessionName("bug-in-login")
+	resp := startAgentSession(&proj, session, "prompt line\n", "bug-in-login", "echo", "", proj.LoadWorkflow())
+	if resp.Status != "dispatched" {
+		t.Fatalf("Status = %q; steps=%+v", resp.Status, resp.Steps)
+	}
+	if _, err := os.Stat(filepath.Join(tmpDir, ".agent-logs", session, "dispatch-prompt.txt")); err != nil {
+		t.Fatalf("prompt not in the project's .agent-logs: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(worktree, ".agent-logs")); !os.IsNotExist(err) {
+		t.Fatalf("worktree got an .agent-logs dir (err=%v)", err)
+	}
+	issues, err := tracker.LoadIssues(proj.IssueDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := tracker.LoadStats(tracker.FindIssue(issues, "bug-in-login").FilePath)
+	if err != nil || len(store.Dispatches) != 1 || store.Dispatches[0].Session != session || store.Dispatches[0].Agent != "echo" {
+		t.Fatalf("dispatches = %+v (err %v)", store.Dispatches, err)
+	}
+
+	// A reattach to the live session is not a new dispatch.
+	startAgentSession(&proj, session, "prompt line\n", "bug-in-login", "echo", "", proj.LoadWorkflow())
+	if store, _ := tracker.LoadStats(tracker.FindIssue(issues, "bug-in-login").FilePath); len(store.Dispatches) != 1 {
+		t.Fatalf("reattach recorded a dispatch: %+v", store.Dispatches)
+	}
+}

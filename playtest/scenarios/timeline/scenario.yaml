@@ -1,0 +1,24 @@
+# The Timeline tab. ui/timeline-demo is done: dispatched 14:30 UTC, done
+# 17:30, with its stats sidecar (two approvals, a dispatch), the agent's
+# clilog (a refused gate, reads to fold), two judge playtest runs (TP2 fails
+# at 16:50, passes at 17:20) and work/ui/timeline-demo with three commits
+# (15:00, 16:00, 17:00: the runner's fixed commit dates). Expected: 3h 0m in
+# all, 1h 30m agent working, 1h 10m waiting on you (3 waits), 20m idle, one
+# rework loop of 13m. ui/timeline-without-logs is done with a stats sidecar
+# only: no clilog, no branch.
+title: Timeline tab - where an issue's time went
+project:
+  name: Timeline Demo
+  slug: tl
+issues: tracker
+workflow: workflow.yaml
+root: files
+branches:
+  - name: work/ui/timeline-demo
+    commits:
+      - files: branches/one
+        message: "Tab bar on the detail page"
+      - files: branches/two
+        message: "Timeline tab: totals and life by status"
+      - files: branches/three
+        message: "Fix: CLI calls filter keeps the workflow actions"

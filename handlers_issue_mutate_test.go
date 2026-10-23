@@ -4,6 +4,7 @@ import (
 	"context"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -763,4 +764,80 @@ func loadTestIssue(t *testing.T, proj tracker.Project, slug string) *tracker.Iss
 	}
 	t.Fatalf("issue %s not found", slug)
 	return nil
+}
+
+func TestHandleApproveIssue_WordsSavedAndQuotedToAgent(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	withMockTmuxSessions(t, []AgentSession{{Name: "agent-add-dark-mode"}})
+	var nudge string
+	withMockTmuxSendKeys(t, func(_ string, lines []string) error {
+		nudge = strings.Join(lines, " ")
+		return nil
+	})
+	url := ts.URL + "/p/test-project/issue/add-dark-mode/approve"
+	issuePath := filepath.Join(proj.IssueDir, "add-dark-mode.md")
+
+	var payload approvalResponse
+	json.NewDecoder(pagePost(t, url, `{"status":"in progress","words":"  Design reads right.\nGo  "}`).Body).Decode(&payload)
+	if payload.HumanApproval != "in progress" || !payload.WordsSaved || payload.WordsError != "" {
+		t.Fatalf("payload = %+v", payload)
+	}
+	comments, _ := tracker.LoadComments(issuePath)
+	if len(comments) != 1 || comments[0].Source != "app" {
+		t.Fatalf("comments = %+v", comments)
+	}
+	want := `approval: "Design reads right.\nGo" (viewer, ` + time.Now().Format("2006-01-02") + `) → in progress`
+	if comments[0].Text != want {
+		t.Fatalf("comment = %q, want %q", comments[0].Text, want)
+	}
+	if nudge != `Approved for in progress: "Design reads right.\nGo"` {
+		t.Fatalf("nudge = %q", nudge)
+	}
+	if store, _ := tracker.LoadStats(issuePath); store.LastApproval == nil {
+		t.Fatal("approval time not recorded")
+	}
+
+	// Un-approving ignores the words: no second comment.
+	var off approvalResponse
+	json.NewDecoder(pagePost(t, url, `{"status":"in progress","words":"changed my mind"}`).Body).Decode(&off)
+	if off.HumanApproval != "" || off.WordsSaved {
+		t.Fatalf("toggle-off payload = %+v", off)
+	}
+	if comments, _ := tracker.LoadComments(issuePath); len(comments) != 1 {
+		t.Fatalf("toggle-off wrote a comment: %+v", comments)
+	}
+}
+
+func TestHandleApproveIssue_BlankWordsBehaveAsToday(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	withMockTmuxSessions(t, []AgentSession{{Name: "agent-add-dark-mode"}})
+	var nudge string
+	withMockTmuxSendKeys(t, func(_ string, lines []string) error {
+		nudge = strings.Join(lines, " ")
+		return nil
+	})
+
+	var payload approvalResponse
+	json.NewDecoder(pagePost(t, ts.URL+"/p/test-project/issue/add-dark-mode/approve", `{"status":"in progress","words":"   "}`).Body).Decode(&payload)
+	if payload.HumanApproval != "in progress" || payload.WordsSaved {
+		t.Fatalf("payload = %+v", payload)
+	}
+	if comments, _ := tracker.LoadComments(filepath.Join(proj.IssueDir, "add-dark-mode.md")); len(comments) != 0 {
+		t.Fatalf("blank words wrote a comment: %+v", comments)
+	}
+	canned := false
+	for _, m := range humanApprovalMessages {
+		if nudge == fmt.Sprintf(m, "in progress") {
+			canned = true
+		}
+	}
+	if !canned {
+		t.Fatalf("nudge %q is not a canned line", nudge)
+	}
 }

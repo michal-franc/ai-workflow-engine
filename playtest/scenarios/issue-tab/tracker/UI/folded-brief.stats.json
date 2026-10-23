@@ -1,0 +1,6 @@
+{
+  "transitions": [
+    {"from": "idea", "to": "in design", "ts": "2026-10-01T14:32:00Z", "static_tokens": 0, "dynamic_tokens": 0, "actual_tokens": null}
+  ],
+  "dispatches": [{"at": "2026-10-01T14:30:00Z", "session": "agent-ui-folded-brief", "agent": "claude"}]
+}

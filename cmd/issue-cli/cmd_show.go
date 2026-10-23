@@ -59,6 +59,14 @@ func runShow(ctx *Context, args []string) error {
 	printTypeWarnings(ctx.Stdout, wf, issue)
 	printLeadLines(ctx, issue)
 	printDepLines(ctx, issue, issues)
+	// Where the issue's time went, to hand the owner a link.
+	fmt.Fprintf(ctx.Stdout, "Timeline: %s?tab=timeline\n", issueURL(ctx.Project, issue.Slug))
+	// The sentence the owner reads first on the Issue tab.
+	if brief := tracker.Brief(issue.BodyRaw); brief != "" {
+		fmt.Fprintf(ctx.Stdout, "Brief: %s\n", brief)
+	} else {
+		fmt.Fprintln(ctx.Stdout, "Brief: none. The Issue tab shows the title alone; start the body with a lead paragraph or **In short:**")
+	}
 	fmt.Fprintln(ctx.Stdout)
 
 	fmt.Fprintln(ctx.Stdout, "== Body ==")
@@ -96,7 +104,7 @@ func runShow(ctx *Context, args []string) error {
 			if c.Status == "done" {
 				status = " [done]"
 			}
-			fmt.Fprintf(ctx.Stdout, "  [%s]%s %s\n", c.Date, status, c.Text)
+			fmt.Fprintf(ctx.Stdout, "  [%s]%s %s\n", tracker.CommentDay(c.Date), status, c.Text)
 		}
 	}
 	return nil

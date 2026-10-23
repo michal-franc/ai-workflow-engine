@@ -100,7 +100,7 @@
                         {{.DateLabel}}{{if .PassLabel}} · {{.PassLabel}}{{end}}
                         {{if .History}}
                         · <details class="balance-history" data-testid="balance.card.{{tid .Metric}}.{{tid .Slug}}.history"><summary>{{len .History}} earlier note{{if ne (len .History) 1}}s{{end}}</summary>
-                            <ul>{{range .History}}<li>{{.Date}} · <span class="decision-state {{$.StateClass .State}}">{{.State}}</span>{{if .Change}} {{.Change}}{{end}}{{if .Verdict}}: {{.Verdict}}{{end}}</li>{{end}}</ul>
+                            <ul>{{range .History}}<li>{{commentDay .Date}} · <span class="decision-state {{$.StateClass .State}}">{{.State}}</span>{{if .Change}} {{.Change}}{{end}}{{if .Verdict}}: {{.Verdict}}{{end}}</li>{{end}}</ul>
                         </details>
                         {{end}}
                     </div>

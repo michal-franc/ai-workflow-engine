@@ -5,7 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/clilog"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -352,5 +354,62 @@ func TestExtractFlag(t *testing.T) {
 	}
 	if got := extractFlag([]string{"comment", "slug", "--text"}, "--text"); got != "" {
 		t.Errorf("flag at end without value: got %q, want empty", got)
+	}
+}
+
+// The project clilog holds every call made in the project; the timeline
+// takes the issue's records from it, --project flag or not, and restores
+// redacted comment text from the issue's comments.
+func TestLoadAgentTimeline_ProjectLogAndRedactedComments(t *testing.T) {
+	t.Setenv("TMPDIR", t.TempDir())
+	workDir := t.TempDir()
+	exit0, exit1 := 0, 1
+	dur := int64(2000)
+	recs := []clilog.Record{
+		{TS: "2026-10-23T10:00:00Z", Args: []string{"check", "cli/x", "D1"}, Exit: &exit0, DurMS: &dur},
+		{TS: "2026-10-23T10:01:00Z", Args: clilog.Redact([]string{"comment", "cli/x", "--text", "progress: waiting on owner"}), Exit: &exit0, DurMS: &dur},
+		{TS: "2026-10-23T10:02:00Z", Args: clilog.Redact([]string{"--project", "p", "comment", "cli/x", "--text", "tests: 12 passing"}), Exit: &exit0, DurMS: &dur},
+		{TS: "2026-10-23T10:03:00Z", Args: []string{"transition", "cli/x", "--to", "done"}, Exit: &exit1, ErrClass: "approval_missing", DurMS: &dur},
+		{TS: "2026-10-23T10:04:00Z", Args: []string{"show", "cli/other"}, Exit: &exit0, DurMS: &dur},
+	}
+	for _, r := range recs {
+		if err := clilog.Append(clilog.ProjectPath(workDir), r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	comments := []tracker.Comment{
+		// Old day-only date: matched by its text's placeholder.
+		{ID: 1, Date: "2026-10-23", Text: "tests: 12 passing"},
+		// New timestamp inside the call: matched by time.
+		{ID: 2, Date: "2026-10-23T10:01:01Z", Text: "progress: waiting on owner"},
+	}
+	events := FillRedactedComments(LoadAgentTimeline(workDir, "", "p", "cli/x"), comments)
+	if len(events) != 4 {
+		t.Fatalf("want 4 events for cli/x, got %d: %+v", len(events), events)
+	}
+	if events[1].Kind != "comment-progress" || events[1].Summary != "progress: waiting on owner" {
+		t.Errorf("time-matched comment: %+v", events[1])
+	}
+	if events[2].Kind != "comment-tests" || events[2].Summary != "tests: 12 passing" {
+		t.Errorf("hash-matched comment: %+v", events[2])
+	}
+	if events[3].Summary != "transition → done (failed: approval missing)" {
+		t.Errorf("failed transition summary: %q", events[3].Summary)
+	}
+}
+
+func TestLastCliCallTakesNewestEndAcrossLogs(t *testing.T) {
+	dir := t.TempDir()
+	older, newer := filepath.Join(dir, "a.clilog"), filepath.Join(dir, "b.clilog")
+	long, short := int64(10*60*1000), int64(100)
+	if err := clilog.Append(older, clilog.Record{TS: "2026-10-23T10:00:00Z", Args: []string{"ci", "run"}, DurMS: &long}); err != nil {
+		t.Fatal(err)
+	}
+	if err := clilog.Append(newer, clilog.Record{TS: "2026-10-23T10:05:00Z", Args: []string{"show", "x"}, DurMS: &short}); err != nil {
+		t.Fatal(err)
+	}
+	call, ok := lastCliCall("", newer, older)
+	if !ok || call.Cmd != "ci run" || !call.At.Equal(time.Date(2026, 10, 23, 10, 10, 0, 0, time.UTC)) {
+		t.Fatalf("lastCliCall = %+v, %v; want ci run ending 10:10", call, ok)
 	}
 }

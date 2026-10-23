@@ -103,6 +103,8 @@ issue-viewer -config projects.yaml
 - `terminal:`, e.g. `none`
 - `tmux_session_per_project: true`, which gives each project its own tmux session for its lead and workers
 
+`allowed_hosts:` lists Host names the viewer answers to besides loopback; see [Server flags](#server-flags).
+
 `engine_project: <slug>` names the project that `issue-cli report-bug` files issue-cli bugs into. Without it, report-bug uses the project whose `repo:` is `michal-franc/ai-workflow-engine`; see [`report-bug`](CLI/overview.md#report-bug).
 
 With one terminal and tmux, as on a Mac, see [One terminal, a session per project](agent-dispatch.md#one-terminal-a-session-per-project).
@@ -139,6 +141,13 @@ This mode can't set dispatch options such as `terminal`, so use a `projects.yaml
 | `-version` | `false`     | Print the version and exit                |
 
 The server listens on loopback only. Its POST endpoints start agents, tmux sessions and editors on your machine, so binding to another interface (`-host 0.0.0.0`) lets anyone who can reach the port drive them; it is an explicit opt-in and the server prints a warning at startup. Writes from another site in your browser are refused either way (see [API: Design Considerations](API/overview.md#design-considerations)).
+
+The server also answers only to loopback names: a request whose `Host` is not `localhost`, `127.0.0.1`, `[::1]` or `*.localhost` gets `421 Misdirected Request`, which stops a DNS-rebinding page from reaching it. With a non-loopback `-host`, the bind address is accepted too (every interface address for `-host 0.0.0.0`), and the warning lists them. To reach the viewer by another name, such as a LAN or VPN hostname, list it in `projects.yaml`:
+
+```yaml
+allowed_hosts:
+  - viewer.lan
+```
 
 ### Stopping the server
 

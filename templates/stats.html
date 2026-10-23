@@ -4,165 +4,370 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.ProjectName}} — Workflow Stats</title>
+    <title>{{.ProjectName}} — Stats</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='8' width='3' height='6' fill='%238b949e'/><rect x='6.5' y='4' width='3' height='10' fill='%238b949e'/><rect x='11' y='2' width='3' height='12' fill='%238b949e'/></svg>">
     <link rel="stylesheet" href="/static/style.css">
     <script src="/static/theme.js"></script>
+    <script src="/static/stats.js" defer></script>
 </head>
 <body>
 <div class="app">
 {{template "sidebar" (sidebar .Prefix "stats")}}
 <div class="app-main">
-    <div class="container">
-        <header class="page-head">
-            <h1 class="page-title">Workflow stats</h1>
+    <div class="container stats-page" data-testid="stats.dashboard" data-project="{{.Dash.Project}}">
+        {{with .Dash}}
+        <header class="stats-head">
+            <div class="stats-head-text">
+                <div class="stats-crumb"><a href="/stats">All projects</a> / {{.Project}}</div>
+                <h1 class="page-title">Stats</h1>
+                <p class="stats-sub">{{if .Latest}}<span data-testid="stats.snapshots">{{plural .Snapshots "snapshot" "snapshots"}}{{if .Backfilled}}, {{.Backfilled}} backfilled{{end}}</span>, latest {{.Latest}}{{else}}<span data-testid="stats.snapshots">No health snapshot yet</span>{{end}} · <span title="{{if .AggMS}}The aggregate took {{.AggMS}} ms to build; it is cached{{end}}">gauges and bars computed now</span> · rules: docs/workflow-stats.md, "Stats page"</p>
+            </div>
+            <nav class="stats-options" aria-label="Chart options" data-testid="stats.options">
+                <div class="stats-seg" role="group" aria-label="Range" data-testid="stats.range">
+                    {{range .Ranges}}<a href="{{.Href}}" class="stats-seg-btn{{if .On}} active{{end}}"{{if .On}} aria-current="true"{{end}} data-range="{{.Key}}" data-testid="stats.range.{{.Key}}">{{.Label}}</a>{{end}}
+                </div>
+                <form method="get" action="{{.Base}}" class="stats-group">
+                    {{if .Opts.Days}}<input type="hidden" name="days" value="{{.Opts.Days}}">{{else}}<input type="hidden" name="range" value="{{.Opts.Range}}">{{end}}
+                    <label>Group by
+                        <select name="group" class="stats-select" data-testid="stats.group">
+                            {{range .Groups}}<option value="{{.Key}}"{{if .On}} selected{{end}}>{{.Label}}</option>{{end}}
+                        </select>
+                    </label>
+                    <noscript><button type="submit" class="btn btn-sm">Apply</button></noscript>
+                </form>
+                <span class="stats-saved" hidden>Saved for this project</span>
+            </nav>
         </header>
-        <p class="stats-intro">
-            Approximate token cost of workflow steps. <strong>Static</strong> is the workflow scaffolding the bot reads on transition (validations, prompts, appended sections, entry guidance). <strong>Dynamic</strong> adds the issue body and comments at the moment of transition. Token counts use a <code>len(s)/4</code> approximation — useful for relative comparison, not exact for any specific model.
-        </p>
 
-        <h2>Dispatch base prompt</h2>
-        <p class="stats-sub">Constant scaffolding sent on every fresh agent dispatch (separate from per-transition workflow weight). Excludes issue body and slug substitutions, which add to the per-dispatch dynamic cost.</p>
-        <table class="data-table">
-            <thead><tr><th>Component</th><th class="num">Static tokens</th></tr></thead>
-            <tbody>
-                <tr>
-                    <td>Agent dispatch prompt template</td>
-                    <td class="num">{{.DispatchPromptCost}}</td>
-                </tr>
-            </tbody>
-        </table>
+        <section class="stats-section" aria-labelledby="stats-now">
+            <h2 id="stats-now" class="stats-label">Now</h2>
+            <div class="stats-gauges">
+                {{range .Gauges}}
+                {{if .Pending}}
+                <div class="stats-gauge pending" data-testid="stats.gauge">
+                    <div class="stats-gauge-title">{{.Title}}</div>
+                    <p class="stats-muted">No data yet. Comes with <a href="/p/{{$.Dash.Project}}/issue/{{.Pending}}" class="mono">{{.Pending}}</a></p>
+                </div>
+                {{else}}
+                <a {{if .Href}}href="{{.Href}}" {{end}}class="stats-gauge" data-testid="stats.gauge">
+                    <span class="stats-gauge-title">{{.Title}}</span>
+                    {{if .Empty}}<span class="stats-muted">{{.Empty}}</span>{{else}}
+                    {{.SVG}}
+                    <span class="stats-gauge-value"><span class="stats-big">{{.Value}}</span> <span class="stats-muted">{{.Context}}</span></span>
+                    {{if .Verdict}}<span class="stats-chip {{if .Over}}over{{else}}ok{{end}}">{{if .Over}}<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 2 15 14H1z"/></svg>{{else}}<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m3 8 3 3 7-7"/></svg>{{end}}{{.Verdict}}</span>{{end}}
+                    {{if .Chip}}<span class="stats-chip">{{.Chip}}</span>{{end}}
+                    {{end}}
+                </a>
+                {{end}}
+                {{end}}
+            </div>
+        </section>
 
-        <h2>Static reference — by transition</h2>
-        <p class="stats-sub">Pure workflow weight per (from→to) declared in <code>workflow.yaml</code>. No issue context. Excludes the dispatch base prompt above.</p>
-        {{if .StaticReference}}
-        <table class="data-table">
-            <thead><tr><th>From</th><th>→</th><th>To</th><th class="num">Static tokens</th></tr></thead>
-            <tbody>
-            {{range .StaticReference}}
-                <tr>
-                    <td>{{.From}}</td>
-                    <td>→</td>
-                    <td>{{.To}}</td>
-                    <td class="num">{{.Tokens}}</td>
-                </tr>
+        <section class="stats-section" aria-labelledby="stats-trends">
+            <div class="stats-section-head">
+                <h2 id="stats-trends" class="stats-label">Trends · {{.Opts | statsRangeLabel}}</h2>
+                <span class="stats-muted">One point per day's snapshot; workflow points cover the issues done in the 30 days before them</span>
+            </div>
+            {{if .Hint}}
+            <div class="stats-hint" data-testid="stats.backfill_hint">
+                <strong>{{plural .Snapshots "snapshot" "snapshots"}} so far: trends need history</strong>
+                <p>Snapshots are taken daily from now on. To draw the past now, compute it from git history and the issues' recorded transitions:</p>
+                <code class="mono">{{.Hint}}</code>
+                <p class="stats-muted">One point per past day (90 by default); days with a snapshot are skipped. Gauges and bars below already work: they are computed now.</p>
+            </div>
             {{end}}
-            </tbody>
-        </table>
-        {{else}}
-        <p class="stats-empty">No transitions declared in this project's workflow.</p>
+            <div class="stats-grid">
+                {{range .Trends}}{{template "statsChart" (statsCard $.Dash .)}}{{end}}
+                {{if .Pending}}
+                <div class="stats-pending-list">
+                {{range .Pending}}
+                <div class="stats-pending" data-testid="stats.pending">
+                    <strong>{{.Title}}</strong>
+                    <p class="stats-muted">No data yet: no snapshot has the <code>{{.Family}}</code> family. Comes with <a href="/p/{{$.Dash.Project}}/issue/{{.Issue}}" class="mono">{{.Issue}}</a></p>
+                </div>
+                {{end}}
+                </div>
+                {{end}}
+            </div>
+        </section>
+
+        <section class="stats-section" aria-labelledby="stats-time-h">
+            <div class="stats-section-head">
+                <h2 id="stats-time-h" class="stats-label">Where the time goes · {{.Opts | statsRangeLabel}}</h2>
+                <span class="stats-muted"><span data-testid="stats.done">{{plural .Done "issue" "issues"}} done</span> {{tlDate .From}} – {{tlDate .To}}{{if ne .Split .Done}}, {{.Split}} with CLI calls{{end}}; each split into agent, waiting and idle exactly as its Timeline tab splits it</span>
+            </div>
+            <div class="stats-legend">
+                <span class="stats-lg"><span class="stats-sw s-agent"></span>agent working</span>
+                <span class="stats-lg"><span class="stats-sw s-waiting"></span>waiting on you</span>
+                <span class="stats-lg"><span class="stats-sw s-idle"></span>idle</span>
+            </div>
+            <div class="stats-grid">
+                {{range .Bars}}{{template "statsChart" (statsCard $.Dash .)}}{{end}}
+                <div class="stats-wide">{{template "statsChart" (statsCard $.Dash .Weekly)}}</div>
+            </div>
+        </section>
         {{end}}
 
-        <h2>Recorded transitions — average cost</h2>
-        <p class="stats-sub">Averaged across all recorded transitions, sorted by avg dynamic descending.</p>
-        {{if .RecordedTransitions}}
-        <table class="data-table">
-            <thead><tr><th>From</th><th>→</th><th>To</th><th class="num">Count</th><th class="num">Avg static</th><th class="num">Avg dynamic</th></tr></thead>
-            <tbody>
-            {{range .RecordedTransitions}}
-                <tr>
-                    <td>{{.From}}</td>
-                    <td>→</td>
-                    <td>{{.To}}</td>
-                    <td class="num">{{.Count}}</td>
-                    <td class="num">{{.AvgStatic}}</td>
-                    <td class="num">{{.AvgDynamic}}</td>
-                </tr>
+        <section class="stats-tables" aria-labelledby="stats-tables-h" data-testid="stats.tables">
+            <div class="stats-tables-head"><h2 id="stats-tables-h">Tables</h2><span class="stats-muted">The numbers behind the charts, and the workflow's token cost</span></div>
+            <details class="stats-fold"{{if .TablesOpen}} open{{end}}>
+                <summary>Time per type and status, approval waits, gate failures</summary>
+            <section class="stats-time" data-testid="stats.time">
+            <h2 id="time">Where the time goes (done in the last {{.Days}} days)</h2>
+            {{with .Time}}
+            <p class="stats-sub">From each issue's Timeline tab, split the same way: <strong>agent</strong> while issue-cli calls or commits come less than 15 min apart, <strong>waiting on you</strong> in a status only you can move on and up to each approval, <strong>idle</strong> for the other gaps. {{len .Issues}} {{if eq (len .Issues) 1}}issue{{else}}issues{{end}} done {{tlDate .From}} – {{tlDate .To}}; each cell is p50 / p90 across them. Rules: docs/workflow-stats.md, "Timeline tab".</p>
+            {{if .Unsplit}}<p class="stats-empty" data-testid="stats.time.unsplit">No CLI calls, so status time only: {{range $i, $s := .Unsplit}}{{if $i}}, {{end}}<code>{{$s}}</code>{{end}}.</p>{{end}}
+            {{if .Unread}}<p class="stats-empty" data-testid="stats.time.unread">Left out, no transition to done recorded in their stats sidecar: {{len .Unread}} done {{if eq (len .Unread) 1}}issue{{else}}issues{{end}}.</p>{{end}}
             {{end}}
-            </tbody>
-        </table>
-        {{else}}
-        <p class="stats-empty">No transitions recorded yet. Record some by performing workflow transitions in this project.</p>
-        {{end}}
+            {{if .Time.Issues}}
+            <div class="stats-time-scroll"><table class="data-table" data-testid="stats.time.types">
+                <thead><tr><th>Type</th><th class="num">Issues</th><th class="num">Cycle p50 / p90</th><th class="num">Rework loops</th><th class="num">Sent back</th><th class="num">Rework share</th><th class="num">Dispatches p50 / p90</th></tr></thead>
+                <tbody>
+                {{range .Time.Types}}
+                    <tr><td>{{.Type}}</td><td class="num">{{.N}}</td><td class="num">{{tlP .Cycle}}</td><td class="num">{{.Loops}}</td><td class="num">{{.Backward}}</td><td class="num">{{tlFrac .ReworkShare}}</td><td class="num">{{printf "%.0f" (index .Dispatches 0)}} / {{printf "%.0f" (index .Dispatches 1)}}</td></tr>
+                {{end}}
+                </tbody>
+            </table></div>
 
-        <h2>Per-issue totals</h2>
-        <p class="stats-sub">Total dynamic-token cost across each issue's recorded transitions.</p>
-        {{if .IssueTotals}}
-        <table class="data-table">
-            <thead><tr><th>Issue</th><th>Status</th><th class="num">Transitions</th><th class="num">Total static</th><th class="num">Total dynamic</th></tr></thead>
-            <tbody>
-            {{range .IssueTotals}}
-                <tr>
-                    <td><a href="{{$.Prefix}}/issue/{{.Slug}}">{{.Title}}</a></td>
-                    <td>{{.Status}}</td>
-                    <td class="num">{{.TransitionCount}}</td>
-                    <td class="num">{{.TotalStaticTokens}}</td>
-                    <td class="num">{{.TotalDynamicTokens}}</td>
-                </tr>
+            <h3>Time per status</h3>
+            {{range $i, $g := .TimeGroups}}
+            <details class="stats-time-group"{{if eq $i 0}} open{{end}} data-testid="stats.time.status" data-type="{{$g.Type}}">
+                <summary>{{if eq $g.Type "all"}}All types{{else}}{{$g.Type}}{{end}} · {{$g.N}} {{if eq $g.N 1}}issue{{else}}issues{{end}}</summary>
+                <div class="stats-time-scroll"><table class="data-table">
+                    <thead><tr><th>Status</th><th class="num">Issues</th><th class="num">In status</th><th class="num">Agent</th><th class="num">Waiting on you</th><th class="num">Idle</th></tr></thead>
+                    <tbody>
+                    {{range $g.Statuses}}
+                        <tr><td>{{.Status}}</td><td class="num">{{.N}}{{if ne .Split .N}} ({{.Split}} with calls){{end}}</td><td class="num">{{tlP .Total}}</td>{{if .Split}}<td class="num">{{tlP .Working}}</td><td class="num">{{tlP .Waiting}}</td><td class="num">{{tlP .Idle}}</td>{{else}}<td class="num">—</td><td class="num">—</td><td class="num">—</td>{{end}}</tr>
+                    {{end}}
+                    </tbody>
+                </table></div>
+            </details>
             {{end}}
-            </tbody>
-        </table>
-        {{else}}
-        <p class="stats-empty">No per-issue stats yet.</p>
-        {{end}}
 
-        <h2 id="cli-usage">CLI usage (last 30 days)</h2>
-        <p class="stats-sub">How bots and humans call <code>issue-cli</code> in this project, from the local names-only telemetry log (no argument values). Use it to spot commands, flags and topics nobody uses, and where callers get confused. Full report: <code>issue-cli telemetry report</code>.</p>
-        {{if .CLIUsageNotice}}<p class="stats-empty cli-usage-notice">{{.CLIUsageNotice}}</p>{{end}}
-        {{with .CLIUsage}}
-        {{if .Summary.Events}}
-        <p class="stats-sub">{{.Summary.Events}} calls, {{.Summary.Failures}} failed ({{printf "%.1f" .Summary.ErrorPct}}%) · callers: {{range $k, $v := .Summary.Callers}}{{$k}}={{$v}} {{end}}· assignees: {{.Summary.Assignees}}</p>
-
-        <h3>Commands</h3>
-        <table class="data-table">
-            <thead><tr><th>Command</th><th class="num">Calls</th><th class="num">Failed</th><th class="num">Error %</th><th class="num">p50 ms</th></tr></thead>
-            <tbody>
-            {{range .Commands}}
-                <tr><td><code>{{.Command}}</code></td><td class="num">{{.Calls}}</td><td class="num">{{.Failures}}</td><td class="num">{{printf "%.1f" .ErrorPct}}</td><td class="num">{{.P50MS}}</td></tr>
+            <h3>Approval waits</h3>
+            <p class="stats-sub">From the agent's last call in the status to your approval.</p>
+            {{if .Time.Approvals}}
+            <div class="stats-time-scroll"><table class="data-table" data-testid="stats.time.approvals">
+                <thead><tr><th>Transition</th><th class="num">Approvals</th><th class="num">Wait p50 / p90</th></tr></thead>
+                <tbody>
+                {{range .Time.Approvals}}
+                    <tr><td>{{.Transition}}</td><td class="num">{{.N}}</td><td class="num">{{tlP .Wait}}</td></tr>
+                {{end}}
+                </tbody>
+            </table></div>
+            {{else}}
+            <p class="stats-empty">No approvals recorded.</p>
             {{end}}
-            </tbody>
-        </table>
 
-        <h3>Never used</h3>
-        <table class="data-table">
-            <tbody>
-                <tr><th>Commands</th><td>{{range $i, $c := .NeverUsed.Commands}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
-                <tr><th>Aliases</th><td>{{range $i, $c := .NeverUsed.Aliases}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
-                <tr><th>Subcommands</th><td>{{range $i, $c := .NeverUsed.Subcommands}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
-                <tr><th>Topics</th><td>{{range $i, $c := .NeverUsed.Topics}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
-                <tr><th>Global flags</th><td>{{range $i, $c := .NeverUsed.GlobalFlags}}{{if $i}}, {{end}}<code>--{{$c}}</code>{{else}}—{{end}}</td></tr>
-                {{range $cmd, $flags := .NeverUsed.Flags}}{{if $flags}}
-                <tr><th>Flags: <code>{{$cmd}}</code></th><td>{{range $i, $f := $flags}}{{if $i}}, {{end}}<code>--{{$f}}</code>{{end}}</td></tr>
-                {{end}}{{end}}
-            </tbody>
-        </table>
+            <h3>Gate failures</h3>
+            <p class="stats-sub">Refused <code>transition</code> calls, by the status they were made in and the error class (recorded from v0.54 on). A dry run is the agent checking before it asks; the others were real attempts.</p>
+            {{if .Time.Failures}}
+            <div class="stats-time-scroll"><table class="data-table" data-testid="stats.time.failures">
+                <thead><tr><th>Transition</th><th>Error</th><th>Call</th><th class="num">Count</th></tr></thead>
+                <tbody>
+                {{range .Time.Failures}}
+                    <tr><td>{{.Transition}}</td><td><code>{{.ErrClass}}</code></td><td>{{if .DryRun}}dry run{{else}}transition{{end}}</td><td class="num">{{.N}}</td></tr>
+                {{end}}
+                </tbody>
+            </table></div>
+            {{else}}
+            <p class="stats-empty">No refused transitions recorded.</p>
+            {{end}}
+            {{else}}
+            <p class="stats-empty">No issues done in the last {{.Days}} days with a recorded transition to done.</p>
+            {{end}}
+            </section>
 
-        <h3>Errors</h3>
-        {{if .Errors}}
-        <table class="data-table">
-            <thead><tr><th>Class</th><th>Command</th><th class="num">Count</th></tr></thead>
-            <tbody>
-            {{range .Errors}}<tr><td>{{.Class}}</td><td><code>{{.Command}}</code></td><td class="num">{{.Count}}</td></tr>{{end}}
-            </tbody>
-        </table>
-        {{else}}<p class="stats-empty">No failed calls.</p>{{end}}
+            </details>
+            <details class="stats-fold">
+                <summary>Workflow token cost: dispatch prompt, by transition, recorded, per issue</summary>
+            <p class="stats-intro">
+                Approximate token cost of workflow steps. <strong>Static</strong> is the workflow scaffolding the bot reads on transition (validations, prompts, appended sections, entry guidance). <strong>Dynamic</strong> adds the issue body and comments at the moment of transition. Token counts use a <code>len(s)/4</code> approximation — useful for relative comparison, not exact for any specific model.
+            </p>
 
-        <h3>Unknown commands / flags tried</h3>
-        {{if .Unknown}}
-        <table class="data-table">
-            <thead><tr><th>Class</th><th>Token</th><th class="num">Count</th></tr></thead>
-            <tbody>
-            {{range .Unknown}}<tr><td>{{.Class}}</td><td><code>{{.Token}}</code></td><td class="num">{{.Count}}</td></tr>{{end}}
-            </tbody>
-        </table>
-        {{else}}<p class="stats-empty">No unknown commands or flags.</p>{{end}}
+            <h2>Dispatch base prompt</h2>
+            <p class="stats-sub">Constant scaffolding sent on every fresh agent dispatch (separate from per-transition workflow weight). Excludes issue body and slug substitutions, which add to the per-dispatch dynamic cost.</p>
+            <table class="data-table">
+                <thead><tr><th>Component</th><th class="num">Static tokens</th></tr></thead>
+                <tbody>
+                    <tr>
+                        <td>Agent dispatch prompt template</td>
+                        <td class="num">{{.DispatchPromptCost}}</td>
+                    </tr>
+                </tbody>
+            </table>
 
-        <h3>Retry sequences</h3>
-        <p class="stats-sub">A failed call and the next call from the same shell within two minutes.</p>
-        {{if .RetrySequences}}
-        <table class="data-table">
-            <thead><tr><th>Failed</th><th>Next call</th><th class="num">Count</th></tr></thead>
-            <tbody>
-            {{range .RetrySequences}}<tr><td><code>{{.Failed}}</code></td><td><code>{{.Next}}</code></td><td class="num">{{.Count}}</td></tr>{{end}}
-            </tbody>
-        </table>
-        {{else}}<p class="stats-empty">No failed-then-retried sequences.</p>{{end}}
-        {{else}}
-        <p class="stats-empty">No CLI calls recorded in the last 30 days.</p>
-        {{end}}
-        {{end}}
+            <h2>Static reference — by transition</h2>
+            <p class="stats-sub">Pure workflow weight per (from→to) declared in <code>workflow.yaml</code>. No issue context. Excludes the dispatch base prompt above.</p>
+            {{if .StaticReference}}
+            <table class="data-table">
+                <thead><tr><th>From</th><th>→</th><th>To</th><th class="num">Static tokens</th></tr></thead>
+                <tbody>
+                {{range .StaticReference}}
+                    <tr>
+                        <td>{{.From}}</td>
+                        <td>→</td>
+                        <td>{{.To}}</td>
+                        <td class="num">{{.Tokens}}</td>
+                    </tr>
+                {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p class="stats-empty">No transitions declared in this project's workflow.</p>
+            {{end}}
+
+            <h2>Recorded transitions — average cost</h2>
+            <p class="stats-sub">Averaged across all recorded transitions, sorted by avg dynamic descending.</p>
+            {{if .RecordedTransitions}}
+            <table class="data-table">
+                <thead><tr><th>From</th><th>→</th><th>To</th><th class="num">Count</th><th class="num">Avg static</th><th class="num">Avg dynamic</th></tr></thead>
+                <tbody>
+                {{range .RecordedTransitions}}
+                    <tr>
+                        <td>{{.From}}</td>
+                        <td>→</td>
+                        <td>{{.To}}</td>
+                        <td class="num">{{.Count}}</td>
+                        <td class="num">{{.AvgStatic}}</td>
+                        <td class="num">{{.AvgDynamic}}</td>
+                    </tr>
+                {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p class="stats-empty">No transitions recorded yet. Record some by performing workflow transitions in this project.</p>
+            {{end}}
+
+            <h2>Per-issue totals</h2>
+            <p class="stats-sub">Total dynamic-token cost across each issue's recorded transitions.</p>
+            {{if .IssueTotals}}
+            <table class="data-table">
+                <thead><tr><th>Issue</th><th>Status</th><th class="num">Transitions</th><th class="num">Total static</th><th class="num">Total dynamic</th></tr></thead>
+                <tbody>
+                {{range .IssueTotals}}
+                    <tr>
+                        <td><a href="{{$.Prefix}}/issue/{{.Slug}}">{{.Title}}</a></td>
+                        <td>{{.Status}}</td>
+                        <td class="num">{{.TransitionCount}}</td>
+                        <td class="num">{{.TotalStaticTokens}}</td>
+                        <td class="num">{{.TotalDynamicTokens}}</td>
+                    </tr>
+                {{end}}
+                </tbody>
+            </table>
+            {{else}}
+            <p class="stats-empty">No per-issue stats yet.</p>
+            {{end}}
+
+            </details>
+            <details class="stats-fold">
+                <summary>CLI usage</summary>
+            <h2 id="cli-usage">CLI usage (last 30 days)</h2>
+            <p class="stats-sub">How bots and humans call <code>issue-cli</code> in this project, from the local names-only telemetry log (no argument values). Use it to spot commands, flags and topics nobody uses, and where callers get confused. Full report: <code>issue-cli telemetry report</code>.</p>
+            {{if .CLIUsageLoading}}<p class="stats-empty cli-usage-notice">CLI usage is being read in the background; reload in a few seconds.</p>{{end}}
+            {{if .CLIUsageNotice}}<p class="stats-empty cli-usage-notice">{{.CLIUsageNotice}}</p>{{end}}
+            {{with .CLIUsage}}
+            {{if .Summary.Events}}
+            <p class="stats-sub">{{.Summary.Events}} calls, {{.Summary.Failures}} failed ({{printf "%.1f" .Summary.ErrorPct}}%) · callers: {{range $k, $v := .Summary.Callers}}{{$k}}={{$v}} {{end}}· assignees: {{.Summary.Assignees}}</p>
+
+            <h3>Commands</h3>
+            <table class="data-table">
+                <thead><tr><th>Command</th><th class="num">Calls</th><th class="num">Failed</th><th class="num">Error %</th><th class="num">p50 ms</th></tr></thead>
+                <tbody>
+                {{range .Commands}}
+                    <tr><td><code>{{.Command}}</code></td><td class="num">{{.Calls}}</td><td class="num">{{.Failures}}</td><td class="num">{{printf "%.1f" .ErrorPct}}</td><td class="num">{{.P50MS}}</td></tr>
+                {{end}}
+                </tbody>
+            </table>
+
+            <h3>Never used</h3>
+            <table class="data-table">
+                <tbody>
+                    <tr><th>Commands</th><td>{{range $i, $c := .NeverUsed.Commands}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
+                    <tr><th>Aliases</th><td>{{range $i, $c := .NeverUsed.Aliases}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
+                    <tr><th>Subcommands</th><td>{{range $i, $c := .NeverUsed.Subcommands}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
+                    <tr><th>Topics</th><td>{{range $i, $c := .NeverUsed.Topics}}{{if $i}}, {{end}}<code>{{$c}}</code>{{else}}—{{end}}</td></tr>
+                    <tr><th>Global flags</th><td>{{range $i, $c := .NeverUsed.GlobalFlags}}{{if $i}}, {{end}}<code>--{{$c}}</code>{{else}}—{{end}}</td></tr>
+                    {{range $cmd, $flags := .NeverUsed.Flags}}{{if $flags}}
+                    <tr><th>Flags: <code>{{$cmd}}</code></th><td>{{range $i, $f := $flags}}{{if $i}}, {{end}}<code>--{{$f}}</code>{{end}}</td></tr>
+                    {{end}}{{end}}
+                </tbody>
+            </table>
+
+            <h3>Errors</h3>
+            {{if .Errors}}
+            <table class="data-table">
+                <thead><tr><th>Class</th><th>Command</th><th class="num">Count</th></tr></thead>
+                <tbody>
+                {{range .Errors}}<tr><td>{{.Class}}</td><td><code>{{.Command}}</code></td><td class="num">{{.Count}}</td></tr>{{end}}
+                </tbody>
+            </table>
+            {{else}}<p class="stats-empty">No failed calls.</p>{{end}}
+
+            <h3>Unknown commands / flags tried</h3>
+            {{if .Unknown}}
+            <table class="data-table">
+                <thead><tr><th>Class</th><th>Token</th><th class="num">Count</th></tr></thead>
+                <tbody>
+                {{range .Unknown}}<tr><td>{{.Class}}</td><td><code>{{.Token}}</code></td><td class="num">{{.Count}}</td></tr>{{end}}
+                </tbody>
+            </table>
+            {{else}}<p class="stats-empty">No unknown commands or flags.</p>{{end}}
+
+            <h3>Retry sequences</h3>
+            <p class="stats-sub">A failed call and the next call from the same shell within two minutes.</p>
+            {{if .RetrySequences}}
+            <table class="data-table">
+                <thead><tr><th>Failed</th><th>Next call</th><th class="num">Count</th></tr></thead>
+                <tbody>
+                {{range .RetrySequences}}<tr><td><code>{{.Failed}}</code></td><td><code>{{.Next}}</code></td><td class="num">{{.Count}}</td></tr>{{end}}
+                </tbody>
+            </table>
+            {{else}}<p class="stats-empty">No failed-then-retried sequences.</p>{{end}}
+            {{else}}
+            <p class="stats-empty">No CLI calls recorded in the last 30 days.</p>
+            {{end}}
+            {{end}}
+            </details>
+        </section>
     </div>
 </div>
 </div>
 </body>
 </html>
 {{end}}
+
+{{define "statsChart"}}{{$d := .Dash}}{{with .Card}}
+<figure class="stats-card" id="{{.ID}}" data-testid="stats.chart.{{.ID}}" data-chart="{{.ID}}">
+    <div class="stats-card-head">
+        <div>
+            <h3>{{.Title}}</h3>
+            <div class="stats-sub">{{.Sub}}{{if .SubSVG}} {{.SubSVG}}{{end}}</div>
+        </div>
+        <div class="stats-card-tools">
+            {{if .Toggles}}<div class="stats-seg small" role="group">{{range .Toggles}}<a href="{{.Href}}" class="stats-seg-btn{{if .On}} active{{end}}"{{if .On}} aria-current="true"{{end}}>{{.Label}}</a>{{end}}</div>{{end}}
+            {{if .Table.Rows}}<button type="button" class="btn btn-sm js-stats-table-btn" aria-pressed="false" aria-controls="{{.ID}}-table" data-testid="stats.table_btn.{{.ID}}" hidden>Table</button>{{end}}
+        </div>
+    </div>
+    {{if .Legend}}<div class="stats-legend">{{range .Legend}}{{if .Href}}<a href="{{.Href}}" class="stats-lg{{if .Hidden}} off{{end}}" title="{{if .Hidden}}Show{{else}}Hide{{end}} {{.Name}}"><span class="stats-sw {{.Class}}"></span>{{.Name}}</a>{{else}}<span class="stats-lg"><span class="stats-sw {{.Class}}"></span>{{.Name}}</span>{{end}}{{end}}</div>{{end}}
+    {{if .Error}}<p class="stats-error">{{.Error}}</p>{{end}}
+    {{if .Empty}}<p class="stats-muted stats-card-empty">{{.Empty}}</p>{{else}}<div class="stats-plot">{{.SVG}}</div>{{end}}
+    {{if .Table.Rows}}
+    <details class="stats-table" id="{{.ID}}-table" data-testid="stats.table.{{.ID}}">
+        <summary>Table</summary>
+        <div class="stats-time-scroll"><table class="data-table">
+            <thead><tr>{{range .Table.Head}}<th scope="col">{{.}}</th>{{end}}</tr></thead>
+            <tbody>{{range .Table.Rows}}<tr>{{range $i, $c := .}}{{if eq $i 0}}<th scope="row">{{$c}}</th>{{else}}<td class="num">{{$c}}</td>{{end}}{{end}}</tr>{{end}}</tbody>
+        </table></div>
+    </details>
+    {{end}}
+    {{with $d.Drill}}{{if eq .Anchor $.Card.ID}}
+    <div class="stats-drill" data-testid="stats.drilldown">
+        <div class="stats-drill-head"><strong>{{.Title}}</strong><a href="{{.Close}}" class="btn btn-sm">Close</a></div>
+        {{if .Issues}}<ul>{{range .Issues}}<li><span class="mono stats-muted">{{.Date}}</span><a href="{{.Href}}" class="mono">{{.Slug}}</a><span class="mono">{{.Detail}}</span></li>{{end}}</ul>{{else}}<p class="stats-muted">No issues.</p>{{end}}
+        {{if .More}}<p class="stats-muted">{{.More}} more · each slug opens that issue's Timeline tab</p>{{end}}
+    </div>
+    {{end}}{{end}}
+</figure>
+{{end}}{{end}}

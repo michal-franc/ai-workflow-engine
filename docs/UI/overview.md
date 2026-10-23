@@ -13,7 +13,9 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/workboard.html` — the board (`/workboard`): read-only cards with markers, epic progress and the agent footer (`handlers_workboard.go`; see [Workboard](#workboard))
 - `templates/_markers.html` — card marker partials: `markers`, `marker-chips`, `epic-progress`, `agent-footer`, `card-legend` (data from `markers.go`; agent state from `agent_state.go`)
 - `templates/board.html` — the classic kanban board with drag-and-drop (More › Classic board)
-- `templates/detail.html` — issue detail with sidebar, comments, dispatch
+- `templates/detail.html` — issue page: title, the Issue · Timeline · Evidence tabs (`?tab=`), and on the Issue tab the folded body with comments and the sidebar with dispatch (see [Issue page tabs](#issue-page-tabs))
+- `templates/_issue_tab.html` — the Issue tab's band, main-column cards and side-column cards (`issue_tab.go` builds them; see [The Issue tab](#the-issue-tab))
+- `templates/_timeline.html` — the Timeline tab (`timeline.go` builds the view on `internal/timeline`'s `Split`, `timeline_sources.go` reads its files; rules in [Workflow Stats](../workflow-stats.md#timeline-tab))
 - `templates/graph.html` — workflow status graph
 - `templates/agents.html` — agents canvas: lead/worker tree, unfinished jobs, selected-agent panel (handlers in `handlers_agents.go`)
 - `templates/canvas.html` — issues canvas: version columns × epic or system rows, pan and zoom (`handlers_canvas.go` builds it)
@@ -80,6 +82,8 @@ Use the shared classes rather than new colours:
 
 Status colours stay per status (`statusColor`). A status chip tints its colour with `.status-chip` and `--c`.
 
+Charts are inline SVG from `internal/chart`, drawn on the server: marks use `currentColor`, and a series class (`s-agent`, `s-waiting`, `s-idle`, `s-feature`, `s-bugfix`, `s-tweak`, `s-none`, …) maps to the theme's `--chart-*` token. Each chart has `role="img"`, an `aria-label`, a `<title>` per mark and a table view. The stats page is the first user; see [Workflow Stats: Stats page](../workflow-stats.md#stats-page).
+
 ## Views
 
 | Route             | Template      | Description                                     |
@@ -91,8 +95,9 @@ Status colours stay per status (`statusColor`). A status chip tints its colour w
 | `/agents`         | `agents.html` | Agents canvas: leads, workers, their issues (see below) |
 | `/canvas`         | `canvas.html` | Issues canvas: versions × epics (or systems), see [Issues canvas](#issues-canvas) |
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
-| `/issue/<slug>`   | `detail.html` | Detail with edit, approve, dispatch, comments    |
-| `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
+| `/issue/<slug>`   | `detail.html` | Issue page with tabs: Issue (brief and Needs-you band, folded body, edit, approve, dispatch, comments), Timeline (`?tab=timeline`, `&show=`), Evidence (`?tab=evidence`, coming). See [Issue page tabs](#issue-page-tabs) |
+| `/stats`          | `stats.html`  | The stats dashboard: gauges (waiting on you, milestone, big files), trend lines from the health snapshots, where the time goes by status and group, issues done per week, drill-downs to the issues; options `range`, `group` (remembered per project by `static/stats.js`). The time tables, token-cost estimates and CLI usage are folded below. See [Workflow Stats: Stats page](../workflow-stats.md#stats-page) |
+| `/stats` (top level, no `/p/<project>`) | `stats_overview.html` | Every project compared from its health snapshots: one row each with waiting on you, cycle p50, rework share, issues done, lines of code, test ratio and big files, with sparklines; `range` (7/30/90 days) and `sort` links |
 | `/balance`        | `balance.html` | `?system=` scopes it to one system's issues (the system pages link here). Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise its sidebar entry is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
 | `/systems`        | `systems.html` | One card per system, most open first: summary and design doc (from `workbench.systems`), open / done counts, status bar, waiting-on-you count and family chips, plus a "No system" line. See [System pages](#system-pages) |
 | `/systems/<System>[/<Family>]` | `system.html` | One page per system or configured family. Unknown names get a 404 listing the systems. See [System pages](#system-pages) |
@@ -373,6 +378,51 @@ A UI issue's manual checks are written as a playtest session (`playtest/sessions
 - **Containers:** label containers too (`nav.sidebar`, `board.filters`). A session's `layout_ignore` on a container waives a known layout bug inside it.
 - **Known bug:** at phone width (390px) the page headers and the board filter bar don't wrap. Sessions waive them with `layout_ignore`.
 
+## Issue page tabs
+
+`/p/<project>/issue/<slug>` has the back link, the title (click to edit), a chip row (status, type, priority, system) and a tab bar. The bar reuses the Status page's `status-tabs` look, with links instead of JS:
+
+- **Issue** (default; any unknown `?tab=`): the band (what this is, Needs you, where it is), then what you're approving, mockups, decisions and the body folded by section; the side column has the agent, acceptance criteria and relations above the sidebar's fields. See [The Issue tab](#the-issue-tab).
+- **Timeline** (`?tab=timeline`): where the issue's time went. Its label carries the total ("5h 0m", or "… so far" in flight). It is built only when this tab is open and has no issue sidebar (its own side column instead):
+  - **Missing sources:** an amber "Could not read N of 5 sources" box, when a source is missing.
+  - **Where the time went:** the total, then agent working (with its rework), waiting on you, idle, rework loops and commits. Under them, a bar cut by time in blue (agent), amber (waiting), purple (rework) and grey (idle), with the statuses and clock ticks under it.
+  - **Life by status:** one band per status, its header with the agent time (blue), waiting, idle and rework inside it, then its events, amber wait rows, grey idle rows and purple loop rows. The filters are links (`&show=you|commits|tests|cli`); **CLI calls** is the old Agent Timeline, with the workflow actions each transition saw.
+  - **Side column:** Your part, Your words, Left open at done (done issues), CI after merge.
+
+  The rules (what counts as waiting, idle and rework) are in [Workflow Stats](../workflow-stats.md#timeline-tab). It wraps to one column at phone width.
+- **Evidence** (`?tab=evidence`): "Evidence is coming" until `ui/evidence-tab-proof-shots-and-criteria` lands.
+
+Each tab is a URL, so a lead or an agent can hand the owner a link: `issue-cli show` prints `Timeline: <url>?tab=timeline` (and `Brief: …`, the sentence the Issue tab leads with). Tab and filter links carry `aria-current="true"` (`page` stays the sidebar's). Test ids: `detail.pagetab.*`, `evidence.coming`, `timeline.*` (`timeline.total`, `.working`, `.waiting`, `.idle`, `.rework`, `.commits`, `.bar`, `.filter.<key>`, `.band`, `.wait`, `.idlegap`, `.reworkloop`, `.folded`, `.cli.call`, `.cli.actions`, `.side.*`, `.missing`). The playtest session is `playtest/sessions/timeline-tab.yaml` on scenario `playtest/scenarios/timeline`.
+
+## The Issue tab
+
+The tab answers in ten seconds what the issue is, where it is and what it needs from you (`ui/issue-tab-brief-needs-you-bar-and-a-folded-body`). `IssueTab` in `issue_tab.go` is its model: `buildIssueTab` reads nothing from disk, and `loadIssueTab` (`handlers_detail.go`) gathers its inputs. It is built only on this tab. It reads the Timeline's sources (`loadTimelineSources` and `buildTimeline`), `ownerAttention`, the board card's agent line (`cardAgents.footer`), `lastCliCall` and `epicProgress`, so every part says what the other views say.
+
+**The band** (`detail.brief`) is one card in three columns. Under 720 px it stacks as brief, Needs you, then where it is.
+- **What this is:** the brief (`tracker.Brief`, see [Issue File Format](../issue-format.md#the-brief)), then your words: the first decision quote on the issue that you said, then the newest `approval:` words, then the parent epic's first such quote ("epic D-n"). A quote with `how` "recorded by agent", or a "(Recommended)" pick, is not your words. The epic's progress follows.
+- **Where it is** (`detail.path`): the type's path, with the time spent in each status (from the Timeline's bands). It marks "your gate" on each status entered through an approval and "your playtest" on human-testing. A time strip (`detail.time`: total, agent, waiting on you) links to the Timeline; on a phone it sits right under Needs you.
+- **Needs you** (`detail.needs`, `data-state`) shows the same items as Status's Needs you, with the same wait ("waiting 2m · since 12:31", "≈" when the time is the file's mtime). An open question wins over a due playtest, and a playtest over a ready gate, as on the board cards; the rest show as "Also waiting" (`detail.needs.also`).
+  - **gate:** one approve button per required approval, primary first and a handoff status (backlog) last (`detail.needs.approve.<status>`). Beside them sit the words box (`approve_words.band`) and the lead's `issue-cli approve <slug> --to "…" --quote "…"` line. A click posts to `/approve` like the sidebar's buttons, toasts, then reloads.
+  - **playtest:** `make playtest ISSUE=<slug>` with a Copy button.
+  - **question:** the question and an answer box. Send posts `answer: <text>` as a block-0 comment, which clears the question.
+  - **Quiet** (card ground, nothing amber): it says who has the issue. With the agent: working, with the last call; idle, with Open in tmux. Also: stopped, queued, parked with its reason, done, or nobody. A gate whose checklist is still open, or one you approved that the agent has not moved through yet, adds one line.
+
+**Main column:**
+- **What you're approving** (`detail.approving`) covers what was recorded since the newest transition that passed your gate, else since the newest dispatch. Counters for sections, decisions, boxes (their ids), comments (their prefixes) and commits appear only when non-zero (`detail.approving.count.<key>`). Then the last 10 Timeline events and status changes; refused dry runs are left out.
+- **Mockups:** the first image under each `###` of `## Mockups`, linked to the `mockups` canvas.
+- **Decisions:** each D-n with your quote; a "(Recommended)" quote counts toward "N took the agent's recommendation".
+- **Full issue** (`detail.fold`) holds today's rendered body, with Preview / Edit / Edit in nvim / Expand all. After `initComments`, `foldBody()` puts a row before each `##` section (and "Intro" before the first one) and hides its blocks. A row (`detail.fold.section.<id>`) shows the box chip, the lead (`tracker.Lead`, plain text), subsection names, open comments and Show/Hide (`detail.fold.toggle.<id>`); the server passes these as `data-fold` JSON. The rows are siblings with no checkboxes, and no block moves, so comment `data-block` indices and `detail.body.checkbox.#` are unchanged. Expand all hides the rows and shows every block (today's body); the button then reads Fold. Open sections and Expand all are kept in `localStorage` (`issue-fold:<issue url>`), and `#<id>` opens a section. A muted line names the sections later transitions will add (`detail.fold.not_started`).
+
+**Side column:**
+- Agent (`detail.agent`): its state from the board's footer, last call, dispatch, calls, Open in tmux and the dispatch prompt.
+- Acceptance criteria: the first three, then "+N more".
+- Relations: the epic, then depends on, depended on by and decided by. These rows moved here from the sidebar.
+- Fields (`detail.fields`): today's sidebar sections, in an open `<details>`.
+
+Under 768 px the side column goes under the main one, and a locked sidebar stops being sticky.
+
+The cost is the Timeline's sources on every view, about 10–20 ms on this board. Playtest sessions: `issue-tab.yaml` and `issue-tab-phone.yaml` on `playtest/scenarios/issue-tab`.
+
 ## Stale body saves
 
 A checkbox click and the editor's **Save** on `/issue/<slug>` post the whole body (`{"body": …}` to `POST /issue/<slug>`). An agent or the CLI may have written the file since the page loaded (a transition appending `## Documentation`, say), and posting the page's copy would erase that. So the page sends `base_body_hash`, the hash of the body it started from (`data-body-hash` on `detail.body.textarea`, `tracker.BodyHash`):
@@ -399,6 +449,15 @@ The sidebar's **Human Approval** section shows one **Human-approved for <status>
 - It posts `{"status":"backlog","then":"in progress"}` to `POST /issue/<slug>/approve`, which writes `human_approval: backlog` plus `queued_approval: in progress` (see [Issue File Format](../issue-format.md#custom-fields)).
 - The agent's tmux session gets one nudge naming both statuses.
 - Clicking it again clears both. Clicking it on an issue already approved for `backlog` only adds the queued approval.
+
+## Approving with your words
+
+Under the approve buttons, the Human Approval section has one **Your words (optional)** box (`approve_words.detail`). It goes with whichever button you click next.
+- **Filled:** the request carries `words`, and the approve handler writes an `approval: "<words>" (viewer, <date>) → <status>` comment (source `app`). That is the same comment `issue-cli approve --quote` writes, and an approve-then names both statuses (`→ backlog, in progress`). The agent's nudge quotes the words in place of the canned line. The box empties and the toast says "with your words".
+- **Empty, blank, or un-approving** (clicking a green button): no comment and the canned nudge. Un-approving keeps the box's text.
+- **Comment write fails:** the approval still stands (`words_error` in the response), the toast says the words were not saved, and the box keeps them.
+
+The box is `templates/_approve_words.html` (`{{template "approve-words" "<place>"}}`, test id `approve_words.<place>`). `static/approve-words.js` builds the same markup for pages that render in JS (`approveWords.html(place)`), reads it (`take`) and empties it (`clear`). The agents panel and the Issue tab's Needs-you column (`approve_words.band`) use it. The Timeline shows the words beside the approval (see [Timeline tab](../workflow-stats.md#timeline-tab)).
 
 ## Create issue modal
 
@@ -427,7 +486,7 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 - **Tree:** the hierarchy only: You → the project lead (`lead-<project>`) → its workers, then any other live agent session (a project action, or a leftover `lead-*` session). Epics are not drawn here; the [issues canvas](#issues-canvas) shows them. Nodes show the session name without `agent-`, cut at 32 characters; the full name is the tooltip. Each open epic's children running and total stay in `agents.json`.
 - **Worker states:**
   - *working*: live session, nothing pending, an issue-cli call in the last 15 minutes (or no readable clilog);
-  - *idle*: live session, but its newest issue-cli call is 15 minutes old or more. The time comes from the agent's clilog (`<worktree>/.agent-logs/<session>/<session>.clilog`, else the project's). Records naming another `--project` are skipped, because test runs in the agent's shell log fixture projects;
+  - *idle*: live session, but its newest issue-cli call ended 15 minutes ago or more. The time is the newest call end (`ts + dur_ms`, see [the clilog](../CLI/telemetry.md#the-clilog)) across the agent's clilogs: `<workdir>/.agent-logs/<session>/<session>.clilog`, the assignee's, and the one in its worktree written before v0.54. Records naming another `--project` are skipped, because test runs in the agent's shell log fixture projects;
   - *at gate*: the next transition needs a human approval not yet given (the gate's status is shown);
   - *question*: the issue's newest comment starts with `question:`;
   - *stopped*: no live session, but a worktree or an active status (`in progress` up to, not including, `done`). "retro not swept" is added when a retro for the issue is not yet processed or archived.
@@ -437,7 +496,7 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 - **Clicking a live agent** (the lead or a worker) opens its tmux session in a terminal: `POST /p/<project>/agents/open` `{"session"}` runs the same attach as a dispatch re-attach (the project's `terminal`, or in `tmux_session` mode a `select-window` plus a terminal only when no client is attached). A session that already has a terminal attached never gets a second window: on i3 the window titled with the session name is focused (`focused`; the default i3 + alacritty terminal titles its windows that way), otherwise the panel says it is already open (`already-open`). With `terminal: none` nothing opens: in `tmux_session` mode the agent's window is selected (`selected`). The panel shows `Inside tmux: <switch_cmd> · From a shell: <attach_cmd>`; the attach command is prefixed `TMUX_TMPDIR=…` when the board runs on a private tmux server. The page never shows the pane and has no message box (D-12); you watch and type in tmux.
 - **`?agent=<session>`** selects that agent on load without opening its terminal (the workboard's footer links here).
 - **Selected-agent panel** (shown for the clicked node): kind, state, tmux location, the last issue-cli call (`last_call` / `last_cmd` in agents.json), the issue, then:
-  - **Approve gate** (at-gate workers) calls the issue's existing `/approve` endpoint, a direct human action;
+  - **Approve gate** (at-gate workers) calls the issue's existing `/approve` endpoint, a direct human action. Above it sits the words box (`approve_words.agents_panel`, see [Approving with your words](#approving-with-your-words)). A poll re-renders the panel only when the agent's gate changes, so typed text survives it. After a click, the button reads **Approved with your words** when they were saved;
   - **Spawn lead** when the project lead is not running (one lead per project, workbench umbrella D-13);
   - **Open in tmux** (live sessions) does the same as clicking the node again: it opens the terminal, or brings the open one to the front, and a status line says which;
   - **Copy attach** copies the `tmux attach` command. With `terminal: none` (`terminal_none` in agents.json) the button is **Copy switch** and copies `tmux switch-client …`, because the owner is inside tmux;

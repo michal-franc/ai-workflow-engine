@@ -1,0 +1,9 @@
+{"args": ["--project", "it", "show", "ui/folded-brief"], "ts": "2026-10-01T14:30:10Z"}
+{"args": ["--project", "it", "decide", "ui/folded-brief", "--how", "lead chat", "--text", "Build the band first", "--quote", "the band first, the rest can wait"], "ts": "2026-10-01T14:31:00Z"}
+{"args": ["--project", "it", "transition", "ui/folded-brief", "--to", "in design"], "ts": "2026-10-01T14:32:00Z"}
+{"args": ["--project", "it", "decide", "ui/folded-brief", "--text", "Fold the body by section", "--quote", "Fold, nothing lost (Recommended)"], "ts": "2026-10-01T14:40:00Z"}
+{"args": ["--project", "it", "append", "ui/folded-brief", "--section", "Idea", "--body", "x"], "ts": "2026-10-01T14:45:00Z"}
+{"args": ["--project", "it", "append", "ui/folded-brief", "--section", "Design", "--body", "x"], "ts": "2026-10-01T14:50:00Z"}
+{"args": ["--project", "it", "check", "ui/folded-brief", "I1", "I2", "D1", "D2"], "ts": "2026-10-01T14:52:00Z"}
+{"args": ["--project", "it", "transition", "ui/folded-brief", "--to", "backlog", "--dry-run"], "ts": "2026-10-01T14:53:00Z", "exit": 1, "err_class": "validation"}
+{"args": ["--project", "it", "comment", "ui/folded-brief", "progress: design done, waiting for your approval"], "ts": "2026-10-01T14:55:00Z"}

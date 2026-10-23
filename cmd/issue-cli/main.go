@@ -10,10 +10,18 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/clilog"
+	"github.com/michal-franc/issue-viewer/internal/telemetry"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
+
+	// Register the milestone and workflow health families, so snapshots
+	// taken by the CLI include them.
+	_ "github.com/michal-franc/issue-viewer/internal/milestone"
+	_ "github.com/michal-franc/issue-viewer/internal/timeline"
 )
 
 //go:embed CHANGELOG.md
@@ -57,39 +65,67 @@ func fetchReleasesFromGitHub(repo string) ([]githubRelease, error) {
 	return releases, nil
 }
 
-// logAction records every CLI invocation to a session log so countRecentRetries
-// can detect when the user is retrying the same failing command.
-func logAction(args []string) {
-	entry := map[string]interface{}{
-		"ts":   time.Now().UTC().Format(time.RFC3339),
-		"pid":  os.Getpid(),
-		"ppid": os.Getppid(),
-		"args": args,
-	}
-	line, err := json.Marshal(entry)
-	if err != nil {
-		return
-	}
-	line = append(line, '\n')
+// callLog writes the clilog record of this invocation when it ends: to the
+// project's clilog (the global one without a project), to $ISSUE_CLI_LOG,
+// and to the issue assignee's per-agent clilog. The record carries the start
+// time, exit code, error class and duration, with free text redacted
+// (clilog.Redact). It feeds the Timeline tab, the agents canvas and the
+// retry hint (countRecentRetries).
+type callLog struct {
+	args  []string
+	start time.Time
+	// agentPath is the per-agent clilog resolved before the call: a
+	// transition to backlog clears the assignee it is derived from.
+	agentPath string
+	// shared is the project (or global) clilog the record went to; set by write.
+	shared string
+}
 
-	logDir := filepath.Join(os.TempDir(), "issue-cli-logs")
-	os.MkdirAll(logDir, 0755)
-	if f, err := os.OpenFile(filepath.Join(logDir, "actions.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-		f.Write(line)
-		f.Close()
+func newCallLog(args []string, start time.Time) *callLog {
+	return &callLog{args: args, start: start, agentPath: resolveAgentClilog(args)}
+}
+
+// write records the call; runErr is its result, panicked a recovered panic.
+// Failures are ignored: logging never changes a command's outcome.
+func (l *callLog) write(inv *invocation, runErr error, panicked bool) {
+	defer func() { _ = recover() }()
+	exit, class := 0, ""
+	switch {
+	case panicked:
+		exit, class = 2, telemetry.ErrPanic
+	case runErr != nil:
+		exit = processExitCode(runErr)
+		class, _ = classifyError(inv, runErr)
 	}
-	if cliLog := os.Getenv("ISSUE_CLI_LOG"); cliLog != "" {
-		if f, err := os.OpenFile(cliLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-			f.Write(line)
-			f.Close()
+	dur := time.Since(l.start).Milliseconds()
+	rec := clilog.Record{
+		TS:       l.start.UTC().Format(time.RFC3339),
+		PID:      os.Getpid(),
+		PPID:     os.Getppid(),
+		Args:     clilog.Redact(l.args),
+		Exit:     &exit,
+		ErrClass: class,
+		DurMS:    &dur,
+	}
+
+	l.shared = clilog.GlobalPath()
+	if inv.ctx != nil && inv.ctx.Project != nil {
+		if root := inv.ctx.Project.TelemetryRoot(); root != "" {
+			l.shared = clilog.ProjectPath(root)
 		}
 	}
-	if agentLog := resolveAgentClilog(args); agentLog != "" {
-		os.MkdirAll(filepath.Dir(agentLog), 0755)
-		if f, err := os.OpenFile(agentLog, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
-			f.Write(line)
-			f.Close()
+	agentPath := l.agentPath
+	if agentPath == "" {
+		// `start` sets the assignee during the call.
+		agentPath = resolveAgentClilog(l.args)
+	}
+	seen := map[string]bool{}
+	for _, p := range []string{l.shared, strings.TrimSpace(os.Getenv("ISSUE_CLI_LOG")), agentPath} {
+		if p == "" || seen[filepath.Clean(p)] {
+			continue
 		}
+		seen[filepath.Clean(p)] = true
+		_ = clilog.Append(p, rec)
 	}
 }
 
@@ -161,31 +197,17 @@ func agentClilogPath(proj *tracker.Project, issue *tracker.Issue) string {
 	if strings.TrimSpace(issue.Assignee) == "" {
 		return ""
 	}
-	workDir := proj.WorkDir
-	if workDir == "" {
-		workDir, _ = os.Getwd()
+	root := proj.TelemetryRoot()
+	if root == "" {
+		return ""
 	}
-	return filepath.Join(workDir, ".agent-logs", issue.Assignee, issue.Assignee+".clilog")
+	return clilog.AgentPath(root, issue.Assignee)
 }
 
-// stripCLIGlobalFlags strips --json/--debug/--config/--project so the residual args
-// start with the subcommand. Mirrors agent_timeline.go's stripGlobalFlags;
-// duplicated here because that lives in the viewer's main package.
+// stripCLIGlobalFlags strips --json/--debug/--config/--project so the
+// residual args start with the subcommand.
 func stripCLIGlobalFlags(args []string) []string {
-	out := make([]string, 0, len(args))
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--json", "--debug":
-			continue
-		case "--config", "--project":
-			if i+1 < len(args) {
-				i++
-			}
-			continue
-		}
-		out = append(out, args[i])
-	}
-	return out
+	return clilog.StripGlobal(args)
 }
 
 func extractCLIFlag(args []string, flag string) string {
@@ -197,46 +219,27 @@ func extractCLIFlag(args []string, flag string) string {
 	return ""
 }
 
-// countRecentRetries reports how many consecutive identical invocations
-// preceded this one in the action log (matched by parent PID + args).
-func countRecentRetries() int {
-	logFile := filepath.Join(os.TempDir(), "issue-cli-logs", "actions.jsonl")
-	data, err := os.ReadFile(logFile)
-	if err != nil {
+// retryTailBytes is how much of the clilog's end countRecentRetries reads.
+const retryTailBytes = 256 * 1024
+
+// countRecentRetries reports how many identical failed calls from the same
+// parent process (the agent's shell) came right before the newest one in
+// path, the call just logged. Other sessions' records in the shared log are
+// skipped; the first differing or successful call from this session stops
+// the count.
+func countRecentRetries(path string) int {
+	recs := tailRecords(path, retryTailBytes)
+	if len(recs) < 2 {
 		return 0
 	}
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	if len(lines) < 2 {
-		return 0
-	}
-	type entry struct {
-		Args []string `json:"args"`
-		PPID int      `json:"ppid"`
-	}
-	var current entry
-	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &current); err != nil {
-		return 0
-	}
+	current := recs[len(recs)-1]
 	count := 0
-	for i := len(lines) - 2; i >= 0; i-- {
-		var prev entry
-		if err := json.Unmarshal([]byte(lines[i]), &prev); err != nil {
-			break
-		}
+	for i := len(recs) - 2; i >= 0; i-- {
+		prev := recs[i]
 		if prev.PPID != current.PPID {
-			break
+			continue
 		}
-		if len(prev.Args) != len(current.Args) {
-			break
-		}
-		same := true
-		for j := range prev.Args {
-			if prev.Args[j] != current.Args[j] {
-				same = false
-				break
-			}
-		}
-		if !same {
+		if !slices.Equal(prev.Args, current.Args) || prev.Exit == nil || *prev.Exit == 0 {
 			break
 		}
 		count++
@@ -244,19 +247,48 @@ func countRecentRetries() int {
 	return count
 }
 
+// tailRecords decodes the records in the last n bytes of path; the first
+// line may be cut and is skipped.
+func tailRecords(path string, n int64) []clilog.Record {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	if info, err := f.Stat(); err == nil && info.Size() > n {
+		if _, err := f.Seek(info.Size()-n, io.SeekStart); err != nil {
+			return nil
+		}
+	}
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return nil
+	}
+	var recs []clilog.Record
+	for _, line := range strings.Split(string(data), "\n") {
+		var rec clilog.Record
+		if json.Unmarshal([]byte(line), &rec) == nil && len(rec.Args) > 0 {
+			recs = append(recs, rec)
+		}
+	}
+	return recs
+}
+
 func main() {
-	logAction(os.Args[1:])
 	start := time.Now()
+	log := newCallLog(os.Args[1:], start)
 	inv := &invocation{}
 	defer func() {
-		// A panicking command still gets a telemetry event; the panic then
-		// propagates exactly as before.
+		// A panicking command still gets its clilog record and telemetry
+		// event; the panic then propagates exactly as before.
 		if r := recover(); r != nil {
+			log.write(inv, nil, true)
 			recordTelemetry(inv, os.Args[1:], nil, start, true)
 			panic(r)
 		}
 	}()
 	err := runTraced(os.Args[1:], os.Stdin, os.Stdout, os.Stderr, inv)
+	log.write(inv, err, false)
 	recordTelemetry(inv, os.Args[1:], err, start, false)
 	if err != nil {
 		var codeErr *exitCodeError
@@ -267,7 +299,7 @@ func main() {
 			os.Exit(codeErr.Code)
 		}
 		fmt.Fprintln(os.Stderr, "Error:", err)
-		if retries := countRecentRetries(); retries >= 2 {
+		if retries := countRecentRetries(log.shared); retries >= 2 {
 			printRetryHint(os.Stderr, retries+1, err)
 		}
 		os.Exit(processExitCode(err))

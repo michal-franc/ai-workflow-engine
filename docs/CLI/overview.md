@@ -17,6 +17,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 - `cmd/issue-cli/workflow_init.go` — testable `doWorkflowInit` core (the `workflow init` subcommand wraps it from `cmd_workflow.go`)
 - `cmd/issue-cli/workflow_upgrade.go` / `cmd_upgrade.go` — `buildUpgradePlan` and the `workflow upgrade` / `upgrade` command; `workflowUpgradeHint` for `start` and `process workflow`
 - `cmd/issue-cli/workflow_features.go` / `cmd_scan.go` — feature catalog, structural probes, `features:` record writer, and the `workflow scan` command
+- `cmd/issue-cli/cmd_health.go` — the `health` command (print the latest snapshot, take one, backfill past days, the snapshot after `ci run`); snapshots and families are `internal/health/` (plus `internal/timeline` and `internal/milestone`, imported for their families)
 - `cmd/issue-cli/cmd_ci.go` / `ci_report.go` — the `ci` command (detached runs in tmux) and what a run reports (`ci:` comments, the `[from ci]` lead message, `on_red: file_issue`); the runner itself is `internal/ci/`
 
 ### Adding a new subcommand
@@ -47,6 +48,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli decisions`            | List the project's decisions (active, deferred, replaced, stale) with `--system`, `--state`, `--issue`, `--json` |
 | `issue-cli lead <sub>`           | The project lead: `spawn`, `whoami`, `list`, `message <target> "text"`. See [`lead`](#lead) |
 | `issue-cli ci <sub>`             | Local CI on the integration branch: `status`, `run`, `reset`, `watch`. See [`ci`](#ci) |
+| `issue-cli health [snapshot\|backfill]` | Project health snapshots: print the latest, take one, or compute past days. See [`health`](#health) |
 | `issue-cli approve <slug>`       | Record a human approval with the human's words (leads only). See [`approve`](#approve) |
 | `issue-cli check <slug> <id>...` | Tick checkboxes by id (several at once), whole section (`--section X --all`), text, or `--section` + `--index` |
 | `issue-cli check-edit <slug> <id> --text "…"` | Change one box's text; it keeps its tick and id. See [`check-edit`](#check-edit) |
@@ -54,7 +56,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli append <slug>`        | Append content to issue body             |
 | `issue-cli replace <slug>`       | Replace content of an existing section, or one line of it (`--line N`, `--match RE`). See [`replace`](#replace) |
 | `issue-cli update <slug>`        | Change the title (the slug is kept; `--rename` moves it) and/or replace the body. See [`update`](#update) |
-| `issue-cli set-meta <slug>`      | Set or clear a frontmatter field (refuses `type` in projects with types — use `set-type`; checks every slug in `depends_on`) |
+| `issue-cli set-meta <slug>`      | Set or clear a frontmatter field, replacing its whole old value (list items and block lines included); refuses a write whose YAML would not parse (refuses `type` in projects with types — use `set-type`; checks every slug in `depends_on`, and writes two or more as a YAML list) |
 | `issue-cli set-type <slug> <t>`  | Change an issue's type of work; agents only while it is at its type's first status. See [Types of Work](../Workflow/types.md) |
 | `issue-cli process workflow`     | Print the workflow file in use (`Workflow file:`), the active workflow, the `== Types ==` block and `workflow.yaml` lint warnings; `--type <t>` prints one type's lifecycle |
 | `issue-cli process transitions`  | Print transition rules (default workflow, or scoped via `--system <name>`, `--type <t>` or `<issue-slug>`) |
@@ -418,11 +420,21 @@ main: no CI run yet
 
 The test names come from the command's `failures:` regex. While red, `start` and the dispatch prompt add `— inherited from main, not caused by your branch`. `transition --to done` ends with `Local CI tests <branch> at <sha> by itself: don't wait for it, you are done…` when `ci:` is set.
 
+### `health`
+
+Project health snapshots: dated JSON files in `.health/snapshots/` of the main checkout. The viewer takes one a day and `ci run` takes one after each run. [Workbench files: Health snapshots](../workbench-files.md#health-snapshots) covers the file, the config and every metric.
+
+| Subcommand | Does |
+|:--|:--|
+| `health` | Prints the latest snapshot. First the header: `Health snapshot <date> · <branch> at <sha> · <trigger> · <ms> ms` and the file path. Then the codebase: files and lines per kind with 7d and 30d growth (`n/a` without a base), source lines, test ratio and binary files; the top 10 areas and languages by lines; the big files. Last, `Families:` gives each family `ok, N metrics` (plus ` · <hint>` when the family set one) or `error: <why>`. It ends with `Charts: <viewer>/p/<slug>/stats`, and with fewer than two snapshots, `Trends need history (N snapshot so far): issue-cli health backfill`. Without a snapshot it prints `No health snapshot yet: run issue-cli health snapshot (the viewer takes one daily)` and exits 0. `--json` prints the snapshot file (`{"snapshot": null, "hint": ...}` without one) |
+| `health snapshot` | Takes a snapshot now (trigger `manual`), prints `✓ Snapshot written: <path>`, then the same summary. Fails with `health snapshots are off for this project (health.off: true in workflow.yaml)` or `<dir>: not in a git repository`. `--json` prints the snapshot |
+| `health backfill [--days 90]` | Computes one snapshot (trigger `backfill`) for each of the last N days that has none, as it stood at 23:59 that day: the codebase at the commit the branch had then, the workflow over the issues done by then. Prints one line per day (the path, `skipped: has a snapshot`, or `(before the first commit: no codebase)`), then `✓ Backfilled W of N days (S skipped, F failed) · charts: <url>`. The milestone family is left out (it knows only the present). `--days` outside 1–3650 is a usage error (exit 2). `--json` prints `{written, skipped, failed, days: [{day, path, skipped, error, no_commit}], charts}` |
+
 ### `approve`
 
 `issue-cli approve <slug> --to <status> --quote "<the human's words>" [--how "<where>"]` is how a lead records a gate the human approved in chat:
 
-1. It writes an `approval: "<quote>" (<how>, <date>) — recorded by <session>` comment. `--how` defaults to `in the lead chat`.
+1. It writes an `approval: "<quote>" (<how>, <date>) → <status> — recorded by <session>` comment (`tracker.ApprovalComment`). `--how` defaults to `in the lead chat`. The viewer's words box writes the same comment with `viewer` as how, and the Timeline pairs these comments with their approvals.
 2. It sets `human_approval` to the status. It never toggles an existing approval off, unlike the viewer's button.
 
 `--to` and `--quote` are required. It is refused:
@@ -441,7 +453,7 @@ These checks read the environment and the session name; they are guardrails for 
 **What it files.** An issue in the engine project at the bugfix type's first status (`idea`), system `CLI`, label `cli-bug`, with:
 
 - the first sentence as the title (cut near 80 characters)
-- a `## Report` section: the full text, plus the reporter's project and issue slug, agent, issue-cli version and OS, and the command. The command is `--cmd "<command line>"` if given, otherwise the agent's previous issue-cli call from its clilog (if it's under 10 minutes old)
+- a `## Report` section: the full text, plus the reporter's project and issue slug, agent, issue-cli version and OS, and the command. The command is `--cmd "<command line>"` if given, otherwise the agent's previous issue-cli call from its clilog (if it's under 10 minutes old), with free text shown as the clilog's `‹text …›` placeholders
 - `reported_from: <project>:<issue slug>` and `reported_by: <agent>`
 
 The `## Repro` section is left for triage, so the bugfix gate still needs a human repro.
@@ -468,6 +480,10 @@ The `Sender` interface in `internal/clibug` is where a second transport (GitHub 
 ### `process transitions`
 
 **Workflow file line.** `process workflow`, `process transitions` and `show` print `Workflow file: <absolute path>` under their header (`built-in default` when the project has no workflow file), so an agent can see which workflow it is being walked through. `show --json` carries it as `workflow_file`.
+
+**Timeline line.** `show` prints `Timeline: <viewer url>/p/<project>/issue/<slug>?tab=timeline` after the lead and dependency lines: the issue page's Timeline tab (where its time went, every CLI call), a link a lead or agent can hand the owner. Not in `--json`.
+
+**Brief line.** `show` prints `Brief: <text>` next: the sentence the issue page's Issue tab leads with (`tracker.Brief`, see [Issue File Format](../issue-format.md#the-brief)), so an agent sees what the owner will read first. With no brief it prints `Brief: none.` and how to write one (a lead paragraph or `**In short:**`).
 
 Rules are rendered from the loaded workflow rather than a hardcoded list. Each
 row lists the validation rules, human-approval gates, and side effects

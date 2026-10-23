@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 
+	"github.com/michal-franc/issue-viewer/internal/milestone"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -213,32 +213,8 @@ func epicShortName(title string) string {
 	return strings.TrimSpace(title)
 }
 
-// compareVersions orders dotted versions numerically (0.2 < 0.10); parts
-// that aren't numbers compare as text.
-func compareVersions(a, b string) int {
-	pa, pb := strings.Split(a, "."), strings.Split(b, ".")
-	for i := 0; i < len(pa) || i < len(pb); i++ {
-		var x, y string
-		if i < len(pa) {
-			x = pa[i]
-		}
-		if i < len(pb) {
-			y = pb[i]
-		}
-		nx, ex := strconv.Atoi(x)
-		ny, ey := strconv.Atoi(y)
-		if ex == nil && ey == nil {
-			if nx != ny {
-				return nx - ny
-			}
-			continue
-		}
-		if c := strings.Compare(x, y); c != 0 {
-			return c
-		}
-	}
-	return 0
-}
+// compareVersions orders dotted versions numerically (milestone.Compare).
+func compareVersions(a, b string) int { return milestone.Compare(a, b) }
 
 // canvasStatuses classifies statuses against the workflow: the final status
 // is "done", optional statuses are side statuses (obsolete, parked).

@@ -366,7 +366,7 @@ func TestApprove(t *testing.T) {
 		t.Fatalf("human_approval = %q", child.HumanApproval)
 	}
 	comments, _ := tracker.LoadComments(child.FilePath)
-	if len(comments) != 1 || !strings.HasPrefix(comments[0].Text, `approval: "ship it" (in the lead chat, `) || !strings.HasSuffix(comments[0].Text, "recorded by lead-proj") {
+	if len(comments) != 1 || !strings.HasPrefix(comments[0].Text, `approval: "ship it" (in the lead chat, `) || !strings.HasSuffix(comments[0].Text, ") → done — recorded by lead-proj") {
 		t.Fatalf("comments = %+v", comments)
 	}
 

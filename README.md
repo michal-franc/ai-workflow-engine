@@ -133,7 +133,7 @@ How an issue ships is up to your workflow's `shipping` step. The bundled `develo
 - **Dispatch** from the issue page (▶), or let the lead do it. Each agent gets a tmux session `agent-<slug>`, or a window in one shared session when the project sets `tmux_session`. With `terminal: none` and `tmux_session_per_project: true` in `projects.yaml`, every project's lead and workers are windows of one session, and nothing opens a terminal.
 - **Worktrees.** With `worktree: true` the agent works in `.worktrees/<slug>` on branch `work/<slug>`. `issues/` is left out of the worktree, so issues stay on your main checkout; `worktree_setup: "make"` bootstraps a fresh one.
 - **Approvals.** When a step needs you, the CLI error links straight to the box (`…/issue/<slug>#approve-in-progress`). The agent asks in chat and ends its turn, and your tick nudges its tmux session to resume.
-- **The trail.** Every `issue-cli` call is logged under `.agent-logs/` and shown as a timeline on the issue page, next to the exact prompt the agent was given.
+- **The trail.** Every `issue-cli` call is logged under `.agent-logs/`. The issue page's Timeline tab turns it, with the stats sidecar, the work branch and playtest runs, into where the time went (agent working, waiting on you, idle, rework) and the issue's life by status; its CLI calls filter lists every call next to the exact prompt the agent was given.
 - **Retros and bug reports.** Agents leave `issue-cli retrospective` notes, which the Retros page collects, so you can fix the process where it hurt. `issue-cli report-bug` files bugs in the tool itself as `cli-bug` issues on this project's board, from any project.
 - **Custom buttons.** `issue_actions` and `project_actions` in `workflow.yaml` add one-click agent jobs (a review, a report, a sweep) to the issue page or the board.
 - **Manual checks as playtests.** An issue's manual checks are a YAML session whose step ids are the issue's checkbox ids. A machine runs everything it can see in headless Chrome against a throwaway board; you judge the rest in an overlay, and a report ticks the boxes that passed. See [docs/patterns/playtest/](docs/patterns/playtest/README.md) or `issue-cli process playtest`.
@@ -259,4 +259,6 @@ The author tracks this tool's own work with the tool (its `issues/` folder is ke
 
 ## Licence
 
-[FSL-1.1-MIT](LICENSE.md): free to use, modify and contribute; no competing product or service; each release becomes MIT two years after it ships. See [LICENSE.md](LICENSE.md).
+[PolyForm Noncommercial 1.0.0](LICENSE.md): free for any noncommercial use (personal projects, research, study, hobby, charities, schools, public bodies), including changing and sharing it. Commercial use is reserved to the author; anyone else needs a separate commercial license. The terms have no expiry or change date.
+
+The bundled fonts in `static/fonts/` keep their own SIL Open Font License.

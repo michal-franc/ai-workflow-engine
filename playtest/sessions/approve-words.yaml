@@ -1,0 +1,101 @@
+session: approve-words
+issue: ui/approve-button-takes-your-words
+title: The words box on the issue page saves your words with the approval, and the Timeline shows them
+scenario: workbench
+
+# economy/shop-prices-per-stage sits in design behind the backlog and in
+# progress gates, so its sidebar has both approve buttons and the words box.
+# "No comment" is checked through issue-cli show --json, which lists
+# comments without the board URL (its port changes between runs).
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: Approving with words writes the approval comment, clears the box, and says so
+    setup:
+      - open: /p/{project}/issue/economy/shop-prices-per-stage
+    act:
+      - check: { count: { pattern: approve_words.detail, equals: 1 } }
+      - check: { below: [detail.approve_then.backlog, approve_words.detail] }
+      - type: { target: approve_words.detail, text: "Prices per stage read right, go" }
+      - click: detail.approve.backlog
+      - wait_for: { selected: detail.approve.backlog }
+    checks:
+      - text_contains: { target: detail.toast, text: "Approved for backlog with your words" }
+      - value_equals: { target: approve_words.detail, value: "" }
+      - issue: { slug: economy/shop-prices-per-stage, field: human_approval, equals: backlog }
+      - issue: { slug: economy/shop-prices-per-stage, comment_contains: 'approval: "Prices per stage read right, go" (viewer, ' }
+      - issue: { slug: economy/shop-prices-per-stage, comment_contains: ") → backlog" }
+
+  - id: TP5
+    title: A blank box writes no comment; un-approving ignores the box and keeps its text
+    setup:
+      - open: /p/{project}/issue/economy/shop-prices-per-stage
+    act:
+      - type: { target: approve_words.detail, text: "   " }
+      - click: detail.approve.backlog
+      - wait_for: { selected: detail.approve.backlog }
+      - check: { text_contains: { target: detail.toast, text: "Approved for backlog" } }
+      - check: { cli: { args: [show, economy/shop-prices-per-stage, --json], not_contains: "approval:" } }
+      - type: { target: approve_words.detail, text: "changed my mind" }
+      - click: detail.approve.backlog
+      - wait_for: { text_contains: { target: detail.toast, text: Human approval removed } }
+    checks:
+      - value_equals: { target: approve_words.detail, value: "changed my mind" }
+      - issue: { slug: economy/shop-prices-per-stage, field: human_approval, equals: "" }
+      - cli: { args: [show, economy/shop-prices-per-stage, --json], not_contains: "approval:" }
+
+  - id: TP6
+    title: Approve-then with words writes one comment naming both statuses
+    setup:
+      - open: /p/{project}/issue/economy/shop-prices-per-stage
+    act:
+      - type: { target: approve_words.detail, text: "Start straight away" }
+      - click: detail.approve_then.backlog
+      - wait_for: { selected: detail.approve_then.backlog }
+    checks:
+      - text_contains: { target: detail.toast, text: "Approved for backlog and in progress with your words" }
+      - issue: { slug: economy/shop-prices-per-stage, field: queued_approval, equals: in progress }
+      - issue: { slug: economy/shop-prices-per-stage, comment_contains: ') → backlog, in progress' }
+
+  - id: TP7
+    title: After the transition, the Timeline shows the words beside the approval
+    setup:
+      - open: /p/{project}/issue/economy/shop-prices-per-stage
+      - type: { target: approve_words.detail, text: "Prices per stage read right, go" }
+      - click: detail.approve.backlog
+      - wait_for: { selected: detail.approve.backlog }
+    act:
+      - cli: [transition, economy/shop-prices-per-stage, --to, backlog]
+      - open: /p/{project}/issue/economy/shop-prices-per-stage?tab=timeline
+      - wait_for: timeline.side.words
+    checks:
+      - text_contains: { target: timeline.side.words, text: "approve → backlog · viewer" }
+      - text_contains: { target: timeline.side.words, text: "Prices per stage read right, go" }
+      - text_contains: { target: timeline.side.words, text: "1 quoted · 1 approval" }
+      - text_contains: { target: timeline.approval.words, text: "Prices per stage read right, go" }
+
+  - id: TP10
+    title: The issue page's words box and toasts read clearly
+    setup:
+      - open: /p/{project}/issue/economy/shop-prices-per-stage
+    targets:
+      - { id: approve_words.detail, note: Your words, optional }
+      - { id: detail.approve.backlog, note: Approves backlog with the words }
+    do: |
+      1. Read the Human Approval box in the sidebar, then type a sentence
+         into "Your words (optional)".
+      2. Click "Human-approved for backlog" and read the toast.
+      3. Open the Comments tab and find the approval: comment.
+      4. Click the green button to un-approve, then approve again with the
+         box empty.
+    expect: |
+      Without docs you can tell the box is optional and goes with whichever
+      button you click. The toast says your words were saved, the box
+      empties, and the comment holds your words exactly. Approving with the
+      box empty looks and works as it did before.
+    why: ux-test checks the comment and the box; only you can say whether the wording is clear and the box sits well in the sidebar.

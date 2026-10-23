@@ -1,0 +1,83 @@
+session: timeline-tab
+issue: ui/timeline-tab-replaces-the-agent-timeline
+title: Timeline tab - where an issue's time went, and the old Agent Timeline under CLI calls
+scenario: timeline
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: Every issue page has the tab bar; Issue is the default, Timeline opens at ?tab=timeline, Evidence says coming
+    setup:
+      - open: /p/{project}/issue/ui/timeline-demo
+      - check: { visible: [detail.pagetabs, detail.pagetab.issue, detail.pagetab.timeline, detail.pagetab.evidence, detail.body, detail.sidebar] }
+      - check: { selected: detail.pagetab.issue }
+      - check: { text_contains: { target: detail.pagetab.timeline, text: "3h 0m" } }
+      - click: detail.pagetab.timeline
+      - wait_for: timeline.tab
+    checks:
+      - url: { contains: "tab=timeline" }
+      - selected: detail.pagetab.timeline
+      - visible: [timeline.tab, timeline.total, timeline.bar]
+      - absent: [detail.sidebar, detail.body]
+      - below: [detail.pagetabs, timeline.total]
+      - http: { path: "/p/{project}/issue/ui/timeline-demo?tab=evidence", contains: "Evidence is coming" }
+      - http: { path: "/p/{project}/issue/ui/timeline-demo", contains: 'data-testid="detail.pagetab.issue" aria-current="true"' }
+
+  - id: TP5
+    title: Where the time went matches the stats sidecar - totals, waits, idle and the rework loop
+    setup:
+      - open: /p/{project}/issue/ui/timeline-demo?tab=timeline
+    checks:
+      - text_contains: { target: timeline.total, text: "3h 0m" }
+      - text_contains: { target: timeline.working, text: "1h 30m" }
+      - text_contains: { target: timeline.waiting, text: "1h 10m" }
+      - text_contains: { target: timeline.waiting, text: "3 waits" }
+      - text_contains: { target: timeline.idle, text: "20m" }
+      - text_contains: { target: timeline.rework, text: "your playtest failed TP2, 13m" }
+      - text_contains: { target: timeline.commits, text: "3" }
+      - count: { pattern: timeline.wait, equals: 3 }
+      - count: { pattern: timeline.idlegap, equals: 1 }
+      - count: { pattern: timeline.reworkloop, equals: 1 }
+      - visible: [timeline.side.part, timeline.side.words, timeline.side.open]
+      - text_contains: { target: timeline.side.words, text: "make them links" }
+      - text_contains: { target: timeline.side.open, text: "AC2" }
+      - absent: timeline.missing
+    expect: The card says 3h 0m from dispatch to done, split into agent working, waiting on you and idle, and the bar shows the same split by colour with the status names under it. Life by status shows each status with its waits as amber rows, the idle gap as a grey row and the purple rework loop after your failed playtest. The side column lists your three waits, your words (D-1 and two approvals with no words) and AC2 left open.
+    do: Read the top card and the bar, then scroll Life by status and the side column.
+    why: You see where an issue's time went and what your part was without reading the issue or its CLI calls.
+
+  - id: TP6
+    title: The CLI calls filter holds everything the old Agent Timeline showed; the other filters narrow the stream
+    setup:
+      - open: /p/{project}/issue/ui/timeline-demo?tab=timeline
+      - click: timeline.filter.cli
+      - wait_for: { url: { contains: "show=cli" } }
+    checks:
+      - selected: timeline.filter.cli
+      - count: { pattern: timeline.cli.call, min: 15 }
+      - visible: timeline.cli.actions
+      - count: { pattern: timeline.folded, min: 1 }
+      - text_contains: { target: timeline.tab, text: "transition → in progress (in design → in progress)" }
+      - text_contains: { target: timeline.tab, text: "(failed: approval missing)" }
+      - text_contains: { target: timeline.tab, text: "progress: waiting on your playtest" }
+      - text_contains: { target: timeline.tab, text: "Agent started" }
+      - http: { path: "/p/{project}/issue/ui/timeline-demo?tab=timeline&show=commits", contains: "Fix: CLI calls filter keeps the workflow actions" }
+      - http: { path: "/p/{project}/issue/ui/timeline-demo?tab=timeline&show=tests", contains: "Your playtest: TP1 pass, TP2 fail" }
+      - http: { path: "/p/{project}/issue/ui/timeline-demo?tab=timeline&show=you", contains: "Approved → done" }
+
+  - id: TP7
+    title: An issue without its CLI log and branch says what the tab could not read
+    setup:
+      - open: /p/{project}/issue/ui/timeline-without-logs?tab=timeline
+    checks:
+      - visible: [timeline.missing, timeline.total]
+      - text_contains: { target: timeline.missing, text: "Could not read 2 of 5 sources" }
+      - text_contains: { target: timeline.missing, text: "CLI log" }
+      - text_contains: { target: timeline.missing, text: "Work branch" }
+      - text_contains: { target: timeline.total, text: "1h 0m" }
+      - text_contains: { target: timeline.waiting, text: "needs the CLI log" }
+      - below: [timeline.missing, timeline.total]

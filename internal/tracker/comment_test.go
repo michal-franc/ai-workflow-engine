@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestParseComments_NoComments(t *testing.T) {
@@ -270,5 +271,43 @@ func TestNextCommentID(t *testing.T) {
 				t.Errorf("NextCommentID() = %d, want %d", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAddCommentStoresFullTimestamp(t *testing.T) {
+	fp := filepath.Join(t.TempDir(), "x.md")
+	if err := os.WriteFile(fp, []byte("---\ntitle: \"x\"\n---\n\nbody\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before := time.Now().Truncate(time.Second)
+	if err := AddComment(fp, 0, "progress: hi", "cli"); err != nil {
+		t.Fatal(err)
+	}
+	comments, err := LoadComments(fp)
+	if err != nil || len(comments) != 1 {
+		t.Fatalf("LoadComments: %v %+v", err, comments)
+	}
+	at, ok := CommentTime(comments[0].Date)
+	if !ok || at.Before(before) || len(comments[0].Date) <= 10 {
+		t.Fatalf("date %q is not a full timestamp after %v", comments[0].Date, before)
+	}
+	if CommentDay(comments[0].Date) != before.Format("2006-01-02") {
+		t.Fatalf("CommentDay(%q) = %q", comments[0].Date, CommentDay(comments[0].Date))
+	}
+}
+
+func TestCommentDateReadsBothForms(t *testing.T) {
+	if CommentDay("2026-04-01") != "2026-04-01" || CommentDay("2026-04-01T09:30:00+02:00") != "2026-04-01" {
+		t.Fatal("CommentDay")
+	}
+	old, ok := CommentTime("2026-04-01")
+	if !ok || old.Hour() != 0 || old.Location() != time.Local {
+		t.Fatalf("old date: %v %v", old, ok)
+	}
+	if at, ok := CommentTime("2026-04-01T09:30:00Z"); !ok || at.Hour() != 9 {
+		t.Fatalf("new date: %v %v", at, ok)
+	}
+	if _, ok := CommentTime("yesterday"); ok {
+		t.Fatal("garbage parsed")
 	}
 }

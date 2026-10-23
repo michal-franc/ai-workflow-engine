@@ -122,7 +122,7 @@ func ImportGitHubIssue(proj *tracker.Project, gh GitHubIssue) (string, error) {
 	if len(gh.Labels) > 0 {
 		b.WriteString("labels:\n")
 		for _, l := range gh.Labels {
-			b.WriteString(fmt.Sprintf("  - %s\n", l.Name))
+			b.WriteString(fmt.Sprintf("  - %q\n", l.Name))
 		}
 	}
 	b.WriteString("---\n\n")
@@ -133,6 +133,9 @@ func ImportGitHubIssue(proj *tracker.Project, gh GitHubIssue) (string, error) {
 		}
 	}
 
+	if err := tracker.CheckIssueFrontmatter(b.String()); err != nil {
+		return "", fmt.Errorf("importing #%d: %w", gh.Number, err)
+	}
 	if err := os.WriteFile(filename, []byte(b.String()), 0644); err != nil {
 		return "", fmt.Errorf("writing %s: %w", filename, err)
 	}

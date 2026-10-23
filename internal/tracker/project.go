@@ -109,6 +109,7 @@ func (p *Project) attachRuntime(wf *WorkflowConfig) {
 		return
 	}
 	wf.IssuesRoot = p.IssueDir
+	wf.RepoRoot = p.TelemetryRoot()
 	if wf.LookupIssue == nil && p.IssueDir != "" {
 		dir := p.IssueDir
 		wf.LookupIssue = func(slug string) *Issue {
@@ -149,8 +150,12 @@ type ProjectsConfig struct {
 	TmuxSessionPerProject bool `yaml:"tmux_session_per_project"`
 	// EngineProject is the slug of the project issue-cli bug reports go to
 	// (report-bug). Unset, the project with the engine's repo is used.
-	EngineProject string    `yaml:"engine_project"`
-	Projects      []Project `yaml:"projects"`
+	EngineProject string `yaml:"engine_project"`
+	// AllowedHosts are the Host names the viewer answers to besides
+	// loopback (localhost, 127.0.0.1, [::1], *.localhost): a LAN or VPN
+	// name it is reached by. Any other Host gets 421 (DNS rebinding).
+	AllowedHosts []string  `yaml:"allowed_hosts"`
+	Projects     []Project `yaml:"projects"`
 }
 
 func LoadProjects(configPath string) ([]Project, error) {

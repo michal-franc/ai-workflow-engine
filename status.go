@@ -6,12 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/clibug"
+	"github.com/michal-franc/issue-viewer/internal/milestone"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -479,9 +479,8 @@ func recentReleasesFrom(root, text, name string, n int) (rels []Release, source 
 	return nil, ""
 }
 
-// changelogHeading matches "## v0.40.0 — 2026-10-21" (also "-" or "–"
-// between version and date, or no date).
-var changelogHeading = regexp.MustCompile(`^##\s+\[?(v?\d[^\s\]]*)\]?(?:\s+[—–-]\s+(\d{4}-\d{2}-\d{2}))?`)
+// changelogHeading is milestone.ChangelogHeading.
+var changelogHeading = milestone.ChangelogHeading
 
 // parseChangelog returns the first n "## <version> — <date>" entries, each
 // summarised by its first bullet (whole, markdown and all: SummaryText and

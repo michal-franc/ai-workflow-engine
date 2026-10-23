@@ -34,7 +34,7 @@ Dependency links are a custom field too:
 
 | Field        | Description |
 |:-------------|:------------|
-| `depends_on` | The issues this one waits on, as a YAML list or a comma-separated string: `issue-cli set-meta <slug> --key depends_on --value "economy/shop-prices, ui/other"`. `set-meta` refuses unknown slugs (and suggests close ones) and the issue itself. The detail page shows **Depends on** and, on the other issue, **Depended on by**; `issue-cli show` prints both lines, plus **Decided by** for the `slug#D-n` decisions the body cites. |
+| `depends_on` | The issues this one waits on, as a YAML list or a comma-separated string: `issue-cli set-meta <slug> --key depends_on --value "economy/shop-prices, ui/other"`. `set-meta` writes two or more slugs as a YAML list and one as a string; the value replaces the old one, so pass every slug the issue waits on. It refuses unknown slugs (and suggests close ones) and the issue itself. The detail page shows **Depends on** and, on the other issue, **Depended on by**; `issue-cli show` prints both lines, plus **Decided by** for the `slug#D-n` decisions the body cites. |
 
 Blocking markers are custom fields (and one label) that the [workboard](UI/overview.md#workboard) shows as red chips on the card and on system-page rows:
 
@@ -111,6 +111,16 @@ Workflow-managed fields (`title`, `status`, `human_approval`, `queued_approval`,
 
 Every single-value write (`set-meta`, `update --title`, the detail page edits, transition fields) stores the value as one double-quoted YAML line, escaping `\`, `"`, newlines, carriage returns and tabs. Any value reads back exactly as written, including `$1`, `${x}`, `: #` or a leading `-`.
 
+Setting or clearing a key replaces its whole old value, whatever its shape: the indented list items, block scalar (`|`, `>`) or nested map under it all go, up to the next top-level key. List writes (`labels`, a multi-slug `depends_on`) store each item as a quoted `  - "…"` line, in place.
+
+Every frontmatter write parses the result before it touches the file. If the YAML would not parse, nothing is written and the command fails, naming the keys it was setting:
+
+```
+failed to set frontmatter: <file>: not written: frontmatter would not parse after setting depends_on: yaml: …
+```
+
+The same check covers `issue-cli create`, the web create form and the GitHub import (`not written: frontmatter would not parse: …`). A file whose frontmatter is already broken is skipped on load (with a `warning: skipping …` line), so the CLI and the viewer can't find it; fix it in an editor.
+
 `queued_approval` is written by the detail page's **Approved for backlog and in progress** button next to `human_approval: backlog`. When the `backlog` approval is consumed by its transition, the queued approval becomes the new `human_approval`, so the agent's next `start` continues into `in progress` without a second wait. Any other transition drops it.
 
 ## Scoring Fields
@@ -141,6 +151,16 @@ The marker accepts `statuses=` (the row status dropdown) and an optional `tiers=
 
 The table reads from a sidecar JSON file (`<slug>.data.json`) — manage rows via `issue-cli data add | list | set-status | set-tier | set-comment | remove`, never by editing the JSON directly.
 
+## The brief
+
+The issue page's Issue tab leads with one paragraph, the brief, and `issue-cli show` prints it as `Brief:`. `tracker.Brief` takes the first of these:
+1. a paragraph opening with `**In short:**` (the label is dropped);
+2. the first prose line under `## Bug`;
+3. the body's first prose paragraph before any `##` heading;
+4. the first prose paragraph of the first section.
+
+Tables, lists, quotes, images, code and HTML comments are skipped. Past 280 characters the brief ends at the last sentence end inside the limit, else at a word with "…". With none of these, the tab shows the title alone. To steer what the owner reads first, open the body with a lead paragraph, or start one with `**In short:**`.
+
 ## Decisions
 
 Decisions live as numbered lines under an issue's `## Decisions` section, written by `issue-cli decide`. Questions themselves stay in chat; only the outcome is recorded. The viewer's **Decisions** tab (`/p/<project>/decisions`) is generated from these lines, so nobody edits the index by hand.
@@ -162,6 +182,10 @@ The line format is `- **D-<n>** · <YYYY-MM-DD>[ · deferred] · <how>: <text>[,
   - `stale` when it is replaced but an open issue still cites it. Open means the issue's status sorts before `done`; `done` and anything after it (e.g. `obsolete`) count as closed.
 - **What is skipped.** Only lines under a level-2 `## Decisions` heading and outside fenced code are parsed. Free-form notes in that section are left alone and not listed.
 - **Revising.** `issue-cli show` prints `== Cites replaced decisions ==` for an issue that still builds on a replaced decision.
+
+## Comments
+
+Comments live in an `<!-- issue-viewer-comments … -->` block at the end of the file, written by `issue-cli comment` and the issue page. Each has an id, text, status, source and `date`. Since v0.54 `date` is a full RFC3339 timestamp (`2026-10-23T14:05:07+02:00`); older comments have the day only (`2026-10-23`). Both forms are read, and pages and `issue-cli show` show the day.
 
 ## Balance notes
 

@@ -6,8 +6,8 @@ import (
 )
 
 // DependsOnField is the frontmatter key that lists the issues an issue waits
-// on: a YAML list, or a comma-separated string as `issue-cli set-meta`
-// writes it.
+// on: a YAML list (as `issue-cli set-meta` writes two or more), or a
+// comma-separated string.
 const DependsOnField = "depends_on"
 
 // DependsOn returns the slugs in the issue's depends_on field, lower-cased,

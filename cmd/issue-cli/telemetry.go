@@ -14,9 +14,10 @@ import (
 )
 
 // invocation is what run() learns about a call, handed back to main so the
-// telemetry event can be built after the command finishes. Telemetry is a
-// separate sink from logAction: logAction keeps feeding the agent timeline
-// and retry hint with raw args; this records names-only usage data.
+// clilog record and the telemetry event can be built after the command
+// finishes. Telemetry is a separate sink from the clilog (callLog): the
+// clilog feeds the agent timeline and retry hint with redacted args; this
+// records names-only usage data.
 type invocation struct {
 	global  []string // global flag tokens as split off by splitGlobalAndCommand
 	command string   // command name as typed ("" = bare `issue-cli`)

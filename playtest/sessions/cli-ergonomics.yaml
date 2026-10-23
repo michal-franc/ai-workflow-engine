@@ -34,6 +34,7 @@ steps:
       - cli: [check-edit, cli/faster-list-command, P1, --text, "P1: Profile the loader with pprof"]
       - cli: [replace, cli/faster-list-command, --section, Plan, --match, "^- \\[ \\] Cache", --text, "- [ ] Cache parsed frontmatter by mtime"]
       - reload: true
+      - click: detail.fold.expand_all
     checks:
       - issue: { slug: cli/faster-list-command, body_contains: "- [x] Profile the loader with pprof" }
       - issue: { slug: cli/faster-list-command, checkbox: P1, checked: true }

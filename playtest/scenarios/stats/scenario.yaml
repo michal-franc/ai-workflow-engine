@@ -1,0 +1,22 @@
+# The stats page. Two issues done on 2026-09-30 and 2026-10-01 (the
+# timeline scenario's: ui/timeline-demo with its clilog, sidecar and
+# branch; ui/timeline-without-logs with a sidecar only) and six daily health
+# snapshots, 2026-09-27 to 2026-10-02, under files/.health/snapshots/. The
+# fixtures are in the past, so steps open ?range=all to keep them in range;
+# ?range=7d has no snapshot in it and shows the backfill hint.
+title: Stats page - gauges, trends and where the time goes
+project:
+  name: Stats Demo
+  slug: st
+issues: tracker
+workflow: workflow.yaml
+root: files
+branches:
+  - name: work/ui/timeline-demo
+    commits:
+      - files: branches/one
+        message: "Tab bar on the detail page"
+      - files: branches/two
+        message: "Timeline tab: totals and life by status"
+      - files: branches/three
+        message: "Fix: CLI calls filter keeps the workflow actions"

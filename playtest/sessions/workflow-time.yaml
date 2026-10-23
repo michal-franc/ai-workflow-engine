@@ -1,0 +1,42 @@
+session: workflow-time
+issue: workflow/health-workflow-timeline-where-agents-and-owners-spend-time
+title: Where the time goes - the project aggregate on /stats and agent time per status on the Timeline tab
+scenario: timeline
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: /stats opens with where the time goes, split the Timeline tab's way, over the issues done in the window
+    setup:
+      # The fixtures are done on 2026-09-30 and 2026-10-01: a wide window
+      # keeps them in it whatever today is.
+      - open: /p/{project}/stats?days=3650
+      - wait_for: stats.time
+    checks:
+      - visible: [stats.time, stats.time.types, stats.time.approvals, stats.time.unsplit]
+      - count: { pattern: stats.time.status, equals: 2 }
+      - text_contains: { target: stats.time, text: "done in the last 3650 days" }
+      - text_contains: { target: stats.time, text: "2 issues done" }
+      - text_contains: { target: stats.time.unsplit, text: "ui/timeline-without-logs" }
+      - text_contains: { target: stats.time.types, text: "3h 0m" }
+      - text_contains: { target: stats.time.approvals, text: "human-testing→done" }
+      - http: { path: "/p/{project}/stats", contains: "done in the last 30 days" }
+    expect: Above the token tables, "Where the time goes" says how many issues it counts and names ui/timeline-without-logs as status time only. The type table has the cycle time (p50 / p90), rework loops and the rework share. Time per status opens on All types with in status, agent, waiting on you and idle per status, and the issue without logs shows "—" where its split is unknown. Approval waits lists each gated transition with its wait, and the gate failures table, or its empty line, says which refused transitions were dry runs.
+    do: Read the section from the top, open the "none" type under Time per status, and compare the human-testing row with the demo issue's Timeline tab.
+    why: You see where the project's time goes, the agent, you or nobody, per status, without opening each issue.
+
+  - id: TP5
+    title: The Timeline tab shows each status band's agent time next to its waits, idle and rework
+    setup:
+      - open: /p/{project}/issue/ui/timeline-demo?tab=timeline
+      - wait_for: timeline.tab
+    checks:
+      - count: { pattern: timeline.band.working, min: 3 }
+      - text_contains: { target: timeline.working, text: "1h 30m" }
+    expect: Each status band's header has its agent time in blue, before the amber waiting on you, the grey idle and the purple rework, and the agent times add up to the agent working total on the card.
+    do: Scroll Life by status and read the band headers.
+    why: The tab now shows the same per-status split the project numbers on /stats are built from.

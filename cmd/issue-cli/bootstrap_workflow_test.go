@@ -175,6 +175,24 @@ func TestShow_PrintsWorkflowFile(t *testing.T) {
 	if !strings.Contains(stdout.String(), "Workflow file: "+proj.WorkflowFile+"\n") {
 		t.Fatalf("show should print the workflow file:\n%s", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "/issue/a?tab=timeline\n") {
+		t.Fatalf("show should print the Timeline tab link:\n%s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Brief: body\n") {
+		t.Fatalf("show should print the Issue tab's brief:\n%s", stdout.String())
+	}
+}
+
+func TestShow_HintsWhenNoBrief(t *testing.T) {
+	file := "---\ntitle: \"A\"\nstatus: \"idea\"\n---\n\n## Idea\n- [ ] box\n"
+	proj := typedProject(t, typedWorkflow, map[string]string{"a": file})
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runShow(ctx, []string{"a"}); err != nil {
+		t.Fatalf("show: %v", err)
+	}
+	if !strings.Contains(stdout.String(), "Brief: none. ") || !strings.Contains(stdout.String(), "**In short:**") {
+		t.Fatalf("show should hint how to write a brief:\n%s", stdout.String())
+	}
 }
 
 func TestProcessTransitions_PrintsWorkflowFile(t *testing.T) {

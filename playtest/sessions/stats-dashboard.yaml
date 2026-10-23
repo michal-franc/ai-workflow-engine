@@ -1,0 +1,112 @@
+session: stats-dashboard
+issue: ui/project-stats-dashboard-gauges-line-charts-and-bar-charts-per-project
+title: Stats page - gauges, trends from the health snapshots, where the time goes, and the overview of every project
+scenario: stats
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: /stats shows gauges, trend lines from the snapshots, where the time goes, and the old tables folded below
+    setup:
+      # The fixtures are from late September 2026: range=all keeps them in.
+      - open: /p/{project}/stats?range=all
+      - wait_for: stats.dashboard
+    checks:
+      - visible: [stats.options, stats.range, stats.group, stats.tables]
+      - selected: stats.range.all
+      - count: { pattern: stats.gauge, equals: 5 }
+      - count: { pattern: stats.chart.*, equals: 8 }
+      - count: { pattern: stats.pending, equals: 3 }
+      - absent: stats.backfill_hint
+      - text_contains: { target: stats.chart.cycle, text: "Cycle time p50, by type" }
+      - text_contains: { target: stats.snapshots, text: "6 backfilled" }
+      - text_equals: { target: stats.done, text: "2 issues done" }
+      - hidden: stats.time
+      - below: [stats.options, stats.tables]
+    expect: Five gauge cards in a row (waiting on you with its limit tick, the current milestone, big files, and two dashed "No data yet" cards naming the issues that bring them), then the trend lines over the six snapshot days (cycle time, waiting on you with the 25% limit line, agent time per issue, rework, lines of code), three dashed cards for families that don't exist yet, the stacked bars of where the time goes, the issues done per week, and the old tables folded at the bottom. Colours follow the theme; nothing is cut off at phone width.
+    do: Scroll the page top to bottom, hover a few points and bars to read their tooltips, then switch the theme (sidebar) to light and to Dracula.
+    why: One page shows how the project is doing now and over time, without opening each issue.
+
+  - id: TP5
+    title: Range and group-by options change the charts and are remembered for the project
+    setup:
+      - open: /p/{project}/stats?range=all
+      - wait_for: stats.dashboard
+      - click: stats.range.7d
+      - wait_for: { url: { contains: range=7d } }
+    checks:
+      - selected: stats.range.7d
+      - visible: stats.backfill_hint
+      - text_contains: { target: stats.backfill_hint, text: "health backfill" }
+      - url: { contains: range=7d }
+    expect: The 7-day range has fewer than two snapshots, so a blue hint above the trends names the backfill command. Choosing System in Group by reloads with the time bars grouped by system. Opening /p/<project>/stats again without options comes back to the last range and group.
+    do: Pick System under Group by, then open the Stats entry in the sidebar again.
+    why: The view you use stays the view you get, per project, and the page tells you how to fill in history.
+
+  - id: TP6
+    title: Group by reloads the page with the bars grouped, and the choice comes back on the next visit
+    setup:
+      - open: /p/{project}/stats?range=all
+      - wait_for: stats.dashboard
+      - select: { target: stats.group, value: system }
+      - wait_for: { url: { contains: group=system } }
+      - open: /p/{project}/stats
+      - wait_for: { url: { contains: group=system } }
+    checks:
+      - value_equals: { target: stats.group, value: system }
+      - selected: stats.range.all
+      - text_contains: { target: stats.chart.group, text: "By system" }
+
+  - id: TP7
+    title: Each chart has a table view with the same numbers
+    setup:
+      - open: /p/{project}/stats?range=all
+      - wait_for: stats.dashboard
+      - click: stats.table_btn.cycle
+    checks:
+      - visible: stats.table.cycle
+      - selected: stats.table_btn.cycle
+      - text_contains: { target: stats.table.cycle, text: "3h" }
+    expect: Table swaps the cycle chart for its rows, newest snapshot first, one column per type; pressing it again brings the chart back.
+    do: Press Table on two charts and compare a row with the point's tooltip.
+    why: Every number is readable without the picture, by screen readers too.
+
+  - id: TP8
+    title: A bar or point opens the issues behind it, linked to their Timeline tab
+    setup:
+      - open: /p/{project}/stats?range=all&drill=status:human-testing#time
+      - wait_for: stats.drilldown
+    checks:
+      - visible: stats.drilldown
+      - text_contains: { target: stats.drilldown, text: "ui/timeline-demo" }
+      - text_contains: { target: stats.drilldown, text: "agent" }
+    expect: Under the By status chart, the human-testing bar is outlined and a list names its issues with time in status, agent, waiting and idle, each linking to the issue's Timeline tab. Close removes the list.
+    do: Click a segment of the weekly chart and a point of the cycle chart, then open one issue from the list.
+    why: A number on the dashboard always leads to the issues that make it.
+
+  - id: TP9
+    title: issue-cli health backfill fills in history and the hint goes away
+    setup:
+      - cli: [health, backfill, --days, "3"]
+      - open: /p/{project}/stats?range=7d
+      - wait_for: stats.dashboard
+    checks:
+      - absent: stats.backfill_hint
+      - text_contains: { target: stats.snapshots, text: "backfilled" }
+
+  - id: TP10
+    title: /stats without a project compares every project
+    setup:
+      - open: /stats
+      - wait_for: stats.overview
+    checks:
+      - count: { pattern: stats.overview.row, equals: 1 }
+      - text_contains: { target: stats.overview, text: "Stats Demo" }
+      - text_contains: { target: stats.overview, text: "Lines of code" }
+    expect: One row per project with waiting on you (a meter with the limit tick), cycle p50, rework share, issues done, lines of code, test ratio and big files, each with a sparkline; the project name opens its stats page. On a phone the table scrolls sideways inside its card.
+    do: Click the project name, and try the Sort by links.
+    why: RogueTech and issue-viewer can be compared side by side.

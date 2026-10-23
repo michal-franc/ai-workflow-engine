@@ -338,6 +338,7 @@ Without the viewer, `issue-cli ci watch` does the polling; `--once` checks once.
 - **`on_red: file_issue`:** the first red run after green also files one `bugfix` issue (`Fix red CI on <branch> at <sha>: <command>`) with the range, the merged issues and the log tail in a `ci:` comment. Later red runs comment on that same issue, and the `ci:` comments link it. When main is green again the issue gets a comment and stays open for whoever ships the fix.
 - **Quiet while still red:** later red runs comment and message again only if the failing command changes. The lead hears once more when main is green again, and the chips go.
 - **CI can't run** (git or the worktree failed): the state is `error`, not red. Nobody is blamed, the card says why, and the lead hears once.
+- **Health snapshot:** after each default-tier run, red or green, `ci run` takes a [health snapshot](workbench-files.md#health-snapshots) at the tested commit and prints `health: snapshot <path>`. A failed snapshot prints one line and never changes the run's result.
 - **Slow tiers:** `issue-cli ci run --tier slow` runs the default commands, then the slow ones, once. Its result is shown separately (`ci status --tier slow`) and never turns main red, blames issues or messages anyone.
 
 ### What agents and the lead see

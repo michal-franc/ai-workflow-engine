@@ -4,7 +4,7 @@
 //
 // Events carry flag NAMES, never values, except for a tiny whitelist of
 // structural values (see Safe). This is deliberately separate from the CLI's
-// raw-args action log (logAction / clilog), which feeds the agent timeline.
+// raw-args action log (logAction / clilog), which feeds the Timeline tab.
 package telemetry
 
 import (

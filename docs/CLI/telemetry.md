@@ -5,7 +5,7 @@ order: 2
 
 `issue-cli` records one small JSON line per invocation to a **local** file. The log shows how bots actually use the CLI, and which commands, flags and help topics nobody uses, so they can be removed or merged. Nothing is ever sent off-machine.
 
-Telemetry is separate from the existing action log (`logAction` → `$TMPDIR/issue-cli-logs/actions.jsonl`, `$ISSUE_CLI_LOG`, the per-agent `.clilog`). That log keeps raw arguments and feeds the agent timeline and the repeated-failure hint, and it is unchanged. Telemetry stores **names only**.
+Telemetry is separate from the [clilog](#the-clilog), the log of every call with its arguments (free text removed) that feeds the issue page's Timeline tab (its CLI calls filter) and the repeated-failure hint. Telemetry stores **names only**.
 
 ## Where events go
 
@@ -35,11 +35,40 @@ projects:
     telemetry: true   # default; false opts this project out
 ```
 
-Opting out doesn't affect the agent timeline or the retry hint, which use the separate action log.
+Opting out doesn't affect the Timeline tab or the retry hint, which use the separate [clilog](#the-clilog).
 
 `ISSUE_CLI_TELEMETRY_SKIP=1` is an internal variable. It skips recording only the current call and doesn't count as an opt-out. The viewer sets it on its own `telemetry report` call so `/stats` page loads aren't counted as CLI usage.
 
 Telemetry files live under `.agent-logs/`. Make sure each project repo gitignores that directory, or the file shows up as untracked.
+
+## The clilog
+
+Every `issue-cli` call also writes one line to the clilog, the log the issue page's Timeline tab, the agents canvas, `report-bug` and the repeated-failure hint read. Since v0.54 the line is written **when the call ends**, so it carries the result:
+
+```json
+{"ts":"2026-10-23T08:37:12Z","pid":1437994,"ppid":1437795,
+ "args":["--project","sb","transition","cli/demo","--to","in progress"],
+ "exit":1,"err_class":"approval_missing","dur_ms":4}
+```
+
+- `ts` is when the call **started** (RFC3339, seconds); `dur_ms` is how long it ran, so it ended at `ts + dur_ms`. A long call (`ci run`) shows up only when it ends, so lines are not always in `ts` order.
+- `exit` is the process exit code (2 for a panic), `err_class` the same class telemetry uses (`approval_missing`, `validation`, `invalid_transition`, `usage`, …), left out on success.
+- A call killed outright (SIGKILL, power loss) leaves no line.
+- Lines written before v0.54 have no `exit`, `err_class` or `dur_ms`; readers treat them as calls of unknown result.
+
+**No free text.** `args` keep the command and subcommand, flag names, the slug, box ids, statuses, and the values of structural flags (`--to`, `--section`, `--status`, `--how`, `--key`, `--type`, `--priority`, `--system`, `--epic`, `--since`, `--project`, `--config`, `--body-file`, …). Everything else is replaced by `‹text n=<characters> h=<6 hex of its SHA-256>›`: the values of `--text`, `--body`, `--quote`, `--title`, `--value` and any flag not on the structural list, the value part of `--field key=value`, and positionals with spaces or over 100 characters. The text is already in the issue; the hash lets identical calls compare equal and lets the timeline match a `comment` call to its comment. The rule lives in `internal/clilog/redact.go` (`Redact`); a test keeps its list of value-less flags in step with `cmd/issue-cli`.
+
+**Where it goes.** One record is appended, under the same lock and 10 MB rotation as telemetry, to each of:
+
+| File | Holds |
+|:--|:--|
+| `<workdir>/.agent-logs/clilog.jsonl` (`${XDG_STATE_HOME:-~/.local/state}/issue-cli/clilog.jsonl` when no project resolves) | every call in the project, by agents, the lead and you |
+| `$ISSUE_CLI_LOG`, when set | the dispatched agent's own log (see [Agent Dispatch](../agent-dispatch.md#environment-variables)) |
+| `<workdir>/.agent-logs/<assignee>/<assignee>.clilog` | calls naming an issue with an assignee; the path is resolved before the call, so the transition that clears the assignee still lands here, and after it for `start`, which sets one |
+
+A path listed twice is written once. All of them live in the project's checkout, so removing a worktree loses none of them, and `.agent-logs/` is gitignored. Before v0.54 the shared copy was `$TMPDIR/issue-cli-logs/actions.jsonl`, lost on reboot; nothing writes it now, and the Timeline tab still reads it while it exists.
+
+**One-off scrub.** `go run ./tools/clilog-scrub -root <primary checkout> [-dry-run]` brings older logs in line: it merges every worktree's `.agent-logs/<agent>/` into the project's (clilogs unioned and deduplicated, `dispatch-prompt.txt` and `messages/` copied; test sandboxes left alone), rewrites every clilog without free text, and removes the `$TMPDIR` log. Originals are copied to `.agent-logs/.scrub-backup-<time>/` first; delete that once the timeline looks right. A second run changes nothing.
 
 ## Event schema (v1)
 

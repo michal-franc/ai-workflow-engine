@@ -22,6 +22,54 @@ renames `## Unreleased` to `## vX.Y.Z — YYYY-MM-DD` and pushes, and the
 release-marker Action tags and builds it. Pushes with `## Unreleased` on top
 release nothing.
 
+## Unreleased
+
+- **Licence: PolyForm Noncommercial 1.0.0.** Free for noncommercial use; commercial use is reserved to the author.
+- **A stats dashboard per project, and one page that compares them all.**
+  - **`/p/<project>/stats`** opens on:
+    - gauges (share of time waiting on you against `health.limits.waiting_share`, the current milestone, big files)
+    - trend lines from the health snapshots (cycle time by type, waiting on you, agent time per issue, rework and gate failures, lines of code)
+    - where the time goes, by status and by type, system, epic or version
+    - issues done per week
+  - **Options:** range (7 / 30 / 90 days / all) and group-by are links, remembered per project. Every bar and point opens the issues behind it, linked to their Timeline tab, and every chart has a table view. Today's tables stay below, folded.
+  - **`/stats`** compares every project from its snapshots, with sparklines.
+  - **Charts:** SVG drawn on the server in the theme's colours: no chart library, no inline script.
+  - **Not here yet:** CI, context-cost and check-speed charts say "No data yet" until their health families ship.
+- **`issue-cli health backfill [--days 90]` fills in the trend lines' past.** It computes a snapshot for each past day without one, as it stood that evening: the codebase at that day's commit, the workflow over the issues done by then. `issue-cli health` now names the stats page, and suggests the backfill while there is under two days of history.
+- **New snapshot rows:**
+  - `workflow.working.p50|p90`, `workflow.time.working|waiting|idle` and `workflow.time.share{kind=waiting}`
+  - a `milestone` family (`milestone.done|total{version}`)
+  - `health.limits` in workflow.yaml (`waiting_share`, `big_files`)
+- **The viewer answers only to loopback names (DNS rebinding closed).** A request whose `Host` is not `localhost`, `127.0.0.1`, `[::1]` or `*.localhost` gets `421 Misdirected Request` on every route, reads included. Before, a page on another site could rebind its own name to 127.0.0.1 and then read boards and dispatch agents, because it looked same-origin. To reach the viewer by another name, list it under the new `allowed_hosts:` key in `projects.yaml`. With a non-loopback `-host`, the bind address (every interface address for `0.0.0.0`) is accepted too, and the startup warning lists what is. See docs/API/overview.md, Design Considerations. (api/host-allowlist-reject-requests-whose-host-isnt-loopback-or-configured-dns-rebinding)
+- **The Issue tab leads with what the issue needs from you.** The issue page opens on a band: what this is (the brief and your words), where it is (the path with time per status and your gates) and Needs you. Needs you lists the same items as Status: approve buttons with your words, an answer box for a question, or the playtest command. When nothing waits, it says who has the issue. Under it: what you're approving since the last gate, mockups, decisions with "took the recommendation" marks, and the body folded by section (Show, Hide, Expand all for today's body). The side column has the agent, acceptance criteria and relations above the fields. At phone width it stacks. `issue-cli show` prints `Brief: …`, the sentence the tab leads with.
+- **/stats shows where the project's time goes, and snapshots carry it as the `workflow` family.**
+  - **What it counts:** every issue done in the last 30 days goes through the Timeline tab's own code, now in `internal/timeline`. It is split into agent working, waiting on you and idle per status and type of work, each as p50 / p90.
+  - **The tables:** cycle time per type, approval waits per gated transition, rework (loops and issues sent back) and dispatches. Refused `transition` calls are listed by error class, with dry runs apart.
+  - **Gaps:** issues without CLI calls count for status time only and are named. `?days=N` looks further back.
+  - **Snapshots:** the same numbers are in every health snapshot as `workflow.*` series (`workflow.status.waiting.p90{status=human-testing,type=all}` and so on). `issue-cli health` points at /stats for the tables.
+  - **Timeline tab:** each status band now shows its agent time.
+  - See docs/workflow-stats.md#project-aggregate and docs/workbench-files.md, "The workflow family". (workflow/health-workflow-timeline-where-agents-and-owners-spend-time)
+- **Project health snapshots: codebase size, big files and growth.**
+  - **What:** a dated JSON file per project in `.health/snapshots/` (gitignored), one row per metric. The codebase family reads git objects at the main head: files and lines by kind (code, test, docs, data, other), area and language; the test ratio; the 20 biggest files over `health.big_file_lines` (default 1000); and growth against 7 and 30 days ago.
+  - **When:** the viewer takes one a day per repository, `issue-cli ci run` takes one after each run, and `issue-cli health snapshot` takes one by hand. `issue-cli health` prints the latest (`--json` for the file).
+  - **Families:** other metric families register with `health.Register` and land in the same file. A family that fails is recorded and the others are still written.
+  - **Config:** an optional `health:` block in workflow.yaml (`big_file_lines`, `test_globs`, `exclude`, `timeout`, `off`). See docs/workbench-files.md, "Health snapshots".
+- **Approve buttons take your words.** The issue page's Human Approval section and the agents panel's Approve gate have an optional "Your words" box. Filled, the approval also saves an `approval:` comment and the agent's nudge quotes your words in place of a canned line; empty, approving works as before. `approval:` comments now name the status (`approval: "<words>" (<how>, <date>) → <status>`), from the viewer and `issue-cli approve` alike, and the Timeline shows each approval's words instead of "no words recorded".
+- **The issue page has tabs, and the Timeline tab replaces the Agent Timeline.**
+  - **The tabs:** every issue page has Issue · Timeline · Evidence under the title, each a link (`?tab=timeline`, `?tab=evidence`). Issue is the page as before, minus the Agent Timeline list. Evidence says "coming".
+  - **Where the time went:** from dispatch to done, split into agent working, waiting on you and idle (agent + waiting + idle = total), with rework and commits beside them.
+    - Waiting on you is a gap between agent calls that ends with your approval, or a gap of 15 min or more in a status only you can move on.
+    - Idle is any other gap of 15 min or more with no CLI call and no commit.
+    - Rework is agent time after a backward transition, or after a failed playtest run from testing on, until it passes.
+  - **Life by status:** decisions, sections, ticks, comments, commits (a merge of main is one line), playtest runs, approvals, waits and CI inline. Filters: All, Your actions, Commits, Tests and CI, and CLI calls, which is the old list with the workflow actions each transition saw.
+  - **Side column:** your part, your words, what was left open at done, and CI after the merge.
+  - **Sources:** it reads the stats sidecar, the clilogs (worktree and project), the work branch, playtest runs and local CI. When one is missing, it says what it could not read. On local CI's issue: 5h 0m, 3h 48m waiting on you.
+  - **`issue-cli show`** prints `Timeline: <url>?tab=timeline`.
+  - See docs/workflow-stats.md#timeline-tab. (ui/timeline-tab-replaces-the-agent-timeline)
+- **The clilog records each call's result, keeps no free text, and lives in the project.** Every `issue-cli` call used to be logged before it ran, with its full arguments, to `$TMPDIR/issue-cli-logs/actions.jsonl` (lost on reboot) and to per-agent logs that dispatch kept inside the worktree. Now one record is written when the call ends, with `exit`, `err_class` and `dur_ms`, to `<workdir>/.agent-logs/clilog.jsonl`, `$ISSUE_CLI_LOG` and the assignee's clilog, all in the project checkout. Comment, body, quote, title and value text is replaced by `‹text n=… h=…›`; slugs, box ids and `--to`/`--section` stay. The Agent Timeline takes comment text from the issue and marks failed calls ("failed: approval missing"); the agents canvas idles from the end of the last call. `go run ./tools/clilog-scrub -root <checkout>` merges old worktree logs into the project and strips their text. See docs/CLI/telemetry.md#the-clilog. (cli/clilog-and-stats-record-what-the-timeline-needs)
+- **The stats sidecar records branch heads, the merge and dispatches; comments get a time.** Each transition row stores `branch_head` (the `work/<slug>` head), the move to `done` also `merge_sha`, so commits and "CI after the merge" survive a deleted branch. Viewer dispatches append `dispatches: [{at, session, agent}]`, and dispatched agents' prompts and logs stay in the project checkout, not the worktree. New comments store an RFC3339 `date` (pages still show the day). "Waiting on you" per gate is derived from `approved_at` and the agent's last call (`tracker.OwnerWaits`), with nothing new recorded. See docs/workflow-stats.md. (cli/clilog-and-stats-record-what-the-timeline-needs)
+- **Frontmatter writes no longer leave orphan lines, and never write YAML that doesn't parse.** `set-meta` on a key holding a block list (`depends_on:` with `  - …` items) replaced only the key's line and left the items below it, and `--clear` left them under the key above. Either way the file stopped parsing, and the viewer and the CLI skipped the issue with "did not find expected key". `update --labels` had the same bug. Setting or clearing a key now replaces its whole value (list items, `|`/`>` block scalars, nested maps) up to the next top-level key. `set-meta` writes two or more `depends_on` slugs as a YAML list. Labels are written as quoted items in place. Every frontmatter write (`set-meta`, `update`, claim, approve, transitions, the detail page, `create`, the web create form, the GitHub import) now parses the result first. If it would not parse, nothing is written and the error names the keys: `not written: frontmatter would not parse after setting depends_on: …`. The GitHub import quotes label names, so a label like `priority: high` no longer breaks the imported file. (cli/set-meta-on-a-list-valued-key-leaves-orphan-list-items-and-corrupts-the-frontmatter)
+
 ## v0.53.0 — 2026-10-23
 
 Focus: safe core. The viewer listens on localhost only and refuses cross-origin writes; local CI re-tests main after every merge; a redesigned Status page that scales to hundreds of issues; report-bug files real issues; and a batch of issue-cli fixes from agents' bug reports.

@@ -4,18 +4,20 @@ import (
 	"encoding/json"
 	"io"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/clilog"
+	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
 // agentIdleAfter is how long a live agent may go without an issue-cli call
 // before it reads as idle rather than working (D-7). A long build with no
 // call reads as idle too; the footer says "no issue-cli call", not stopped.
-const agentIdleAfter = 15 * time.Minute
+// It is the Timeline's idle gap, so the canvas and the split agree.
+const agentIdleAfter = timeline.IdleAfter
 
 // cliTailBytes is how much of a clilog's end lastCliCall reads: enough for
 // the newest record even when its args carry a long --body.
@@ -27,17 +29,19 @@ type lastCall struct {
 	Cmd string // e.g. "check ui/foo D3", without --project
 }
 
-// lastCliCall reads the newest record of the first clilog that has one for
-// project projSlug. Records naming another --project are skipped: test runs
+// lastCliCall is the newest call across the clilogs at paths for project
+// projSlug: the one that ended last (start + duration; old records have
+// only the start). Records naming another --project are skipped: test runs
 // in the agent's shell inherit ISSUE_CLI_LOG and log their fixture projects.
-// Callers pass the worktree's log before the project's.
 func lastCliCall(projSlug string, paths ...string) (lastCall, bool) {
+	var newest lastCall
+	found := false
 	for _, p := range paths {
-		if c, ok := tailCliRecord(p, projSlug); ok {
-			return c, true
+		if c, ok := tailCliRecord(p, projSlug); ok && (!found || c.At.After(newest.At)) {
+			newest, found = c, true
 		}
 	}
-	return lastCall{}, false
+	return newest, found
 }
 
 func tailCliRecord(path, projSlug string) (lastCall, bool) {
@@ -63,15 +67,15 @@ func tailCliRecord(path, projSlug string) (lastCall, bool) {
 	}
 	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
-		var rec cliLogRecord
+		var rec clilog.Record
 		if json.Unmarshal([]byte(lines[i]), &rec) != nil {
 			continue // the first line may be cut mid-record
 		}
 		if p := flagValue(rec.Args, "--project"); p != "" && projSlug != "" && p != projSlug {
 			continue
 		}
-		at, err := time.Parse(time.RFC3339, rec.TS)
-		if err != nil {
+		at := rec.End()
+		if at.IsZero() {
 			continue
 		}
 		return lastCall{At: at, Cmd: strings.Join(stripGlobalFlags(rec.Args), " ")}, true
@@ -79,19 +83,20 @@ func tailCliRecord(path, projSlug string) (lastCall, bool) {
 	return lastCall{}, false
 }
 
-// agentLogPaths are where a worker's clilog may be: its worktree (dispatch
-// writes <workDir>/.agent-logs/<session>/<session>.clilog), then the project
-// work dir under the session name and under the assignee.
+// agentLogPaths are where a worker's clilog may be: the project work dir
+// under the session name (dispatch writes it there since v0.54) and under the
+// assignee, then its worktree, where dispatch wrote it before. lastCliCall
+// takes the newest call across them.
 func agentLogPaths(workDir, worktree, session, assignee string) []string {
 	var paths []string
-	if worktree != "" {
-		paths = append(paths, filepath.Join(worktree, ".agent-logs", session, session+".clilog"))
-	}
 	if workDir != "" {
-		paths = append(paths, filepath.Join(workDir, ".agent-logs", session, session+".clilog"))
+		paths = append(paths, clilog.AgentPath(workDir, session))
 		if assignee != "" && assignee != session {
-			paths = append(paths, filepath.Join(workDir, ".agent-logs", assignee, assignee+".clilog"))
+			paths = append(paths, clilog.AgentPath(workDir, assignee))
 		}
+	}
+	if worktree != "" {
+		paths = append(paths, clilog.AgentPath(worktree, session))
 	}
 	return paths
 }

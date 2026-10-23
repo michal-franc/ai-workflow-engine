@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/ci"
+	"github.com/michal-franc/issue-viewer/internal/milestone"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -279,55 +280,15 @@ func sameSha(a, b string) bool {
 	return strings.HasPrefix(a, b) || strings.HasPrefix(b, a)
 }
 
-// pickMilestone is the lowest version strictly after released that has an
-// issue not parked. With no release it is the lowest version with an open
-// issue, else the highest one (all done: ready to cut).
+// pickMilestone is milestone.Pick with the page's status classes, as a
+// Progress.
 func pickMilestone(byVersion map[string][]*tracker.Issue, cs *canvasStatuses, released string) (string, Progress, []*tracker.Issue) {
-	var versions []string
-	for v := range byVersion {
-		if normVersion(v) != "" {
-			versions = append(versions, v)
-		}
-	}
-	sort.Slice(versions, func(i, j int) bool { return compareVersions(normVersion(versions[i]), normVersion(versions[j])) < 0 })
-	rel := normVersion(released)
-	var last string
-	for _, v := range versions {
-		p := progressOf(v, cs, byVersion[v])
-		if p.Total == 0 {
-			continue
-		}
-		if rel != "" {
-			if compareVersions(normVersion(v), rel) > 0 {
-				return v, p, byVersion[v]
-			}
-			continue
-		}
-		if p.Done < p.Total {
-			return v, p, byVersion[v]
-		}
-		last = v
-	}
-	if rel == "" && last != "" {
-		return last, progressOf(last, cs, byVersion[last]), byVersion[last]
-	}
-	return "", Progress{}, nil
+	v, done, total, items := milestone.Pick(byVersion, milestone.Statuses{Final: cs.final, Side: cs.side}, released)
+	return v, Progress{Label: v, Done: done, Total: total}, items
 }
 
-// normVersion drops a leading "v" and pads to three parts ("0.53" →
-// "0.53.0"), so issue versions compare with release headings. "" for a
-// version that doesn't start with a digit.
-func normVersion(v string) string {
-	v = strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(v), "v"), "V")
-	if v == "" || v[0] < '0' || v[0] > '9' {
-		return ""
-	}
-	parts := strings.Split(v, ".")
-	for len(parts) < 3 {
-		parts = append(parts, "0")
-	}
-	return strings.Join(parts, ".")
-}
+// normVersion is milestone.Norm.
+func normVersion(v string) string { return milestone.Norm(v) }
 
 // cutName is the release a milestone cuts: "0.53" → "v0.53.0".
 func cutName(v string) string { return "v" + normVersion(v) }

@@ -1,0 +1,172 @@
+{{/*
+The detail page's Timeline tab (?tab=timeline): where the time went, the life
+by status and the side column. Data is DetailData; the model is .Timeline
+(timeline.go).
+*/}}
+{{define "timeline"}}
+{{with .Timeline}}
+<div class="tl" data-testid="timeline.tab">
+    {{if .Missing}}
+    <div class="tl-missing" role="status" data-testid="timeline.missing">
+        <strong>Could not read {{len .Missing}} of {{.SourceCount}} sources</strong>
+        {{range .Missing}}<div><span class="tl-missing-name">{{.Name}}:</span> {{.Detail}}</div>{{end}}
+        {{if .Read}}<div class="tl-muted">Read: {{.Read}}</div>{{end}}
+    </div>
+    {{end}}
+
+    {{if .Total}}
+    <section class="card tl-card" aria-labelledby="tl-time">
+        <div class="tl-head">
+            <h2 id="tl-time">Where the time went · dispatch {{tlClock .Start}} → {{if .InFlight}}now {{tlClock .End}}{{else}}done {{tlClock .End}}{{end}}, {{tlDay .Start}}</h2>
+            <span class="chip chip-green" data-testid="timeline.total">{{tlDur .Total}}{{if .InFlight}} so far{{end}}</span>
+        </div>
+        <div class="tl-body">
+            <div class="tl-stats">
+                {{if .Known}}
+                <div class="tl-stat tl-stat-agent" data-testid="timeline.working"><div class="tl-big">{{tlDur .Working}}</div><div>agent working ({{tlShare .Working .Total}}){{if .Rework}}, {{tlDur .Rework}} of it rework{{end}}</div></div>
+                <div class="tl-stat tl-stat-waiting" data-testid="timeline.waiting"><div class="tl-big">{{tlDur .Waiting}}</div><div>waiting on you ({{tlShare .Waiting .Total}}), {{.Waits}} {{if eq .Waits 1}}wait{{else}}waits{{end}}</div></div>
+                <div class="tl-stat tl-stat-idle" data-testid="timeline.idle"><div class="tl-big">{{tlDur .Idle}}</div><div>idle ({{tlShare .Idle .Total}}), {{.IdleGaps}} {{if eq .IdleGaps 1}}gap{{else}}gaps{{end}} of 15 min or more</div></div>
+                {{else}}
+                <div class="tl-stat" data-testid="timeline.working"><div class="tl-big">{{tlDur .Total}}</div><div>in statuses, from the stats sidecar</div></div>
+                <div class="tl-stat" data-testid="timeline.waiting"><div class="tl-big tl-gone">—</div><div>waiting on you: needs the CLI log</div></div>
+                <div class="tl-stat" data-testid="timeline.idle"><div class="tl-big tl-gone">—</div><div>idle: needs the CLI log</div></div>
+                {{end}}
+                <div class="tl-stat" data-testid="timeline.rework"><div class="tl-big">{{len .Loops}}</div><div>{{if eq (len .Loops) 1}}rework loop{{else}}rework loops{{end}}{{range .Loops}}: {{.Label}}{{if $.Timeline.Known}}, {{tlDur .Agent}}{{end}}{{end}}</div></div>
+                <div class="tl-stat" data-testid="timeline.commits">{{if or .Commits .Merges}}<div class="tl-big">{{.Commits}}</div><div>commits{{if .Merges}}, {{.Merges}} {{if eq .Merges 1}}merge{{else}}merges{{end}} from main{{end}}{{with .CI}} · CI {{.State}} after merge{{end}}</div>{{else}}<div class="tl-big tl-gone">—</div><div>commits: none found</div>{{end}}</div>
+            </div>
+
+            <div class="tl-bar-wrap" data-testid="timeline.bar">
+                <div class="tl-bar" role="img" aria-label="Life bar from {{tlClock .Start}} to {{tlClock .End}}">
+                    {{if .Known}}
+                    {{range .Segments}}<div class="tl-seg tl-seg-{{.Kind}}" style="width: {{tlPct .Pct}}" title="{{.Kind}} {{tlClock .From}}–{{tlClock .To}}"></div>{{end}}
+                    {{else}}
+                    {{range .StatusMarks}}<div class="tl-seg tl-seg-status" style="width: {{tlPct .Width}}" title="{{.Label}}"></div>{{end}}
+                    {{end}}
+                </div>
+                <div class="tl-marks">
+                    {{range .StatusMarks}}<div class="tl-mark" style="left: {{tlPct .Pct}}; width: {{tlPct .Width}}">{{.Label}}</div>{{end}}
+                </div>
+                <div class="tl-ticks">
+                    {{range .Ticks}}<span style="left: {{tlPct .Pct}}">{{.Label}}</span>{{end}}
+                </div>
+            </div>
+            <div class="tl-legend">
+                <span><i class="tl-sw tl-seg-agent"></i>agent working</span>
+                <span><i class="tl-sw tl-seg-waiting"></i>waiting on you</span>
+                <span><i class="tl-sw tl-seg-rework"></i>rework (agent time inside a loop)</span>
+                <span><i class="tl-sw tl-seg-idle"></i>idle: 15 min or more with no CLI call or commit</span>
+            </div>
+        </div>
+    </section>
+    {{end}}
+
+    <div class="tl-cols">
+        <section class="card tl-card tl-stream" aria-labelledby="tl-life">
+            <div class="tl-head">
+                <h2 id="tl-life">Life by status{{if eq .Show "cli"}} · CLI calls{{end}}</h2>
+                <nav class="tl-filters" aria-label="Show event kinds">
+                    {{range $.TimelineFilters}}<a class="btn{{if .On}} active{{end}}" href="{{.URL}}" data-testid="timeline.filter.{{.Key}}"{{if .On}} aria-current="true"{{end}}>{{.Label}}{{if .Count}} <span class="tl-muted">{{.Count}}</span>{{end}}</a>{{end}}
+                </nav>
+            </div>
+            {{range .Bands}}
+            <div class="tl-band" data-testid="timeline.band" data-status="{{.Status}}">
+                <div class="tl-band-head">
+                    <span class="chip">{{.Status}}</span>
+                    {{if not .Start.IsZero}}<span class="tl-mono tl-muted">{{tlClock .Start}}{{if not .End.IsZero}} → {{if .Open}}now{{else}}{{tlClock .End}}{{end}}{{end}}</span>
+                    {{if not .End.IsZero}}<strong>{{tlSpan (tlSub .End .Start)}}</strong>{{end}}{{end}}
+                    {{if .Working}}<span class="tl-blue" data-testid="timeline.band.working">{{tlDur .Working}} agent</span>{{end}}
+                    {{if .Waiting}}<span class="tl-amber">{{tlDur .Waiting}} waiting on you</span>{{end}}
+                    {{if .Idle}}<span class="tl-muted">{{tlDur .Idle}} idle</span>{{end}}
+                    {{if .Rework}}<span class="tl-purple">{{tlDur .Rework}} rework</span>{{end}}
+                </div>
+                {{if .Events}}
+                <div class="tl-events">
+                    {{range .Events}}
+                    {{if eq .Row "wait"}}
+                    <div class="tl-wait" data-testid="timeline.wait">{{.Text}}{{if .Note}} · {{.Note}}{{end}}</div>
+                    {{else if eq .Row "idle"}}
+                    <div class="tl-idle" data-testid="timeline.idlegap">{{.Text}}{{if .Note}} · {{.Note}}{{end}}</div>
+                    {{else if eq .Row "loop"}}
+                    <div class="tl-loop" data-testid="timeline.reworkloop"><span class="chip tl-chip-purple">rework loop</span> {{.Text}} · {{.Note}}</div>
+                    {{else}}
+                    <div class="tl-ev{{if .InLoop}} tl-ev-loop{{end}}"{{if eq $.Timeline.Show "cli"}} data-testid="timeline.cli.call"{{end}}>
+                        <span class="tl-time">{{if and (eq $.Timeline.Show "cli") .Mono}}{{.Mono}}{{else}}{{tlClock .At}}{{end}}</span>
+                        <span class="tl-kind"><span class="chip tl-chip-{{.Tone}}">{{.Chip}}</span></span>
+                        <span class="tl-text{{if .Muted}} tl-muted{{end}}">
+                            {{if .Folded}}
+                            <details data-testid="timeline.folded"><summary>{{.Text}}</summary><pre class="tl-pre">{{range .Folded}}{{.}}
+{{end}}</pre></details>
+                            {{else if or .Detail .Actions}}
+                            <details{{if .Actions}} data-testid="timeline.cli.actions"{{end}}><summary>{{if and .Mono (ne $.Timeline.Show "cli")}}<span class="tl-mono">{{.Mono}}</span> {{end}}{{.Text}}{{if .Note}} <span class="tl-muted">· {{.Note}}</span>{{end}}</summary>
+                                {{if .Actions}}
+                                <div class="tl-actions">
+                                    <div class="tl-muted">Workflow actions the bot saw:</div>
+                                    <ol>
+                                        {{range .Actions}}
+                                        <li><span class="tl-mono tl-muted">{{.Type}}</span> {{if .Body}}<details><summary>{{.Label}}</summary><pre class="tl-pre">{{.Body}}</pre></details>{{else}}{{.Label}}{{end}}</li>
+                                        {{end}}
+                                    </ol>
+                                </div>
+                                {{end}}
+                                {{if .Detail}}<pre class="tl-pre">{{.Detail}}</pre>{{end}}
+                            </details>
+                            {{else}}
+                            {{if and .Mono (ne $.Timeline.Show "cli")}}<span class="tl-mono">{{.Mono}}</span> {{end}}{{.Text}}{{if .Note}} <span class="tl-muted">· {{.Note}}</span>{{end}}
+                            {{if .Quote}}<div class="tl-quote tl-event-quote" data-testid="timeline.approval.words">“{{.Quote}}”</div>{{end}}
+                            {{end}}
+                        </span>
+                    </div>
+                    {{end}}
+                    {{end}}
+                </div>
+                {{end}}
+            </div>
+            {{else}}
+            <p class="tl-band tl-muted">Nothing recorded for this issue yet.</p>
+            {{end}}
+        </section>
+
+        <aside class="tl-side">
+            {{if .Part}}
+            <section class="card tl-card" aria-labelledby="tl-part" data-testid="timeline.side.part">
+                <div class="tl-head"><h2 id="tl-part">Your part</h2><span class="chip chip-amber">{{tlDur .Waiting}}</span></div>
+                <div class="tl-body tl-part">
+                    {{range .Part}}
+                    <div><div class="tl-part-row"><span>{{.Label}}</span><span class="tl-mono">{{tlDur .Dur}}</span></div><div class="tl-meter"><div style="width: {{tlPct .Pct}}"></div></div></div>
+                    {{end}}
+                    <p class="tl-muted tl-note">A wait is a gap between agent calls that ends with your approval, or a gap of 15 min or more in a status only you can move on.</p>
+                </div>
+            </section>
+            {{end}}
+            {{if .Words}}
+            <section class="card tl-card" aria-labelledby="tl-words" data-testid="timeline.side.words">
+                <div class="tl-head"><h2 id="tl-words">Your words</h2><span class="chip">{{.WordCount}} quoted · {{.ApprovalCount}} {{if eq .ApprovalCount 1}}approval{{else}}approvals{{end}}</span></div>
+                <div class="tl-body tl-words">
+                    {{range .Words}}
+                    <div{{if .Muted}} class="tl-muted"{{end}}><span class="tl-mono">{{.Ref}}</span> <span class="tl-muted">{{.How}}</span>{{if .Muted}}: {{.Quote}}{{else}}<div class="tl-quote">{{.Quote}}</div>{{end}}</div>
+                    {{end}}
+                </div>
+            </section>
+            {{end}}
+            {{if .Open}}
+            <section class="card tl-card" aria-labelledby="tl-open" data-testid="timeline.side.open">
+                <div class="tl-head"><h2 id="tl-open">Left open at done</h2><span class="chip chip-amber">{{.OpenCount}} {{if eq .OpenCount 1}}box{{else}}boxes{{end}}</span></div>
+                <div class="tl-body tl-open">
+                    {{range .Open}}<div>{{.Text}} <span class="chip tl-chip-{{.Tone}}">{{.Chip}}</span></div>{{end}}
+                </div>
+            </section>
+            {{end}}
+            {{with .CI}}
+            <section class="card tl-card" aria-labelledby="tl-ci" data-testid="timeline.side.ci">
+                <div class="tl-head"><h2 id="tl-ci">CI after merge</h2><span class="chip {{if eq .State "green"}}chip-green{{else}}chip-red{{end}}">{{.State}}</span></div>
+                <div class="tl-body">
+                    <div><span class="tl-mono">{{.SHA}}</span> · {{.Command}} · {{tlDur .Duration}} · {{tlClock .At}}</div>
+                    <div class="tl-muted tl-note">The first run on main that contains this issue. {{.Since}} {{if eq .Since 1}}run{{else}}runs{{end}} since{{if .SinceRed}}, {{.SinceRed}} not green{{else if .Since}}, all green{{end}}.</div>
+                </div>
+            </section>
+            {{end}}
+        </aside>
+    </div>
+</div>
+{{end}}
+{{end}}

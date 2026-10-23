@@ -1,14 +1,13 @@
 package main
 
 import (
-	"bufio"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/clilog"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -24,6 +23,11 @@ type TimelineEvent struct {
 	FromStatus string           // transition events only, after enrichment
 	ToStatus   string           // transition events only
 	Actions    []TimelineAction // populated from workflow.yaml for transition events
+
+	// redacted is the placeholder of a comment's text (clilog.Redact) and
+	// end the call's end, so FillRedactedComments can find the comment.
+	redacted string
+	end      time.Time
 }
 
 // TimelineAction describes one action that ran as part of a transition —
@@ -36,10 +40,7 @@ type TimelineAction struct {
 	Body  string
 }
 
-type cliLogRecord struct {
-	Args []string `json:"args"`
-	TS   string   `json:"ts"`
-}
+type cliLogRecord = clilog.Record
 
 // LoadDispatchPrompt returns the exact prompt the bot was briefed with at
 // dispatch time, persisted at <workDir>/.agent-logs/<assignee>/dispatch-prompt.txt
@@ -57,21 +58,19 @@ func LoadDispatchPrompt(workDir, assignee string) string {
 	return string(data)
 }
 
-// LoadAgentTimeline returns the timeline for an issue by merging two sources:
+// LoadAgentTimeline returns the timeline for an issue by merging:
 //
-//  1. The per-agent clilog at <workDir>/.agent-logs/<assignee>/<assignee>.clilog
-//     — written when ISSUE_CLI_LOG is set in the agent's shell. Reliable for
-//     dispatches that ran inside the viewer's tmux session.
-//  2. The global temp log at $TMPDIR/issue-cli-logs/actions.jsonl, which the
-//     CLI's logAction always writes regardless of env/cwd. Filtered down to
-//     records whose --project matches projSlug and whose args reference
-//     issueSlug. This is the only source that captures invocations from
-//     agent shells that don't inherit ISSUE_CLI_LOG (Claude Code's Bash
-//     tool, IDE terminals, manual `cd` into a worktree, etc.).
+//  1. The per-agent clilog at <workDir>/.agent-logs/<assignee>/<assignee>.clilog,
+//     which also holds the agent's calls that name no issue.
+//  2. The project's clilog at <workDir>/.agent-logs/clilog.jsonl: every call
+//     made in the project, filtered to records whose args reference
+//     issueSlug, so lead and owner calls on the issue show too.
+//  3. The legacy $TMPDIR/issue-cli-logs/actions.jsonl written before v0.54,
+//     while it exists, filtered by --project and slug.
 //
-// Events are merged, deduped on (ts, args), and sorted by timestamp.
-// projSlug or issueSlug may be empty — when both are empty the global log
-// isn't scanned.
+// Events are merged, deduped on (ts, args), and sorted by timestamp. With an
+// empty issueSlug only the per-agent clilog is read. Records written since
+// v0.54 carry no free text; FillRedactedComments restores comment text.
 func LoadAgentTimeline(workDir, assignee, projSlug, issueSlug string) []TimelineEvent {
 	var events []TimelineEvent
 	seen := map[string]bool{}
@@ -90,18 +89,22 @@ func LoadAgentTimeline(workDir, assignee, projSlug, issueSlug string) []Timeline
 	}
 
 	if workDir != "" && assignee != "" {
-		logPath := filepath.Join(workDir, ".agent-logs", assignee, assignee+".clilog")
-		readCliLog(logPath, func(rec cliLogRecord) { add(rec) })
+		readCliLog(clilog.AgentPath(workDir, assignee), add)
 	}
 
 	if issueSlug != "" {
-		readCliLog(filepath.Join(os.TempDir(), "issue-cli-logs", "actions.jsonl"),
-			func(rec cliLogRecord) {
-				if !cliRecordMatchesIssue(rec, projSlug, issueSlug) {
-					return
+		if workDir != "" {
+			readCliLog(clilog.ProjectPath(workDir), func(rec cliLogRecord) {
+				if cliRecordMatchesIssue(rec, "", issueSlug) {
+					add(rec)
 				}
-				add(rec)
 			})
+		}
+		readCliLog(clilog.LegacyPath(), func(rec cliLogRecord) {
+			if cliRecordMatchesIssue(rec, projSlug, issueSlug) {
+				add(rec)
+			}
+		})
 	}
 
 	sort.SliceStable(events, func(i, j int) bool {
@@ -111,20 +114,39 @@ func LoadAgentTimeline(workDir, assignee, projSlug, issueSlug string) []Timeline
 }
 
 func readCliLog(path string, visit func(cliLogRecord)) {
-	f, err := os.Open(path)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 64*1024), 1024*1024)
-	for scanner.Scan() {
-		var rec cliLogRecord
-		if err := json.Unmarshal(scanner.Bytes(), &rec); err != nil {
+	clilog.Read(path, visit)
+}
+
+// FillRedactedComments gives comment events whose text the clilog redacted
+// the text of the issue comment they wrote: the comment stamped within the
+// call (comments carry a full timestamp since v0.54), else the one whose
+// text has the same placeholder.
+func FillRedactedComments(events []TimelineEvent, comments []tracker.Comment) []TimelineEvent {
+	used := map[int]bool{}
+	for i := range events {
+		ev := &events[i]
+		if ev.redacted == "" {
 			continue
 		}
-		visit(rec)
+		for _, c := range comments {
+			if used[c.ID] || !commentMadeBy(c, ev) {
+				continue
+			}
+			used[c.ID] = true
+			setCommentEvent(ev, c.Text)
+			break
+		}
 	}
+	return events
+}
+
+func commentMadeBy(c tracker.Comment, ev *TimelineEvent) bool {
+	if at, ok := tracker.CommentTime(c.Date); ok && !ev.Timestamp.IsZero() {
+		if !at.Before(ev.Timestamp.Add(-time.Second)) && !at.After(ev.end.Add(time.Second)) {
+			return true
+		}
+	}
+	return clilog.Placeholder(c.Text) == ev.redacted
 }
 
 // cliRecordMatchesIssue returns true when the global-log record targets the
@@ -158,8 +180,8 @@ func cliRecordMatchesIssue(rec cliLogRecord, projSlug, issueSlug string) bool {
 }
 
 func timelineEventFromRecord(rec cliLogRecord) TimelineEvent {
-	ts, _ := time.Parse(time.RFC3339, rec.TS)
-	ev := TimelineEvent{Timestamp: ts}
+	ts := rec.Start()
+	ev := TimelineEvent{Timestamp: ts, end: rec.End()}
 	if ts.IsZero() {
 		ev.TimeLabel = rec.TS
 	} else {
@@ -191,57 +213,71 @@ func timelineEventFromRecord(rec cliLogRecord) TimelineEvent {
 		ev.Summary = "transition → " + to
 	case "comment":
 		text := extractFlag(rec.Args, "--text")
-		ev.Summary = firstLine(text)
-		if strings.Contains(text, "\n") || len(text) > 120 {
-			ev.Detail = text
+		if text == "" {
+			text = extractFlag(rec.Args, "--body")
 		}
-		if idx := strings.Index(text, ":"); idx > 0 && idx < 20 {
-			prefix := strings.ToLower(strings.TrimSpace(text[:idx]))
-			if isSimpleWord(prefix) {
-				ev.Kind = "comment-" + prefix
-			}
+		if text == "" && len(rec.Args) > 2 && !strings.HasPrefix(rec.Args[2], "-") {
+			text = strings.Join(rec.Args[2:], " ")
 		}
+		if clilog.IsPlaceholder(text) {
+			ev.redacted = text
+			ev.Summary = "comment"
+			break
+		}
+		setCommentEvent(&ev, text)
 	case "append":
 		body := extractFlag(rec.Args, "--body")
 		section := extractFlag(rec.Args, "--section")
-		if section != "" {
+		switch {
+		case section != "":
 			ev.Summary = "append to " + section
-		} else {
+		case firstHeading(body) != "":
 			ev.Summary = firstHeading(body)
-			if ev.Summary == "" {
-				ev.Summary = "append"
-			}
+		default:
+			ev.Summary = "append"
 		}
-		ev.Detail = body
+		if !clilog.IsPlaceholder(body) {
+			ev.Detail = body
+		}
 	case "retrospective":
 		ev.Summary = "retrospective"
-		ev.Detail = extractFlag(rec.Args, "--body")
+		if body := extractFlag(rec.Args, "--body"); !clilog.IsPlaceholder(body) {
+			ev.Detail = body
+		}
 	default:
 		ev.Summary = strings.Join(rec.Args, " ")
+	}
+	if rec.Exit != nil && *rec.Exit != 0 {
+		ev.Summary += " (failed"
+		if rec.ErrClass != "" {
+			ev.Summary += ": " + strings.ReplaceAll(rec.ErrClass, "_", " ")
+		}
+		ev.Summary += ")"
 	}
 	return ev
 }
 
-// stripGlobalFlags removes issue-cli's global flags (--json, --config <val>,
-// --project <val>) so the remaining args[0] is the subcommand. logAction
-// records os.Args[1:] verbatim, so a call like `issue-cli --project foo show 42`
-// lands in the clilog with "--project" as args[0] and the timeline would
-// otherwise render that as the command.
-func stripGlobalFlags(args []string) []string {
-	out := make([]string, 0, len(args))
-	for i := 0; i < len(args); i++ {
-		switch args[i] {
-		case "--json":
-			continue
-		case "--config", "--project":
-			if i+1 < len(args) {
-				i++
-			}
-			continue
-		}
-		out = append(out, args[i])
+// setCommentEvent fills a comment event from the comment's text: its first
+// line as the summary, the rest as detail, and a "comment-<prefix>" kind for
+// "tests:", "progress:" and the like.
+func setCommentEvent(ev *TimelineEvent, text string) {
+	ev.Summary = firstLine(text)
+	if strings.Contains(text, "\n") || len(text) > 120 {
+		ev.Detail = text
 	}
-	return out
+	if idx := strings.Index(text, ":"); idx > 0 && idx < 20 {
+		prefix := strings.ToLower(strings.TrimSpace(text[:idx]))
+		if isSimpleWord(prefix) {
+			ev.Kind = "comment-" + prefix
+		}
+	}
+}
+
+// stripGlobalFlags removes issue-cli's global flags so args[0] is the
+// command; a call like `issue-cli --project foo show 42` is logged with
+// "--project" as args[0].
+func stripGlobalFlags(args []string) []string {
+	return clilog.StripGlobal(args)
 }
 
 func extractFlag(args []string, flag string) string {
@@ -259,7 +295,7 @@ func firstLine(s string) string {
 		s = s[:i]
 	}
 	if len(s) > 120 {
-		return s[:117] + "..."
+		return truncRunes(s, 117) + "..."
 	}
 	return s
 }

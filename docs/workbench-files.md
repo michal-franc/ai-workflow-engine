@@ -9,6 +9,8 @@ The **Metrics** view (`/p/<project>/metrics`) and the system-page panels show a 
 
 The same block also points the viewer at the project's own HTML pages: a custom Status page and extra sidebar pages, shown sandboxed. See [Project pages](#project-pages-status_page-pages).
 
+The engine also writes files of its own here: [Health snapshots](#health-snapshots), the project's size and workflow measured each day into `.health/snapshots/`.
+
 A project points at the files in the optional `workbench:` block of its `workflow.yaml`. Every path is relative to the project root. Validation rejects absolute paths and paths that leave the root, and the reader refuses symlinks that leave it and files over 2 MB.
 
 ```yaml
@@ -125,6 +127,155 @@ rust-manager writes `docs/balance/snapshot.json` with `make balance` (Tests/Bala
 - **Bands and names:** `make balance` adds `name`, `group` and `band` from `Tests/Balance/Targets.cs`, plus a `run` header.
 - **Branch values:** `make balance-check` writes its partial snapshot into the worktree at the same path.
 - **Knobs:** a `make knobs` export of `Sim/Tuning.cs` fills the Knobs tab.
+
+## Health snapshots
+
+A project health snapshot is a dated JSON file that records how big the project is and, through other metric families, how its workflow is going. Snapshots build up into a history: the Stats page (`/p/<project>/stats`) draws its trend lines from them, `/stats` compares the projects with them, and the "getting worse" alerts will read them. `issue-cli health` prints the latest one.
+
+- **Where:** `.health/snapshots/<YYYY-MM-DD>T<HHMM>.json` (local time) in the main checkout. `.health/` writes its own `.gitignore`, so the snapshots stay on this machine and no repo has to ignore them.
+- **When:**
+  - **Daily:** the viewer looks every 10 minutes and takes one for each project (once per repository) that has none from today.
+  - **After CI:** `issue-cli ci run` takes one after each default-tier run, red or green, at the commit it tested. A failed snapshot prints `health: no snapshot: <why>` and never changes the CI result.
+  - **By hand:** `issue-cli health snapshot`.
+  - **The past:** `issue-cli health backfill [--days 90]` computes one snapshot for each past day that has none, as it stood at 23:59 that day: the codebase at the commit the branch had then, the workflow over the issues done by then. Days before the branch's first commit get the workflow rows only; the milestone family only knows the present and is left out. A new project gets its trend lines on day one this way.
+- **Who:** every project in a git repository. `health.off: true` turns snapshots off, and a project outside git is skipped.
+- **Kept:** every snapshot from the last 35 days, and after that the last snapshot of each day. A snapshot in the same minute replaces the earlier one.
+
+### File
+
+```json
+{
+  "run": {"date": "2026-10-23T14:05", "project": "issue-viewer", "branch": "main", "commit": "c55d815", "trigger": "daily", "duration_ms": 412},
+  "families": {"codebase": {"ms": 380, "metrics": 142}, "workflow": {"ms": 20000, "metrics": 0, "error": "timed out after 20s"}},
+  "metrics": [
+    {"id": "codebase.lines{kind=code}", "metric": "codebase.lines", "labels": {"kind": "code"}, "value": 61082, "name": "Lines in text files", "group": "codebase", "band": {"unit": "count"}}
+  ]
+}
+```
+
+- **`run.trigger`:** `daily`, `ci`, `manual` or `backfill`.
+- **`families`:** one entry per registered family, with its time, row count and `hint` (see [Adding a family](#adding-a-family)). A family that fails, panics or runs past its timeout gets `error`, and its rows are missing. The other families are still written.
+- **Rows:**
+  - `metric` and `labels` are the series key.
+  - `id` is `metric{k=v,...}` with the labels sorted, or the bare name when there are no labels.
+  - `group` is the family. `name` is the metric's one-line description.
+  - `band.unit` is `count`, `seconds`, `share` (0..1) or `bytes`.
+  - Rows keep the Metrics view's row shape (`id`, `value`, `name`, `group`, `band`).
+- **Names:** `<family>.<snake_case path>`, with snake_case label keys and `all` for a rollup row. Names are stable: a rename breaks every chart drawn from them.
+
+### Config (`health:` in workflow.yaml, all optional)
+
+```yaml
+health:
+  big_file_lines: 1000                  # a big file has more lines than this
+  test_globs: ["**/*_test.go", "**/*Tests.cs"]   # replaces the defaults
+  exclude: ["vendor/**", "**/*.min.js"] # left out of the codebase counts
+  timeout: 20s                          # per family
+  off: false                            # true: no snapshots
+  limits:                               # the Stats page gauges' thresholds
+    waiting_share: 0.25                 # share of issue time waiting on you
+    big_files: 10                       # files over big_file_lines
+```
+
+- **Globs:** `**` matches any number of folders. A glob without a `/` matches the file name in any folder, as in `.gitignore`.
+- **Limits:** a key left out takes its default (above); `0` turns that limit off, and a negative value fails validation. The "getting worse" alerts are meant to share this block.
+- **Default test globs:** `**/*_test.go`, `**/*Tests.cs`, `**/*Test.cs`, `**/*.test.js`, `**/*.test.ts`, `**/test_*.py` and `**/*_test.py`.
+
+### The codebase family
+
+It reads git objects at the head of the main branch: one `git ls-tree`, then one `git cat-file --batch`. It never reads the working tree, so uncommitted changes in the main checkout don't count. The branch is `ci.branch`, else the branch checked out in the main checkout. On RogueTech (3,300 files, 160 MB) it takes under a second.
+
+- **Left out:** `exclude` matches, the project's issues dir when it is inside the repo, `.worktrees/` and `.health/`. Symlinks and submodules are skipped too.
+- **Binary files:** a file with a NUL byte in its first 8 KB, or a file over 2 MB, is counted in `codebase.binary_files` and nowhere else.
+- **Kinds:**
+  - `code` is a source language (Go, C#, JS/TS, Python, Rust, shell, CSS, HTML, templates and so on).
+  - `test` is a code file that matches `test_globs`.
+  - `docs` is Markdown, txt, rst and adoc.
+  - `data` is JSON, YAML, TOML, XML, CSV and SVG.
+  - `other` is any other text file.
+- **Languages:** the extension decides the language. Unknown extensions all count as `other`, so the `lang` labels stay a short, stable set.
+
+| Metric | Labels | Value |
+|:--|:--|:--|
+| `codebase.files`, `codebase.lines` | `kind`: code, test, docs, data, other (all five, 0 when empty) | text files and lines by kind |
+| `codebase.files`, `codebase.lines` | `area`: the top-level folder, `.` for files at the root | by area |
+| `codebase.files`, `codebase.lines` | `lang`: go, csharp, js, markdown, yaml, ... , other | by language |
+| `codebase.source_lines` | none | code + test lines |
+| `codebase.test_ratio` | none | test lines / code lines (`share`) |
+| `codebase.binary_files` | none | binary files and files over 2 MB |
+| `codebase.big_files` | none | files over `big_file_lines` |
+| `codebase.big_file.lines` | `path` | the 20 biggest of them, by lines |
+| `codebase.growth.files`, `codebase.growth.lines` | `kind`, `window`: 7d or 30d | the change over the window |
+| `codebase.growth.base_age_days` | `window` | how old the comparison point actually is, in days |
+
+**Growth** compares the kind totals with the newest snapshot taken at or before 7 (or 30) days ago. When no such snapshot exists, as on a new install, the family measures the tree where the branch stood then:
+
+1. **The branch's reflog**, which is exact.
+2. **Commit dates**, when the reflog doesn't go back that far: the newest commit made at or before that date.
+
+A repository younger than the window has no growth rows for that window.
+
+### The workflow family
+
+Where the time goes, from `internal/timeline`: every issue done in the last 30 days goes through the same `Load` and `Split` as its Timeline tab (`?tab=timeline`), so a project number and the tab never disagree. An issue counts when its last transition to `done` in the stats sidecar falls in the window. The time rules (agent, waiting on you, idle, rework, the 15 min gap) are in [Workflow Stats](workflow-stats.md), "Timeline tab". The Stats page shows the same numbers, as charts and tables, from the same aggregate (cached per project).
+
+- **Left out:** issues not done or done earlier, and done issues with no recorded transition to `done` (counted in `workflow.unread`).
+- **No CLI calls:** an issue without clilog records counts for `cycle` and `status.total` only, and in `workflow.issues_unsplit`.
+- **Labels:** `type` is the issue's `type:` (`none` without one) or `all`. `status` is a workflow status. `transition` is `from→to`. Percentiles are nearest-rank over the issues in the row.
+- **Gate failures:** refused `transition` calls need the `exit` and `err_class` that clilog records carry from v0.54 on. `dry_run=true` is the agent checking with `--dry-run` before it asks, as the guidance tells it to; `false` is a real attempt.
+
+| Metric | Labels | Value |
+|:--|:--|:--|
+| `workflow.issues` | `type` | issues done in the window |
+| `workflow.issues_unsplit` | `type` | of those, issues without CLI calls |
+| `workflow.unread` | none | done issues with no recorded transition to done |
+| `workflow.cycle.p50`, `.p90` | `type` | life from the first dispatch (else the agent's first call) to done, `seconds` |
+| `workflow.status.total.p50`, `.p90` | `status`, `type` | time in the status, `seconds` |
+| `workflow.status.working.p50`, `.p90` | `status`, `type` | agent working in the status, rework included |
+| `workflow.status.waiting.p50`, `.p90` | `status`, `type` | waiting on the owner in the status |
+| `workflow.status.idle.p50`, `.p90` | `status`, `type` | idle in the status |
+| `workflow.approvals` | `transition` | approvals recorded at the transition |
+| `workflow.approval_wait.p50`, `.p90` | `transition` | from the agent's last call in the status to the approval, `seconds` |
+| `workflow.rework.loops` | `type` | rework loops: backward transitions and failed playtests from testing on |
+| `workflow.rework.backward` | `type` | backward transitions |
+| `workflow.rework.share` | `type` | agent time inside rework loops / agent working time (`share`) |
+| `workflow.dispatches.p50`, `.p90` | `type` | agent dispatches per issue (recorded from v0.54 on) |
+| `workflow.working.p50`, `.p90` | `type` | agent working time per issue, over the issues with CLI calls, `seconds` |
+| `workflow.time.working`, `.waiting`, `.idle` | `type` | agent working, waiting on the owner and idle time summed over the issues with CLI calls, `seconds` |
+| `workflow.time.share` | `kind`: waiting | waiting on the owner / (working + waiting + idle) over all types (`share`); only when there is split time |
+| `workflow.gate_failures` | `transition`, `err_class`, `dry_run` | refused transition calls |
+
+On RogueTech (813 issues, 65 in the window) the family takes about half a second.
+
+### The milestone family
+
+The current milestone, from `internal/milestone` (the same `Pick` the Status page's release card uses): the lowest version after the newest release (the changelog's first version heading, else the newest git tag) that still has issues. Optional statuses such as parked are left out of the total.
+
+| Metric | Labels | Value |
+|:--|:--|:--|
+| `milestone.done` | `version` | its issues in the final status |
+| `milestone.total` | `version` | its issues, side statuses left out |
+
+No rows when no version has issues. It knows only the present, so `issue-cli health backfill` leaves it out.
+
+### Adding a family
+
+A family is a Go function registered from `init()` in a package both binaries import (the server and `issue-cli`), so every snapshot includes it, whoever takes it:
+
+```go
+func init() { health.Register("workflow", workflowFamily) }
+
+func workflowFamily(ctx context.Context, env health.Env) ([]health.Metric, error) {
+	// env: Root (main checkout), Project, Workflow, Config, Branch, Commit, Now, Backfill
+	return []health.Metric{{Name: "workflow.status.working.p50", Labels: map[string]string{"status": "all", "type": "all"}, Value: 840, Unit: health.UnitSeconds, Help: "Median agent working time per status"}}, nil
+}
+```
+
+- **Pointer:** `health.Describe("workflow", "tables: /stats")` (also from `init()`) stores a one-line pointer with the family's result (`families.<name>.hint`). `issue-cli health` prints it after the family's `ok, N metrics`, so agents find where to read more.
+- **Errors:** return an error only when the whole family fails. Skip and count the bad parts instead.
+- **Backfill:** with `env.Backfill` set, `Now` is a past day and `Commit` where the branch stood then (`""` before the first commit). A family that can only measure the present returns `health.ErrNoPast`, and the day's snapshot leaves it out instead of recording an error.
+- **Context:** honour `ctx`, because it is cancelled at the family timeout.
+- **Docs:** document each name and its labels in a subsection here.
 
 ## Project pages (`status_page`, `pages`)
 

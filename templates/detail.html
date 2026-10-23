@@ -7,6 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='{{urlEncodeColor (statusColor .Issue.Status)}}'/></svg>">
     <link rel="stylesheet" href="/static/style.css">
     <script src="/static/theme.js"></script>
+    <script src="/static/approve-words.js"></script>
     <script>
     (function() {
         if (localStorage.getItem('sidebar-locked') !== 'false') {
@@ -25,67 +26,63 @@
     <div class="container">
         <a href="{{.BackURL}}" class="detail-back" data-testid="detail.back">← Back</a>
 
-        <div class="detail-layout">
-            <div>
-                <h1 class="detail-title" id="issue-title" data-testid="detail.title" onclick="editTitle()">{{.Issue.Title}} <span class="title-edit-icon">&#9998;</span></h1>
-                <div class="title-editor" id="title-editor" style="display:none">
-                    <input type="text" class="title-input" id="title-input" data-testid="detail.title.input" value="{{.Issue.Title}}">
-                    <button class="body-save-btn" data-testid="detail.title.save" onclick="saveTitle()">Save</button>
-                    <button class="body-tab" onclick="cancelTitleEdit()">Cancel</button>
-                </div>
-                <div class="body-toolbar">
-                    <button class="body-tab active" id="btn-preview" data-testid="detail.tab.preview" onclick="showPreview()">Preview</button>
-                    <button class="body-tab" id="btn-edit" data-testid="detail.tab.edit" onclick="showEditor()">Edit</button>
-                    <button class="body-toolbar-action" onclick="editInNvim()">Edit in nvim</button>
-                    <button class="body-toolbar-action sidebar-show-btn" onclick="toggleSidebarHide()" title="Show sidebar">Show sidebar</button>
-                </div>
-                <div class="detail-body" id="body-preview" data-testid="detail.body">
-                    {{if .RenderedBody}}
-                    {{.RenderedBody}}
-                    {{else}}
-                    <p style="color:var(--text-secondary)">No description provided.</p>
-                    {{end}}
-                </div>
-                <div class="body-editor-wrap" id="body-editor" style="display:none">
-                    <textarea class="body-textarea" id="body-textarea" data-testid="detail.body.textarea" data-body-hash="{{bodyHash .Issue.BodyRaw}}">{{.Issue.BodyRaw}}</textarea>
-                    <button class="body-save-btn" data-testid="detail.body.save" onclick="saveBody()">Save</button>
-                </div>
+        <h1 class="detail-title" id="issue-title" data-testid="detail.title" onclick="editTitle()">{{.Issue.Title}} <span class="title-edit-icon">&#9998;</span></h1>
+        <div class="title-editor" id="title-editor" style="display:none">
+            <input type="text" class="title-input" id="title-input" data-testid="detail.title.input" value="{{.Issue.Title}}">
+            <button class="body-save-btn" data-testid="detail.title.save" onclick="saveTitle()">Save</button>
+            <button class="body-tab" onclick="cancelTitleEdit()">Cancel</button>
+        </div>
+        <div class="detail-chips">
+            <span class="chip" style="color: {{statusColor .Issue.Status}}">{{.Issue.Status}}</span>
+            {{if .Issue.WorkType}}<span class="chip">{{.Issue.WorkType}}</span>{{end}}
+            {{if .Issue.Priority}}<span class="chip">{{.Issue.Priority}}</span>{{end}}
+            {{if .Issue.System}}<span class="chip">{{.Issue.System}}</span>{{end}}
+        </div>
 
-                {{if .Timeline}}
-                <div class="timeline-section">
-                    <h3 class="timeline-header">Agent Timeline <span class="timeline-count">{{len .Timeline}}</span></h3>
-                    <ol class="timeline-list">
-                        {{range .Timeline}}
-                        <li class="timeline-event timeline-kind-{{.Kind}}">
-                            <span class="timeline-time">{{.TimeLabel}}</span>
-                            <span class="timeline-kind">{{.Kind}}</span>
-                            {{if or .Detail .Actions}}
-                            <details class="timeline-details">
-                                <summary class="timeline-summary">{{.Summary}}{{if .FromStatus}} <span class="timeline-from-to">({{.FromStatus}} → {{.ToStatus}})</span>{{end}}</summary>
-                                {{if .Actions}}
-                                <div class="timeline-actions">
-                                    <div class="timeline-actions-label">Workflow actions the bot saw:</div>
-                                    <ol class="timeline-action-list">
-                                        {{range .Actions}}
-                                        <li class="timeline-action timeline-action-{{.Type}}">
-                                            <span class="timeline-action-type">{{.Type}}</span>
-                                            <span class="timeline-action-label">{{.Label}}</span>
-                                            {{if .Body}}<pre class="timeline-action-body">{{.Body}}</pre>{{end}}
-                                        </li>
-                                        {{end}}
-                                    </ol>
-                                </div>
-                                {{end}}
-                                {{if .Detail}}<pre class="timeline-detail">{{.Detail}}</pre>{{end}}
-                            </details>
-                            {{else}}
-                            <span class="timeline-summary">{{.Summary}}</span>
-                            {{end}}
-                        </li>
+        <nav class="status-tabs detail-tabs" aria-label="Issue page tabs" data-testid="detail.pagetabs">
+            <a href="{{.Prefix}}/issue/{{.Issue.Slug}}" class="status-tab{{if eq .Tab "issue"}} active{{end}}" data-testid="detail.pagetab.issue"{{if eq .Tab "issue"}} aria-current="true"{{end}}>Issue</a>
+            <a href="{{.Prefix}}/issue/{{.Issue.Slug}}?tab=timeline" class="status-tab{{if eq .Tab "timeline"}} active{{end}}" data-testid="detail.pagetab.timeline"{{if eq .Tab "timeline"}} aria-current="true"{{end}}>Timeline{{if .TimelineTotal}} <span class="chip">{{.TimelineTotal}}</span>{{end}}</a>
+            <a href="{{.Prefix}}/issue/{{.Issue.Slug}}?tab=evidence" class="status-tab{{if eq .Tab "evidence"}} active{{end}}" data-testid="detail.pagetab.evidence"{{if eq .Tab "evidence"}} aria-current="true"{{end}}>Evidence <span class="chip">coming</span></a>
+        </nav>
+
+        {{if eq .Tab "timeline"}}
+        {{template "timeline" .}}
+        {{else if eq .Tab "evidence"}}
+        <section class="card tl-card tl-coming" data-testid="evidence.coming">
+            <div class="tl-body">
+                <strong>Evidence is coming</strong>
+                <p class="tl-muted">Screenshots tagged with what they prove, and each acceptance criterion linked to its proof, arrive with a later release. Until then the proof is in the issue body and its comments.</p>
+            </div>
+        </section>
+        {{else}}
+        {{template "issue-band" .}}
+        <div class="detail-layout it-layout">
+            <div class="it-main">
+                {{template "issue-main" .}}
+                <section class="card tl-card it-full" aria-labelledby="it-full-h" data-testid="detail.fold">
+                    <div class="tl-head">
+                        <h2 id="it-full-h">Full issue <span class="it-muted it-fold-state">· folded</span></h2>
+                        <div class="body-toolbar">
+                            <button class="body-tab active" id="btn-preview" data-testid="detail.tab.preview" onclick="showPreview()">Preview</button>
+                            <button class="body-tab" id="btn-edit" data-testid="detail.tab.edit" onclick="showEditor()">Edit</button>
+                            <button class="body-toolbar-action" onclick="editInNvim()">Edit in nvim</button>
+                            <button class="body-toolbar-action" id="fold-all" data-testid="detail.fold.expand_all" onclick="toggleFoldAll()">Expand all</button>
+                            <button class="body-toolbar-action sidebar-show-btn" onclick="toggleSidebarHide()" title="Show sidebar">Show sidebar</button>
+                        </div>
+                    </div>
+                    <div class="detail-body it-body" id="body-preview" data-testid="detail.body" data-fold="{{toJSON .IssueTab.Fold}}">
+                        {{if .RenderedBody}}
+                        {{.RenderedBody}}
+                        {{else}}
+                        <p style="color:var(--text-secondary)">No description provided.</p>
                         {{end}}
-                    </ol>
-                </div>
-                {{end}}
+                    </div>
+                    <div class="body-editor-wrap" id="body-editor" style="display:none">
+                        <textarea class="body-textarea" id="body-textarea" data-testid="detail.body.textarea" data-body-hash="{{bodyHash .Issue.BodyRaw}}">{{.Issue.BodyRaw}}</textarea>
+                        <button class="body-save-btn" data-testid="detail.body.save" onclick="saveBody()">Save</button>
+                    </div>
+                    {{with .IssueTab.NotStarted}}<p class="it-notstarted" data-testid="detail.fold.not_started"><span>{{range $i, $s := .}}{{if $i}} · {{end}}{{$s}}{{end}}</span> <span class="it-muted">not started; each appears when its status begins</span></p>{{end}}
+                </section>
             </div>
 
             <div class="detail-sidebar" data-testid="detail.sidebar">
@@ -93,6 +90,10 @@
                     <button class="sidebar-toolbar-btn" id="sidebar-lock-btn" onclick="toggleSidebarLock()" title="Lock sidebar so it stays visible while body scrolls">Lock</button>
                     <button class="sidebar-toolbar-btn" id="sidebar-hide-btn" onclick="toggleSidebarHide()" title="Hide sidebar">Hide</button>
                 </div>
+                {{template "issue-side" .}}
+                <details class="it-fields" data-testid="detail.fields" open>
+                <summary class="it-fields-head">Fields</summary>
+                <div class="it-fields-body">
                 <div class="sidebar-section">
                     <h3>Status</h3>
                     <div class="sidebar-value">
@@ -188,6 +189,7 @@
                         </div>
                     </div>
                     {{end}}
+                    {{template "approve-words" "detail"}}
                 </div>
                 {{end}}
 
@@ -272,20 +274,6 @@
                 </div>
                 {{end}}
 
-                {{range $kind := (list "depends on" "depended on by" "decided by")}}
-                {{$rows := depsOfKind $.Deps $kind}}
-                {{if $rows}}
-                <div class="sidebar-section" data-testid="detail.field.{{tid $kind}}">
-                    <h3>{{title $kind}}</h3>
-                    <div class="sidebar-value dep-list">
-                        {{range $rows}}
-                        <span class="dep-row">{{if .Slug}}<a href="{{$.Prefix}}/issue/{{.Slug}}" class="mono dep-target">{{.Target}}</a>{{else}}<span class="mono dep-target">{{.Target}}</span>{{end}} <span class="chip {{depChipClass .}}">{{.State}}</span></span>
-                        {{end}}
-                    </div>
-                </div>
-                {{end}}
-                {{end}}
-
                 {{with .Shared}}
                 <div class="sidebar-section" data-testid="detail.field.shared_files">
                     <h3>Shared files</h3>
@@ -341,8 +329,11 @@
                     {{end}}
                 </div>
                 {{end}}
+                </div>
+                </details>
             </div>
         </div>
+        {{end}}
     </div>
 
     <!-- Dispatch agent modal -->
@@ -755,6 +746,7 @@
                 btn.innerHTML = '<span style="opacity:0.3">' + ICON_EYE + '</span>';
             }
         });
+        foldCommentCounts();
     }
 
     function openCommentPopover(btn, blockIdx) {
@@ -775,7 +767,7 @@
                 html += '<div class="comment-item' + (isDone ? ' comment-done' : '') + '">'
                     + '<div class="comment-item-header">'
                     + '<span class="comment-source-icon ' + sourceClass + '">' + sourceIcon + '</span>'
-                    + '<span class="comment-date">' + c.date + '</span>'
+                    + '<span class="comment-date">' + (c.date || '').slice(0, 10) + '</span>'
                     + '<span class="comment-actions">'
                     + '<button class="comment-toggle-btn" onclick="toggleComment(' + c.id + ',' + blockIdx + ')" title="' + (isDone ? 'Reopen' : 'Mark done') + '">'
                     + (isDone ? '&#8634;' : '&#10003;') + '</button>'
@@ -942,7 +934,8 @@
     }
 
     function toggleApproval(status, then) {
-        const payload = { status: status };
+        // The words go with every click; un-approving ignores them.
+        const payload = { status: status, words: approveWords.take('detail') };
         if (then) payload.then = then;
         fetch(issueURL + '/approve', {
             method: 'POST',
@@ -961,8 +954,14 @@
                 mark(btn, data.human_approval === btn.dataset.thenStatus && data.queued_approval === btn.dataset.then);
             });
             if (data.human_approval) {
-                const what = data.queued_approval ? 'Approved for ' + data.human_approval + ' and ' + data.queued_approval : 'Human approval set';
-                if (data.notified_session) {
+                let what = data.queued_approval ? 'Approved for ' + data.human_approval + ' and ' + data.queued_approval : 'Approved for ' + data.human_approval;
+                if (data.words_saved) {
+                    what += ' with your words';
+                    approveWords.clear('detail');
+                }
+                if (data.words_error) {
+                    showToast(what + ', but your words were not saved: ' + data.words_error, true);
+                } else if (data.notified_session) {
                     showToast(what + ' and sent to bot session ' + data.notified_session);
                 } else if (data.notification_error) {
                     showToast(what + ', but bot notification was not delivered: ' + data.notification_error);
@@ -1072,10 +1071,217 @@
         setTimeout(() => target.classList.remove('approve-btn-flash'), 1500);
     }
 
+    // --- Issue tab: the folded body ---
+    // foldBody runs after initComments has wrapped each top-level block. It
+    // puts a summary row before each "## " section (and the text before the
+    // first one) and hides the section's blocks until the row is opened.
+    // No block is added, moved or removed and the rows carry no checkbox, so
+    // the comment blocks keep their data-block indices and the checkbox
+    // indices stay the same. Expand all hides the rows and shows every
+    // block: today's rendered body.
+    const foldStore = 'issue-fold:' + issueURL;
+    let foldSections = [];
+    let foldAll = false;
+
+    function foldNorm(s) { return s.toLowerCase().split(/\s+/).filter(Boolean).join(' '); }
+
+    function foldSaved() {
+        try { return JSON.parse(localStorage.getItem(foldStore)) || {}; } catch (e) { return {}; }
+    }
+    function foldSave() {
+        const open = foldSections.filter(sec => sec.open).map(sec => sec.info.id);
+        try { localStorage.setItem(foldStore, JSON.stringify({ open: open, all: foldAll })); } catch (e) {}
+    }
+
+    function foldBody() {
+        const body = document.getElementById('body-preview');
+        if (!body || !body.dataset.fold) return;
+        let info = [];
+        try { info = JSON.parse(body.dataset.fold) || []; } catch (e) { return; }
+        const byKey = {};
+        info.forEach(f => { byKey[f.key] = f; });
+        Array.from(body.children).forEach(block => {
+            if (!block.classList.contains('comment-block')) return;
+            const h2 = block.querySelector(':scope > h2');
+            if (h2 || !foldSections.length) {
+                const key = h2 ? foldNorm(h2.textContent) : '';
+                const title = h2 ? h2.textContent.trim() : 'Intro';
+                const f = byKey[key] || { key: key, id: key ? key.replace(/[^a-z0-9/-]+/g, '_') : 'intro', title: title, done: 0, total: 0, lead: '' };
+                foldSections.push({ info: f, heading: h2 ? block : null, blocks: h2 ? [] : [block], open: false, row: null });
+            } else {
+                foldSections[foldSections.length - 1].blocks.push(block);
+            }
+        });
+        foldSections.forEach(sec => {
+            sec.row = foldRow(sec);
+            body.insertBefore(sec.row, sec.heading || sec.blocks[0]);
+        });
+        const saved = foldSaved();
+        const open = saved.open || [];
+        foldSections.forEach(sec => { sec.open = open.indexOf(sec.info.id) >= 0; });
+        foldAll = !!saved.all;
+        foldOpenFromHash();
+        foldApply();
+    }
+
+    function foldRow(sec) {
+        const f = sec.info;
+        const row = document.createElement('div');
+        row.className = 'it-fold';
+        row.dataset.testid = 'detail.fold.section.' + f.id;
+        const title = document.createElement('span');
+        title.className = 'it-fold-title';
+        title.textContent = f.title;
+        const sum = document.createElement('span');
+        sum.className = 'it-fold-sum';
+        if (f.total) {
+            const chip = document.createElement('span');
+            chip.className = 'chip' + (f.done === f.total ? ' chip-green' : '');
+            chip.textContent = f.done + ' / ' + f.total;
+            sum.appendChild(chip);
+        }
+        const text = [f.lead, (f.subs || []).join(', ')].filter(Boolean).join(' · ');
+        if (text) {
+            const lead = document.createElement('span');
+            lead.className = 'it-fold-lead';
+            lead.textContent = text;
+            sum.appendChild(lead);
+        }
+        const notes = document.createElement('span');
+        notes.className = 'chip it-fold-notes';
+        notes.hidden = true;
+        sum.appendChild(notes);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn it-fold-btn';
+        btn.dataset.testid = 'detail.fold.toggle.' + f.id;
+        btn.addEventListener('click', () => {
+            sec.open = !sec.open;
+            foldApply();
+            foldSave();
+        });
+        row.append(title, sum, btn);
+        return row;
+    }
+
+    function foldApply() {
+        foldSections.forEach(sec => {
+            sec.row.hidden = foldAll;
+            sec.row.classList.toggle('is-open', sec.open);
+            const btn = sec.row.querySelector('.it-fold-btn');
+            btn.textContent = sec.open ? 'Hide' : 'Show';
+            btn.setAttribute('aria-expanded', sec.open ? 'true' : 'false');
+            if (sec.heading) sec.heading.classList.toggle('it-folded', !foldAll);
+            sec.blocks.forEach(b => b.classList.toggle('it-folded', !foldAll && !sec.open));
+        });
+        const all = document.getElementById('fold-all');
+        if (all) all.textContent = foldAll ? 'Fold' : 'Expand all';
+        const state = document.querySelector('.it-fold-state');
+        if (state) state.textContent = foldAll ? '' : '· folded';
+    }
+
+    function toggleFoldAll() {
+        foldAll = !foldAll;
+        foldApply();
+        foldSave();
+    }
+
+    // A #<section> hash (its id, as in detail.fold.section.<id>) opens it.
+    function foldOpenFromHash() {
+        const id = decodeURIComponent(location.hash.slice(1));
+        const sec = foldSections.find(s => s.info.id === id);
+        if (!sec) return;
+        sec.open = true;
+        foldAll = false;
+        foldApply();
+        sec.row.scrollIntoView({ block: 'start' });
+    }
+
+    // foldCommentCounts marks a folded row with its open comments, once the
+    // comments have loaded.
+    function foldCommentCounts() {
+        foldSections.forEach(sec => {
+            const idx = sec.blocks.concat(sec.heading ? [sec.heading] : []).map(b => parseInt(b.dataset.block));
+            const n = allComments.filter(c => c.status !== 'done' && idx.indexOf(c.block) >= 0).length;
+            const notes = sec.row.querySelector('.it-fold-notes');
+            notes.hidden = n === 0;
+            notes.textContent = n === 1 ? '1 comment' : n + ' comments';
+        });
+    }
+
+    // --- Issue tab: the band ---
+    const projectPrefix = "{{.Prefix}}";
+
+    function approveFromBand(status) {
+        fetch(issueURL + '/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: status, words: approveWords.take('band') })
+        }).then(res => res.json()).then(data => {
+            if (data.human_approval !== status) {
+                showToast('Not approved: the approval for ' + status + ' was removed instead', true);
+                return;
+            }
+            let what = 'Approved for ' + status + (data.words_saved ? ' with your words' : '');
+            if (data.words_error) {
+                showToast(what + ', but your words were not saved: ' + data.words_error, true);
+            } else if (data.notified_session) {
+                showToast(what + ' and sent to bot session ' + data.notified_session);
+            } else {
+                showToast(what);
+            }
+            setTimeout(() => location.reload(), 900);
+        }).catch(e => showToast('Approve failed: ' + e, true));
+    }
+
+    function sendAnswer() {
+        const box = document.getElementById('it-answer');
+        const text = box ? box.value.trim() : '';
+        if (!text) { showToast('Write an answer first', true); return; }
+        fetch(issueURL + '/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ block: 0, text: 'answer: ' + text })
+        }).then(res => {
+            if (!res.ok) throw new Error(res.status);
+            showToast('Answer saved');
+            setTimeout(() => location.reload(), 900);
+        }).catch(e => showToast('Answer not saved: ' + e, true));
+    }
+
+    function copyText(text, btn) {
+        const done = () => { const old = btn.textContent; btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = old; }, 1500); };
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(done, () => showToast('Copy failed; select the command instead', true));
+        } else {
+            showToast('Copy is not available here; select the command instead', true);
+        }
+    }
+
+    function openAgent(name, btn) {
+        btn.disabled = true;
+        fetch(projectPrefix + '/agents/open', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session: name })
+        }).then(r => r.json()).then(d => {
+            btn.disabled = false;
+            if (d.status === 'no-session') {
+                showToast(name + ' is not running', true);
+            } else if (d.status === 'selected' || (d.steps || []).some(s => s.name.indexOf('Terminal: headless') === 0)) {
+                showToast('No terminal configured. Inside tmux: ' + d.switch_cmd);
+            } else {
+                showToast('Opened ' + name);
+            }
+        }).catch(e => { btn.disabled = false; showToast('Open failed: ' + e, true); });
+    }
+
     document.addEventListener('DOMContentLoaded', initComments);
+    document.addEventListener('DOMContentLoaded', foldBody);
     document.addEventListener('DOMContentLoaded', initCheckboxes);
     document.addEventListener('DOMContentLoaded', revealApprovalFromHash);
     window.addEventListener('hashchange', revealApprovalFromHash);
+    window.addEventListener('hashchange', foldOpenFromHash);
     </script>
     <script src="/static/auto-refresh.js"></script>
 </div>

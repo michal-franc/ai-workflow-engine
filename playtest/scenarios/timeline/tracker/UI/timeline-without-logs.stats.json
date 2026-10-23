@@ -1,0 +1,6 @@
+{
+  "transitions": [
+    {"from": "idea", "to": "in progress", "ts": "2026-09-30T10:00:00Z", "static_tokens": 0, "dynamic_tokens": 0, "actual_tokens": null},
+    {"from": "in progress", "to": "done", "ts": "2026-09-30T11:00:00Z", "static_tokens": 0, "dynamic_tokens": 0, "actual_tokens": null}
+  ]
+}

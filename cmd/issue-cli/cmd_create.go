@@ -132,6 +132,9 @@ func runCreate(ctx *Context, args []string) error {
 		content.WriteString("\n")
 	}
 
+	if err := tracker.CheckIssueFrontmatter(content.String()); err != nil {
+		return fmt.Errorf("failed to create issue: %w", err)
+	}
 	if err := os.WriteFile(filename, []byte(content.String()), 0644); err != nil {
 		return fmt.Errorf("failed to create issue: %w", err)
 	}

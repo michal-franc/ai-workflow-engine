@@ -1,0 +1,9 @@
+session: local-ci
+issue: workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures
+mode: judge
+started: '2026-10-22T20:45:00+02:00'
+steps:
+- id: TP4
+  status: pass
+- id: TP5
+  status: pass

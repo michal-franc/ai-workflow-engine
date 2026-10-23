@@ -195,6 +195,7 @@ func restrictToPath(statuses []WorkflowStatus, transitions []WorkflowTransition,
 func (w *WorkflowConfig) Lint() []string {
 	out := w.Workbench.Validate()
 	out = append(out, w.CI.Validate()...)
+	out = append(out, w.Health.Validate()...)
 	if strings.TrimSpace(w.Leads.Epic) != "" {
 		out = append(out, "leads.epic is obsolete and ignored: there is one lead per project (remove it)")
 	}

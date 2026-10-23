@@ -139,11 +139,13 @@ func Start(proj *tracker.Project, spec Spec) Response {
 	if !worktreeOK {
 		return Response{Status: "error", Prompt: prompt, Session: session, Steps: worktreeSteps}
 	}
+	// The session's logs (clilog, prompt, messages) stay in the project
+	// checkout, not the worktree, so removing a worktree loses no history.
+	sessionLogDir := filepath.Join(workDir, ".agent-logs", session)
+	cliLog := filepath.Join(sessionLogDir, session+".clilog")
 	workDir = newDir
 
 	steps := append([]Step{}, worktreeSteps...)
-	sessionLogDir := filepath.Join(workDir, ".agent-logs", session)
-	cliLog := filepath.Join(sessionLogDir, session+".clilog")
 
 	// target is what every tmux command below addresses: the agent's own
 	// session, or its window inside the project's shared session.
@@ -233,6 +235,9 @@ func Start(proj *tracker.Project, spec Spec) Response {
 		response.Steps = steps
 		return response
 	}
+	if spec.IssueSlug != "" {
+		recordDispatch(proj, spec, &steps)
+	}
 
 	// In shared mode the window is already named after the session so it can be
 	// matched back to the issue; renaming it to the slug would break that.
@@ -260,6 +265,23 @@ func Start(proj *tracker.Project, spec Spec) Response {
 
 	response.Steps = steps
 	return response
+}
+
+// recordDispatch appends this launch to the issue's stats sidecar. A failure
+// is a warning step; it never fails the dispatch.
+func recordDispatch(proj *tracker.Project, spec Spec, steps *[]Step) {
+	if proj == nil || proj.IssueDir == "" {
+		return
+	}
+	issues, err := tracker.LoadIssues(proj.IssueDir)
+	if err == nil {
+		if issue := tracker.FindIssue(issues, spec.IssueSlug); issue != nil {
+			err = tracker.RecordDispatch(issue.FilePath, tracker.Dispatch{At: time.Now(), Session: spec.Session, Agent: spec.AgentType})
+		}
+	}
+	if err != nil {
+		*steps = append(*steps, Step{Name: "Record dispatch time", Status: "warning", Detail: err.Error()})
+	}
 }
 
 // Paste delivers text into the live session called session as one bracketed

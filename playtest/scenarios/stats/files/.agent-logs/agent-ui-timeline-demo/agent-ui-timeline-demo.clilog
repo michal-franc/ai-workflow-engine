@@ -1,0 +1,26 @@
+{"args": ["--project", "st", "show", "ui/timeline-demo"], "ts": "2026-10-01T14:30:10Z"}
+{"args": ["--project", "st", "decide", "ui/timeline-demo", "--how", "agent chat", "--text", "‹text n=24 h=52ca85›", "--quote", "‹text n=15 h=e6cd07›"], "ts": "2026-10-01T14:31:00Z"}
+{"ts": "2026-10-01T14:32:00Z", "pid": 4002, "ppid": 3999, "args": ["--project", "st", "transition", "ui/timeline-demo", "--to", "in design"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T14:35:00Z", "pid": 4003, "ppid": 3999, "args": ["--project", "st", "append", "ui/timeline-demo", "--section", "Design", "--body", "‹text n=15 h=8cbe75›"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T14:36:00Z", "pid": 4004, "ppid": 3999, "args": ["--project", "st", "comment", "ui/timeline-demo", "--text", "‹text n=65 h=28019e›"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T14:36:30Z", "pid": 4005, "ppid": 3999, "args": ["--project", "st", "transition", "ui/timeline-demo", "--to", "in progress", "--dry-run"], "exit": 1, "dur_ms": 120, "err_class": "approval_missing"}
+{"ts": "2026-10-01T14:44:30Z", "pid": 4006, "ppid": 3999, "args": ["--project", "st", "context", "ui/timeline-demo"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T14:45:00Z", "pid": 4007, "ppid": 3999, "args": ["--project", "st", "transition", "ui/timeline-demo", "--to", "in progress"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T14:46:00Z", "pid": 4008, "ppid": 3999, "args": ["--project", "st", "comment", "ui/timeline-demo", "--text", "‹text n=30 h=a70510›"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T14:55:00Z", "pid": 4009, "ppid": 3999, "args": ["--project", "st", "show", "ui/timeline-demo"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T15:20:00Z", "pid": 4010, "ppid": 3999, "args": ["--project", "st", "check", "ui/timeline-demo", "Im1"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T15:30:00Z", "pid": 4011, "ppid": 3999, "args": ["--project", "st", "append", "ui/timeline-demo", "--section", "Implementation", "--body", "‹text n=6 h=ae0272›"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T15:40:00Z", "pid": 4012, "ppid": 3999, "args": ["--project", "st", "checklist", "ui/timeline-demo"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T15:50:00Z", "pid": 4013, "ppid": 3999, "args": ["--project", "st", "checklist", "ui/timeline-demo"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T16:05:00Z", "pid": 4014, "ppid": 3999, "args": ["--project", "st", "check", "ui/timeline-demo", "AC1"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T16:10:00Z", "pid": 4015, "ppid": 3999, "args": ["--project", "st", "transition", "ui/timeline-demo", "--to", "testing"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T16:11:00Z", "pid": 4016, "ppid": 3999, "args": ["--project", "st", "comment", "ui/timeline-demo", "--text", "‹text n=26 h=187a08›"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T16:12:00Z", "pid": 4017, "ppid": 3999, "args": ["--project", "st", "transition", "ui/timeline-demo", "--to", "human-testing"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T16:12:30Z", "pid": 4018, "ppid": 3999, "args": ["--project", "st", "comment", "ui/timeline-demo", "--text", "‹text n=34 h=193927›"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T16:52:00Z", "pid": 4019, "ppid": 3999, "args": ["--project", "st", "show", "ui/timeline-demo"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T16:55:00Z", "pid": 4020, "ppid": 3999, "args": ["--project", "st", "comment", "ui/timeline-demo", "--text", "‹text n=36 h=6ad334›"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T17:05:00Z", "pid": 4021, "ppid": 3999, "args": ["--project", "st", "comment", "ui/timeline-demo", "--text", "‹text n=29 h=9264e9›"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T17:29:00Z", "pid": 4022, "ppid": 3999, "args": ["--project", "st", "checklist", "ui/timeline-demo"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T17:30:00Z", "pid": 4023, "ppid": 3999, "args": ["--project", "st", "transition", "ui/timeline-demo", "--to", "done"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T19:00:00Z", "pid": 4024, "ppid": 3999, "args": ["--project", "st", "checklist", "ui/timeline-demo"], "exit": 0, "dur_ms": 120}
+{"ts": "2026-10-01T19:05:00Z", "pid": 4025, "ppid": 3999, "args": ["--project", "st", "checklist", "ui/timeline-demo"], "exit": 0, "dur_ms": 120}

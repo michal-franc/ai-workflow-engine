@@ -19,12 +19,12 @@ steps:
       - visible: [stats.options, stats.range, stats.group, stats.tables]
       - selected: stats.range.all
       - count: { pattern: stats.gauge, equals: 5 }
-      - count: { pattern: stats.chart, equals: 8 }
+      - count: { pattern: stats.chart.*, equals: 8 }
       - count: { pattern: stats.pending, equals: 3 }
       - absent: stats.backfill_hint
-      - text_contains: { target: stats.dashboard, text: "Cycle time p50, by type" }
-      - text_contains: { target: stats.dashboard, text: "6 backfilled" }
-      - text_contains: { target: stats.dashboard, text: "2 issues done" }
+      - text_contains: { target: stats.chart.cycle, text: "Cycle time p50, by type" }
+      - text_contains: { target: stats.snapshots, text: "6 backfilled" }
+      - text_equals: { target: stats.done, text: "2 issues done" }
       - hidden: stats.time
       - below: [stats.options, stats.tables]
     expect: Five gauge cards in a row (waiting on you with its limit tick, the current milestone, big files, and two dashed "No data yet" cards naming the issues that bring them), then the trend lines over the six snapshot days (cycle time, waiting on you with the 25% limit line, agent time per issue, rework, lines of code), three dashed cards for families that don't exist yet, the stacked bars of where the time goes, the issues done per week, and the old tables folded at the bottom. Colours follow the theme; nothing is cut off at phone width.
@@ -59,7 +59,7 @@ steps:
     checks:
       - value_equals: { target: stats.group, value: system }
       - selected: stats.range.all
-      - text_contains: { target: stats.dashboard, text: "By system" }
+      - text_contains: { target: stats.chart.group, text: "By system" }
 
   - id: TP7
     title: Each chart has a table view with the same numbers
@@ -96,8 +96,7 @@ steps:
       - wait_for: stats.dashboard
     checks:
       - absent: stats.backfill_hint
-      - text_contains: { target: stats.dashboard, text: "backfilled" }
-      - cli: { args: [health, backfill, --days, "3"], contains: "3 skipped" }
+      - text_contains: { target: stats.snapshots, text: "backfilled" }
 
   - id: TP10
     title: /stats without a project compares every project

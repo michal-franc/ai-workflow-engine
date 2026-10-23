@@ -20,7 +20,7 @@
             <div class="stats-head-text">
                 <div class="stats-crumb"><a href="/stats">All projects</a> / {{.Project}}</div>
                 <h1 class="page-title">Stats</h1>
-                <p class="stats-sub">{{if .Latest}}{{plural .Snapshots "snapshot" "snapshots"}}{{if .Backfilled}}, {{.Backfilled}} backfilled{{end}}, latest {{.Latest}}{{else}}No health snapshot yet{{end}} · gauges and bars computed now{{if .AggMS}} (aggregate {{.AggMS}} ms, cached){{end}} · rules: docs/workflow-stats.md, "Stats page"</p>
+                <p class="stats-sub">{{if .Latest}}<span data-testid="stats.snapshots">{{plural .Snapshots "snapshot" "snapshots"}}{{if .Backfilled}}, {{.Backfilled}} backfilled{{end}}</span>, latest {{.Latest}}{{else}}<span data-testid="stats.snapshots">No health snapshot yet</span>{{end}} · <span title="{{if .AggMS}}The aggregate took {{.AggMS}} ms to build; it is cached{{end}}">gauges and bars computed now</span> · rules: docs/workflow-stats.md, "Stats page"</p>
             </div>
             <nav class="stats-options" aria-label="Chart options" data-testid="stats.options">
                 <div class="stats-seg" role="group" aria-label="Range" data-testid="stats.range">
@@ -94,7 +94,7 @@
         <section class="stats-section" aria-labelledby="stats-time-h">
             <div class="stats-section-head">
                 <h2 id="stats-time-h" class="stats-label">Where the time goes · {{.Opts | statsRangeLabel}}</h2>
-                <span class="stats-muted">{{plural .Done "issue" "issues"}} done {{tlDate .From}} – {{tlDate .To}}{{if ne .Split .Done}}, {{.Split}} with CLI calls{{end}}; each split into agent, waiting and idle exactly as its Timeline tab splits it</span>
+                <span class="stats-muted"><span data-testid="stats.done">{{plural .Done "issue" "issues"}} done</span> {{tlDate .From}} – {{tlDate .To}}{{if ne .Split .Done}}, {{.Split}} with CLI calls{{end}}; each split into agent, waiting and idle exactly as its Timeline tab splits it</span>
             </div>
             <div class="stats-legend">
                 <span class="stats-lg"><span class="stats-sw s-agent"></span>agent working</span>
@@ -339,7 +339,7 @@
 {{end}}
 
 {{define "statsChart"}}{{$d := .Dash}}{{with .Card}}
-<figure class="stats-card" id="{{.ID}}" data-testid="stats.chart" data-chart="{{.ID}}">
+<figure class="stats-card" id="{{.ID}}" data-testid="stats.chart.{{.ID}}" data-chart="{{.ID}}">
     <div class="stats-card-head">
         <div>
             <h3>{{.Title}}</h3>

@@ -2469,6 +2469,7 @@ select.modal-input option {
 .tl-muted { color: var(--text-secondary); }
 .tl-mono { font-family: var(--font-mono); font-size: 12px; }
 .tl-amber { color: var(--amber); font-size: 12.5px; }
+.tl-blue { color: var(--blue); font-size: 12.5px; }
 .tl-purple { color: var(--purple); font-size: 12.5px; }
 .tl-note { margin: 0; font-size: 12.5px; }
 .tl-missing { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border: 1px solid var(--amber-border); border-radius: var(--radius); background: var(--amber-bg); font-size: 13.5px; }

@@ -1,39 +1,33 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/michal-franc/issue-viewer/internal/clilog"
+	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
-// timelineGitTimeout bounds the one git call the Timeline tab makes, so a
-// slow or locked repo never holds up the detail page.
-const timelineGitTimeout = 2 * time.Second
-
 // timelineSources is everything the Timeline tab reads for one issue,
 // gathered by loadTimelineSources and turned into a page by buildTimeline.
-// Missing lists the sources that could not be read; Read describes the ones
-// that were.
+// The fields up to Runs are timeline.Sources, what the split reads; the rest
+// only the tab shows. Missing lists the sources that could not be read; Read
+// describes the ones that were.
 type timelineSources struct {
 	Transitions []statRow
 	Dispatches  []time.Time
 	MergeSHA    string
 	Calls       []cliCall
 	Commits     []gitCommit
+	Runs        []playtestRun
 	Comments    []tracker.Comment
 	Decisions   []tracker.Decision
-	Runs        []playtestRun
 	CI          []ciRun
 	Boxes       []tracker.CheckboxItem
 	Prompt      string
@@ -41,82 +35,33 @@ type timelineSources struct {
 	Read        []string
 }
 
-type missingSource struct {
-	Name   string // "CLI log", "Work branch", "Stats sidecar"
-	Detail string // the paths tried and what that hides
+// core is what timeline.Split reads.
+func (s timelineSources) core() timeline.Sources {
+	return timeline.Sources{Transitions: s.Transitions, Dispatches: s.Dispatches, MergeSHA: s.MergeSHA, Calls: s.Calls, Commits: s.Commits, Runs: s.Runs}
 }
+
+type missingSource = timeline.Missing
 
 // statRow is one stats-sidecar transition (tracker.TransitionStat): ts,
 // approved_at, and branch_head / merge_sha from v0.54 on.
 type statRow = tracker.TransitionStat
 
-// cliCall is one clilog record (internal/clilog owns the format) as the
-// timeline reads it. Exit, ErrClass and DurMS are empty in records written
-// before v0.54.
-type cliCall struct {
-	clilog.Record
-	At time.Time // Record.Start()
-	// Args are the record's args without issue-cli's global flags, so
-	// Args[0] is the command. Record.Args keeps them as logged.
-	Args []string
-	// Agent: read from a per-agent clilog, so the issue's agent made it.
-	// The project log also holds the lead's and the owner's calls on the
-	// issue.
-	Agent bool
-}
+// cliCall is one clilog record as the timeline reads it (timeline.Call).
+type cliCall = timeline.Call
 
-func (c cliCall) cmd() string {
-	if len(c.Args) == 0 {
-		return ""
-	}
-	return c.Args[0]
-}
-
-// record is the call as timelineEventFromRecord takes it: the logged record
-// with global flags stripped.
-func (c cliCall) record() clilog.Record {
+// callRecord is the call as timelineEventFromRecord takes it: the logged
+// record with global flags stripped.
+func callRecord(c cliCall) clilog.Record {
 	r := c.Record
 	r.Args = c.Args
 	return r
 }
 
-type gitCommit struct {
-	SHA     string
-	At      time.Time
-	Subject string
-	Merge   bool
-}
+type gitCommit = timeline.Commit
 
-type playtestRun struct {
-	Session string
-	Mode    string // auto (ux-test) or judge (your playtest)
-	Started time.Time
-	Steps   []playtestStep
-}
+type playtestRun = timeline.PlaytestRun
 
-type playtestStep struct {
-	ID     string `yaml:"id"`
-	Status string `yaml:"status"`
-}
-
-func (r playtestRun) failed() []string {
-	var ids []string
-	for _, s := range r.Steps {
-		if s.Status == "fail" {
-			ids = append(ids, s.ID)
-		}
-	}
-	return ids
-}
-
-func (r playtestRun) passed(id string) bool {
-	for _, s := range r.Steps {
-		if s.ID == id {
-			return s.Status == "pass"
-		}
-	}
-	return false
-}
+type playtestStep = timeline.PlaytestStep
 
 type ciRun struct {
 	SHA      string
@@ -126,42 +71,24 @@ type ciRun struct {
 	Duration time.Duration
 }
 
-// loadTimelineSources reads the issue's stats sidecar, clilogs, work branch,
-// comments, decisions, playtest runs and local CI runs. A source that can't
+// loadTimelineSources reads what timeline.Load reads (stats sidecar,
+// clilogs, work branch, playtest runs), and the comments, decisions,
+// dispatch prompt and local CI runs only the tab shows. A source that can't
 // be read is listed in Missing; it never fails the page.
 func loadTimelineSources(proj *tracker.Project, issue *tracker.Issue, wf *tracker.WorkflowConfig) timelineSources {
+	core := timeline.Load(proj, issue, nil)
+	src := timelineSources{
+		Transitions: core.Transitions,
+		Dispatches:  core.Dispatches,
+		MergeSHA:    core.MergeSHA,
+		Calls:       core.Calls,
+		Commits:     core.Commits,
+		Runs:        core.Runs,
+		Missing:     core.Missing,
+	}
 	root := projectRoot(proj)
 	workDir := resolveProjectWorkDir(proj)
 	worktree := filepath.Join(root, ".worktrees", issue.Slug)
-	var src timelineSources
-
-	stats, statsErr := tracker.LoadStats(issue.FilePath)
-	switch {
-	case statsErr != nil:
-		src.Missing = append(src.Missing, missingSource{"Stats sidecar", statsErr.Error() + ". Status times and approvals are not shown."})
-	case len(stats.Transitions) == 0:
-		src.Missing = append(src.Missing, missingSource{"Stats sidecar", "no transitions recorded in " + tracker.StatsSidecarPath(issue.FilePath) + ". Status times and approvals are not shown."})
-	default:
-		src.Read = append(src.Read, "stats sidecar ("+plural(len(stats.Transitions), "transition", "transitions")+", "+plural(countApprovals(stats.Transitions), "approval", "approvals")+")")
-	}
-	src.Transitions = stats.Transitions
-	for _, d := range stats.Dispatches {
-		src.Dispatches = append(src.Dispatches, d.At)
-	}
-	for i := len(src.Transitions) - 1; i >= 0; i-- {
-		if src.Transitions[i].MergeSHA != "" {
-			src.MergeSHA = src.Transitions[i].MergeSHA
-			break
-		}
-	}
-
-	logPaths := timelineLogPaths(workDir, worktree, issue)
-	src.Calls = loadCliCalls(logPaths, proj.Slug, issue.Slug)
-	if len(src.Calls) == 0 {
-		src.Missing = append(src.Missing, missingSource{"CLI log", "no calls for this issue in .agent-logs/<agent>/<agent>.clilog (project and worktree), .agent-logs/clilog.jsonl or $TMPDIR/issue-cli-logs/actions.jsonl. Agent, waiting and idle time can't be split; the CLI calls filter is empty."})
-	} else {
-		src.Read = append(src.Read, "CLI log ("+plural(len(src.Calls), "call", "calls")+")")
-	}
 	for _, d := range []string{worktree, workDir} {
 		if p := LoadDispatchPrompt(d, tracker.AgentSessionName(issue.Slug)); p != "" {
 			src.Prompt = p
@@ -174,33 +101,16 @@ func loadTimelineSources(proj *tracker.Project, issue *tracker.Issue, wf *tracke
 	}
 
 	src.Comments, _ = tracker.LoadComments(issue.FilePath)
-	src.Read = append(src.Read, "comments ("+strconv.Itoa(len(src.Comments))+")")
 	src.Decisions = tracker.ParseDecisions(issue.Slug, issue.BodyRaw)
 	src.Boxes = tracker.ListCheckboxes(issue.BodyRaw)
-
-	since := lifeStart(src)
-	ref, refName := timelineGitRef(root, issue.Slug, src.Transitions)
-	if ref == "" {
-		src.Missing = append(src.Missing, missingSource{"Work branch", "work/" + issue.Slug + ": not found, and no branch head or merge sha was recorded for this issue. Commits and CI after merge are not shown."})
-	} else if commits, err := loadCommits(root, ref, since); err != nil {
-		src.Missing = append(src.Missing, missingSource{"Work branch", refName + ": git log failed (" + err.Error() + "). Commits are not shown."})
-	} else {
-		src.Commits = commits
-		src.Read = append(src.Read, "git ("+plural(len(commits), "commit", "commits")+" on "+refName+")")
-	}
-	if src.MergeSHA == "" && issue.Status == "done" {
-		// A fast-forward merge makes main's commit the branch head itself.
-		src.MergeSHA = lastBranchHead(src.Transitions)
-		if src.MergeSHA == "" && ref != "" && strings.HasPrefix(refName, "work/") {
-			src.MergeSHA = ref
+	// The comments read goes after the stats and CLI log reads.
+	for _, r := range core.Read {
+		if strings.HasPrefix(r, "git (") || strings.HasPrefix(r, "playtest runs") {
+			if !hasPrefix(src.Read, "comments (") {
+				src.Read = append(src.Read, "comments ("+strconv.Itoa(len(src.Comments))+")")
+			}
 		}
-	}
-
-	src.Runs = loadPlaytestRuns(issue.Slug, root, worktree)
-	if len(src.Runs) == 0 {
-		src.Read = append(src.Read, "playtest runs (none for this issue)")
-	} else {
-		src.Read = append(src.Read, "playtest runs ("+strconv.Itoa(len(src.Runs))+")")
+		src.Read = append(src.Read, r)
 	}
 	if src.MergeSHA != "" {
 		src.CI = loadCIRunsFrom(root, src.MergeSHA)
@@ -208,214 +118,13 @@ func loadTimelineSources(proj *tracker.Project, issue *tracker.Issue, wf *tracke
 	return src
 }
 
-func countApprovals(rows []statRow) int {
-	n := 0
-	for _, r := range rows {
-		if r.ApprovedAt != nil {
-			n++
+func hasPrefix(list []string, prefix string) bool {
+	for _, s := range list {
+		if strings.HasPrefix(s, prefix) {
+			return true
 		}
 	}
-	return n
-}
-
-func lastBranchHead(rows []statRow) string {
-	for i := len(rows) - 1; i >= 0; i-- {
-		if rows[i].BranchHead != "" {
-			return rows[i].BranchHead
-		}
-	}
-	return ""
-}
-
-// timelineLogPaths lists every clilog that may hold the issue's calls. The
-// dispatch writes the per-agent log in the worktree under the session name,
-// while issue-cli also keeps a copy in the project under the assignee, so
-// both places and both names are read. The per-project log and the old
-// $TMPDIR log are filtered down to this issue by loadCliCalls.
-func timelineLogPaths(workDir, worktree string, issue *tracker.Issue) []string {
-	names := []string{tracker.AgentSessionName(issue.Slug), "agent-" + filepath.Base(issue.Slug)}
-	if issue.Assignee != "" {
-		names = append([]string{issue.Assignee}, names...)
-	}
-	var paths []string
-	seen := map[string]bool{}
-	for _, dir := range []string{worktree, workDir} {
-		for _, n := range names {
-			p := clilog.AgentPath(dir, n)
-			if dir != "" && !seen[p] {
-				seen[p] = true
-				paths = append(paths, p)
-			}
-		}
-	}
-	return append(paths, clilog.ProjectPath(workDir), clilog.LegacyPath())
-}
-
-// loadCliCalls merges the clilogs, keeping per-agent records for this
-// project and shared-log records that name this issue, deduped on (ts, args):
-// a call can be in both the per-agent and the project log.
-func loadCliCalls(paths []string, projSlug, issueSlug string) []cliCall {
-	var calls []cliCall
-	seen := map[string]bool{}
-	for _, p := range paths {
-		legacy := p == clilog.LegacyPath()
-		shared := legacy || filepath.Base(p) == clilog.FileName
-		// The project log holds only this project's calls, many without a
-		// --project flag; the legacy $TMPDIR log mixes every project's.
-		wantProj := ""
-		if legacy {
-			wantProj = projSlug
-		}
-		clilog.Read(p, func(rec clilog.Record) {
-			if shared && !cliRecordMatchesIssue(rec, wantProj, issueSlug) {
-				return
-			}
-			if p := clilog.FlagValue(rec.Args, "--project"); !shared && p != "" && projSlug != "" && p != projSlug {
-				return
-			}
-			args := clilog.StripGlobal(rec.Args)
-			at := rec.Start()
-			if len(args) == 0 || at.IsZero() {
-				return
-			}
-			key := rec.TS + "|" + strings.Join(args, "\x00")
-			if seen[key] {
-				return
-			}
-			seen[key] = true
-			calls = append(calls, cliCall{Record: rec, At: at, Args: args, Agent: !shared})
-		})
-	}
-	sort.SliceStable(calls, func(i, j int) bool { return calls[i].At.Before(calls[j].At) })
-	return calls
-}
-
-// lifeStart is when the issue's agent life began: the first dispatch, else
-// the agent's first call, else the first call, else the first transition.
-// Calls on the issue before it (the lead writing it up) are not the agent's.
-func lifeStart(src timelineSources) time.Time {
-	if len(src.Dispatches) > 0 {
-		return src.Dispatches[0]
-	}
-	for _, c := range src.Calls {
-		if c.Agent {
-			return c.At
-		}
-	}
-	if len(src.Calls) > 0 {
-		return src.Calls[0].At
-	}
-	if len(src.Transitions) > 0 {
-		return src.Transitions[0].TS
-	}
-	return time.Time{}
-}
-
-// timelineGitRef picks where the issue's commits are: the live work branch,
-// else the last branch head the stats sidecar recorded, else its merge sha.
-func timelineGitRef(root, slug string, rows []statRow) (ref, name string) {
-	branch := "work/" + slug
-	if out, err := timelineGit(root, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch+"^{commit}"); err == nil && out != "" {
-		return strings.TrimSpace(out), branch
-	}
-	if h := lastBranchHead(rows); h != "" {
-		return h, "the recorded branch head " + shortSHA(h)
-	}
-	for i := len(rows) - 1; i >= 0; i-- {
-		if rows[i].MergeSHA != "" {
-			return rows[i].MergeSHA, "the merge " + shortSHA(rows[i].MergeSHA)
-		}
-	}
-	return "", ""
-}
-
-// loadCommits walks the first-parent chain from ref back to since, so a
-// merge of main into the branch is one commit and other issues' commits that
-// came with it never show.
-func loadCommits(root, ref string, since time.Time) ([]gitCommit, error) {
-	args := []string{"log", "--first-parent", "--format=%H%x1f%P%x1f%ct%x1f%s", ref}
-	if !since.IsZero() {
-		args = append(args, "--since="+strconv.FormatInt(since.Add(-time.Minute).Unix(), 10))
-	}
-	out, err := timelineGit(root, args...)
-	if err != nil {
-		return nil, err
-	}
-	var commits []gitCommit
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
-		parts := strings.Split(line, "\x1f")
-		if len(parts) != 4 {
-			continue
-		}
-		sec, err := strconv.ParseInt(parts[2], 10, 64)
-		if err != nil {
-			continue
-		}
-		at := time.Unix(sec, 0)
-		if !since.IsZero() && at.Before(since.Add(-time.Minute)) {
-			continue
-		}
-		commits = append(commits, gitCommit{
-			SHA:     parts[0],
-			At:      at,
-			Subject: parts[3],
-			Merge:   len(strings.Fields(parts[1])) > 1,
-		})
-	}
-	// git lists newest first; reverse rather than sort, so commits made in
-	// the same second keep their order.
-	for i, j := 0, len(commits)-1; i < j; i, j = i+1, j-1 {
-		commits[i], commits[j] = commits[j], commits[i]
-	}
-	return commits, nil
-}
-
-var timelineGit = func(root string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timelineGitTimeout)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, "git", append([]string{"-C", root}, args...)...).Output()
-	return string(out), err
-}
-
-type playtestResultsFile struct {
-	Session string         `yaml:"session"`
-	Issue   string         `yaml:"issue"`
-	Mode    string         `yaml:"mode"`
-	Started string         `yaml:"started"`
-	Steps   []playtestStep `yaml:"steps"`
-}
-
-// loadPlaytestRuns reads the results.yaml of every run for issueSlug, in the
-// main checkout's and the issue worktree's .playtest/runs: agents run ux-test
-// in their worktree, so most runs live there.
-func loadPlaytestRuns(issueSlug string, dirs ...string) []playtestRun {
-	var runs []playtestRun
-	seen := map[string]bool{}
-	for _, d := range dirs {
-		files, _ := filepath.Glob(filepath.Join(d, ".playtest", "runs", "*", "*", "results.yaml"))
-		for _, f := range files {
-			data, err := os.ReadFile(f)
-			if err != nil {
-				continue
-			}
-			var r playtestResultsFile
-			if yaml.Unmarshal(data, &r) != nil || r.Issue != issueSlug {
-				continue
-			}
-			started, err := time.Parse(time.RFC3339, r.Started)
-			if err != nil {
-				continue
-			}
-			key := r.Session + "|" + r.Started + "|" + r.Mode
-			if seen[key] {
-				continue
-			}
-			seen[key] = true
-			runs = append(runs, playtestRun{Session: r.Session, Mode: r.Mode, Started: started, Steps: r.Steps})
-		}
-	}
-	sort.SliceStable(runs, func(i, j int) bool { return runs[i].Started.Before(runs[j].Started) })
-	return runs
+	return false
 }
 
 type ciRunFile struct {
@@ -465,12 +174,7 @@ func loadCIRunsFrom(root, sha string) []ciRun {
 	return out
 }
 
-func shortSHA(sha string) string {
-	if len(sha) > 7 {
-		return sha[:7]
-	}
-	return sha
-}
+func shortSHA(sha string) string { return timeline.ShortSHA(sha) }
 
 // timelineTotalLabel is the Timeline tab's label on every tab: the life from
 // dispatch (or the agent's first call) to done, or "so far". It reads the
@@ -486,15 +190,15 @@ func timelineTotalLabel(proj *tracker.Project, issue *tracker.Issue) string {
 	}
 	if len(src.Dispatches) == 0 {
 		worktree := filepath.Join(projectRoot(proj), ".worktrees", issue.Slug)
-		paths := timelineLogPaths(resolveProjectWorkDir(proj), worktree, issue)
+		paths := timeline.LogPaths(resolveProjectWorkDir(proj), worktree, issue)
 		for _, p := range paths[:len(paths)-2] { // per-agent logs only
 			if c, ok := firstCliCall(p, proj.Slug); ok && (len(src.Calls) == 0 || c.At.Before(src.Calls[0].At)) {
 				src.Calls = []cliCall{c}
 			}
 		}
 	}
-	start := lifeStart(src)
-	end, inFlight := lifeEnd(src, timelineInput{Status: issue.Status, Now: time.Now()})
+	start := timeline.LifeStart(src.core())
+	end, inFlight := timeline.LifeEnd(src.core(), timeline.In{Status: issue.Status, Now: time.Now()})
 	if start.IsZero() || !end.After(start) {
 		return ""
 	}

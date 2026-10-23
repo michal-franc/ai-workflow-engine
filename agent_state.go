@@ -9,13 +9,15 @@ import (
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/clilog"
+	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
 // agentIdleAfter is how long a live agent may go without an issue-cli call
 // before it reads as idle rather than working (D-7). A long build with no
 // call reads as idle too; the footer says "no issue-cli call", not stopped.
-const agentIdleAfter = 15 * time.Minute
+// It is the Timeline's idle gap, so the canvas and the split agree.
+const agentIdleAfter = timeline.IdleAfter
 
 // cliTailBytes is how much of a clilog's end lastCliCall reads: enough for
 // the newest record even when its args carry a long --body.

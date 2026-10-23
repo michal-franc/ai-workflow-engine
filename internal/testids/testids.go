@@ -227,6 +227,7 @@ var IDs = []string{
 	"timeline.bar",
 	"timeline.filter.*",
 	"timeline.band",
+	"timeline.band.working",
 	"timeline.wait",
 	"timeline.idlegap",
 	"timeline.reworkloop",

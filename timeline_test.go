@@ -2,13 +2,13 @@ package main
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/clilog"
+	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -20,88 +20,6 @@ func ptr(t time.Time) *time.Time { return &t }
 
 func call(min int, args ...string) cliCall {
 	return cliCall{At: at(min), Args: args, Agent: true}
-}
-
-func TestClassifyGaps(t *testing.T) {
-	bands := []lifeBand{
-		{Status: "idea", From: at(0), To: at(100)},
-		{Status: "in design", From: at(100), To: at(300), Gated: true},
-	}
-	segs := classifyGaps(
-		[]time.Time{at(5), at(30), at(40), at(110), at(150), at(160), at(200)},
-		[]time.Time{at(190)},
-		bands, at(0), at(210))
-	want := []seg{
-		{at(0), at(5), segAgent},
-		{at(5), at(30), segIdle},       // 25m, not gated
-		{at(30), at(40), segAgent},     // 10m < 15m
-		{at(40), at(110), segIdle},     // starts in idea: not gated
-		{at(110), at(150), segWaiting}, // 40m in a gated status
-		{at(150), at(160), segAgent},
-		{at(160), at(190), segWaiting}, // 30m in a gated status, up to the approval
-		{at(190), at(200), segAgent},   // after the approval: its own 10m gap
-		{at(200), at(210), segAgent},
-	}
-	if len(segs) != len(want) {
-		t.Fatalf("got %d segments, want %d: %+v", len(segs), len(want), segs)
-	}
-	for i := range want {
-		if !segs[i].From.Equal(want[i].From) || !segs[i].To.Equal(want[i].To) || segs[i].Kind != want[i].Kind {
-			t.Errorf("segment %d = %v→%v %s, want %v→%v %s", i, segs[i].From, segs[i].To, segs[i].Kind, want[i].From, want[i].To, want[i].Kind)
-		}
-	}
-}
-
-// The wait at an approval is tracker.OwnerWaits' (from the agent's last call
-// in the status to the approval), laid over whatever the gap rules said.
-func TestOverlayWaits(t *testing.T) {
-	segs := []seg{{at(0), at(60), segAgent}, {at(60), at(90), segIdle}}
-	store := tracker.StatsStore{Transitions: []tracker.TransitionStat{
-		{From: "idea", To: "in design", TS: at(0)},
-		{From: "in design", To: "in progress", TS: at(85), ApprovedAt: ptr(at(80))},
-	}}
-	got := overlayWaits(segs, tracker.OwnerWaits(store, []time.Time{at(5), at(50)}))
-	want := []seg{{at(0), at(50), segAgent}, {at(50), at(60), segWaiting}, {at(60), at(80), segWaiting}, {at(80), at(90), segIdle}}
-	if len(got) != len(want) {
-		t.Fatalf("got %+v", got)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("segment %d = %+v, want %+v", i, got[i], want[i])
-		}
-	}
-}
-
-func TestReworkLoops(t *testing.T) {
-	wf := tracker.DefaultWorkflow()
-	src := timelineSources{
-		Transitions: []statRow{
-			{From: "in progress", To: "testing", TS: at(60)},
-			{From: "testing", To: "in progress", TS: at(70)}, // backward
-			{From: "in progress", To: "testing", TS: at(90)},
-		},
-		Runs: []playtestRun{
-			{Mode: "auto", Started: at(20), Steps: []playtestStep{{"TP1", "fail"}}}, // before testing: not rework
-			{Mode: "judge", Started: at(100), Steps: []playtestStep{{"TP1", "pass"}, {"TP2", "fail"}}},
-			{Mode: "auto", Started: at(105), Steps: []playtestStep{{"TP2", "pass"}}}, // another mode
-			{Mode: "judge", Started: at(120), Steps: []playtestStep{{"TP2", "pass"}}},
-		},
-	}
-	loops := reworkLoops(src, wf, at(200))
-	if len(loops) != 2 {
-		t.Fatalf("loops = %+v, want 2", loops)
-	}
-	if !loops[0].From.Equal(at(70)) || !loops[0].To.Equal(at(90)) || !strings.Contains(loops[0].Label, "back to in progress") {
-		t.Errorf("backward loop = %+v", loops[0])
-	}
-	if !loops[1].From.Equal(at(100)) || !loops[1].To.Equal(at(120)) || loops[1].Label != "your playtest failed TP2" {
-		t.Errorf("playtest loop = %+v", loops[1])
-	}
-
-	segs := markRework([]seg{{at(60), at(200), segAgent}}, loops)
-	if got := kindWithin(segs, segRework, at(0), at(200)); got != 40*time.Minute {
-		t.Errorf("rework = %v, want 40m", got)
-	}
 }
 
 // AC3: the local CI issue from its real stats sidecar, per-agent clilog and
@@ -123,8 +41,8 @@ func TestBuildTimelineLocalCI(t *testing.T) {
 		Comments:    comments,
 		Decisions:   tracker.ParseDecisions("workflow/local-ci", string(body)),
 		Transitions: stats.Transitions,
-		Calls:       loadCliCalls([]string{filepath.Join(dir, "agent.clilog")}, "issue-viewer", "workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures"),
-		Runs:        loadPlaytestRuns("workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures", dir),
+		Calls:       timeline.LoadCalls(nil, []string{filepath.Join(dir, "agent.clilog")}, "issue-viewer", "workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures"),
+		Runs:        timeline.LoadPlaytestRuns("workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures", dir),
 		Commits: []gitCommit{
 			{SHA: "11826db", At: time.Date(2026, 10, 22, 15, 13, 38, 0, time.UTC), Subject: "ci: local CI runner"},
 			{SHA: "af4e2da", At: time.Date(2026, 10, 22, 18, 31, 39, 0, time.UTC), Subject: "ci: Last runs boxes"},
@@ -275,53 +193,6 @@ func TestResolveRedactedText(t *testing.T) {
 	other := clilog.Placeholder("not in the issue")
 	if got := resolveText(other, src); got != other {
 		t.Errorf("unknown text = %q, want the placeholder kept", got)
-	}
-}
-
-func TestLoadCommitsFirstParent(t *testing.T) {
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("no git")
-	}
-	dir := t.TempDir()
-	run := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, out)
-		}
-	}
-	run("init", "-q", "-b", "main")
-	run("commit", "-q", "--allow-empty", "-m", "base")
-	run("checkout", "-q", "-b", "work/ui/x")
-	run("commit", "-q", "--allow-empty", "-m", "mine 1")
-	run("checkout", "-q", "main")
-	run("commit", "-q", "--allow-empty", "-m", "other issue")
-	run("checkout", "-q", "work/ui/x")
-	run("merge", "-q", "--no-edit", "main")
-	run("commit", "-q", "--allow-empty", "-m", "mine 2")
-
-	ref, name := timelineGitRef(dir, "ui/x", nil)
-	if ref == "" || name != "work/ui/x" {
-		t.Fatalf("ref = %q %q", ref, name)
-	}
-	commits, err := loadCommits(dir, ref, time.Time{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var subjects []string
-	for _, c := range commits {
-		s := c.Subject
-		if c.Merge {
-			s = "merge"
-		}
-		subjects = append(subjects, s)
-	}
-	if got := strings.Join(subjects, ","); got != "base,mine 1,merge,mine 2" {
-		t.Errorf("commits = %s; the merge is one line and the other issue's commit never shows", got)
-	}
-	if ref, _ := timelineGitRef(dir, "ui/gone", nil); ref != "" {
-		t.Errorf("a missing branch with no recorded head = %q", ref)
 	}
 }
 

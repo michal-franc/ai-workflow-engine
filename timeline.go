@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/michal-franc/issue-viewer/internal/clilog"
+	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -33,10 +34,10 @@ var timelineFilters = []struct{ Key, Label string }{
 
 // Segment kinds on the life bar.
 const (
-	segAgent   = "agent"
-	segWaiting = "waiting"
-	segIdle    = "idle"
-	segRework  = "rework"
+	segAgent   = timeline.KindAgent
+	segWaiting = timeline.KindWaiting
+	segIdle    = timeline.KindIdle
+	segRework  = timeline.KindRework
 )
 
 // Timeline is the Timeline tab's view model.
@@ -83,17 +84,14 @@ type barMark struct {
 	Width float64
 }
 
-type reworkLoop struct {
-	From, To time.Time
-	Label    string
-	Agent    time.Duration
-}
+type reworkLoop = timeline.Loop
 
 type timelineBand struct {
 	Status   string
 	Start    time.Time
 	End      time.Time
 	Open     bool
+	Working  time.Duration
 	Waiting  time.Duration
 	Idle     time.Duration
 	Rework   time.Duration
@@ -161,48 +159,24 @@ type timelineInput struct {
 	WF        *tracker.WorkflowConfig
 }
 
-// buildTimeline turns the sources into the tab. It reads nothing from disk.
+// buildTimeline turns the sources into the tab. The split is
+// timeline.Split's, the one the project aggregate uses. It reads nothing
+// from disk.
 func buildTimeline(src timelineSources, in timelineInput) Timeline {
 	tl := Timeline{Show: normalizeShow(in.Show), Missing: src.Missing, SourceCount: 5}
 	tl.Read = strings.Join(src.Read, " · ")
 
-	tl.Start = lifeStart(src)
-	tl.End, tl.InFlight = lifeEnd(src, in)
-	if tl.Start.IsZero() || !tl.End.After(tl.Start) {
+	r := timeline.Split(src.core(), timeline.In{Status: in.Status, Now: in.Now, OpenGated: in.OpenGated, WF: in.WF})
+	tl.Start, tl.End, tl.InFlight = r.Start, r.End, r.InFlight
+	if r.Total() == 0 {
 		return tl
 	}
-	tl.Total = tl.End.Sub(tl.Start)
-	tl.Known = len(src.Calls) > 0
-
-	bands := lifeBands(src, in, tl.Start, tl.End)
-	activity := activityTimes(src, tl.Start, tl.End)
-	var segs []seg
-	if tl.Known {
-		segs = classifyGaps(activity, approvedTimes(src.Transitions), bands, tl.Start, tl.End)
-		segs = overlayWaits(segs, tracker.OwnerWaits(tracker.StatsStore{Transitions: src.Transitions}, agentCallEnds(src.Calls)))
-	}
-	tl.Loops = reworkLoops(src, in.WF, tl.End)
-	segs = markRework(segs, tl.Loops)
-	for i := range tl.Loops {
-		tl.Loops[i].Agent = kindWithin(segs, segRework, tl.Loops[i].From, tl.Loops[i].To)
-	}
-	segs = mergeSegs(segs)
-	for _, s := range segs {
-		d := s.To.Sub(s.From)
-		switch s.Kind {
-		case segAgent:
-			tl.Working += d
-		case segRework:
-			tl.Working += d
-			tl.Rework += d
-		case segWaiting:
-			tl.Waiting += d
-			tl.Waits++
-		case segIdle:
-			tl.Idle += d
-			tl.IdleGaps++
-		}
-	}
+	tl.Total = r.Total()
+	tl.Known = r.Known
+	bands, segs := r.Bands, r.Segs
+	tl.Loops = r.Loops
+	tl.Working, tl.Waiting, tl.Idle, tl.Rework = r.Working, r.Waiting, r.Idle, r.Rework
+	tl.Waits, tl.IdleGaps = r.WaitCount, r.IdleGaps
 	tl.Segments = barSegments(segs, tl.Start, tl.Total)
 	tl.StatusMarks = statusMarks(bands, tl.Start, tl.Total)
 	tl.Ticks = timeTicks(tl.Start, tl.End)
@@ -236,309 +210,14 @@ func normalizeShow(s string) string {
 	return showAll
 }
 
-// lifeEnd is the done transition's time, or now for an issue in flight.
-func lifeEnd(src timelineSources, in timelineInput) (time.Time, bool) {
-	if in.Status == "done" {
-		for i := len(src.Transitions) - 1; i >= 0; i-- {
-			if src.Transitions[i].To == "done" {
-				return src.Transitions[i].TS, false
-			}
-		}
-	}
-	return in.Now, in.Status != "done"
-}
+type lifeBand = timeline.Band
 
-// lifeBand is one status's span.
-type lifeBand struct {
-	Status string
-	From   time.Time
-	To     time.Time
-	Gated  bool // its exit needs your approval
-	Open   bool
-}
+type seg = timeline.Seg
 
-func lifeBands(src timelineSources, in timelineInput, start, end time.Time) []lifeBand {
-	rows := src.Transitions
-	if len(rows) == 0 {
-		return []lifeBand{{Status: in.Status, From: start, To: end, Gated: in.OpenGated, Open: in.Status != "done"}}
-	}
-	var bands []lifeBand
-	from := start
-	for _, r := range rows {
-		if r.TS.After(end) {
-			break
-		}
-		gated := r.ApprovedAt != nil || (in.WF != nil && in.WF.RequiredHumanApproval(r.From, r.To) != "")
-		if r.TS.After(from) || len(bands) == 0 {
-			bands = append(bands, lifeBand{Status: r.From, From: from, To: r.TS, Gated: gated})
-		}
-		from = r.TS
-	}
-	last := rows[len(rows)-1].To
-	if last != "done" {
-		bands = append(bands, lifeBand{Status: last, From: from, To: end, Gated: in.OpenGated, Open: true})
-	}
-	return bands
-}
-
-func bandAt(bands []lifeBand, t time.Time) *lifeBand {
-	for i := range bands {
-		if !t.Before(bands[i].From) && t.Before(bands[i].To) {
-			return &bands[i]
-		}
-	}
-	if len(bands) > 0 {
-		return &bands[len(bands)-1]
-	}
-	return nil
-}
-
-// activityTimes are the moments the agent was active inside the life: each
-// CLI call's end and each commit (D-5).
-func activityTimes(src timelineSources, start, end time.Time) []time.Time {
-	var ts []time.Time
-	for _, c := range src.Calls {
-		at := c.End()
-		if !at.Before(start) && !at.After(end) {
-			ts = append(ts, at)
-		}
-	}
-	for _, c := range src.Commits {
-		if !c.At.Before(start) && !c.At.After(end) {
-			ts = append(ts, c.At)
-		}
-	}
-	sort.Slice(ts, func(i, j int) bool { return ts[i].Before(ts[j]) })
-	return ts
-}
-
-func approvedTimes(rows []statRow) []time.Time {
-	var out []time.Time
-	for _, r := range rows {
-		if r.ApprovedAt != nil {
-			out = append(out, *r.ApprovedAt)
-		}
-	}
-	return out
-}
-
-// agentCallEnds are when the agent's calls ended, for tracker.OwnerWaits:
-// the per-agent log's calls, or every call when no per-agent log was found.
-func agentCallEnds(calls []cliCall) []time.Time {
-	var ends, all []time.Time
-	for _, c := range calls {
-		all = append(all, c.End())
-		if c.Agent {
-			ends = append(ends, c.End())
-		}
-	}
-	if len(ends) == 0 {
-		return all
-	}
-	return ends
-}
-
-type seg struct {
-	From, To time.Time
-	Kind     string
-}
-
-// classifyGaps splits the life at each activity and at each approval, and
-// classifies every gap: in a status only you can move on, a gap of 15 min or
-// more is waiting on you; any other gap of 15 min or more is idle; the rest
-// is agent working. The waits up to your approvals come on top, from
-// overlayWaits; splitting at the approval keeps the time after it apart.
-func classifyGaps(activity, approved []time.Time, bands []lifeBand, start, end time.Time) []seg {
-	points := append([]time.Time{start}, activity...)
-	for _, t := range approved {
-		if t.After(start) && t.Before(end) {
-			points = append(points, t)
-		}
-	}
-	points = append(points, end)
-	sort.Slice(points, func(i, j int) bool { return points[i].Before(points[j]) })
-	var segs []seg
-	add := func(a, b time.Time, kind string) {
-		if b.After(a) {
-			segs = append(segs, seg{a, b, kind})
-		}
-	}
-	for i := 0; i+1 < len(points); i++ {
-		a, b := points[i], points[i+1]
-		if !b.After(a) {
-			continue
-		}
-		switch {
-		case b.Sub(a) >= agentIdleAfter:
-			if band := bandAt(bands, a); band != nil && band.Gated {
-				add(a, b, segWaiting)
-			} else {
-				add(a, b, segIdle)
-			}
-		default:
-			add(a, b, segAgent)
-		}
-	}
-	return segs
-}
-
-// overlayWaits marks each approval wait (tracker.OwnerWaits: from the
-// agent's last call in the status to your approval, D-8 of the clilog issue)
-// as waiting on you, whatever the gap rules made of that time.
-func overlayWaits(segs []seg, waits []tracker.GateWait) []seg {
-	for _, w := range waits {
-		var out []seg
-		for _, s := range segs {
-			if !s.To.After(w.Since) || !w.ApprovedAt.After(s.From) {
-				out = append(out, s)
-				continue
-			}
-			lo, hi := maxTime(s.From, w.Since), minTime(s.To, w.ApprovedAt)
-			if lo.After(s.From) {
-				out = append(out, seg{s.From, lo, s.Kind})
-			}
-			out = append(out, seg{lo, hi, segWaiting})
-			if s.To.After(hi) {
-				out = append(out, seg{hi, s.To, s.Kind})
-			}
-		}
-		segs = out
-	}
-	return segs
-}
-
-// markRework turns the agent time inside a rework loop purple.
-func markRework(segs []seg, loops []reworkLoop) []seg {
-	for _, l := range loops {
-		var out []seg
-		for _, s := range segs {
-			if s.Kind != segAgent || !s.To.After(l.From) || !l.To.After(s.From) {
-				out = append(out, s)
-				continue
-			}
-			lo, hi := maxTime(s.From, l.From), minTime(s.To, l.To)
-			if lo.After(s.From) {
-				out = append(out, seg{s.From, lo, segAgent})
-			}
-			out = append(out, seg{lo, hi, segRework})
-			if s.To.After(hi) {
-				out = append(out, seg{hi, s.To, segAgent})
-			}
-		}
-		segs = out
-	}
-	return segs
-}
-
-func mergeSegs(segs []seg) []seg {
-	var out []seg
-	for _, s := range segs {
-		if n := len(out); n > 0 && out[n-1].Kind == s.Kind && out[n-1].To.Equal(s.From) {
-			out[n-1].To = s.To
-			continue
-		}
-		out = append(out, s)
-	}
-	return out
-}
+func bandAt(bands []lifeBand, t time.Time) *lifeBand { return timeline.BandAt(bands, t) }
 
 func kindWithin(segs []seg, kind string, from, to time.Time) time.Duration {
-	var d time.Duration
-	for _, s := range segs {
-		if s.Kind != kind {
-			continue
-		}
-		lo, hi := maxTime(s.From, from), minTime(s.To, to)
-		if hi.After(lo) {
-			d += hi.Sub(lo)
-		}
-	}
-	return d
-}
-
-// reworkLoops finds the loops (D-4): a backward transition, until the issue
-// is back in the status it left; and a failed playtest run from testing on,
-// until the next run in the same mode where the failed steps pass. Failed
-// runs before testing are the agent iterating, not rework.
-func reworkLoops(src timelineSources, wf *tracker.WorkflowConfig, end time.Time) []reworkLoop {
-	var loops []reworkLoop
-	if wf != nil {
-		rows := src.Transitions
-		for i, r := range rows {
-			fi, ti := wf.GetStatusIndex(r.From), wf.GetStatusIndex(r.To)
-			if fi < 0 || ti < 0 || ti >= fi {
-				continue
-			}
-			to := end
-			for _, later := range rows[i+1:] {
-				if later.To == r.From {
-					to = later.TS
-					break
-				}
-			}
-			loops = append(loops, reworkLoop{From: r.TS, To: to, Label: "back to " + r.To + " from " + r.From})
-		}
-	}
-	testingFrom := testingStart(src.Transitions, wf)
-	if !testingFrom.IsZero() {
-		for i, run := range src.Runs {
-			failed := run.failed()
-			if len(failed) == 0 || run.Started.Before(testingFrom) || run.Started.After(end) {
-				continue
-			}
-			to := end
-			for _, later := range src.Runs[i+1:] {
-				if later.Mode != run.Mode {
-					continue
-				}
-				all := true
-				for _, id := range failed {
-					if !later.passed(id) {
-						all = false
-					}
-				}
-				if all {
-					to = later.Started
-					break
-				}
-			}
-			who := "ux-test"
-			if run.Mode == "judge" {
-				who = "your playtest"
-			}
-			loops = append(loops, reworkLoop{From: run.Started, To: to, Label: who + " failed " + strings.Join(failed, ", ")})
-		}
-	}
-	sort.SliceStable(loops, func(i, j int) bool { return loops[i].From.Before(loops[j].From) })
-	// Overlapping windows are one loop.
-	var out []reworkLoop
-	for _, l := range loops {
-		if n := len(out); n > 0 && !l.From.After(out[n-1].To) {
-			if l.To.After(out[n-1].To) {
-				out[n-1].To = l.To
-			}
-			continue
-		}
-		out = append(out, l)
-	}
-	return out
-}
-
-// testingStart is when the issue first reached testing or a later status.
-func testingStart(rows []statRow, wf *tracker.WorkflowConfig) time.Time {
-	if wf == nil {
-		return time.Time{}
-	}
-	ti := wf.GetStatusIndex("testing")
-	if ti < 0 {
-		return time.Time{}
-	}
-	for _, r := range rows {
-		if idx := wf.GetStatusIndex(r.To); idx >= ti && r.To != "parked" {
-			return r.TS
-		}
-	}
-	return time.Time{}
+	return timeline.KindWithin(segs, kind, from, to)
 }
 
 func barSegments(segs []seg, start time.Time, total time.Duration) []barSegment {
@@ -604,7 +283,7 @@ var readCommands = map[string]bool{
 }
 
 func isReadCall(c cliCall) bool {
-	cmd := c.cmd()
+	cmd := c.Cmd()
 	if strings.HasPrefix(cmd, "-") {
 		return true // a bare --help or --version
 	}
@@ -615,7 +294,7 @@ func isReadCall(c cliCall) bool {
 }
 
 func refusedCall(c cliCall) bool {
-	return c.Exit != nil && *c.Exit != 0
+	return c.Failed()
 }
 
 func hasArg(args []string, a string) bool {
@@ -643,7 +322,7 @@ func timelineEvents(src timelineSources, in timelineInput, segs []seg, loops []r
 		}
 		evs = append(evs, e)
 	}
-	start := lifeStart(src)
+	start := timeline.LifeStart(src.core())
 
 	tag(tlEvent{At: start, Row: "event", Chip: "dispatch", Tone: "gray", Text: "Agent started", Detail: src.Prompt}, showAll, showCLI)
 
@@ -652,7 +331,7 @@ func timelineEvents(src timelineSources, in timelineInput, segs []seg, loops []r
 	// the workflow actions they ran.
 	tes := make([]TimelineEvent, len(src.Calls))
 	for i := range src.Calls {
-		tes[i] = timelineEventFromRecord(src.Calls[i].record())
+		tes[i] = timelineEventFromRecord(callRecord(src.Calls[i]))
 	}
 	tes = FillRedactedComments(tes, src.Comments)
 	tes = EnrichTimelineWithWorkflow(tes, in.WF, "")
@@ -732,7 +411,7 @@ func timelineEvents(src timelineSources, in timelineInput, segs []seg, loops []r
 		if r.Started.After(end) {
 			continue
 		}
-		failed := r.failed()
+		failed := r.Failed()
 		if r.Mode == "judge" {
 			tone, text := "green", "Your playtest: "+stepSummary(r)
 			if len(failed) > 0 {
@@ -791,7 +470,7 @@ func timelineEvents(src timelineSources, in timelineInput, segs []seg, loops []r
 		case 0:
 		case 1:
 			c := reads[0]
-			tag(tlEvent{At: c.At, Row: "event", Chip: c.cmd(), Tone: "gray", Text: cliSummary(tes[readIdx[0]], c, src), Muted: true, Mono: c.At.Local().Format("15:04:05")}, showCLI)
+			tag(tlEvent{At: c.At, Row: "event", Chip: c.Cmd(), Tone: "gray", Text: cliSummary(tes[readIdx[0]], c, src), Muted: true, Mono: c.At.Local().Format("15:04:05")}, showCLI)
 		default:
 			tag(tlEvent{At: reads[0].At, Row: "fold", Chip: "folded", Tone: "gray", Muted: true, Mono: reads[0].At.Local().Format("15:04:05"),
 				Text: fmt.Sprintf("%d reads: %s", len(reads), callNames(reads)), Folded: callLines(reads)}, showCLI)
@@ -840,7 +519,7 @@ func timelineEvents(src timelineSources, in timelineInput, segs []seg, loops []r
 
 func nextPassingRun(later []playtestRun, r playtestRun) *playtestRun {
 	for i := range later {
-		if later[i].Mode == r.Mode && later[i].Session == r.Session && len(later[i].failed()) == 0 {
+		if later[i].Mode == r.Mode && later[i].Session == r.Session && len(later[i].Failed()) == 0 {
 			return &later[i]
 		}
 	}
@@ -857,7 +536,7 @@ func stepSummary(r playtestRun) string {
 
 func cliSummary(te TimelineEvent, c cliCall, src timelineSources) string {
 	s := resolveText(te.Summary, src)
-	if c.cmd() == "check" && len(c.Args) > 2 {
+	if c.Cmd() == "check" && len(c.Args) > 2 {
 		s = "check: " + strings.Join(c.Args[2:], " ")
 	}
 	if te.FromStatus != "" {
@@ -873,7 +552,7 @@ func callNames(calls []cliCall) string {
 	count := map[string]int{}
 	var order []string
 	for _, c := range calls {
-		n := c.cmd()
+		n := c.Cmd()
 		if count[n] == 0 {
 			order = append(order, n)
 		}
@@ -900,7 +579,7 @@ func callLines(calls []cliCall) []string {
 
 // groupKind is how writes group into one line; "" never groups.
 func groupKind(c cliCall) string {
-	switch c.cmd() {
+	switch c.Cmd() {
 	case "decide":
 		return "decide"
 	case "append", "replace":
@@ -912,7 +591,7 @@ func groupKind(c cliCall) string {
 }
 
 func eventFilters(c cliCall, te TimelineEvent) []string {
-	if c.cmd() == "comment" {
+	if c.Cmd() == "comment" {
 		prefix := commentPrefix(callText(c))
 		if clilog.IsPlaceholder(callText(c)) {
 			prefix = strings.TrimPrefix(te.Kind, "comment-")
@@ -922,7 +601,7 @@ func eventFilters(c cliCall, te TimelineEvent) []string {
 			return []string{showAll, showTests}
 		}
 	}
-	if c.cmd() == "decide" {
+	if c.Cmd() == "decide" {
 		return []string{showAll, showYou}
 	}
 	return []string{showAll}
@@ -932,7 +611,7 @@ func eventFilters(c cliCall, te TimelineEvent) []string {
 func groupEvent(group []cliCall, te TimelineEvent, src timelineSources) (tlEvent, bool) {
 	c := group[0]
 	e := tlEvent{At: c.At, Row: "event", Tone: "gray"}
-	switch c.cmd() {
+	switch c.Cmd() {
 	case "decide":
 		e.Chip, e.Tone = "decide", "green"
 		var parts []string
@@ -995,7 +674,7 @@ func groupEvent(group []cliCall, te TimelineEvent, src timelineSources) (tlEvent
 	case "retrospective":
 		e.Chip, e.Text = "retro", "retrospective saved"
 	default:
-		e.Chip = c.cmd()
+		e.Chip = c.Cmd()
 		e.Text = resolveText(strings.Join(c.Args, " "), src)
 		if len(e.Text) > 140 {
 			e.Text = truncRunes(e.Text, 137) + "..."
@@ -1104,9 +783,7 @@ func fillBands(bands []lifeBand, events []tlEvent, segs []seg, show string, end 
 		}
 		tb := timelineBand{Status: b.Status, Start: b.From, End: b.To, Open: b.Open}
 		if known {
-			tb.Waiting = kindWithin(segs, segWaiting, b.From, b.To)
-			tb.Idle = kindWithin(segs, segIdle, b.From, b.To)
-			tb.Rework = kindWithin(segs, segRework, b.From, b.To)
+			tb.Working, tb.Waiting, tb.Idle, tb.Rework = b.Working, b.Waiting, b.Idle, b.Rework
 		}
 		out = append(out, tb)
 	}

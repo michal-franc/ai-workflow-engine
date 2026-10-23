@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Issue page, Timeline direction</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0e1116}
+a{color:#58a6ff}a:hover{color:#79c0ff}
+.card{background:#161b22;border:1px solid #2a313c;border-radius:10px}
+.head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:14px 18px;border-bottom:1px solid #222831}
+.head h2{margin:0;font-size:15px;color:#f0f3f6;font-weight:700}
+.body{padding:14px 18px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid;white-space:nowrap;line-height:18px}
+.chip-green{color:#56d364;background:#12261a;border-color:#23502f}
+.chip-blue{color:#58a6ff;background:#0f2134;border-color:#1f4470}
+.chip-amber{color:#e3b341;background:#2a2112;border-color:#5a4520}
+.chip-purple{color:#bc8cff;background:#221a33;border-color:#47336b}
+.chip-red{color:#ff7b72;background:#2d1517;border-color:#5f2a2c}
+.chip-gray{color:#a5aeb8;background:#1c222b;border-color:#2a313c}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.muted{color:#8b949e}
+.btn{font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:6px 12px;min-height:36px;cursor:pointer;border:1px solid #2a313c;background:#1c222b;color:#d6dde6;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
+.nav a{display:block;padding:7px 10px;border-radius:6px;color:#8b949e;text-decoration:none;font-size:14px}
+.band{border-top:1px solid #222831;padding:14px 18px}
+.bandhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.ev{display:flex;flex-wrap:wrap;gap:4px 12px;padding:6px 0 6px 18px;font-size:13.5px;line-height:1.45;border-left:2px solid #2a313c;margin-left:6px}
+.t{font-family:'JetBrains Mono',monospace;font-size:12px;color:#8b949e;flex:0 0 40px;padding-top:1px}
+.k{flex:0 0 70px}
+.wait{margin:6px 0 6px 6px;padding:8px 12px 8px 18px;border-left:2px dashed #e3b341;color:#e3b341;font-size:13px;background:#1b1810;border-radius:0 6px 6px 0}
+.seg{height:22px}
+.lg{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:#c9d1d9}
+.sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+.tabs{display:flex;flex-wrap:wrap;align-items:flex-end;gap:4px 20px;border-bottom:1px solid #2a313c}
+.tab{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 4px;margin-bottom:-1px;font-size:14.5px;font-weight:600;color:#8b949e;text-decoration:none;border-bottom:2px solid transparent}
+.tab:hover{color:#d6dde6}
+.tab-on{color:#f0f3f6;border-bottom-color:#58a6ff}
+.tab-on:hover{color:#f0f3f6}
+</style>
+</helmet>
+<div style="font-family: Archivo, system-ui, sans-serif; color: #d6dde6; background: #0e1116; min-height: 100%; display: flex; flex-wrap: wrap">
+
+<nav class="nav" aria-label="Project sidebar (existing, unchanged)" style="flex: 0 0 232px; box-sizing: border-box; padding: 20px 12px; background: #12161c; border-right: 1px solid #222831; display: flex; flex-direction: column; gap: 2px">
+<div class="muted" style="font-size: 12px; padding: 0 10px 4px">Project</div>
+<div style="color: #f0f3f6; font-weight: 700; padding: 0 10px 14px">Issue Viewer</div>
+<a href="#">Status</a><a href="#">Systems</a><a href="#">Board</a><a href="#">List</a><a href="#">Branches</a><a href="#">Decisions</a><a href="#">Docs</a><a href="#">More</a>
+<div class="muted" style="font-size: 11.5px; padding: 18px 10px 0; line-height: 1.4">Existing sidebar, unchanged</div>
+</nav>
+
+<main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 24px 28px 48px; display: flex; flex-direction: column; gap: 20px">
+
+<header style="display: flex; flex-direction: column; gap: 8px">
+<div class="mono muted" style="font-size: 12.5px"><a href="#" style="color: #8b949e">Workflow</a> / workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures</div>
+<h1 style="margin: 0; font-size: 26px; line-height: 1.25; color: #f0f3f6; font-weight: 800">Local CI: validate integrated main after every merge and report failures</h1>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center">
+<span class="chip chip-green">done</span><span class="chip chip-gray">feature</span><span class="chip chip-amber">high</span><span class="chip chip-gray">v0.53</span><span class="chip chip-gray">Workflow</span>
+<span class="muted" style="font-size: 13px; margin-left: 6px">Epic <a href="#" class="mono" style="font-size: 12px">workflow/harness-checks-the-work-ideas-from-rigone</a> · 1/1 done</span>
+</div>
+</header>
+
+<nav class="tabs" aria-label="Issue page tabs">
+<a class="tab" href="#">Issue</a>
+<a class="tab tab-on" href="#" aria-current="page">Timeline <span class="chip chip-gray">5h 0m</span></a>
+<a class="tab" href="#">Evidence <span class="chip chip-amber">0 / 10 proven</span></a>
+<span class="muted" style="font-size: 12.5px; margin-left: auto; padding-bottom: 12px">Replaces the Agent Timeline list under the issue body</span>
+</nav>
+
+<section class="card" aria-labelledby="life">
+<div class="head"><h2 id="life">Where the time went · dispatch 15:51 → done 20:52, Thu 22 Oct</h2><span class="chip chip-green">5h 0m</span></div>
+<div class="body" style="display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; flex-wrap: wrap; gap: 12px">
+<div style="flex: 1 1 200px; padding: 14px; border: 1px solid #1f4470; border-radius: 8px; background: #0f1a28"><div style="font-size: 28px; font-weight: 800; color: #58a6ff">1h 12m</div><div style="font-size: 13px; color: #c9d1d9">agent working (24%)</div></div>
+<div style="flex: 1 1 200px; padding: 14px; border: 1px solid #5a4520; border-radius: 8px; background: #1b1810"><div style="font-size: 28px; font-weight: 800; color: #e3b341">3h 48m</div><div style="font-size: 13px; color: #c9d1d9">waiting on you (76%), 3 waits</div></div>
+<div style="flex: 1 1 200px; padding: 14px; border: 1px solid #2a313c; border-radius: 8px"><div style="font-size: 28px; font-weight: 800; color: #f0f3f6">1</div><div style="font-size: 13px; color: #c9d1d9">rework loop: playtest TP5, 11m</div></div>
+<div style="flex: 1 1 200px; padding: 14px; border: 1px solid #2a313c; border-radius: 8px"><div style="font-size: 28px; font-weight: 800; color: #f0f3f6">10</div><div style="font-size: 13px; color: #c9d1d9">commits · CI green 33 s after merge</div></div>
+</div>
+<div role="img" aria-label="Life bar: idea 19 minutes agent; in design 4 minutes agent then 46 minutes waiting on you; in progress 32 minutes agent; testing 14 seconds; human-testing 2 hours 53 minutes waiting, 11 minutes rework, 9 minutes waiting; documentation 2 minutes; shipping 1 minute.">
+<div style="display: flex; border-radius: 6px; overflow: hidden; gap: 2px">
+<div class="seg" style="width: 6.4%; background: #58a6ff"></div>
+<div class="seg" style="width: 1.4%; background: #58a6ff"></div>
+<div class="seg" style="width: 15.3%; background: #e3b341"></div>
+<div class="seg" style="width: 10.8%; background: #58a6ff"></div>
+<div class="seg" style="width: 0.4%; background: #58a6ff"></div>
+<div class="seg" style="width: 57.6%; background: #e3b341"></div>
+<div class="seg" style="width: 3.7%; background: #bc8cff"></div>
+<div class="seg" style="width: 3.2%; background: #e3b341"></div>
+<div class="seg" style="width: 0.8%; background: #58a6ff"></div>
+<div class="seg" style="width: 0.5%; background: #58a6ff"></div>
+</div>
+<div style="display: flex; font-size: 11.5px; color: #8b949e; margin-top: 6px">
+<div style="width: 6.4%; overflow: hidden; white-space: nowrap">idea</div>
+<div style="width: 16.7%; overflow: hidden; white-space: nowrap">in design</div>
+<div style="width: 11.2%; overflow: hidden; white-space: nowrap">in progress</div>
+<div style="width: 64.5%; overflow: hidden; white-space: nowrap">human-testing (your playtest, TP5 rework, approval)</div>
+<div style="width: 1.3%; overflow: hidden; white-space: nowrap">docs</div>
+</div>
+<div class="mono" style="display: flex; justify-content: space-between; font-size: 11px; color: #8b949e; margin-top: 4px"><span>15:51</span><span>17:00</span><span>18:00</span><span>19:00</span><span>20:00</span><span>20:52</span></div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 16px">
+<span class="lg"><span class="sw" style="background: #58a6ff"></span>agent working</span>
+<span class="lg"><span class="sw" style="background: #e3b341"></span>waiting on you</span>
+<span class="lg"><span class="sw" style="background: #bc8cff"></span>rework after your playtest</span>
+<span class="lg muted">Gaps of 15 min or more with no CLI call show as idle</span>
+</div>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+<section class="card" aria-labelledby="stream" style="flex: 999 1 560px; min-width: 0">
+<div class="head"><h2 id="stream">Life by status</h2>
+<div role="group" aria-label="Show event kinds" style="display: flex; flex-wrap: wrap; gap: 6px">
+<button class="btn" type="button" aria-pressed="true">All</button><button class="btn" type="button" aria-pressed="false">Your actions</button><button class="btn" type="button" aria-pressed="false">Commits</button><button class="btn" type="button" aria-pressed="false">Tests and CI</button><button class="btn" type="button" aria-pressed="false">CLI calls</button>
+</div></div>
+
+<div class="band">
+<div class="bandhead"><span class="chip chip-gray">idea</span><span class="mono muted" style="font-size: 12px">15:51 → 16:10</span><span style="font-weight: 700">19m</span><span class="muted" style="font-size: 12.5px">agent and lead chat</span></div>
+<div style="margin-top: 8px">
+<div class="ev"><span class="t">15:51</span><span class="k"><span class="chip chip-gray">dispatch</span></span><span style="flex: 1 1 300px">Agent started, read the issue</span></div>
+<div class="ev"><span class="t">16:10</span><span class="k"><span class="chip chip-green">decide</span></span><span style="flex: 1 1 300px">4 decisions: D-7 "One issue, phased commits" · D-8 "Accept all three" · D-9 "mark" · D-10 "Defer to that issue"</span></div>
+</div>
+</div>
+
+<div class="band">
+<div class="bandhead"><span class="chip chip-purple">in design</span><span class="mono muted" style="font-size: 12px">16:10 → 17:01</span><span style="font-weight: 700">50m</span><span style="font-size: 12.5px; color: #e3b341">46m of it waiting on you</span></div>
+<div style="margin-top: 8px">
+<div class="ev"><span class="t">16:13</span><span class="k"><span class="chip chip-gray">section</span></span><span style="flex: 1 1 300px">Idea, Design (Approach, Dependencies, Overlap, Discoverability, Tests) and 4 new acceptance criteria</span></div>
+<div class="ev"><span class="t">16:15</span><span class="k"><span class="chip chip-gray">comment</span></span><span style="flex: 1 1 300px">"progress: design written … Waiting on owner approval: backlog or in progress."</span></div>
+<div class="wait">Waiting on you · 45m 48s · design approval</div>
+<div class="ev"><span class="t">17:00</span><span class="k"><span class="chip chip-amber">you</span></span><span style="flex: 1 1 300px">Approved → in progress <span class="muted">· no words recorded (viewer button)</span></span></div>
+</div>
+</div>
+
+<div class="band">
+<div class="bandhead"><span class="chip chip-blue">in progress</span><span class="mono muted" style="font-size: 12px">17:01 → 17:33</span><span style="font-weight: 700">32m</span><span class="muted" style="font-size: 12.5px">6 commits, built in the lead's order (D-7)</span></div>
+<div style="margin-top: 8px">
+<div class="ev"><span class="t">17:13</span><span class="k"><span class="chip chip-purple">commit</span></span><span style="flex: 1 1 300px"><span class="mono" style="font-size: 12px">11826db</span> local CI runner and issue-cli ci run/status/reset/watch</span></div>
+<div class="ev"><span class="t">17:15</span><span class="k"><span class="chip chip-purple">commit</span></span><span style="flex: 1 1 300px"><span class="mono" style="font-size: 12px">88bcea9</span> viewer starts a detached CI run when a CI branch moves</span></div>
+<div class="ev"><span class="t">17:18</span><span class="k"><span class="chip chip-purple">commit</span></span><span style="flex: 1 1 300px"><span class="mono" style="font-size: 12px">25526c7</span> Status page, status.md, sidebar count and ci-red markers</span></div>
+<div class="ev"><span class="t">17:22</span><span class="k"><span class="chip chip-purple">commit</span></span><span style="flex: 1 1 300px"><span class="mono" style="font-size: 12px">bf643e6</span> agents and the lead see local CI; turn it on here</span></div>
+<details class="ev" style="display: block"><summary style="cursor: pointer; color: #58a6ff; font-size: 13px">+3 more: 263d989, Implementation and Test Plan written, 5c5f6b1 playtest session</summary></details>
+</div>
+</div>
+
+<div class="band">
+<div class="bandhead"><span class="chip chip-blue">testing</span><span class="mono muted" style="font-size: 12px">17:33</span><span style="font-weight: 700">14s</span></div>
+<div style="margin-top: 8px">
+<div class="ev"><span class="t">17:33</span><span class="k"><span class="chip chip-green">tests</span></span><span style="flex: 1 1 300px">make validate green at <span class="mono" style="font-size: 12px">5c5f6b1</span>, issue-cli coverage 84.9%, ux-test TP4–TP7 pass with REPEAT=2, sandbox run end to end</span></div>
+</div>
+</div>
+
+<div class="band">
+<div class="bandhead"><span class="chip chip-amber">human-testing</span><span class="mono muted" style="font-size: 12px">17:33 → 20:48</span><span style="font-weight: 700">3h 14m</span><span style="font-size: 12.5px; color: #e3b341">3h 3m waiting on you · 11m rework</span></div>
+<div style="margin-top: 8px">
+<div class="ev"><span class="t">17:33</span><span class="k"><span class="chip chip-gray">comment</span></span><span style="flex: 1 1 300px">"Owner: make playtest ISSUE=…, playtest-report APPLY=1, the TP8 sandbox steps, then approve documentation."</span></div>
+<div class="wait">Waiting on you · 2h 53m · your playtest</div>
+<div style="margin: 6px 0 6px 6px; padding: 10px 12px; border: 1px solid #47336b; border-radius: 8px; background: #19142a">
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 6px"><span class="chip chip-purple">rework loop</span><span class="mono muted" style="font-size: 12px">20:27 → 20:38 · 11m</span></div>
+<div class="ev" style="border-left-color: #47336b"><span class="t">20:31</span><span class="k"><span class="chip chip-purple">commit</span></span><span style="flex: 1 1 260px"><span class="mono" style="font-size: 12px">af4e2da</span> Last runs boxes on the Local CI card; playtest merges in setup</span></div>
+<div class="ev" style="border-left-color: #47336b"><span class="t">20:38</span><span class="k"><span class="chip chip-red">playtest</span></span><span style="flex: 1 1 260px">TP5 FAIL: you passed it, 10 machine checks failed (CI stayed green; the breaking merge sat under act:, which judge mode skips). TP4, TP6, TP7 ticked.</span></div>
+</div>
+<div class="wait">Waiting on you · 9m 27s · approval</div>
+<div class="ev"><span class="t">20:47</span><span class="k"><span class="chip chip-amber">you</span></span><span style="flex: 1 1 300px">Approved → documentation <span class="muted">· no words recorded (viewer button)</span></span></div>
+</div>
+</div>
+
+<div class="band">
+<div class="bandhead"><span class="chip chip-gray">documentation · shipping</span><span class="mono muted" style="font-size: 12px">20:48 → 20:52</span><span style="font-weight: 700">4m</span></div>
+<div style="margin-top: 8px">
+<div class="ev"><span class="t">20:50</span><span class="k"><span class="chip chip-purple">commit</span></span><span style="flex: 1 1 300px"><span class="mono" style="font-size: 12px">af98949</span> docs: local CI · 7 docs pages and CLAUDE.md</span></div>
+<div class="ev"><span class="t">20:51</span><span class="k"><span class="chip chip-purple">commit</span></span><span style="flex: 1 1 300px"><span class="mono" style="font-size: 12px">d89c1b3</span> changelog: local CI · main fast-forwarded, not pushed</span></div>
+<div class="ev"><span class="t">20:52</span><span class="k"><span class="chip chip-green">done</span></span><span style="flex: 1 1 300px">shipping → done</span></div>
+</div>
+</div>
+
+<div class="band">
+<div class="bandhead"><span class="chip chip-green">after done</span></div>
+<div style="margin-top: 8px">
+<div class="ev"><span class="t">20:59</span><span class="k"><span class="chip chip-green">CI</span></span><span style="flex: 1 1 300px">Local CI on main at <span class="mono" style="font-size: 12px">d89c1b3</span>: green, make validate, 33 s. First run that contains this issue.</span></div>
+<div class="ev"><span class="t" style="flex-basis: 40px">20:54</span><span class="k"><span class="chip chip-gray">folded</span></span><span class="muted" style="flex: 1 1 300px">63 reads (show, checklist --json) until 23:43, nothing changed</span></div>
+</div>
+</div>
+</section>
+
+<aside style="flex: 1 1 320px; max-width: 100%; display: flex; flex-direction: column; gap: 20px">
+<section class="card" aria-labelledby="waits">
+<div class="head"><h2 id="waits">Your part</h2><span class="chip chip-amber">3h 48m</span></div>
+<div class="body" style="display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; line-height: 1.45">
+<div><div style="display: flex; justify-content: space-between"><span>Design approval</span><span class="mono" style="font-size: 12px">45m 48s</span></div><div style="height: 6px; border-radius: 3px; background: #2a313c; margin-top: 4px; overflow: hidden"><div style="width: 20%; height: 100%; background: #e3b341"></div></div></div>
+<div><div style="display: flex; justify-content: space-between"><span>Playtest (TP5 failed)</span><span class="mono" style="font-size: 12px">2h 53m</span></div><div style="height: 6px; border-radius: 3px; background: #2a313c; margin-top: 4px; overflow: hidden"><div style="width: 76%; height: 100%; background: #e3b341"></div></div></div>
+<div><div style="display: flex; justify-content: space-between"><span>Docs approval after rework</span><span class="mono" style="font-size: 12px">9m 27s</span></div><div style="height: 6px; border-radius: 3px; background: #2a313c; margin-top: 4px; overflow: hidden"><div style="width: 4%; height: 100%; background: #e3b341"></div></div></div>
+<p class="muted" style="margin: 0; font-size: 12.5px">Wait = from the agent's "Waiting on" comment to your approval (stats approved_at).</p>
+</div>
+</section>
+
+<section class="card" aria-labelledby="words">
+<div class="head"><h2 id="words">Your words</h2><span class="chip chip-gray">1 of 3 moments</span></div>
+<div class="body" style="display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; line-height: 1.5">
+<div><span class="mono" style="font-size: 12px; color: #f0f3f6">D-1</span> <span class="muted">lead chat</span><div style="color: #f0f3f6; margin-top: 2px">"it feels like we should have local ci to test integrated changes and let the systme know about issues"</div></div>
+<div class="muted">17:00 approve → in progress: [no words recorded]</div>
+<div class="muted">20:47 approve → documentation: [no words recorded]</div>
+</div>
+</section>
+
+<section class="card" aria-labelledby="open">
+<div class="head"><h2 id="open">Left open at done</h2><span class="chip chip-amber">13 boxes</span></div>
+<div class="body" style="font-size: 13.5px; line-height: 1.5; display: flex; flex-direction: column; gap: 6px">
+<div>Acceptance criteria <span class="chip chip-amber">0 / 10 ticked</span></div>
+<div>TP5 merge breaks main → red <span class="chip chip-red">failed</span></div>
+<div>Sandbox, terminal-only box <span class="chip chip-gray">unticked</span></div>
+<div>Human Testing <span class="chip chip-gray">unticked</span></div>
+</div>
+</section>
+
+
+<section class="card" aria-labelledby="ci">
+<div class="head"><h2 id="ci">CI after merge</h2><span class="chip chip-green">green</span></div>
+<div class="body" style="font-size: 13.5px; line-height: 1.5">
+<div><span class="mono" style="font-size: 12px">d89c1b3</span> · make validate · 33 s · 20:59</div>
+<div class="muted" style="font-size: 12.5px">Main has stayed green since: 19 runs recorded, all green.</div>
+</div>
+</section>
+</aside>
+</div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2350}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Issue page ideas</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0e1116}
+a{color:#58a6ff}a:hover{color:#79c0ff}
+.card{background:#161b22;border:1px solid #2a313c;border-radius:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid;white-space:nowrap;line-height:18px}
+.chip-green{color:#56d364;background:#12261a;border-color:#23502f}
+.chip-blue{color:#58a6ff;background:#0f2134;border-color:#1f4470}
+.chip-amber{color:#e3b341;background:#2a2112;border-color:#5a4520}
+.chip-purple{color:#bc8cff;background:#221a33;border-color:#47336b}
+.chip-red{color:#ff7b72;background:#2d1517;border-color:#5f2a2c}
+.chip-gray{color:#a5aeb8;background:#1c222b;border-color:#2a313c}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.muted{color:#8b949e}
+.idea{display:flex;flex-wrap:wrap;gap:12px 18px;padding:16px 20px;border-top:1px solid #222831}
+.idea p{margin:4px 0 0;font-size:14px;line-height:1.5;color:#c9d1d9}
+.num{font-family:'JetBrains Mono',monospace;font-size:13px;color:#8b949e;width:28px;padding-top:2px}
+.iname{font-size:16px;font-weight:700;color:#f0f3f6;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.meta{flex:1 1 240px;max-width:300px;display:flex;flex-direction:column;gap:6px;font-size:12.5px;line-height:1.45;color:#a5aeb8}
+.src b{font-weight:600}
+.ex{color:#56d364;font-weight:700}.nw{color:#e3b341;font-weight:700}.pt{color:#58a6ff;font-weight:700}
+.ghead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:16px 20px}
+.ghead h2{margin:0;font-size:18px;color:#f0f3f6}
+.side h3{margin:0 0 10px;font-size:15px;color:#f0f3f6}
+.side li{margin:0 0 8px}
+</style>
+</helmet>
+<div style="font-family: Archivo, system-ui, sans-serif; color: #d6dde6; background: #0e1116; min-height: 100%; padding: 40px 32px 64px; box-sizing: border-box">
+<div style="max-width: 1376px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px">
+
+<header style="display: flex; flex-direction: column; gap: 10px">
+<div class="mono muted" style="font-size: 13px">AI Workflow Engine · issue detail view · design exploration · 22 Oct 2026</div>
+<h1 style="margin: 0; font-size: 40px; line-height: 1.1; color: #f0f3f6; font-weight: 800">The issue page: 30 ideas to make it worth opening</h1>
+<p style="margin: 0; max-width: 900px; font-size: 16px; line-height: 1.55; color: #c9d1d9">The owner opens an issue when an agent asks for an approval or a playtest, and rarely reads it. Today the page is the raw markdown (design, criteria, a checklist per status, comments, decisions) plus a sidebar. These ideas aim at one test: in 10 seconds, what is this, where is it, what does it need from me, what changed, and where did the time go.</p>
+<blockquote style="margin: 4px 0 0; padding: 12px 16px; background: #161b22; border: 1px solid #2a313c; border-radius: 10px; max-width: 900px; font-size: 14px; line-height: 1.5; color: #c9d1d9">Owner: "i am not reading issues that often so we need to figure out how to make them useful again"</blockquote>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px">
+<span class="chip chip-green">Top pick</span><span class="muted">best 8</span>
+<span class="chip chip-gray">Effort S</span><span class="chip chip-gray">M</span><span class="chip chip-gray">L</span><span class="muted">S = template + existing data, M = new loader or panel, L = new recording</span>
+<span><span class="ex">exists</span> <span class="muted">data the engine has</span></span>
+<span><span class="pt">partial</span> <span class="muted">has it, not linked</span></span>
+<span><span class="nw">new</span> <span class="muted">not recorded yet</span></span>
+</div>
+</header>
+
+<section class="card" aria-labelledby="top8" style="padding: 20px">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 14px">
+<h2 id="top8" style="margin: 0; font-size: 18px; color: #f0f3f6">Top picks · 7</h2>
+<span class="muted" style="font-size: 13px">Mockups A, B and C each build on several of these</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px">
+<a href="#i1" style="text-decoration: none; display: block; padding: 14px; border: 1px solid #2a313c; border-radius: 8px; background: #0e1116"><span class="mono muted" style="font-size: 12px">01 · Summary</span><div style="color: #f0f3f6; font-weight: 700; margin-top: 4px">Needs-you bar</div><div class="muted" style="font-size: 13px; margin-top: 4px">The exact action, its command and the button, on top</div></a>
+<a href="#i4" style="text-decoration: none; display: block; padding: 14px; border: 1px solid #2a313c; border-radius: 8px; background: #0e1116"><span class="mono muted" style="font-size: 12px">04 · Summary</span><div style="color: #f0f3f6; font-weight: 700; margin-top: 4px">What you're approving</div><div class="muted" style="font-size: 13px; margin-top: 4px">Everything done since the last gate, on one card</div></a>
+<a href="#i6" style="text-decoration: none; display: block; padding: 14px; border: 1px solid #2a313c; border-radius: 8px; background: #0e1116"><span class="mono muted" style="font-size: 12px">06 · Timeline</span><div style="color: #f0f3f6; font-weight: 700; margin-top: 4px">Life bands: where time went</div><div class="muted" style="font-size: 13px; margin-top: 4px">Agent working vs waiting on you, per status</div></a>
+<a href="#i11" style="text-decoration: none; display: block; padding: 14px; border: 1px solid #2a313c; border-radius: 8px; background: #0e1116"><span class="mono muted" style="font-size: 12px">11 · Decisions</span><div style="color: #f0f3f6; font-weight: 700; margin-top: 4px">Decisions in your words</div><div class="muted" style="font-size: 13px; margin-top: 4px">D-n cards led by your quote</div></a>
+<a href="#i15" style="text-decoration: none; display: block; padding: 14px; border: 1px solid #2a313c; border-radius: 8px; background: #0e1116"><span class="mono muted" style="font-size: 12px">15 · Evidence</span><div style="color: #f0f3f6; font-weight: 700; margin-top: 4px">Screenshot hero and gallery</div><div class="muted" style="font-size: 13px; margin-top: 4px">Playtest shots and before/after up front</div></a>
+<a href="#i16" style="text-decoration: none; display: block; padding: 14px; border: 1px solid #2a313c; border-radius: 8px; background: #0e1116"><span class="mono muted" style="font-size: 12px">16 · Evidence</span><div style="color: #f0f3f6; font-weight: 700; margin-top: 4px">Criterion → proof matrix</div><div class="muted" style="font-size: 13px; margin-top: 4px">Each AC linked to test, step, shot, CI, commit</div></a>
+<a href="#i29" style="text-decoration: none; display: block; padding: 14px; border: 1px solid #2a313c; border-radius: 8px; background: #0e1116"><span class="mono muted" style="font-size: 12px">29 · Reading less</span><div style="color: #f0f3f6; font-weight: 700; margin-top: 4px">Fold the body</div><div class="muted" style="font-size: 13px; margin-top: 4px">Done gates as one line, long sections to a lead</div></a>
+</div>
+</section>
+
+<div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+<div style="flex: 999 1 640px; min-width: 0; display: flex; flex-direction: column; gap: 20px">
+
+<section class="card" aria-labelledby="g1">
+<div class="ghead"><h2 id="g1">1 · Summary and what needs me</h2><span class="chip chip-gray">5 ideas</span></div>
+<div class="idea" id="i1"><div class="num">01</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Needs-you bar <span class="chip chip-green">Top pick</span></div><p>A band at the top that states the one thing the issue needs from you, in words and as a command: "Approve design → in progress", "Run make playtest ISSUE=… then approve documentation", "Answer question 2". The button is right there, and the agent's wait time ticks next to it. Same item and wording as the Status page's Needs you card, so both pages agree.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> attention.go ownerAttention, NeedsApprovals, playtestsToRun, open question: comments</div></div></div>
+<div class="idea" id="i2"><div class="num">02</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">One-line brief</div><p>"What this is" in one sentence, next to your original words. Agents already write it: the "In short" line of ## Idea, the first line of ## Bug, and the "Owner, 2026-10-22: …" quote in ## Why. Lift those to the header instead of leaving them 300 lines down.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> body sections · <span class="nw">new</span> optional summary: field set at the design gate</div></div></div>
+<div class="idea" id="i3"><div class="num">03</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Path stepper with inner checkpoints</div><p>The type's path (feature 9 steps, bugfix 7) with the current step, time in each and the gates you own. Owner approvals inside one status show as ticks too: the RogueTech boss had two (draft approved D-12, destruction approved D-13) during in progress, invisible today.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> workflow.yaml types path, stats transitions ts, D-n dates</div></div></div>
+<div class="idea" id="i4"><div class="num">04</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">What you're approving <span class="chip chip-green">Top pick</span></div><p>At a gate, one card lists what happened since the previous gate: sections written, boxes ticked, decisions taken, commits, scope added. Project status pages at its design gate: Idea, Design and Mockups written, D-2 to D-5 recorded, 10 boxes ticked, plus an unasked-for Origin: null guard. You approve the delta, not the whole file.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort M</span><div class="src"><span class="ex">exists</span> clilog append / check / decide between two transitions, git log on work/&lt;slug&gt;</div></div></div>
+<div class="idea" id="i5"><div class="num">05</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Health chips in the header</div><p>The same chips the board and Status already compute: ci-red, needs revision, blocked on, open question, agent stopped. On the issue page they sit beside the title, so a red merge or a stuck agent is the first thing you see.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> markers.go cardMarkers, ciMarkers, blockedOn, needsRevision</div></div></div>
+</section>
+
+<section class="card" aria-labelledby="g2">
+<div class="ghead"><h2 id="g2">2 · Timeline and where time went</h2><span class="chip chip-gray">5 ideas</span></div>
+<div class="idea" id="i6"><div class="num">06</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Life bands: where time went <span class="chip chip-green">Top pick</span></div><p>One bar for the issue's life, cut by status, each band split into agent working, waiting on you and idle. Local CI took 5h 0m; about 3h 48m of that was waiting on you (approval of the design, then the playtest). That one number changes how you schedule your reviews.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort M</span><div class="src"><span class="ex">exists</span> stats ts + approved_at, "Waiting on" progress comments, clilog gaps (15 min with no CLI call = idle; no heartbeat, dropped)</div></div></div>
+<div class="idea" id="i7"><div class="num">07</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">One stream, every source</div><p>The agent timeline today shows issue-cli calls only. Merge in comments, commits, local CI runs, playtest results and approvals, with kind filters. Commits are the moments you care about most and are missing now.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort M</span><div class="src"><span class="ex">exists</span> agent_timeline.go, comments, git log work/&lt;slug&gt;, .ci/runs/*.json, playtest: comments</div></div></div>
+<div class="idea" id="i8"><div class="num">08</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Fold the noise</div><p>Collapse repeated reads into one line: "63 checklist reads after done, 21:06–23:43" (local CI), "show every minute while waiting" (status pages, bind). The timeline shrinks to the 20 events that changed something.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> clilog, read-only verbs (show, checklist, context, --dry-run)</div></div></div>
+<div class="idea" id="i9"><div class="num">09</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Rework loops called out</div><p>Mark each bounce: a playtest FAIL, a correction: comment, a needs-revision, an owner "redo". Local CI's TP5 failed in your playtest, the agent added Last runs boxes and fixed the session; the loop shows as one amber bracket with its cost (11 min agent, 9 min you).</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> playtest: / correction: comments, backward transitions, needs-revision marker</div></div></div>
+<div class="idea" id="i10"><div class="num">10</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Owner-wait stopwatch</div><p>A running clock on the Needs-you bar ("waiting on you 45 m") and a per-issue total in the header. The CLI config bug waited 26 min for its in-progress approval; status pages waited 5 min. Totals roll up to Status and Stats.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> "Waiting on" progress comment ts → stats approved_at</div></div></div>
+</section>
+
+<section class="card" aria-labelledby="g3">
+<div class="ghead"><h2 id="g3">3 · Decisions and questions</h2><span class="chip chip-gray">4 ideas</span></div>
+<div class="idea" id="i11"><div class="num">11</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Decisions in your words <span class="chip chip-green">Top pick</span></div><p>D-n as cards led by your quote ("i want it now! i mean we need to build it :D and release"), then the rule, where it was said (lead chat, agent chat) and the sections that cite it. The boss issue's Design headings cite D-1 to D-8; link both ways.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> ## Decisions D-n lines (issue-cli decisions), #slug#D-n citations</div></div></div>
+<div class="idea" id="i12"><div class="num">12</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">"You took the recommendation" mark</div><p>Many quotes are just the option label: "Page dirs only (Recommended)", "(a) Tall + climbing (Recommended)". Mark those as accepted defaults and keep your own calls bold. Status pages: 4 of 5 decisions were the agent's recommendation.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> decision quote text</div></div></div>
+<div class="idea" id="i13"><div class="num">13</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Stale questions sweep</div><p>Show open vs answered questions, and flag body text still asking what a decision settled. The boss issue's Human Input still reads "Open (asked in chat, waiting for the owner): which mockup variant" after D-9 answered it. Wipe Manager's upward map has 8 question: comments.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> question: comments, openQuestion(), "Open" lists in body · <span class="nw">new</span> answer link from D-n to question</div></div></div>
+<div class="idea" id="i14"><div class="num">14</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Scope ledger</div><p>Out of scope, deferred-to and split-out-of, as linked rows with the target's status. Local CI's D-10 deferred the release gate to ui/status-page-shows-what-waits-to-be-released; the boss was split out of campaign-goal-retake-lost-earth #D-10.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort M</span><div class="src"><span class="pt">partial</span> ## Out of scope, #slug links in body and decisions</div></div></div>
+</section>
+
+<section class="card" aria-labelledby="g4">
+<div class="ghead"><h2 id="g4">4 · Evidence: shots, tests, CI, playtests, diff</h2><span class="chip chip-gray">6 ideas</span></div>
+<div class="idea" id="i15"><div class="num">15</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Screenshot hero and gallery <span class="chip chip-green">Top pick</span></div><p>For game issues the proof is a picture. Collect images from the body (![…] links), comments ("path in a comment"), playtest runs, the worktree's screenshots/ folder and mockup artifacts; show the best one as a hero and the rest as a strip, before/after pairs side by side, each tagged with the step it proves (MV1, TP3).</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort M</span><div class="src"><span class="ex">exists</span> body image links, /p/&lt;p&gt;/files/, .playtest/runs · <span class="pt">partial</span> screenshots/ in worktrees · <span class="nw">new</span> a proves: tag per image</div></div></div>
+<div class="idea" id="i16"><div class="num">16</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Criterion → proof matrix <span class="chip chip-green">Top pick</span></div><p>One row per acceptance criterion with its proof: test names, playtest step and shot, CI run, commit, the measured number. Unproven rows are amber. The boss's "alpha ≥ 1.8× the Hierophant's" row shows "690 vs 380 (1.82×), LostEarthBossTests".</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort M–L</span><div class="src"><span class="ex">exists</span> checklist ids, tests: comments, Test Plan, session step ids · <span class="nw">new</span> AC id on tests and session steps</div></div></div>
+<div class="idea" id="i17"><div class="num">17</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Unticked criteria warning</div><p>A done issue whose criteria were never ticked gets a banner and a lint. Project status pages shipped with 0 of 7 ACs ticked. The boss ticked the template placeholder "(list what done looks like…)" and wrote its 8 real criteria as plain bullets.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> checklist, template placeholder text</div></div></div>
+<div class="idea" id="i18"><div class="num">18</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Playtest verdict panel</div><p>Steps with your verdict and the machine's, side by side. Local CI TP5: you passed it, 10 machine checks failed. The boss: you confirmed in chat, the playtest-report was not applied, the agent ticked MV1/MV2. Say which happened.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort M</span><div class="src"><span class="ex">exists</span> playtest/sessions/*.yaml, playtest: comments · <span class="pt">partial</span> .playtest/runs (not per step)</div></div></div>
+<div class="idea" id="i19"><div class="num">19</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">CI after the merge</div><p>The first local CI run on main that contains this issue: result, duration, failing tests, and blame if red. Bind-to-localhost: 14b8f6c green in 36 s. Local CI: its own changelog commit d89c1b3 green in 33 s.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> .ci/runs/&lt;sha&gt;.json, .ci/state.json, ci blame</div></div></div>
+<div class="idea" id="i20"><div class="num">20</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Change summary</div><p>Commits grouped by step with subjects, files by area, lines added and removed, a link to the branch diff. The boss: 12 commits, 43 files, +2249 −65; bind: 1 commit, 8 files, +174 −18. Size at a glance tells you how hard to look.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort M</span><div class="src"><span class="ex">exists</span> git work/&lt;slug&gt;, merge commit on main</div></div></div>
+</section>
+
+<section class="card" aria-labelledby="g5">
+<div class="ghead"><h2 id="g5">5 · Navigation and relations</h2><span class="chip chip-gray">3 ideas</span></div>
+<div class="idea" id="i21"><div class="num">21</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Epic context bar</div><p>The parent epic with its progress bar, sibling pills by status and previous/next sibling. Answers "what else is in flight around this" without opening the epic. Works for parent: and the legacy umbrella:.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> parent / umbrella, epicProgress()</div></div></div>
+<div class="idea" id="i22"><div class="num">22</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Relations card</div><p>Depends on, depended on by, decided by (#slug#D-n), and hot files shared with other live branches, each with a state chip. One card in the side column instead of four sidebar rows.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> depends_on, decided-by rows, hot files (branch scan)</div></div></div>
+<div class="idea" id="i23"><div class="num">23</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Origin and follow-ups</div><p>Where the issue came from (your words in lead chat, a triage, report-bug, a retro) and what it spawned. Every issue-viewer issue opens with "Owner, 2026-10-22: …"; RogueTech epics keep a hand-written ## Children list that drifts.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort M</span><div class="src"><span class="pt">partial</span> ## Why quote, #slug links · <span class="nw">new</span> origin: field</div></div></div>
+</section>
+
+<section class="card" aria-labelledby="g6">
+<div class="ghead"><h2 id="g6">6 · Agent and cost</h2><span class="chip chip-gray">4 ideas</span></div>
+<div class="idea" id="i24"><div class="num">24</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Agent card</div><p>Who works it, working / waiting / idle / stopped, last call and what it was, Open in tmux, the dispatch prompt. The facts exist; today they are spread over the sidebar and the timeline.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> agent_state.go workerState, lastCliCall, tmux, /dispatch-prompt</div></div></div>
+<div class="idea" id="i25"><div class="num">25</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Token cost per status</div><p>A small bar per status from the stats sidecar: local CI 56,722, the boss 50,421, bind 12,428 estimated prompt tokens. actual_tokens is null in every sidecar, so the card says "estimate" until real usage is recorded.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> &lt;issue&gt;.stats.json static + dynamic · <span class="nw">new</span> actual_tokens</div></div></div>
+<div class="idea" id="i26"><div class="num">26</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Retro lines <span class="chip chip-red">Dropped</span></div><p>The friction lines from retros/ for this issue, one each. Status pages: "The Artifact Design type says never screenshot, while the UI workflow requires shots.py screenshots; the project rule won." Small, and it is where agents tell you what hurt.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> retros/&lt;ts&gt;-&lt;slug&gt;.md</div></div></div>
+<div class="idea" id="i27"><div class="num">27</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Friction signals</div><p>Gate refusals, dry-runs before a transition, repeated checklist reads, retries. A count per status hints where the workflow fights the agent. Needs the clilog to record each call's exit code.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort M</span><div class="src"><span class="pt">partial</span> clilog args + ts · <span class="nw">new</span> exit code and refusal reason per call</div></div></div>
+</section>
+
+<section class="card" aria-labelledby="g7">
+<div class="ghead"><h2 id="g7">7 · Reading less</h2><span class="chip chip-gray">3 ideas</span></div>
+<div class="idea" id="i28"><div class="num">28</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Since your last visit <span class="chip chip-red">Dropped</span></div><p>Remember when you last opened the issue (or last approved it) and show only what changed: new comments, decisions, ticked boxes, commits, status moves, each with a "new" dot. "Nothing new" folds the card. Mockup D shows the phone version.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort M</span><div class="src"><span class="nw">new</span> last-seen per owner and issue (server side, so the phone agrees) · <span class="ex">exists</span> last approval time as a fallback</div></div></div>
+<div class="idea" id="i29"><div class="num">29</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">Fold the body <span class="chip chip-green">Top pick</span></div><p>Finished gate checklists become one line ("Testing 7/7"), long sections show their first paragraph, comments fold with "+K more" as on Status. The body stays the source of truth, one click away. Wipe Manager issues reach 11,000 words and 126 comments.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S</span><div class="src"><span class="ex">exists</span> body sections, checkbox ids, gate section names from workflow.yaml</div></div></div>
+<div class="idea" id="i30"><div class="num">30</div><div style="flex: 999 1 380px; min-width: 0"><div class="iname">The brief travels</div><p>The same 10-second brief (ideas 1, 2, 4) at /issue/&lt;slug&gt;.md, in the approval notification and as the Status Needs-you row's hover. You decide from the notification and open the page only when you want to.</p></div><div class="meta"><span class="chip chip-gray" style="align-self: flex-start">Effort S–M</span><div class="src"><span class="ex">exists</span> /status.md pattern, tmux notification · reuse of 1, 2, 4</div></div></div>
+</section>
+
+</div>
+
+<aside class="side" style="flex: 1 1 320px; max-width: 100%; display: flex; flex-direction: column; gap: 20px; font-size: 13.5px; line-height: 1.5">
+<section class="card" style="padding: 18px">
+<h3>Grounded in 9 real issues</h3>
+<ul style="margin: 0; padding-left: 18px">
+<li><span class="mono" style="font-size: 12px">workflow/local-ci-…</span> feature, done, 5h 0m, D-1/D-7..D-10, playtest TP5 fail</li>
+<li><span class="mono" style="font-size: 12px">ui/project-status-pages-…</span> feature, done, 1h 49m, 5 decisions, 0/7 ACs ticked</li>
+<li><span class="mono" style="font-size: 12px">api/bind-to-localhost-…</span> critical bugfix, done in 10 min</li>
+<li><span class="mono" style="font-size: 12px">cli/issue-cli-finds-the-projects-config-…</span> bugfix, done 23:51 with 3 steps left for you</li>
+<li>RogueTech <span class="mono" style="font-size: 12px">campaign/eldritch-boss-unit-…</span> feature, 13 decisions, 12 commits, screenshots in the worktree</li>
+<li>RogueTech <span class="mono" style="font-size: 12px">map/battle-map-generation</span> epic, concept art inline, hand-kept Children</li>
+<li>RogueTech <span class="mono" style="font-size: 12px">ui/enemy-3d-sessions-fail-top-bar-off-screen</span> bugfix</li>
+<li>Wipe Manager <span class="mono" style="font-size: 12px">map/the-siege-goes-upward-…</span> 11,567 words, 12 images, 47 comments</li>
+<li>Wipe Manager <span class="mono" style="font-size: 12px">sim/three-lane-siege-experiment-umbrella</span> 126 comments</li>
+</ul>
+</section>
+<section class="card" style="padding: 18px">
+<h3>What the real issues taught us</h3>
+<ul style="margin: 0; padding-left: 18px">
+<li><b style="color: #f0f3f6">The useful parts are scattered.</b> Owner quote at the top, decisions in the middle, the proof in comments, the result in the last 30 lines.</li>
+<li><b style="color: #f0f3f6">Gate checklists are most of the noise.</b> The boss has 45 ticked boxes; only 2 (MV1, MV2) are about the boss, the other 43 are template gates.</li>
+<li><b style="color: #f0f3f6">Pictures live outside the page.</b> 9 of ~1000 RogueTech issues embed an image; the boss's destruction shots sit in screenshots/ in its worktree, unlinked.</li>
+<li><b style="color: #f0f3f6">Comments carry the story.</b> Prefixes beyond the standard ones appear: approval:, probe:, baseline:, correction:, review:, shipped:.</li>
+<li><b style="color: #f0f3f6">Owner checkpoints hide inside statuses.</b> RogueTech's pipeline approvals (draft, destruction) never show as gates.</li>
+<li><b style="color: #f0f3f6">Body text goes stale.</b> "Owner pick: pending" and "Open … waiting for the owner" stay after the answer.</li>
+</ul>
+</section>
+<section class="card" style="padding: 18px">
+<h3>Not recorded yet</h3>
+<ul style="margin: 0; padding-left: 18px">
+<li>Exit code and refusal reason in the clilog (27)</li>
+<li>actual_tokens: null in every stats sidecar (25)</li>
+<li>Which test / step / image proves which AC (15, 16)</li>
+<li>Per-step playtest results as data, not a comment (18)</li>
+<li>Your words at an approval given with the viewer button: issue-cli approve --quote and decide record them, the button does not (1, 11)</li>
+<li>done_at in frontmatter (only the stats ts)</li>
+</ul>
+</section>
+<section class="card" style="padding: 18px">
+<h3>The mockups</h3>
+<ul style="margin: 0; padding-left: 18px">
+<li><b style="color: #f0f3f6">A · Brief</b> ideas 1–5, 11, 12, 29</li>
+<li><b style="color: #f0f3f6">B · Timeline tab</b> ideas 6–10, 18, 19, 25</li>
+<li><b style="color: #f0f3f6">C · Evidence tab</b> ideas 3, 13, 15–17, 20</li>
+<li><b style="color: #f0f3f6">D · Phone</b> ideas 1, 10</li>
+</ul>
+<p class="muted" style="margin: 10px 0 0">All four use the Status page grid: wide main column, 320 px side column, cards with a title and a state chip, "+K more" folds.</p>
+</section>
+</aside>
+</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":4300}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

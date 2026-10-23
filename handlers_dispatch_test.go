@@ -847,6 +847,8 @@ func TestEnsureWorktree_SetupSkippedOnReuse(t *testing.T) {
 
 // isolateTmux points tmux at a private server for the test so it never
 // touches the developer's real sessions, and kills that server afterwards.
+// Agents start in $SHELL as a login shell; /bin/sh keeps the developer's
+// shell profile out of it.
 func isolateTmux(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("tmux"); err != nil {
@@ -854,6 +856,7 @@ func isolateTmux(t *testing.T) {
 	}
 	t.Setenv("TMUX", "")
 	t.Setenv("TMUX_TMPDIR", t.TempDir())
+	t.Setenv("SHELL", "/bin/sh")
 	t.Cleanup(func() { _ = exec.Command("tmux", "kill-server").Run() })
 }
 
@@ -911,9 +914,9 @@ func activeWindow(t *testing.T, session string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// With terminal: none a dispatch never changes what the shared session shows:
-// the lead's window stays selected while workers' windows are added and
-// re-dispatched (D-4). A project with a terminal still selects the new window.
+// A dispatch never changes what the shared session shows: the lead's window
+// stays selected while workers' windows are added and re-dispatched, with
+// terminal: none (D-4) and with a terminal configured.
 func TestStartAgentSession_SharedHeadlessKeepsLeadFocused(t *testing.T) {
 	isolateTmux(t)
 	proj := &tracker.Project{Slug: "test", Terminal: "none", TmuxSession: "work", WorkDir: t.TempDir()}
@@ -946,8 +949,8 @@ func TestStartAgentSession_SharedHeadlessKeepsLeadFocused(t *testing.T) {
 	if resp := startAgentSession(withTerminal, "agent-c", "prompt", "c", "true", "", nil); resp.Status == "error" || resp.SwitchCmd != "" {
 		t.Fatalf("dispatch with a terminal: status %q, switch %q; steps=%+v", resp.Status, resp.SwitchCmd, resp.Steps)
 	}
-	if got := activeWindow(t, "work"); got != "agent-c" {
-		t.Fatalf("with a terminal the new window is selected as before; active = %q", got)
+	if got := activeWindow(t, "work"); got != "lead-test" {
+		t.Fatalf("with a terminal the lead's window stays selected too; active = %q", got)
 	}
 }
 

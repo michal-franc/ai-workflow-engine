@@ -225,7 +225,7 @@ func TestStartAgentSession_LaunchesWithPromptArgumentAndVerifiesDelivery(t *test
 		if strings.Contains(step.Name, "Paste") || strings.Contains(step.Name, "buffer") {
 			t.Errorf("launch must not paste; got step %+v", step)
 		}
-		if step.Name == "Start echo (interactive, prompt as argument)" && step.Status == "ok" {
+		if strings.HasSuffix(step.Name, ", running echo (interactive, prompt as argument)") && step.Status == "ok" {
 			launched = true
 		}
 		if step.Name == "Prompt delivered" && step.Status == "ok" {

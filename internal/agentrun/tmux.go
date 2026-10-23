@@ -140,19 +140,31 @@ var safeShellWord = regexp.MustCompile(`^[A-Za-z0-9._/:-]+$`)
 
 // CreateTmux creates the tmux home for the agent called name: its own
 // session by default, or a new window in the project's shared session
-// (creating that session first if it does not exist yet).
-func CreateTmux(proj *tracker.Project, name string, workDir string) (string, *exec.Cmd) {
+// (creating that session first if it does not exist yet). It is always
+// created detached, so nobody's view changes. env (KEY=VALUE) is set for its
+// first pane, which runs command when one is given and the default shell
+// otherwise.
+func CreateTmux(proj *tracker.Project, name string, workDir string, env []string, command ...string) (string, *exec.Cmd) {
 	shared := SharedSession(proj)
-	if shared == "" {
-		return fmt.Sprintf("Create tmux session in %s", workDir),
-			exec.Command("tmux", "new-session", "-d", "-s", name, "-c", workDir)
+	var desc string
+	var args []string
+	switch {
+	case shared == "":
+		desc = fmt.Sprintf("Create tmux session in %s", workDir)
+		args = []string{"new-session", "-d", "-s", name}
+	case HasSession("=" + shared):
+		desc = fmt.Sprintf("Create tmux window %s in session %s (%s)", name, shared, workDir)
+		args = []string{"new-window", "-d", "-t", "=" + shared + ":", "-n", name}
+	default:
+		desc = fmt.Sprintf("Create tmux session %s with window %s in %s", shared, name, workDir)
+		args = []string{"new-session", "-d", "-s", shared, "-n", name}
 	}
-	if HasSession("=" + shared) {
-		return fmt.Sprintf("Create tmux window %s in session %s (%s)", name, shared, workDir),
-			exec.Command("tmux", "new-window", "-d", "-t", "="+shared+":", "-n", name, "-c", workDir)
+	args = append(args, "-c", workDir)
+	for _, kv := range env {
+		args = append(args, "-e", kv)
 	}
-	return fmt.Sprintf("Create tmux session %s with window %s in %s", shared, name, workDir),
-		exec.Command("tmux", "new-session", "-d", "-s", shared, "-n", name, "-c", workDir)
+	args = append(args, command...)
+	return desc, exec.Command("tmux", args...)
 }
 
 // KillTmux tears down what CreateTmux made. In shared mode only the agent's
@@ -396,6 +408,22 @@ func AttachStep(proj *tracker.Project, name string, steps *[]Step) bool {
 		exec.Command("tmux", "select-window", "-t", Target(proj, name)))
 	if SessionAttached(shared) {
 		*steps = append(*steps, Step{Name: fmt.Sprintf("Session %s already open — no new terminal", shared), Status: "ok"})
+		return true
+	}
+	return OpenTerminalStep(proj, shared, steps)
+}
+
+// ShowStep makes a newly started agent reachable without moving anyone's
+// focus. In shared mode its window just appears in the session's status bar;
+// a terminal opens on the shared session only when nobody is attached to it.
+// Otherwise it opens a terminal on the agent's own session.
+func ShowStep(proj *tracker.Project, name string, steps *[]Step) bool {
+	shared := SharedSession(proj)
+	if shared == "" {
+		return OpenTerminalStep(proj, name, steps)
+	}
+	if SessionAttached(shared) {
+		*steps = append(*steps, Step{Name: fmt.Sprintf("Window %s added to session %s — not selected", name, shared), Status: "ok"})
 		return true
 	}
 	return OpenTerminalStep(proj, shared, steps)

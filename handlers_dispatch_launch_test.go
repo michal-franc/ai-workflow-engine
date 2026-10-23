@@ -25,9 +25,9 @@ printf '%s\n' "$last"
 `
 
 // installFakeAgents puts fake claude and codex binaries first on PATH and
-// returns the prefix they write their records to. HOME and SHELL point away
-// from the developer's shell profile, so a login shell can't put the real
-// agents back in front.
+// returns the prefix they write their records to. HOME points away from the
+// developer's shell profile, so a login shell can't put the real agents back
+// in front (isolateTmux sets SHELL).
 func installFakeAgents(t *testing.T) string {
 	t.Helper()
 	bin := t.TempDir()
@@ -38,7 +38,6 @@ func installFakeAgents(t *testing.T) string {
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("SHELL", "/bin/sh")
 	out := filepath.Join(t.TempDir(), "agent")
 	t.Setenv("FAKE_AGENT_OUT", out)
 	return out

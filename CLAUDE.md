@@ -12,7 +12,7 @@ Flags:
 
 - `-dir` — issue markdown directory (default `./issues`), supports subdirectories
 - `-docs` — documentation markdown directory (default `./docs`)
-- `-host` — interface to listen on (default `127.0.0.1`; anything else is an opt-in and warns at startup)
+- `-host` — interface to listen on (default `127.0.0.1`; anything else is an opt-in and warns at startup). Requests whose `Host` isn't loopback, `*.localhost`, the bind address or in `allowed_hosts:` (projects.yaml) get 421
 - `-port` — HTTP port (default `8080`)
 
 ## Validation
@@ -38,7 +38,7 @@ See [docs/patterns/playtest/web-app.md](docs/patterns/playtest/web-app.md).
 main.go                     — entry point: run() (flags, listener), server timeouts, graceful shutdown on SIGINT/SIGTERM
 background.go               — goroutines that outlive a request (s.bg.Go), waited for and named at shutdown
 routes.go                   — Server struct, NewServer, Routes, dispatcher, project list
-origin.go                   — sameOriginOnly (403 for cross-origin writes), -host / listen-address helpers
+origin.go                   — hostAllowed (421 for a Host not loopback/allowed_hosts: DNS rebinding), sameOriginOnly (403 for cross-origin writes), -host / listen-address helpers
 nav.go                      — sidebar views (navViews) and the Nav the sidebar partial renders
 template_funcs.go           — funcMap, status/priority colors, link rewriters
 helpers.go                  — projectRoot, fileExists, small utilities

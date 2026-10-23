@@ -2595,6 +2595,7 @@ select.modal-input option {
 .tl-muted { color: var(--text-secondary); }
 .tl-mono { font-family: var(--font-mono); font-size: 12px; }
 .tl-amber { color: var(--amber); font-size: 12.5px; }
+.tl-blue { color: var(--blue); font-size: 12.5px; }
 .tl-purple { color: var(--purple); font-size: 12.5px; }
 .tl-note { margin: 0; font-size: 12.5px; }
 .tl-missing { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border: 1px solid var(--amber-border); border-radius: var(--radius); background: var(--amber-bg); font-size: 13.5px; }
@@ -4020,3 +4021,13 @@ a.chip { text-decoration: none; }
     .project-page-head { padding: 16px 16px 12px; }
     .nav-sub { padding-left: 12px; }
 }
+
+/* Stats: where the time goes */
+.stats-time { margin-bottom: 24px; }
+.stats-time-group { margin: 8px 0; }
+.stats-time-group summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
+.stats-time-scroll { overflow-x: auto; }
+/* Auto layout and at least the content's width, so a phone scrolls the
+   table sideways instead of squeezing its columns into each other. */
+.stats-time-scroll .data-table { table-layout: auto; width: auto; min-width: 100%; }
+.stats-time-scroll .data-table th, .stats-time-scroll .data-table td { white-space: nowrap; }

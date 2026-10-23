@@ -15,7 +15,7 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/board.html` — the classic kanban board with drag-and-drop (More › Classic board)
 - `templates/detail.html` — issue page: title, the Issue · Timeline · Evidence tabs (`?tab=`), and on the Issue tab the folded body with comments and the sidebar with dispatch (see [Issue page tabs](#issue-page-tabs))
 - `templates/_issue_tab.html` — the Issue tab's band, main-column cards and side-column cards (`issue_tab.go` builds them; see [The Issue tab](#the-issue-tab))
-- `templates/_timeline.html` — the Timeline tab (`timeline.go` builds it, `timeline_sources.go` reads its files; rules in [Workflow Stats](../workflow-stats.md#timeline-tab))
+- `templates/_timeline.html` — the Timeline tab (`timeline.go` builds the view on `internal/timeline`'s `Split`, `timeline_sources.go` reads its files; rules in [Workflow Stats](../workflow-stats.md#timeline-tab))
 - `templates/graph.html` — workflow status graph
 - `templates/agents.html` — agents canvas: lead/worker tree, unfinished jobs, selected-agent panel (handlers in `handlers_agents.go`)
 - `templates/canvas.html` — issues canvas: version columns × epic or system rows, pan and zoom (`handlers_canvas.go` builds it)
@@ -94,7 +94,7 @@ Status colours stay per status (`statusColor`). A status chip tints its colour w
 | `/canvas`         | `canvas.html` | Issues canvas: versions × epics (or systems), see [Issues canvas](#issues-canvas) |
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
 | `/issue/<slug>`   | `detail.html` | Issue page with tabs: Issue (brief and Needs-you band, folded body, edit, approve, dispatch, comments), Timeline (`?tab=timeline`, `&show=`), Evidence (`?tab=evidence`, coming). See [Issue page tabs](#issue-page-tabs) |
-| `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
+| `/stats`          | `stats.html`  | Where the time goes over the issues done in the last 30 days (`?days=N`, 1–3650), then workflow token-cost estimates and CLI usage (see [Workflow Stats](../workflow-stats.md)) |
 | `/balance`        | `balance.html` | `?system=` scopes it to one system's issues (the system pages link here). Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise its sidebar entry is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
 | `/systems`        | `systems.html` | One card per system, most open first: summary and design doc (from `workbench.systems`), open / done counts, status bar, waiting-on-you count and family chips, plus a "No system" line. See [System pages](#system-pages) |
 | `/systems/<System>[/<Family>]` | `system.html` | One page per system or configured family. Unknown names get a 404 listing the systems. See [System pages](#system-pages) |
@@ -383,7 +383,7 @@ A UI issue's manual checks are written as a playtest session (`playtest/sessions
 - **Timeline** (`?tab=timeline`): where the issue's time went. Its label carries the total ("5h 0m", or "… so far" in flight). It is built only when this tab is open and has no issue sidebar (its own side column instead):
   - **Missing sources:** an amber "Could not read N of 5 sources" box, when a source is missing.
   - **Where the time went:** the total, then agent working (with its rework), waiting on you, idle, rework loops and commits. Under them, a bar cut by time in blue (agent), amber (waiting), purple (rework) and grey (idle), with the statuses and clock ticks under it.
-  - **Life by status:** one band per status, with its events, amber wait rows, grey idle rows and purple loop rows. The filters are links (`&show=you|commits|tests|cli`); **CLI calls** is the old Agent Timeline, with the workflow actions each transition saw.
+  - **Life by status:** one band per status, its header with the agent time (blue), waiting, idle and rework inside it, then its events, amber wait rows, grey idle rows and purple loop rows. The filters are links (`&show=you|commits|tests|cli`); **CLI calls** is the old Agent Timeline, with the workflow actions each transition saw.
   - **Side column:** Your part, Your words, Left open at done (done issues), CI after merge.
 
   The rules (what counts as waiting, idle and rework) are in [Workflow Stats](../workflow-stats.md#timeline-tab). It wraps to one column at phone width.

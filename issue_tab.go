@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/testids"
+	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -316,7 +317,7 @@ func approvingSince(src timelineSources, tl Timeline) approving {
 		if n := len(src.Dispatches); n > 0 {
 			a.Since = src.Dispatches[n-1]
 		} else {
-			a.Since = lifeStart(src)
+			a.Since = timeline.LifeStart(src.core())
 		}
 	}
 	after := func(t time.Time) bool { return !t.Before(a.Since) }
@@ -328,7 +329,7 @@ func approvingSince(src timelineSources, tl Timeline) approving {
 		if !after(c.At) || refusedCall(c) {
 			continue
 		}
-		switch c.cmd() {
+		switch c.Cmd() {
 		case "append", "replace":
 			n := flagValue(c.Args, "--section")
 			if n == "" {
@@ -754,4 +755,3 @@ func joinSentences(parts ...string) string {
 	}
 	return strings.Join(out, " ")
 }
-

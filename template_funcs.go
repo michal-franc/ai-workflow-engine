@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/testids"
+	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -244,9 +245,13 @@ var funcMap = template.FuncMap{
 	"tlSpan":  fmtSpan,
 	"tlClock": func(t time.Time) string { return t.Local().Format("15:04") },
 	"tlDay":   func(t time.Time) string { return t.Local().Format("Mon 2 Jan") },
+	"tlDate":  func(t time.Time) string { return t.Local().Format("2 Jan 2006") },
 	"tlPct":   func(p float64) template.CSS { return template.CSS(fmt.Sprintf("%.3f%%", p)) },
 	"tlShare": func(d, total time.Duration) string { return fmt.Sprintf("%.0f%%", durPct(d, total)) },
 	"tlSub":   func(a, b time.Time) time.Duration { return a.Sub(b) },
+	// "p50 / p90" on /stats.
+	"tlP":    func(p timeline.Pct) string { return fmtDur(p.P50) + " / " + fmtDur(p.P90) },
+	"tlFrac": func(f float64) string { return fmt.Sprintf("%.0f%%", f*100) },
 }
 
 var issueRefRe = regexp.MustCompile(`#([a-zA-Z0-9][\w/.-]*)`)

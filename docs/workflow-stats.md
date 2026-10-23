@@ -72,13 +72,14 @@ Issues that transitioned before the feature shipped have no sidecar. The Stats t
 
 ## What the Stats tab shows
 
-Three blocks, in order:
+Six blocks, in order:
 
-1. **Dispatch base prompt** — single-row table showing `tracker.AgentDispatchPromptStaticCost()`: the `len(s) / 4` cost of the constant scaffolding text in `tracker.AgentDispatchPromptTemplate` that the issue viewer writes into every fresh agent dispatch. Per-dispatch, not per-transition — kept as a separate metric so it does not over-count when a transition happens without a fresh dispatch.
-2. **Static reference — by transition** — every `(from → to)` pair declared in the project's `workflow.yaml`, with its pure static cost. Wildcard `from: "*"` edges are expanded into one row per source status. Sorted by token count descending so the heaviest transitions surface first. Independent of recorded data, so this block is always populated.
-3. **Recorded transitions — average cost** — averages of `static_tokens` and `dynamic_tokens` per `(from → to)` across every issue with recorded transitions, plus a count. Sorted by avg dynamic descending.
-4. **Per-issue totals** — sum of `dynamic_tokens` across each issue's recorded transitions, sorted descending. Issue title links to the detail view.
-5. **CLI usage (last 30 days)**: how `issue-cli` is used in this project, from the local names-only [usage telemetry](CLI/telemetry.md). It has tables for commands (calls, failures, error %, p50 ms), never-used commands, aliases, subcommands, topics and flags, errors, unknown commands and flags tried, and retry sequences.
+1. **Where the time goes (done in the last 30 days)**: the [project aggregate](#project-aggregate) of the Timeline tab's split. Tables per type of work (cycle p50/p90, rework loops, issues sent back, rework share, dispatches), time per status by type (in status, agent, waiting on you, idle, each p50 / p90; `all` open, the types folded), approval waits per gated transition, and refused transitions by error class, dry runs apart. It names the issues with no CLI calls (status time only) and counts done issues it could not read. Built on each request.
+2. **Dispatch base prompt** — single-row table showing `tracker.AgentDispatchPromptStaticCost()`: the `len(s) / 4` cost of the constant scaffolding text in `tracker.AgentDispatchPromptTemplate` that the issue viewer writes into every fresh agent dispatch. Per-dispatch, not per-transition — kept as a separate metric so it does not over-count when a transition happens without a fresh dispatch.
+3. **Static reference — by transition** — every `(from → to)` pair declared in the project's `workflow.yaml`, with its pure static cost. Wildcard `from: "*"` edges are expanded into one row per source status. Sorted by token count descending so the heaviest transitions surface first. Independent of recorded data, so this block is always populated.
+4. **Recorded transitions — average cost** — averages of `static_tokens` and `dynamic_tokens` per `(from → to)` across every issue with recorded transitions, plus a count. Sorted by avg dynamic descending.
+5. **Per-issue totals** — sum of `dynamic_tokens` across each issue's recorded transitions, sorted descending. Issue title links to the detail view.
+6. **CLI usage (last 30 days)**: how `issue-cli` is used in this project, from the local names-only [usage telemetry](CLI/telemetry.md). It has tables for commands (calls, failures, error %, p50 ms), never-used commands, aliases, subcommands, topics and flags, errors, unknown commands and flags tried, and retry sequences.
    - The handler runs `issue-cli [--config $ISSUE_VIEWER_CONFIG --project <slug>] --json telemetry report --since 30d` with a 5 s timeout and `ISSUE_CLI_TELEMETRY_SKIP=1`, so page loads aren't counted as usage. It shells out because only the CLI binary knows its own command registry.
    - Every failure becomes an inline notice, never a 500: `issue-cli` not on PATH, an exec error, bad JSON, a newer report version, telemetry disabled for the project, or no calls in the window.
 
@@ -115,7 +116,7 @@ So agent working + waiting on you + idle = the total. A question answered in cha
 
 Failed runs before testing are the agent iterating and don't count. Agent time inside a loop is rework: it is part of agent working, drawn purple on the bar.
 
-**Life by status** has one band per status, with its span and the waiting, idle and rework inside it. Its events:
+**Life by status** has one band per status, with its span and the agent, waiting, idle and rework time inside it. Its events:
 - **The agent's writes, grouped:** decisions (matched to their D-n), sections written, boxes ticked, comments (kind = their prefix: `progress`, `tests`, `docs` …), refused calls (exit ≠ 0).
 - **Approvals:** "Approved → <status>", with your words quoted under it, or "no words recorded". The words come from the `approval:` comment that pairs with the approval: the latest one made after the previous transition and up to this one, whose `→` statuses name the target. A comment written before the `→` suffix matches any target, a pre-0.54 day-only date counts when its day overlaps that window, and each comment pairs once (`approvalWords`).
 - **Commits:** a merge of main into the branch is one muted line.
@@ -140,6 +141,17 @@ The clilog keeps no free text (`clilog.Placeholder`: `‹text n=… h=…›`). 
 
 The tab label on every tab ("5h 0m", "1h 50m so far") reads only the stats sidecar and the first line of each per-agent clilog.
 
+### Project aggregate
+
+`timeline.Aggregate` runs every issue done in the last 30 days through the tab's own code (`timeline.Load`, `timeline.Split`), so the project numbers are the tabs' numbers summed, never a second derivation. /stats and the `workflow` health family ([Health snapshots](workbench-files.md#health-snapshots)) both read it.
+
+- **In the window:** the issue is `done` and its last transition to `done` in the stats sidecar is in the last 30 days. Done issues without one are counted as unread and left out.
+- **Per issue:** cycle time (the tab's total), and per status (a status visited twice sums) the time in it and its agent, waiting and idle time. Approval waits are `OwnerWaits`. Rework is the tab's loops plus the count of backward transitions.
+- **No CLI calls:** cycle time and time in status only; agent, waiting and idle show "—" on /stats.
+- **Gate failures:** `transition` calls with exit ≠ 0, keyed by the status the call was made in, its `--to` and its `err_class`. Dry runs are counted apart: they are the agent checking before it asks.
+- **Percentiles:** nearest-rank p50 and p90 over the issues in the row.
+- **Cost:** each clilog and each playtest results file is read once per aggregate (`timeline.Cache`), and each issue costs two git calls. On RogueTech (65 issues in the window) it takes about half a second.
+
 ## Implementation
 
 - `internal/tokens/estimate.go` — `Estimate(s string) int = len(s) / 4`. Single function, easy to swap for a real BPE later.
@@ -148,7 +160,8 @@ The tab label on every tab ("5h 0m", "1h 50m so far") reads only the stats sidec
 - `internal/agentrun/agentrun.go` — `Start` appends a `dispatches` entry once the agent's tmux session is created.
 - `internal/tracker/dispatch.go` — `AgentDispatchPromptTemplate` constant (single source of truth shared with `handlers_dispatch.go`; named `{{slug}}`, `{{system}}`, … placeholders that `BuildAgentPrompt` fills from `agentPromptFields`) and `AgentDispatchPromptStaticCost()`.
 - `internal/tracker/workflow_transition.go` — `ApplyTransitionToFileWithFields` snapshots a `TransitionStat` after a successful transition, capturing the pre-transition body and comments for the dynamic cost, and `branchShas` adds `branch_head` / `merge_sha` (`WorkflowConfig.RepoRoot`, set from the project).
-- `handlers_stats.go` — the `/stats` route handler. Walks the project's issues and aggregates per-(from→to) and per-issue. `runTelemetryReport` (package var, stubbed in tests) and `loadCLIUsage` produce the CLI usage block.
+- `internal/timeline/` — the Timeline tab's derivation: `Load` (stats sidecar, clilogs, work branch, playtest runs), `Split` (bands, gaps, owner waits, rework), `Aggregate` and the `workflow` health family. `timeline.go` and `timeline_sources.go` at the root build the tab's view on top.
+- `handlers_stats.go` — the `/stats` route handler. Walks the project's issues and aggregates per-(from→to) and per-issue, and builds the time section with `timeline.Aggregate`. `runTelemetryReport` (package var, stubbed in tests) and `loadCLIUsage` produce the CLI usage block.
 - `templates/stats.html` — page template. Reuses the existing `data-table` styling.
 
 ## Out of scope (today)

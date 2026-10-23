@@ -74,6 +74,7 @@ by status and the side column. Data is DetailData; the model is .Timeline
                     <span class="chip">{{.Status}}</span>
                     {{if not .Start.IsZero}}<span class="tl-mono tl-muted">{{tlClock .Start}}{{if not .End.IsZero}} → {{if .Open}}now{{else}}{{tlClock .End}}{{end}}{{end}}</span>
                     {{if not .End.IsZero}}<strong>{{tlSpan (tlSub .End .Start)}}</strong>{{end}}{{end}}
+                    {{if .Working}}<span class="tl-blue" data-testid="timeline.band.working">{{tlDur .Working}} agent</span>{{end}}
                     {{if .Waiting}}<span class="tl-amber">{{tlDur .Waiting}} waiting on you</span>{{end}}
                     {{if .Idle}}<span class="tl-muted">{{tlDur .Idle}} idle</span>{{end}}
                     {{if .Rework}}<span class="tl-purple">{{tlDur .Rework}} rework</span>{{end}}

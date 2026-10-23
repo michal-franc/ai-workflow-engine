@@ -196,6 +196,9 @@ type WorkflowConfig struct {
 	// CI is the local CI that re-checks the integration branch after every
 	// move. Project-wide like Workbench; nil means CI is off.
 	CI *CIConfig `yaml:"ci,omitempty" desc:"Optional local CI: commands run on the integration branch after every move, results in .ci/ (see docs/workflow.md, Local CI)"`
+	// Health tunes the project health snapshots. Project-wide like CI; nil
+	// means snapshots with the defaults.
+	Health *HealthConfig `yaml:"health,omitempty" desc:"Optional health snapshot settings: big-file limit, test and exclude globs (see docs/workbench-files.md, Health snapshots)"`
 	// AllowShell opts in to the command_succeeds validator. When false, any
 	// transition with a command_succeeds rule fails at validate time.
 	AllowShell bool `yaml:"allow_shell,omitempty" desc:"Permit command_succeeds validators to run shell commands (default false)"`

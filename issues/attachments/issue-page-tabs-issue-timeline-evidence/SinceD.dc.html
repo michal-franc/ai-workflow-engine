@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Issue page on a phone</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#0e1116}
+a{color:#58a6ff}a:hover{color:#79c0ff}
+.card{background:#161b22;border:1px solid #2a313c;border-radius:10px}
+.head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid #222831}
+.head h2{margin:0;font-size:14.5px;color:#f0f3f6;font-weight:700}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid;white-space:nowrap;line-height:18px}
+.chip-green{color:#56d364;background:#12261a;border-color:#23502f}
+.chip-blue{color:#58a6ff;background:#0f2134;border-color:#1f4470}
+.chip-amber{color:#e3b341;background:#2a2112;border-color:#5a4520}
+.chip-purple{color:#bc8cff;background:#221a33;border-color:#47336b}
+.chip-gray{color:#a5aeb8;background:#1c222b;border-color:#2a313c}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.muted{color:#8b949e}
+.btn{font:inherit;font-size:14px;font-weight:600;border-radius:8px;padding:10px 14px;min-height:44px;cursor:pointer;border:1px solid #2a313c;background:#1c222b;color:#d6dde6;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn-go{background:#238636;border-color:#2ea043;color:#ffffff}
+.ev{display:flex;gap:10px;padding:9px 14px;border-top:1px solid #222831;font-size:13.5px;line-height:1.45}
+.ev:first-child{border-top:0}
+.t{font-family:'JetBrains Mono',monospace;font-size:12px;color:#8b949e;flex:0 0 38px;padding-top:1px}
+.new{width:8px;height:8px;border-radius:50%;background:#58a6ff;flex:0 0 8px;margin-top:6px}
+</style>
+</helmet>
+<div style="width: 390px; min-height: 1700px; box-sizing: border-box; font-family: Archivo, system-ui, sans-serif; color: #d6dde6; background: #0e1116; padding: 0 16px 32px; display: flex; flex-direction: column; gap: 14px">
+
+<div style="display: flex; justify-content: space-between; align-items: center; height: 52px; border-bottom: 1px solid #222831; margin: 0 -16px; padding: 0 16px">
+<a href="#" style="font-size: 14px; text-decoration: none; min-height: 44px; display: inline-flex; align-items: center">Board</a>
+<span style="font-size: 14px; font-weight: 700; color: #f0f3f6">Issue Viewer</span>
+<button class="btn" type="button" aria-label="Open the project menu" style="min-width: 44px; padding: 0">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+</button>
+</div>
+
+<header style="display: flex; flex-direction: column; gap: 8px">
+<div class="mono muted" style="font-size: 11.5px; word-break: break-all">cli/issue-cli-finds-the-projects-config-from-any-folder-without-flags-or-env</div>
+<h1 style="margin: 0; font-size: 21px; line-height: 1.25; color: #f0f3f6; font-weight: 800">issue-cli finds the projects config from any folder without flags or env</h1>
+<div style="display: flex; flex-wrap: wrap; gap: 6px"><span class="chip chip-green">done 23:51</span><span class="chip chip-gray">bugfix</span><span class="chip chip-amber">high</span><span class="chip chip-gray">v0.53</span></div>
+<p style="margin: 2px 0 0; font-size: 14.5px; line-height: 1.5; color: #c9d1d9">The viewer now records its config in viewer.json, and issue-cli reads it from any folder. report-bug in RogueTech no longer says "no projects.yaml at projects.yaml".</p>
+</header>
+
+<section class="card" aria-labelledby="needs" style="border-color: #5a4520; background: #1b1810">
+<div class="head" style="border-bottom-color: #3a2f18"><h2 id="needs" style="color: #e3b341">Needs you · after done</h2><span class="chip chip-amber">3 steps</span></div>
+<ol style="margin: 0; padding: 12px 14px 4px 34px; font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; gap: 8px">
+<li>Restart the viewer in <span class="mono" style="font-size: 12px">issue-viewer:viewer-server</span>. The running build is old and has not written viewer.json yet.</li>
+<li>From /tmp with ISSUE_VIEWER_CONFIG unset, run <span class="mono" style="font-size: 12px">issue-cli --project issue-viewer projects</span>. It should name ~/Work/projects.yaml via viewer.json.</li>
+<li>Remove the ~/.zshenv export, then tick HT1.</li>
+</ol>
+<div style="display: flex; gap: 8px; padding: 10px 14px 14px">
+<button class="btn btn-go" type="button" style="flex: 1">Tick HT1</button>
+<button class="btn" type="button" style="flex: 1">Copy commands</button>
+</div>
+</section>
+
+
+<section class="card" aria-labelledby="time">
+<div class="head"><h2 id="time">Where the time went</h2><span class="chip chip-gray">43m</span></div>
+<div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; font-size: 13px">
+<div role="img" aria-label="43 minutes: 26 minutes waiting on you for the in-progress approval, 2 minutes waiting for human testing, 14 minutes agent working" style="display: flex; gap: 2px; border-radius: 4px; overflow: hidden">
+<div style="width: 2%; height: 14px; background: #58a6ff"></div>
+<div style="width: 61%; height: 14px; background: #e3b341"></div>
+<div style="width: 26%; height: 14px; background: #58a6ff"></div>
+<div style="width: 6%; height: 14px; background: #e3b341"></div>
+<div style="width: 5%; height: 14px; background: #58a6ff"></div>
+</div>
+<div style="display: flex; justify-content: space-between"><span><span style="color: #e3b341; font-weight: 700">29m</span> waiting on you</span><span><span style="color: #58a6ff; font-weight: 700">14m</span> agent</span></div>
+<div class="muted">Repro written 23:08, approved 23:35 · human testing approved 23:48</div>
+</div>
+</section>
+
+<section class="card" aria-labelledby="proof">
+<div class="head"><h2 id="proof">Proof</h2><span class="chip chip-green">3 / 3 criteria</span></div>
+<div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; line-height: 1.45">
+<div>11 new tests; the repro test failed first on main: <span class="mono" style="font-size: 12px">TestRun_NoFlagNoEnvUsesRunningViewersConfig</span></div>
+<div>make validate green, issue-cli coverage 87.2%</div>
+<div>Sandbox steps 1–4 run by the agent, all as expected</div>
+<div class="muted"><span class="mono" style="font-size: 12px">a019b97</span> · 19 files · +629 −35</div>
+</div>
+</section>
+
+<details class="card" style="padding: 0">
+<summary style="cursor: pointer; padding: 14px; font-size: 14px; color: #58a6ff; min-height: 20px">Earlier events, 23:08 → 23:48</summary>
+<div class="muted" style="padding: 0 14px 14px; font-size: 13px">Repro, your approval, the fix, tests, human testing.</div>
+</details>
+
+<a class="btn" href="#" style="width: 100%; box-sizing: border-box">Full issue</a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1700}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

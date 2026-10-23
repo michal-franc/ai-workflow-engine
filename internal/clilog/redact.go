@@ -87,11 +87,14 @@ func IsPlaceholder(s string) bool {
 }
 
 func redactValue(flag, v string) string {
-	if keptValueFlags[flag] || boolFlags[flag] {
+	if keptValueFlags[flag] || boolFlags[flag] || IsPlaceholder(v) {
 		return v
 	}
 	if flag == "field" {
 		if eq := strings.IndexByte(v, '='); eq > 0 {
+			if IsPlaceholder(v[eq+1:]) {
+				return v
+			}
 			return v[:eq+1] + Placeholder(v[eq+1:])
 		}
 	}
@@ -99,6 +102,9 @@ func redactValue(flag, v string) string {
 }
 
 func redactPositional(a string) string {
+	if IsPlaceholder(a) {
+		return a
+	}
 	if utf8.RuneCountInString(a) > maxKeptPositional || strings.ContainsAny(a, " \t\n\r") {
 		return Placeholder(a)
 	}

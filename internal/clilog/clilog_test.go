@@ -31,6 +31,14 @@ func TestRedactKeepsStructureAndHidesText(t *testing.T) {
 	}
 }
 
+func TestRedactIsIdempotent(t *testing.T) {
+	args := []string{"comment", "x", "--text", "a b", "--field", "k=v w", "free text here"}
+	once := Redact(args)
+	if twice := Redact(once); !reflect.DeepEqual(once, twice) {
+		t.Fatalf("second pass changed args:\n%q\n%q", once, twice)
+	}
+}
+
 func TestRedactValueThatLooksLikeAFlag(t *testing.T) {
 	got := Redact([]string{"append", "x", "--body", "--secret", "--section", "Design"})
 	want := []string{"append", "x", "--body", Placeholder("--secret"), "--section", "Design"}

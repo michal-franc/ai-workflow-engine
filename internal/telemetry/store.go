@@ -87,15 +87,11 @@ func AppendLine(path string, line []byte, max int64) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	lock, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0o644)
+	unlock, err := LockFile(path, 500*time.Millisecond)
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
-	if err := flockWithTimeout(lock, 500*time.Millisecond); err != nil {
-		return err
-	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer unlock()
 
 	if max <= 0 {
 		max = MaxFileBytes
@@ -115,6 +111,24 @@ func AppendLine(path string, line []byte, max int64) error {
 		return werr
 	}
 	return cerr
+}
+
+// LockFile takes the exclusive flock AppendLine uses for path (on
+// path+".lock"), waiting up to timeout, so a rewrite of path cannot
+// interleave with an append. The caller must call unlock.
+func LockFile(path string, timeout time.Duration) (unlock func(), err error) {
+	lock, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	if err := flockWithTimeout(lock, timeout); err != nil {
+		lock.Close()
+		return nil, err
+	}
+	return func() {
+		syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+		lock.Close()
+	}, nil
 }
 
 type telemetryError string

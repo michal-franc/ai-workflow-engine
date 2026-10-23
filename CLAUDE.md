@@ -51,6 +51,7 @@ markers.go                  — card markers (cardMarkers, blocked_on, needs-rev
 agent_state.go              — worker state for the agents canvas and card footers (workerState, idle from the clilog's last call)
 handlers_canvas.go          — issues canvas (/canvas): version columns × epic or system rows
 handlers_detail.go          — detail page, transition preview, data-table render
+issue_tab.go                — the detail page's Issue tab model: brief, Needs-you band, path, what you're approving, folded body, side column
 timeline.go                 — the detail page's Timeline tab model: where the time went (agent, waiting on you, idle, rework), life by status, filters
 timeline_sources.go         — what the Timeline tab reads: stats sidecar, clilogs, work branch, playtest runs, local CI; lists what it could not read
 handlers_issue_mutate.go    — update/create/delete/approve/upload, body editor

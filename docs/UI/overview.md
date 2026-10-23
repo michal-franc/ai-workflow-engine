@@ -13,7 +13,8 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/workboard.html` — the board (`/workboard`): read-only cards with markers, epic progress and the agent footer (`handlers_workboard.go`; see [Workboard](#workboard))
 - `templates/_markers.html` — card marker partials: `markers`, `marker-chips`, `epic-progress`, `agent-footer`, `card-legend` (data from `markers.go`; agent state from `agent_state.go`)
 - `templates/board.html` — the classic kanban board with drag-and-drop (More › Classic board)
-- `templates/detail.html` — issue page: title, the Issue · Timeline · Evidence tabs (`?tab=`), and on the Issue tab the body with comments and the sidebar with dispatch (see [Issue page tabs](#issue-page-tabs))
+- `templates/detail.html` — issue page: title, the Issue · Timeline · Evidence tabs (`?tab=`), and on the Issue tab the folded body with comments and the sidebar with dispatch (see [Issue page tabs](#issue-page-tabs))
+- `templates/_issue_tab.html` — the Issue tab's band, main-column cards and side-column cards (`issue_tab.go` builds them; see [The Issue tab](#the-issue-tab))
 - `templates/_timeline.html` — the Timeline tab (`timeline.go` builds it, `timeline_sources.go` reads its files; rules in [Workflow Stats](../workflow-stats.md#timeline-tab))
 - `templates/graph.html` — workflow status graph
 - `templates/agents.html` — agents canvas: lead/worker tree, unfinished jobs, selected-agent panel (handlers in `handlers_agents.go`)
@@ -92,7 +93,7 @@ Status colours stay per status (`statusColor`). A status chip tints its colour w
 | `/agents`         | `agents.html` | Agents canvas: leads, workers, their issues (see below) |
 | `/canvas`         | `canvas.html` | Issues canvas: versions × epics (or systems), see [Issues canvas](#issues-canvas) |
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
-| `/issue/<slug>`   | `detail.html` | Issue page with tabs: Issue (edit, approve, dispatch, comments), Timeline (`?tab=timeline`, `&show=`), Evidence (`?tab=evidence`, coming). See [Issue page tabs](#issue-page-tabs) |
+| `/issue/<slug>`   | `detail.html` | Issue page with tabs: Issue (brief and Needs-you band, folded body, edit, approve, dispatch, comments), Timeline (`?tab=timeline`, `&show=`), Evidence (`?tab=evidence`, coming). See [Issue page tabs](#issue-page-tabs) |
 | `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
 | `/balance`        | `balance.html` | `?system=` scopes it to one system's issues (the system pages link here). Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise its sidebar entry is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
 | `/systems`        | `systems.html` | One card per system, most open first: summary and design doc (from `workbench.systems`), open / done counts, status bar, waiting-on-you count and family chips, plus a "No system" line. See [System pages](#system-pages) |
@@ -378,7 +379,7 @@ A UI issue's manual checks are written as a playtest session (`playtest/sessions
 
 `/p/<project>/issue/<slug>` has the back link, the title (click to edit), a chip row (status, type, priority, system) and a tab bar. The bar reuses the Status page's `status-tabs` look, with links instead of JS:
 
-- **Issue** (default; any unknown `?tab=`): the body with Preview / Edit and block comments, and the sidebar. This is the page as it was, minus the Agent Timeline list that used to follow the body.
+- **Issue** (default; any unknown `?tab=`): the band (what this is, Needs you, where it is), then what you're approving, mockups, decisions and the body folded by section; the side column has the agent, acceptance criteria and relations above the sidebar's fields. See [The Issue tab](#the-issue-tab).
 - **Timeline** (`?tab=timeline`): where the issue's time went. Its label carries the total ("5h 0m", or "… so far" in flight). It is built only when this tab is open and has no issue sidebar (its own side column instead):
   - **Missing sources:** an amber "Could not read N of 5 sources" box, when a source is missing.
   - **Where the time went:** the total, then agent working (with its rework), waiting on you, idle, rework loops and commits. Under them, a bar cut by time in blue (agent), amber (waiting), purple (rework) and grey (idle), with the statuses and clock ticks under it.
@@ -388,7 +389,36 @@ A UI issue's manual checks are written as a playtest session (`playtest/sessions
   The rules (what counts as waiting, idle and rework) are in [Workflow Stats](../workflow-stats.md#timeline-tab). It wraps to one column at phone width.
 - **Evidence** (`?tab=evidence`): "Evidence is coming" until `ui/evidence-tab-proof-shots-and-criteria` lands.
 
-Each tab is a URL, so a lead or an agent can hand the owner a link: `issue-cli show` prints `Timeline: <url>?tab=timeline`. Tab and filter links carry `aria-current="true"` (`page` stays the sidebar's). Test ids: `detail.pagetab.*`, `evidence.coming`, `timeline.*` (`timeline.total`, `.working`, `.waiting`, `.idle`, `.rework`, `.commits`, `.bar`, `.filter.<key>`, `.band`, `.wait`, `.idlegap`, `.reworkloop`, `.folded`, `.cli.call`, `.cli.actions`, `.side.*`, `.missing`). The playtest session is `playtest/sessions/timeline-tab.yaml` on scenario `playtest/scenarios/timeline`.
+Each tab is a URL, so a lead or an agent can hand the owner a link: `issue-cli show` prints `Timeline: <url>?tab=timeline` (and `Brief: …`, the sentence the Issue tab leads with). Tab and filter links carry `aria-current="true"` (`page` stays the sidebar's). Test ids: `detail.pagetab.*`, `evidence.coming`, `timeline.*` (`timeline.total`, `.working`, `.waiting`, `.idle`, `.rework`, `.commits`, `.bar`, `.filter.<key>`, `.band`, `.wait`, `.idlegap`, `.reworkloop`, `.folded`, `.cli.call`, `.cli.actions`, `.side.*`, `.missing`). The playtest session is `playtest/sessions/timeline-tab.yaml` on scenario `playtest/scenarios/timeline`.
+
+## The Issue tab
+
+The tab answers in ten seconds what the issue is, where it is and what it needs from you (`ui/issue-tab-brief-needs-you-bar-and-a-folded-body`). `IssueTab` in `issue_tab.go` is its model: `buildIssueTab` reads nothing from disk, and `loadIssueTab` (`handlers_detail.go`) gathers its inputs. It is built only on this tab. It reads the Timeline's sources (`loadTimelineSources` and `buildTimeline`), `ownerAttention`, the board card's agent line (`cardAgents.footer`), `lastCliCall` and `epicProgress`, so every part says what the other views say.
+
+**The band** (`detail.brief`) is one card in three columns. Under 720 px it stacks as brief, Needs you, then where it is.
+- **What this is:** the brief (`tracker.Brief`, see [Issue File Format](../issue-format.md#the-brief)), then your words: the first decision quote on the issue that you said, then the newest `approval:` words, then the parent epic's first such quote ("epic D-n"). A quote with `how` "recorded by agent", or a "(Recommended)" pick, is not your words. The epic's progress follows.
+- **Where it is** (`detail.path`): the type's path, with the time spent in each status (from the Timeline's bands). It marks "your gate" on each status entered through an approval and "your playtest" on human-testing. A time strip (`detail.time`: total, agent, waiting on you) links to the Timeline; on a phone it sits right under Needs you.
+- **Needs you** (`detail.needs`, `data-state`) shows the same items as Status's Needs you, with the same wait ("waiting 2m · since 12:31", "≈" when the time is the file's mtime). An open question wins over a due playtest, and a playtest over a ready gate, as on the board cards; the rest show as "Also waiting" (`detail.needs.also`).
+  - **gate:** one approve button per required approval, primary first and a handoff status (backlog) last (`detail.needs.approve.<status>`). Beside them sit the words box (`approve_words.band`) and the lead's `issue-cli approve <slug> --to "…" --quote "…"` line. A click posts to `/approve` like the sidebar's buttons, toasts, then reloads.
+  - **playtest:** `make playtest ISSUE=<slug>` with a Copy button.
+  - **question:** the question and an answer box. Send posts `answer: <text>` as a block-0 comment, which clears the question.
+  - **Quiet** (card ground, nothing amber): it says who has the issue. With the agent: working, with the last call; idle, with Open in tmux. Also: stopped, queued, parked with its reason, done, or nobody. A gate whose checklist is still open, or one you approved that the agent has not moved through yet, adds one line.
+
+**Main column:**
+- **What you're approving** (`detail.approving`) covers what was recorded since the newest transition that passed your gate, else since the newest dispatch. Counters for sections, decisions, boxes (their ids), comments (their prefixes) and commits appear only when non-zero (`detail.approving.count.<key>`). Then the last 10 Timeline events and status changes; refused dry runs are left out.
+- **Mockups:** the first image under each `###` of `## Mockups`, linked to the `mockups` canvas.
+- **Decisions:** each D-n with your quote; a "(Recommended)" quote counts toward "N took the agent's recommendation".
+- **Full issue** (`detail.fold`) holds today's rendered body, with Preview / Edit / Edit in nvim / Expand all. After `initComments`, `foldBody()` puts a row before each `##` section (and "Intro" before the first one) and hides its blocks. A row (`detail.fold.section.<id>`) shows the box chip, the lead (`tracker.Lead`, plain text), subsection names, open comments and Show/Hide (`detail.fold.toggle.<id>`); the server passes these as `data-fold` JSON. The rows are siblings with no checkboxes, and no block moves, so comment `data-block` indices and `detail.body.checkbox.#` are unchanged. Expand all hides the rows and shows every block (today's body); the button then reads Fold. Open sections and Expand all are kept in `localStorage` (`issue-fold:<issue url>`), and `#<id>` opens a section. A muted line names the sections later transitions will add (`detail.fold.not_started`).
+
+**Side column:**
+- Agent (`detail.agent`): its state from the board's footer, last call, dispatch, calls, Open in tmux and the dispatch prompt.
+- Acceptance criteria: the first three, then "+N more".
+- Relations: the epic, then depends on, depended on by and decided by. These rows moved here from the sidebar.
+- Fields (`detail.fields`): today's sidebar sections, in an open `<details>`.
+
+Under 768 px the side column goes under the main one, and a locked sidebar stops being sticky.
+
+The cost is the Timeline's sources on every view, about 10–20 ms on this board. Playtest sessions: `issue-tab.yaml` and `issue-tab-phone.yaml` on `playtest/scenarios/issue-tab`.
 
 ## Stale body saves
 
@@ -424,7 +454,7 @@ Under the approve buttons, the Human Approval section has one **Your words (opti
 - **Empty, blank, or un-approving** (clicking a green button): no comment and the canned nudge. Un-approving keeps the box's text.
 - **Comment write fails:** the approval still stands (`words_error` in the response), the toast says the words were not saved, and the box keeps them.
 
-The box is `templates/_approve_words.html` (`{{template "approve-words" "<place>"}}`, test id `approve_words.<place>`). `static/approve-words.js` builds the same markup for pages that render in JS (`approveWords.html(place)`), reads it (`take`) and empties it (`clear`). The agents panel uses it, and the Issue tab's Needs-you bar is meant to. The Timeline shows the words beside the approval (see [Timeline tab](../workflow-stats.md#timeline-tab)).
+The box is `templates/_approve_words.html` (`{{template "approve-words" "<place>"}}`, test id `approve_words.<place>`). `static/approve-words.js` builds the same markup for pages that render in JS (`approveWords.html(place)`), reads it (`take`) and empties it (`clear`). The agents panel and the Issue tab's Needs-you column (`approve_words.band`) use it. The Timeline shows the words beside the approval (see [Timeline tab](../workflow-stats.md#timeline-tab)).
 
 ## Create issue modal
 

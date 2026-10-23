@@ -151,6 +151,16 @@ The marker accepts `statuses=` (the row status dropdown) and an optional `tiers=
 
 The table reads from a sidecar JSON file (`<slug>.data.json`) — manage rows via `issue-cli data add | list | set-status | set-tier | set-comment | remove`, never by editing the JSON directly.
 
+## The brief
+
+The issue page's Issue tab leads with one paragraph, the brief, and `issue-cli show` prints it as `Brief:`. `tracker.Brief` takes the first of these:
+1. a paragraph opening with `**In short:**` (the label is dropped);
+2. the first prose line under `## Bug`;
+3. the body's first prose paragraph before any `##` heading;
+4. the first prose paragraph of the first section.
+
+Tables, lists, quotes, images, code and HTML comments are skipped. Past 280 characters the brief ends at the last sentence end inside the limit, else at a word with "…". With none of these, the tab shows the title alone. To steer what the owner reads first, open the body with a lead paragraph, or start one with `**In short:**`.
+
 ## Decisions
 
 Decisions live as numbered lines under an issue's `## Decisions` section, written by `issue-cli decide`. Questions themselves stay in chat; only the outcome is recorded. The viewer's **Decisions** tab (`/p/<project>/decisions`) is generated from these lines, so nobody edits the index by hand.

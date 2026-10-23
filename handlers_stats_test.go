@@ -15,6 +15,7 @@ import (
 
 	"github.com/michal-franc/issue-viewer/internal/clilog"
 	"github.com/michal-franc/issue-viewer/internal/telemetry"
+	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -179,4 +180,19 @@ func fixItProject(t *testing.T) tracker.Project {
 	}
 
 	return proj
+}
+
+func TestStatsWindow(t *testing.T) {
+	for q, want := range map[string]time.Duration{
+		"":           timeline.Window,
+		"?days=90":   90 * 24 * time.Hour,
+		"?days=0":    timeline.Window,
+		"?days=9999": timeline.Window,
+		"?days=x":    timeline.Window,
+	} {
+		r, _ := http.NewRequest("GET", "/p/x/stats"+q, nil)
+		if got := statsWindow(r); got != want {
+			t.Errorf("%q: window = %v, want %v", q, got, want)
+		}
+	}
 }

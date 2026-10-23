@@ -3899,3 +3899,8 @@ a.chip { text-decoration: none; }
 .stats-time { margin-bottom: 24px; }
 .stats-time-group { margin: 8px 0; }
 .stats-time-group summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
+.stats-time-scroll { overflow-x: auto; }
+/* Auto layout and at least the content's width, so a phone scrolls the
+   table sideways instead of squeezing its columns into each other. */
+.stats-time-scroll .data-table { table-layout: auto; width: auto; min-width: 100%; }
+.stats-time-scroll .data-table th, .stats-time-scroll .data-table td { white-space: nowrap; }

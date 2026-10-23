@@ -245,6 +245,7 @@ var funcMap = template.FuncMap{
 	"tlSpan":  fmtSpan,
 	"tlClock": func(t time.Time) string { return t.Local().Format("15:04") },
 	"tlDay":   func(t time.Time) string { return t.Local().Format("Mon 2 Jan") },
+	"tlDate":  func(t time.Time) string { return t.Local().Format("2 Jan 2006") },
 	"tlPct":   func(p float64) template.CSS { return template.CSS(fmt.Sprintf("%.3f%%", p)) },
 	"tlShare": func(d, total time.Duration) string { return fmt.Sprintf("%.0f%%", durPct(d, total)) },
 	"tlSub":   func(a, b time.Time) time.Duration { return a.Sub(b) },

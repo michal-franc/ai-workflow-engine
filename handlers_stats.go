@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,6 +66,18 @@ type timeGroup struct {
 	timeline.TypeRow
 	Statuses []timeline.StatusRow
 }
+
+// statsWindow is ?days=N (1 to 3650) for the time section, else the
+// snapshot's 30 days.
+func statsWindow(r *http.Request) time.Duration {
+	if n, err := strconv.Atoi(r.URL.Query().Get("days")); err == nil && n >= 1 && n <= 3650 {
+		return time.Duration(n) * 24 * time.Hour
+	}
+	return timeline.Window
+}
+
+// Days is the time section's window in days.
+func (d StatsData) Days() int { return int(d.Time.To.Sub(d.Time.From) / (24 * time.Hour)) }
 
 func timeGroups(rep timeline.Report) []timeGroup {
 	var out []timeGroup
@@ -154,7 +167,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *track
 
 	recorded, totals := aggregateRecordedStats(issues)
 	usage, usageNotice := loadCLIUsage(proj)
-	timeRep := timeline.Aggregate(r.Context(), proj, wf, issues, time.Now(), timeline.Window)
+	timeRep := timeline.Aggregate(r.Context(), proj, wf, issues, time.Now(), statsWindow(r))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "stats.html", StatsData{

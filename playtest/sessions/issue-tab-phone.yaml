@@ -1,0 +1,23 @@
+session: issue-tab-phone
+issue: ui/issue-tab-brief-needs-you-bar-and-a-folded-body
+title: On a phone the Issue tab stacks, Needs you first
+scenario: issue-tab
+
+session_checks:
+  viewports: [390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP11
+    title: At 390 px Needs you follows the brief and the side column sits under the body
+    setup:
+      - open: /p/{project}/issue/ui/folded-brief
+    checks:
+      - below: [detail.brief.text, detail.needs]
+      - below: [detail.needs, detail.time]
+      - below: [detail.time, detail.path.step.idea]
+      - below: [detail.fold, detail.agent]
+      - below: [detail.agent, detail.fields]
+      - size: { target: detail.needs.approve.in_progress, min_height: 44 }
+      - visible: [detail.priority, detail.approve.in_progress]

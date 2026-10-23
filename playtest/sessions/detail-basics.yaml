@@ -13,6 +13,7 @@ steps:
     title: Ticking a body checkbox saves it to the issue file
     setup:
       - open: /p/{project}/issue/ui/card-titles-overflow-on-a-phone
+      - click: detail.fold.expand_all
       - check: { issue: { slug: ui/card-titles-overflow-on-a-phone, checkbox: P1, checked: false } }
     act:
       - click: detail.body.checkbox.0
@@ -45,6 +46,7 @@ steps:
     title: A comment added on a body block is saved
     setup:
       - open: /p/{project}/issue/ui/dark-mode-toggle
+      - click: detail.fold.expand_all
     act:
       - hover: detail.block.1
       - click: detail.comment.eye.1

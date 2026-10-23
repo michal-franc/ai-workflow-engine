@@ -1,0 +1,17 @@
+# The Issue tab (ui/issue-tab-brief-needs-you-bar-and-a-folded-body).
+# ui/folded-brief sits in design with its checklist done, so the design gate
+# is ready: approve → in progress or → backlog. It has an In short brief,
+# a lead-chat decision (your words) and a "(Recommended)" pick, Idea /
+# Design / Acceptance Criteria sections with boxes and subsections, a stats
+# sidecar (idea → in design) and the agent's clilog (decide, append, check,
+# comment, a refused dry run). ui/question-open's newest comment is a
+# question; ui/playtest-due is in human-testing with a session that names
+# it and no judge run; ui/parked-one is parked with a reason;
+# ui/agent-stopped is in progress with an assignee and no tmux session.
+title: Issue tab - brief, needs you, folded body
+project:
+  name: Issue Tab Demo
+  slug: it
+issues: tracker
+workflow: workflow.yaml
+root: files

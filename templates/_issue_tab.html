@@ -1,0 +1,187 @@
+{{/*
+The Issue tab's cards (issue_tab.go): the band, the main column's cards
+above the folded body, and the side column's cards above today's fields.
+Each takes the DetailData; detail.html places them.
+*/}}
+{{define "issue-band"}}{{$t := .IssueTab}}
+<section class="card it-band" aria-label="Brief" data-testid="detail.brief">
+    <div class="it-col it-what">
+        <div class="it-label">What this is</div>
+        {{if $t.Brief}}
+        <p class="it-brief" data-testid="detail.brief.text">{{inlineMarkdown $t.Brief}}</p>
+        {{else}}
+        <p class="it-brief it-muted" data-testid="detail.brief.text">No brief: the body has no lead paragraph.</p>
+        {{end}}
+        {{with $t.Words}}
+        <figure class="it-words" data-testid="detail.brief.words">
+            <blockquote>"{{.Quote}}"</blockquote>
+            <figcaption>{{.Who}} · {{if .Href}}<a href="{{.Href}}">{{.Ref}}</a>{{else}}{{.Ref}}{{end}}</figcaption>
+        </figure>
+        {{end}}
+        {{with $t.Epic}}{{if not .Own}}<div class="it-small it-muted">Epic <a href="{{.Href}}">{{.Title}}</a> · {{.Done}} of {{.Total}} done</div>{{end}}{{end}}
+    </div>
+
+    <div class="it-col it-needs{{if $t.Needs.Amber}} is-amber{{end}}" data-testid="detail.needs" data-state="{{$t.Needs.State}}">
+        {{with $t.Needs}}
+        <div class="it-needs-top">
+            <span class="it-label" data-testid="detail.needs.state">{{.Label}}</span>
+            {{if .Amber}}<span class="it-mono it-wait">waiting {{if .Approx}}≈ {{end}}{{.Wait}} · since {{tlClock .Since}}</span>{{else if .Meta}}<span class="it-mono it-muted">{{.Meta}}</span>{{end}}
+        </div>
+        <h2 class="it-needs-title">{{.Title}}</h2>
+        {{if .Question}}
+        <blockquote class="it-question">"{{.Question}}"{{if not .AskedAt.IsZero}}<span class="it-small it-muted">asked {{tlClock .AskedAt}}</span>{{end}}</blockquote>
+        {{end}}
+        {{if .Text}}<p class="it-needs-text">{{.Text}}</p>{{end}}
+        {{if eq .State "gate"}}
+        <div class="it-actions">
+            {{range $i, $to := .Targets}}
+            <button type="button" class="btn{{if eq $i 0}} it-go{{end}}" data-testid="detail.needs.approve.{{tid $to}}" onclick="approveFromBand('{{$to}}')">Approve → {{$to}}</button>
+            {{end}}
+            {{if $t.Mockups}}<a href="#it-mockups" class="btn">Mockups ({{len $t.Mockups}})</a>{{end}}
+        </div>
+        {{template "approve-words" "band"}}
+        <div class="it-mono it-muted it-command" data-testid="detail.needs.command">or tell the lead: {{.Command}}</div>
+        {{else if eq .State "playtest"}}
+        <code class="it-code" data-testid="detail.needs.command">{{.Command}}</code>
+        <div class="it-actions"><button type="button" class="btn" data-testid="detail.needs.copy" onclick="copyText({{.Command}}, this)">Copy command</button></div>
+        {{else if eq .State "question"}}
+        <label for="it-answer" class="it-small">Your answer</label>
+        <textarea id="it-answer" class="it-textarea" rows="2" data-testid="detail.needs.answer" placeholder="Saved as an answer: comment the agent reads."></textarea>
+        <div class="it-actions"><button type="button" class="btn it-go" data-testid="detail.needs.answer.send" onclick="sendAnswer()">Send answer</button></div>
+        {{else if .OpenTmux}}
+        <div class="it-actions"><button type="button" class="btn" data-testid="detail.agent.open" onclick="openAgent({{.OpenTmux}}, this)">Open in tmux</button></div>
+        {{end}}
+        {{if .Also}}<div class="it-small it-muted" data-testid="detail.needs.also">Also waiting: {{range $i, $a := .Also}}{{if $i}} · {{end}}{{$a}}{{end}}</div>{{end}}
+        {{end}}
+    </div>
+
+    <div class="it-col it-where" data-testid="detail.path">
+        <div class="it-label">Where it is{{with $.Issue.WorkType}} · {{.}} path{{end}}</div>
+        <ol class="it-path">
+            {{range $t.Path}}
+            <li class="it-step is-{{.State}}" data-testid="detail.path.step.{{tid .Status}}">
+                <span class="it-dot" aria-hidden="true"></span>
+                <span class="it-step-name">{{.Status}}</span>
+                {{if .Gate}}<span class="chip chip-amber">your gate</span>{{end}}
+                {{if .Playtest}}<span class="chip">your playtest</span>{{end}}
+                {{if .Dur}}<span class="it-mono it-muted">{{tlDur .Dur}}{{if eq .State "current"}} · now{{end}}</span>{{else if eq .State "current"}}<span class="it-mono">now</span>{{end}}
+            </li>
+            {{end}}
+        </ol>
+        {{with $t.Time}}{{if .Total}}
+        <a class="it-time" href="{{$.Prefix}}/issue/{{$.Issue.Slug}}?tab=timeline" data-testid="detail.time">
+            <span class="it-muted">{{tlDur .Total}}{{if .InFlight}} so far{{end}}</span>
+            {{if .Known}}<span class="it-agent">{{tlDur .Working}} agent</span><span class="it-you">{{tlDur .Waiting}} waiting on you</span>{{end}}
+            <span>Timeline →</span>
+        </a>
+        {{end}}{{end}}
+    </div>
+</section>
+{{end}}
+
+{{define "issue-main"}}{{$t := .IssueTab}}
+<section class="card tl-card" aria-labelledby="it-appr-h" data-testid="detail.approving">
+    <div class="tl-head"><h2 id="it-appr-h">What you're approving · since {{$t.Approving.From}}{{if not $t.Approving.Since.IsZero}} {{tlClock $t.Approving.Since}}{{end}}</h2>
+        <a href="{{.Prefix}}/issue/{{.Issue.Slug}}?tab=timeline" class="it-small">Full timeline</a></div>
+    <div class="tl-body">
+        {{if $t.Approving.Counts}}
+        <div class="it-counts">
+            {{range $t.Approving.Counts}}
+            <div class="it-count" data-testid="detail.approving.count.{{.Key}}"><b>{{.N}}</b><span>{{.Label}}{{if .Detail}}: {{.Detail}}{{end}}</span></div>
+            {{end}}
+        </div>
+        {{end}}
+        {{if $t.Approving.Events}}
+        <div>
+            {{if $t.Approving.More}}<div class="it-small it-muted">{{$t.Approving.More}} earlier, on the Timeline</div>{{end}}
+            {{range $t.Approving.Events}}
+            <div class="tl-ev it-ev" data-testid="detail.approving.event">
+                <span class="tl-time">{{tlClock .At}}</span>
+                <span class="tl-text">{{.Text}}{{if .Quote}} <span class="tl-muted">"{{.Quote}}"</span>{{end}}</span>
+                <span class="chip tl-chip-{{.Tone}}">{{.Chip}}</span>
+            </div>
+            {{end}}
+        </div>
+        {{else}}
+        <p class="tl-muted tl-note">No recorded events since {{if $t.Approving.Since.IsZero}}the issue was made{{else}}{{tlDay $t.Approving.Since}}{{end}}.{{if not $t.Approving.Known}} No CLI log was found for this issue.{{end}}</p>
+        {{end}}
+    </div>
+</section>
+
+{{if $t.Mockups}}
+<section class="card tl-card" id="it-mockups" aria-labelledby="it-mock-h" data-testid="detail.mockups">
+    <div class="tl-head"><h2 id="it-mock-h">Mockups · {{plural (len $t.Mockups) "screen" "screens"}}</h2>{{if $t.MockupsURL}}<a href="{{$t.MockupsURL}}" target="_blank" rel="noopener" class="it-small">Open the canvas</a>{{end}}</div>
+    <div class="tl-body it-shots">
+        {{range $t.Mockups}}
+        <figure class="it-shot"><a href="{{.Src}}" target="_blank" rel="noopener"><img src="{{.Src}}" alt="{{.Title}}" loading="lazy"></a><figcaption>{{.Title}}</figcaption></figure>
+        {{end}}
+    </div>
+</section>
+{{end}}
+
+{{if $t.Decisions}}
+<section class="card tl-card" aria-labelledby="it-dec-h" data-testid="detail.decisions">
+    <div class="tl-head"><h2 id="it-dec-h">Decisions · {{len $t.Decisions}}</h2>{{if $t.Recommended}}<span class="chip">{{$t.Recommended}} took the agent's recommendation</span>{{end}}</div>
+    <div class="tl-body it-decisions">
+        {{range $t.Decisions}}
+        <div class="it-dec" data-testid="detail.decision.{{tid .ID}}">
+            <span class="it-mono it-muted">{{.ID}}</span>
+            <span class="it-dec-text">{{inlineMarkdown .Text}}</span>
+            {{if .Quote}}<span class="it-quote{{if .Recommended}} is-rec{{end}}" {{if .Recommended}}title="took the agent's recommendation"{{end}}>"{{.Quote}}"</span>{{end}}
+        </div>
+        {{end}}
+    </div>
+</section>
+{{end}}
+{{end}}
+
+{{define "issue-side"}}{{$t := .IssueTab}}
+{{with $t.Agent}}
+<section class="card tl-card" aria-labelledby="it-agent-h" data-testid="detail.agent">
+    <div class="tl-head"><h2 id="it-agent-h">Agent</h2><span class="chip tl-chip-{{.Tone}}">{{.State}}</span></div>
+    <div class="tl-body it-small">
+        <a href="{{.Href}}" class="it-mono it-agent-name">{{.Name}}</a>
+        {{if .Text}}<div class="it-muted">{{.Text}}</div>{{end}}
+        {{if .Known}}<div class="it-muted">Last call {{tlClock .LastAt}} · <span class="it-mono">{{.LastCmd}}</span></div>{{end}}
+        {{if or .Calls (not .Since.IsZero)}}<div class="it-muted">{{if not .Since.IsZero}}Dispatched {{tlClock .Since}}, {{tlDay .Since}}{{end}}{{if and .Calls (not .Since.IsZero)}} · {{end}}{{if .Calls}}{{plural .Calls "issue-cli call" "issue-cli calls"}}{{end}}</div>{{end}}
+        <div class="it-actions">
+            {{if .Live}}<button type="button" class="btn" data-testid="detail.agent.open" onclick="openAgent({{.Name}}, this)">Open in tmux</button>{{end}}
+            <a class="btn" href="{{$.Prefix}}/issue/{{$.Issue.Slug}}/dispatch-prompt" target="_blank" rel="noopener">Dispatch prompt</a>
+        </div>
+    </div>
+</section>
+{{end}}
+
+{{if $t.Criteria}}
+<section class="card tl-card" aria-labelledby="it-ac-h" data-testid="detail.criteria">
+    <div class="tl-head"><h2 id="it-ac-h">Acceptance criteria</h2><span class="chip{{if eq $t.CriteriaDone (len $t.Criteria)}} chip-green{{end}}">{{$t.CriteriaDone}} / {{len $t.Criteria}}</span></div>
+    <div class="tl-body it-small">
+        {{range $i, $c := $t.Criteria}}{{if eq $i 3}}<details class="it-more"><summary>+{{len (rest 3 $t.Criteria)}} more</summary>{{end}}
+        <div class="it-ac{{if .Checked}} is-done{{end}}"><span class="it-mono it-muted">{{.ID}}</span> {{if .Checked}}✓ {{end}}{{inlineMarkdown .Label}}</div>
+        {{end}}{{if gt (len $t.Criteria) 3}}</details>{{end}}
+    </div>
+</section>
+{{end}}
+
+{{if or (and $t.Epic (not $t.Epic.Own)) .Deps}}
+<section class="card tl-card" aria-labelledby="it-rel-h" data-testid="detail.relations">
+    <div class="tl-head"><h2 id="it-rel-h">Relations</h2></div>
+    <div class="tl-body it-small">
+        {{with $t.Epic}}{{if not .Own}}<div><div class="it-muted">Epic</div><a href="{{.Href}}">{{.Title}}</a> <span class="it-muted">{{.Done}} / {{.Total}}</span></div>{{end}}{{end}}
+        {{range $kind := (list "depends on" "depended on by" "decided by")}}
+        {{$rows := depsOfKind $.Deps $kind}}
+        {{if $rows}}
+        <div data-testid="detail.field.{{tid $kind}}">
+            <div class="it-muted">{{title $kind}}</div>
+            <div class="dep-list">
+                {{range $rows}}
+                <span class="dep-row">{{if .Slug}}<a href="{{$.Prefix}}/issue/{{.Slug}}" class="mono dep-target">{{.Target}}</a>{{else}}<span class="mono dep-target">{{.Target}}</span>{{end}} <span class="chip {{depChipClass .}}">{{.State}}</span></span>
+                {{end}}
+            </div>
+        </div>
+        {{end}}
+        {{end}}
+    </div>
+</section>
+{{end}}
+{{end}}

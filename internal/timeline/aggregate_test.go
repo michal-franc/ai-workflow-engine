@@ -239,6 +239,8 @@ func TestWorkflowFamily(t *testing.T) {
 	}
 	if fr := snap.Families["workflow"]; fr.Error != "" {
 		t.Fatalf("workflow family error: %s", fr.Error)
+	} else if fr.Hint != "tables: /stats" {
+		t.Errorf("workflow hint = %q, want the pointer to /stats", fr.Hint)
 	}
 	checks := []struct {
 		name   string

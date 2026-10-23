@@ -16,6 +16,7 @@ import (
 // them.
 func init() {
 	health.Register("workflow", workflowFamily)
+	health.Describe("workflow", "tables: /stats")
 }
 
 func workflowFamily(ctx context.Context, env health.Env) ([]health.Metric, error) {

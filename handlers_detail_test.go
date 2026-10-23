@@ -322,6 +322,11 @@ Body
 	if !strings.Contains(html, `id="approve-rejected"`) {
 		t.Fatalf("second approval button should have id=approve-rejected:\n%s", html)
 	}
+
+	// One words box serves every approve button in the section.
+	if n := strings.Count(html, `data-testid="approve_words.detail"`); n != 1 {
+		t.Fatalf("words boxes = %d, want 1", n)
+	}
 }
 
 func TestHandleDetail_OptionalApprovalUsesConfiguredCTALabel(t *testing.T) {

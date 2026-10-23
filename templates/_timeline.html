@@ -111,6 +111,7 @@ by status and the side column. Data is DetailData; the model is .Timeline
                             </details>
                             {{else}}
                             {{if and .Mono (ne $.Timeline.Show "cli")}}<span class="tl-mono">{{.Mono}}</span> {{end}}{{.Text}}{{if .Note}} <span class="tl-muted">· {{.Note}}</span>{{end}}
+                            {{if .Quote}}<div class="tl-quote tl-event-quote" data-testid="timeline.approval.words">“{{.Quote}}”</div>{{end}}
                             {{end}}
                         </span>
                     </div>

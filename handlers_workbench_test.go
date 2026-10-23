@@ -249,3 +249,24 @@ func pagePost(t *testing.T, url, body string) *http.Response {
 	t.Cleanup(func() { resp.Body.Close() })
 	return resp
 }
+
+func TestHandleApprove_ThenWithWordsNamesBothStatuses(t *testing.T) {
+	f := setupWorkbenchProject(t, time.Now())
+	withMockTmuxSessions(t, []AgentSession{{Name: "agent-ready"}})
+	var nudge string
+	withMockTmuxSendKeys(t, func(_ string, lines []string) error {
+		nudge = strings.Join(lines, " ")
+		return nil
+	})
+	ts := newTestServer(t, []tracker.Project{f.proj})
+	defer ts.Close()
+
+	pagePost(t, ts.URL+"/p/wb/issue/ready/approve", `{"status":"backlog","then":"in progress","words":"start it"}`)
+	comments, _ := tracker.LoadComments(f.paths["ready"])
+	if len(comments) != 1 || !strings.HasSuffix(comments[0].Text, `) → backlog, in progress`) {
+		t.Fatalf("comments = %+v", comments)
+	}
+	if !strings.Contains(nudge, "issue-cli start ready") || !strings.HasSuffix(nudge, `Owner's words: "start it"`) {
+		t.Fatalf("nudge = %q", nudge)
+	}
+}

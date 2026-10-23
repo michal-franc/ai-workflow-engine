@@ -210,6 +210,9 @@ func (s *Server) handleApproveIssue(w http.ResponseWriter, r *http.Request, proj
 		// Then queues a second approval that becomes active once Status is
 		// consumed ("approve and start work"). Ignored when un-approving.
 		Then string `json:"then"`
+		// Words are the owner's, from the words box: saved as an approval:
+		// comment and quoted to the agent. Ignored when un-approving.
+		Words string `json:"words"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Status == "" {
 		http.Error(w, `{"error":"status required"}`, http.StatusBadRequest)
@@ -248,12 +251,33 @@ func (s *Server) handleApproveIssue(w http.ResponseWriter, r *http.Request, proj
 	if err := tracker.RecordApproval(issue.FilePath, humanApproval, time.Now()); err != nil {
 		log.Printf("approve %s: recording approval time: %v", issue.Slug, err)
 	}
+	// The words go in after the approval, so a failed write never loses it.
+	words := ""
+	if humanApproval != "" {
+		words = strings.TrimSpace(body.Words)
+	}
+	wordsSaved, wordsErr := false, ""
+	if words != "" {
+		statuses := []string{humanApproval}
+		if queued != "" {
+			statuses = append(statuses, queued)
+		}
+		comment := tracker.ApprovalComment(words, "viewer", time.Now().Format("2006-01-02"), statuses...)
+		if err := tracker.AddComment(issue.FilePath, 0, comment, "app"); err != nil {
+			log.Printf("approve %s: saving your words: %v", issue.Slug, err)
+			wordsErr = err.Error()
+		} else {
+			wordsSaved = true
+		}
+	}
 
 	resp := approvalResponse{
 		Status:         "ok",
 		HumanApproval:  humanApproval,
 		QueuedApproval: queued,
 		Label:          approvalLabel(body.Status),
+		WordsSaved:     wordsSaved,
+		WordsError:     wordsErr,
 	}
 	if humanApproval != "" {
 		sessionMap, _ := sessionsByIssueSlug(proj, []*tracker.Issue{issue})
@@ -262,10 +286,7 @@ func (s *Server) handleApproveIssue(w http.ResponseWriter, r *http.Request, proj
 			resp.NotificationError = "no active agent session matched this issue"
 		} else {
 			target := activeSessions[0].Name
-			messageLines := []string{humanApprovalMessage(body.Status)}
-			if queued != "" {
-				messageLines = []string{fmt.Sprintf("Approved for %s and %s. After the %s transition, run issue-cli start %s to continue straight into %s.", body.Status, queued, body.Status, issue.Slug, queued)}
-			}
+			messageLines := []string{approvalNudge(issue.Slug, body.Status, queued, words)}
 			if err := tmuxSendKeys(target, messageLines); err != nil {
 				resp.NotificationError = err.Error()
 			} else {
@@ -293,6 +314,23 @@ var humanApprovalMessages = []string{
 	"All good on my side, you can proceed to %s.",
 	"Gave this a read — approved for %s, off you go.",
 	"This looks solid. Moving to %s is fine by me.",
+}
+
+// approvalNudge is the line sent to the issue's agent: the owner's words
+// when there are any, else a canned line; an approval with a queued follow-up
+// always says how to continue into it.
+func approvalNudge(slug, status, queued, words string) string {
+	if queued != "" {
+		msg := fmt.Sprintf("Approved for %s and %s. After the %s transition, run issue-cli start %s to continue straight into %s.", status, queued, status, slug, queued)
+		if words != "" {
+			msg += fmt.Sprintf(" Owner's words: %q", words)
+		}
+		return msg
+	}
+	if words != "" {
+		return fmt.Sprintf("Approved for %s: %q", status, words)
+	}
+	return humanApprovalMessage(status)
 }
 
 func humanApprovalMessage(status string) string {

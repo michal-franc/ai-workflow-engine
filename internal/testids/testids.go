@@ -53,6 +53,9 @@ var IDs = []string{
 	"workboard.card.*.agent",
 	// Card marker chips (templates/_markers.html), on any view showing cards.
 	"marker.*",
+	// Words box under approve buttons (templates/_approve_words.html):
+	// approve_words.detail, approve_words.agents_panel.
+	"approve_words.*",
 	// Status (/p/<project>/status).
 	"status.page",
 	"status.tabs",
@@ -233,6 +236,7 @@ var IDs = []string{
 	"timeline.folded",
 	"timeline.cli.call",
 	"timeline.cli.actions",
+	"timeline.approval.words",
 	"timeline.side.part",
 	"timeline.side.words",
 	"timeline.side.open",

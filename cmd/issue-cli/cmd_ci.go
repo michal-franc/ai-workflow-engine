@@ -218,6 +218,12 @@ func runCIRun(ctx *Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	for i := len(runs) - 1; i >= 0; i-- {
+		if runs[i].Tier == tracker.CIDefaultTier {
+			ciHealthSnapshot(ctx, out, runs[i].Sha)
+			break
+		}
+	}
 	if ctx.JSONOutput {
 		return writeJSON(ctx.Stdout, runs)
 	}

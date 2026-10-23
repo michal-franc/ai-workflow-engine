@@ -198,12 +198,16 @@ func Dir(root string) string { return filepath.Join(root, ".health") }
 // SnapshotsDir holds the snapshot files.
 func SnapshotsDir(root string) string { return filepath.Join(Dir(root), "snapshots") }
 
+// ErrNotGit is NewEnv's error for a project outside any git repository: it
+// has no codebase to measure.
+var ErrNotGit = errors.New("not in a git repository")
+
 // NewEnv resolves the project's main checkout, branch and head from dir (the
 // project root). It fails when dir is not in a git repository or the branch
 // has no commit.
 func NewEnv(proj *tracker.Project, dir string, now time.Time) (Env, error) {
 	if _, err := gitOut(context.Background(), dir, "rev-parse", "--git-dir"); err != nil {
-		return Env{}, fmt.Errorf("%s is not in a git repository", dir)
+		return Env{}, fmt.Errorf("%s: %w", dir, ErrNotGit)
 	}
 	root := ci.RepoRoot(dir)
 	wf := proj.LoadWorkflow()

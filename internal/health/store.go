@@ -63,6 +63,12 @@ func Latest(root string) (*Snapshot, string, error) {
 	return s, p, err
 }
 
+// TakenOn reports whether a snapshot was taken on day's local date.
+func TakenOn(root string, day time.Time) bool {
+	all := list(root)
+	return len(all) > 0 && sameDay(all[len(all)-1].at, day.Local())
+}
+
 // Before is the newest snapshot taken at or before t; nil when there is
 // none. Unreadable files are skipped.
 func Before(root string, t time.Time) *Snapshot {

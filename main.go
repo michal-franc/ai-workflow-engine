@@ -117,6 +117,8 @@ func run(args []string) error {
 	if *configFile != "" {
 		srv.bg.Go("ci watcher", func() { srv.watchCI(ctx.Done()) })
 	}
+	// Project health: a snapshot a day per project (health_watch.go).
+	srv.bg.Go("health snapshots", func() { srv.watchHealth(ctx.Done()) })
 
 	url := "http://" + listenAddr(displayHost(*host), *port)
 	// Shells and leads the viewer did not start have no ISSUE_VIEWER_CONFIG;

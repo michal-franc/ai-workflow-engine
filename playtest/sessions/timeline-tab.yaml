@@ -62,7 +62,8 @@ steps:
       - visible: timeline.cli.actions
       - count: { pattern: timeline.folded, min: 1 }
       - text_contains: { target: timeline.tab, text: "transition → in progress (in design → in progress)" }
-      - text_contains: { target: timeline.tab, text: "exit 1" }
+      - text_contains: { target: timeline.tab, text: "(failed: approval missing)" }
+      - text_contains: { target: timeline.tab, text: "progress: waiting on your playtest" }
       - text_contains: { target: timeline.tab, text: "Agent started" }
       - http: { path: "/p/{project}/issue/ui/timeline-demo?tab=timeline&show=commits", contains: "Fix: CLI calls filter keeps the workflow actions" }
       - http: { path: "/p/{project}/issue/ui/timeline-demo?tab=timeline&show=tests", contains: "Your playtest: TP1 pass, TP2 fail" }

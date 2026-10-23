@@ -194,7 +194,7 @@ func loadIssueCommentsQuiet(issue *tracker.Issue) []tracker.Comment {
 // shortDateLabel renders "2026-10-06" as "6 Oct" ("6 Oct 2025" in another
 // year); anything unparseable is returned as is.
 func shortDateLabel(date string, now time.Time) string {
-	t, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(date), time.Local)
+	t, err := time.ParseInLocation("2006-01-02", tracker.CommentDay(date), time.Local)
 	if err != nil {
 		return date
 	}

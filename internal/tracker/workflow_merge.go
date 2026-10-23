@@ -60,6 +60,7 @@ func (w *WorkflowConfig) Clone() *WorkflowConfig {
 		WorktreeSetup:  w.WorktreeSetup,
 		LookupIssue:    w.LookupIssue,
 		IssuesRoot:     w.IssuesRoot,
+		RepoRoot:       w.RepoRoot,
 		DefaultType:    w.DefaultType,
 		ActiveType:     w.ActiveType,
 		OffPathStatus:  w.OffPathStatus,

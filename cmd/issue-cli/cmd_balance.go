@@ -136,7 +136,7 @@ func runBalance(ctx *Context, args []string) error {
 	}
 	fmt.Fprintf(ctx.Stdout, "✓ Balance note on %s: %s · %s\n", issue.Slug, note.Metric, note.State)
 	if replaces != nil {
-		fmt.Fprintf(ctx.Stdout, "Updates the note from %s (was %s).\n", replaces.Date, replaces.State)
+		fmt.Fprintf(ctx.Stdout, "Updates the note from %s (was %s).\n", tracker.CommentDay(replaces.Date), replaces.State)
 	}
 	fmt.Fprintf(ctx.Stdout, "Board: %s\n", out.Board)
 	if !out.Enabled {
@@ -210,7 +210,7 @@ func listBalance(ctx *Context, metric, state string, pass int) error {
 			if p := board.PlannedPassFor(&n.BalanceNote); p > 0 {
 				passLabel = fmt.Sprintf(" · pass %d", p)
 			}
-			fmt.Fprintf(ctx.Stdout, "  [%s] %s · %s%s\n", n.State, n.Slug, n.Date, passLabel)
+			fmt.Fprintf(ctx.Stdout, "  [%s] %s · %s%s\n", n.State, n.Slug, tracker.CommentDay(n.Date), passLabel)
 			for _, f := range []struct{ k, v string }{{"change", n.Change}, {"evidence", n.Evidence}, {"verdict", n.Verdict}} {
 				if f.v != "" {
 					fmt.Fprintf(ctx.Stdout, "      %s: %s\n", f.k, truncateRunes(f.v, 110))

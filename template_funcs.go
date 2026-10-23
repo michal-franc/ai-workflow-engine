@@ -40,6 +40,8 @@ type StatusTabs struct {
 }
 
 var funcMap = template.FuncMap{
+	// commentDay is the day of a comment date stored as RFC3339 or a day.
+	"commentDay": tracker.CommentDay,
 	// sidebar is replaced per server (Server.sidebarNav): the Nav the shared
 	// sidebar partial renders for a project page.
 	"sidebar": func(prefix, active string) Nav { return Nav{Prefix: prefix} },

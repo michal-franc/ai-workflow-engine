@@ -25,12 +25,27 @@ type TransitionStat struct {
 	// transition consumed. Nil when the transition needed no approval or the
 	// approval was not set through the viewer.
 	ApprovedAt *time.Time `json:"approved_at,omitempty"`
+
+	// BranchHead is the work/<slug> branch head when the transition ran, so
+	// the issue's commits stay reachable after the branch is deleted. Empty
+	// without the branch.
+	BranchHead string `json:"branch_head,omitempty"`
+	// MergeSHA is set on the move to done: the project checkout's HEAD when
+	// it contains BranchHead, i.e. the commit local CI tests after the merge.
+	MergeSHA string `json:"merge_sha,omitempty"`
 }
 
 // ApprovalRecord is the most recent approval the viewer granted.
 type ApprovalRecord struct {
 	Status string    `json:"status"`
 	At     time.Time `json:"at"`
+}
+
+// Dispatch is one launch of an agent on the issue by the viewer.
+type Dispatch struct {
+	At      time.Time `json:"at"`
+	Session string    `json:"session"`
+	Agent   string    `json:"agent"`
 }
 
 // StatsStore is the per-issue workflow-stats sidecar persisted as
@@ -42,6 +57,9 @@ type StatsStore struct {
 	// pending_wait and per-row wait_started_at (from the removed --wait);
 	// encoding/json ignores them on load and the next save drops them.
 	LastApproval *ApprovalRecord `json:"last_approval,omitempty"`
+	// Dispatches are the agent launches on this issue, oldest first; the
+	// first is where the issue's agent work starts.
+	Dispatches []Dispatch `json:"dispatches,omitempty"`
 }
 
 // StatsSidecarPath returns the stats sidecar path for an issue markdown file.
@@ -183,4 +201,17 @@ func DynamicTransitionCost(wf *WorkflowConfig, from, to, issueBody string, comme
 		cost += tokens.Estimate(c.Text)
 	}
 	return cost
+}
+
+// RecordDispatch appends one agent launch to the issue's stats sidecar.
+func RecordDispatch(issuePath string, d Dispatch) error {
+	return withIssueLock(issuePath, func() error {
+		store, err := LoadStats(issuePath)
+		if err != nil {
+			return err
+		}
+		d.At = d.At.UTC()
+		store.Dispatches = append(store.Dispatches, d)
+		return SaveStats(issuePath, store)
+	})
 }

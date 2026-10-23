@@ -98,7 +98,7 @@ func runShow(ctx *Context, args []string) error {
 			if c.Status == "done" {
 				status = " [done]"
 			}
-			fmt.Fprintf(ctx.Stdout, "  [%s]%s %s\n", c.Date, status, c.Text)
+			fmt.Fprintf(ctx.Stdout, "  [%s]%s %s\n", tracker.CommentDay(c.Date), status, c.Text)
 		}
 	}
 	return nil

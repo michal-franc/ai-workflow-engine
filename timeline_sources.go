@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"os"
@@ -14,6 +13,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/michal-franc/issue-viewer/internal/clilog"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -46,37 +46,22 @@ type missingSource struct {
 	Detail string // the paths tried and what that hides
 }
 
-// statRow is one stats-sidecar transition. BranchHead and MergeSHA come from
-// cli/clilog-and-stats-record-what-the-timeline-needs and are empty in
-// sidecars written before it.
-type statRow struct {
-	From       string     `json:"from"`
-	To         string     `json:"to"`
-	TS         time.Time  `json:"ts"`
-	ApprovedAt *time.Time `json:"approved_at,omitempty"`
-	BranchHead string     `json:"branch_head,omitempty"`
-	MergeSHA   string     `json:"merge_sha,omitempty"`
-}
+// statRow is one stats-sidecar transition (tracker.TransitionStat): ts,
+// approved_at, and branch_head / merge_sha from v0.54 on.
+type statRow = tracker.TransitionStat
 
-// statFile reads the stats sidecar with the fields the timeline needs,
-// including ones newer issue-cli versions add (dispatches).
-type statFile struct {
-	Transitions []statRow `json:"transitions"`
-	Dispatches  []struct {
-		At time.Time `json:"at"`
-	} `json:"dispatches,omitempty"`
-}
-
-// cliCall is one clilog record. Exit and DurMS are nil/0 in records written
-// before the clilog recorded results.
+// cliCall is one clilog record (internal/clilog owns the format) as the
+// timeline reads it. Exit, ErrClass and DurMS are empty in records written
+// before v0.54.
 type cliCall struct {
-	At    time.Time
-	Args  []string // global flags stripped
-	Raw   []string
-	Exit  *int
-	DurMS int64
+	clilog.Record
+	At time.Time // Record.Start()
+	// Args are the record's args without issue-cli's global flags, so
+	// Args[0] is the command. Record.Args keeps them as logged.
+	Args []string
 	// Agent: read from a per-agent clilog, so the issue's agent made it.
-	// Shared logs also hold the lead's and the owner's calls on the issue.
+	// The project log also holds the lead's and the owner's calls on the
+	// issue.
 	Agent bool
 }
 
@@ -87,11 +72,12 @@ func (c cliCall) cmd() string {
 	return c.Args[0]
 }
 
-type cliRecordFull struct {
-	TS    string   `json:"ts"`
-	Args  []string `json:"args"`
-	Exit  *int     `json:"exit,omitempty"`
-	DurMS int64    `json:"dur_ms,omitempty"`
+// record is the call as timelineEventFromRecord takes it: the logged record
+// with global flags stripped.
+func (c cliCall) record() clilog.Record {
+	r := c.Record
+	r.Args = c.Args
+	return r
 }
 
 type gitCommit struct {
@@ -149,7 +135,7 @@ func loadTimelineSources(proj *tracker.Project, issue *tracker.Issue, wf *tracke
 	worktree := filepath.Join(root, ".worktrees", issue.Slug)
 	var src timelineSources
 
-	stats, statsErr := readStatFile(tracker.StatsSidecarPath(issue.FilePath))
+	stats, statsErr := tracker.LoadStats(issue.FilePath)
 	switch {
 	case statsErr != nil:
 		src.Missing = append(src.Missing, missingSource{"Stats sidecar", statsErr.Error() + ". Status times and approvals are not shown."})
@@ -222,21 +208,6 @@ func loadTimelineSources(proj *tracker.Project, issue *tracker.Issue, wf *tracke
 	return src
 }
 
-func readStatFile(issuePath string) (statFile, error) {
-	var f statFile
-	data, err := os.ReadFile(issuePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return f, nil
-		}
-		return f, err
-	}
-	if err := json.Unmarshal(data, &f); err != nil {
-		return statFile{}, err
-	}
-	return f, nil
-}
-
 func countApprovals(rows []statRow) int {
 	n := 0
 	for _, r := range rows {
@@ -270,35 +241,41 @@ func timelineLogPaths(workDir, worktree string, issue *tracker.Issue) []string {
 	seen := map[string]bool{}
 	for _, dir := range []string{worktree, workDir} {
 		for _, n := range names {
-			p := filepath.Join(dir, ".agent-logs", n, n+".clilog")
+			p := clilog.AgentPath(dir, n)
 			if dir != "" && !seen[p] {
 				seen[p] = true
 				paths = append(paths, p)
 			}
 		}
 	}
-	return append(paths,
-		filepath.Join(workDir, ".agent-logs", "clilog.jsonl"),
-		filepath.Join(os.TempDir(), "issue-cli-logs", "actions.jsonl"))
+	return append(paths, clilog.ProjectPath(workDir), clilog.LegacyPath())
 }
 
-// loadCliCalls merges the clilogs, keeping per-agent records for this project
-// and shared-log records that name this issue, deduped on (ts, args).
+// loadCliCalls merges the clilogs, keeping per-agent records for this
+// project and shared-log records that name this issue, deduped on (ts, args):
+// a call can be in both the per-agent and the project log.
 func loadCliCalls(paths []string, projSlug, issueSlug string) []cliCall {
 	var calls []cliCall
 	seen := map[string]bool{}
 	for _, p := range paths {
-		shared := filepath.Base(p) == "clilog.jsonl" || filepath.Base(p) == "actions.jsonl"
-		readFullCliLog(p, func(rec cliRecordFull) {
-			if shared && !cliRecordMatchesIssue(cliLogRecord{Args: rec.Args, TS: rec.TS}, projSlug, issueSlug) {
+		legacy := p == clilog.LegacyPath()
+		shared := legacy || filepath.Base(p) == clilog.FileName
+		// The project log holds only this project's calls, many without a
+		// --project flag; the legacy $TMPDIR log mixes every project's.
+		wantProj := ""
+		if legacy {
+			wantProj = projSlug
+		}
+		clilog.Read(p, func(rec clilog.Record) {
+			if shared && !cliRecordMatchesIssue(rec, wantProj, issueSlug) {
 				return
 			}
-			if p := flagValue(rec.Args, "--project"); !shared && p != "" && projSlug != "" && p != projSlug {
+			if p := clilog.FlagValue(rec.Args, "--project"); !shared && p != "" && projSlug != "" && p != projSlug {
 				return
 			}
-			args := stripGlobalFlags(rec.Args)
-			at, err := time.Parse(time.RFC3339, rec.TS)
-			if len(args) == 0 || err != nil {
+			args := clilog.StripGlobal(rec.Args)
+			at := rec.Start()
+			if len(args) == 0 || at.IsZero() {
 				return
 			}
 			key := rec.TS + "|" + strings.Join(args, "\x00")
@@ -306,27 +283,11 @@ func loadCliCalls(paths []string, projSlug, issueSlug string) []cliCall {
 				return
 			}
 			seen[key] = true
-			calls = append(calls, cliCall{At: at, Args: args, Raw: rec.Args, Exit: rec.Exit, DurMS: rec.DurMS, Agent: !shared})
+			calls = append(calls, cliCall{Record: rec, At: at, Args: args, Agent: !shared})
 		})
 	}
 	sort.SliceStable(calls, func(i, j int) bool { return calls[i].At.Before(calls[j].At) })
 	return calls
-}
-
-func readFullCliLog(path string, visit func(cliRecordFull)) {
-	f, err := os.Open(path)
-	if err != nil {
-		return
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
-	for scanner.Scan() {
-		var rec cliRecordFull
-		if json.Unmarshal(scanner.Bytes(), &rec) == nil {
-			visit(rec)
-		}
-	}
 }
 
 // lifeStart is when the issue's agent life began: the first dispatch, else
@@ -515,7 +476,7 @@ func shortSHA(sha string) string {
 // dispatch (or the agent's first call) to done, or "so far". It reads the
 // stats sidecar and the first line of each per-agent clilog only.
 func timelineTotalLabel(proj *tracker.Project, issue *tracker.Issue) string {
-	stats, err := readStatFile(tracker.StatsSidecarPath(issue.FilePath))
+	stats, err := tracker.LoadStats(issue.FilePath)
 	if err != nil {
 		return ""
 	}
@@ -546,26 +507,18 @@ func timelineTotalLabel(proj *tracker.Project, issue *tracker.Issue) string {
 
 // firstCliCall is the first record in a per-agent clilog for projSlug.
 func firstCliCall(path, projSlug string) (cliCall, bool) {
-	f, err := os.Open(path)
-	if err != nil {
-		return cliCall{}, false
-	}
-	defer f.Close()
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
-	for scanner.Scan() {
-		var rec cliRecordFull
-		if json.Unmarshal(scanner.Bytes(), &rec) != nil {
-			continue
+	var first cliCall
+	found := false
+	clilog.Read(path, func(rec clilog.Record) {
+		if found {
+			return
 		}
-		if p := flagValue(rec.Args, "--project"); p != "" && projSlug != "" && p != projSlug {
-			continue
+		if p := clilog.FlagValue(rec.Args, "--project"); p != "" && projSlug != "" && p != projSlug {
+			return
 		}
-		at, err := time.Parse(time.RFC3339, rec.TS)
-		if err != nil {
-			continue
+		if at := rec.Start(); !at.IsZero() {
+			first, found = cliCall{Record: rec, At: at, Args: clilog.StripGlobal(rec.Args), Agent: true}, true
 		}
-		return cliCall{At: at, Args: stripGlobalFlags(rec.Args), Agent: true}, true
-	}
-	return cliCall{}, false
+	})
+	return first, found
 }

@@ -1,0 +1,32 @@
+session: clilog-timeline
+issue: cli/clilog-and-stats-record-what-the-timeline-needs
+title: The clilog records each call's result without free text; the Timeline tab still reads well
+scenario: basic
+
+# Desktop only: timeline-tab.yaml covers the Timeline tab at phone width.
+session_checks:
+  viewports: [1440x900]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: A comment and a refused gate show under the Timeline tab's CLI calls; the comment's text comes from the issue
+    setup:
+      - open: /p/{project}/issue/cli/export-issues-as-csv?tab=timeline&show=cli
+    act:
+      - cli: [comment, cli/export-issues-as-csv, --text, "progress: plan ready, waiting on the owner for in progress"]
+      - cli: { args: [transition, cli/export-issues-as-csv, --to, "in progress"], exit: 1 }
+      - reload: true
+    checks:
+      - exists: timeline.tab
+      - text_contains: { target: timeline.tab, text: "progress: plan ready, waiting on the owner for in progress" }
+      - text_contains: { target: timeline.tab, text: "transition → in progress (failed: approval missing)" }
+    targets:
+      - { id: timeline.tab, note: "Your comment and the refused transition, newest last" }
+    do: Look at the CLI calls on the Timeline tab, then at the comment on the Issue tab.
+    expect: >-
+      CLI calls lists the comment with its full text and the transition marked
+      "failed: approval missing". On the Issue tab the comment shows only its day.
+    why: >-
+      The clilog no longer keeps the words typed into issue-cli: the timeline takes the
+      comment's text from the issue, and each call now records whether it failed and why.

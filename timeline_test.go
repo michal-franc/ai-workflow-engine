@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/clilog"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -39,8 +38,8 @@ func TestClassifyGaps(t *testing.T) {
 		{at(40), at(110), segIdle},     // starts in idea: not gated
 		{at(110), at(150), segWaiting}, // 40m in a gated status
 		{at(150), at(160), segAgent},
-		{at(160), at(190), segWaiting}, // holds your approval
-		{at(190), at(200), segAgent},
+		{at(160), at(190), segWaiting}, // 30m in a gated status, up to the approval
+		{at(190), at(200), segAgent},   // after the approval: its own 10m gap
 		{at(200), at(210), segAgent},
 	}
 	if len(segs) != len(want) {
@@ -49,6 +48,26 @@ func TestClassifyGaps(t *testing.T) {
 	for i := range want {
 		if !segs[i].From.Equal(want[i].From) || !segs[i].To.Equal(want[i].To) || segs[i].Kind != want[i].Kind {
 			t.Errorf("segment %d = %v→%v %s, want %v→%v %s", i, segs[i].From, segs[i].To, segs[i].Kind, want[i].From, want[i].To, want[i].Kind)
+		}
+	}
+}
+
+// The wait at an approval is tracker.OwnerWaits' (from the agent's last call
+// in the status to the approval), laid over whatever the gap rules said.
+func TestOverlayWaits(t *testing.T) {
+	segs := []seg{{at(0), at(60), segAgent}, {at(60), at(90), segIdle}}
+	store := tracker.StatsStore{Transitions: []tracker.TransitionStat{
+		{From: "idea", To: "in design", TS: at(0)},
+		{From: "in design", To: "in progress", TS: at(85), ApprovedAt: ptr(at(80))},
+	}}
+	got := overlayWaits(segs, tracker.OwnerWaits(store, []time.Time{at(5), at(50)}))
+	want := []seg{{at(0), at(50), segAgent}, {at(50), at(60), segWaiting}, {at(60), at(80), segWaiting}, {at(80), at(90), segIdle}}
+	if len(got) != len(want) {
+		t.Fatalf("got %+v", got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("segment %d = %+v, want %+v", i, got[i], want[i])
 		}
 	}
 }
@@ -86,14 +105,23 @@ func TestReworkLoops(t *testing.T) {
 }
 
 // AC3: the local CI issue from its real stats sidecar, per-agent clilog and
-// playtest runs: 5h 0m in all, 3h 48m waiting on you.
+// playtest runs: 5h 0m in all, 3h 48m waiting on you. The clilog is redacted
+// as v0.54 writes it (clilog.Redact), except two legacy pre-v0.54 records.
 func TestBuildTimelineLocalCI(t *testing.T) {
 	dir := filepath.Join("testdata", "timeline", "local-ci")
-	stats, err := readStatFile(filepath.Join(dir, "stats.json"))
-	if err != nil {
-		t.Fatal(err)
+	issuePath := filepath.Join(dir, "issue.md")
+	stats, err := tracker.LoadStats(issuePath)
+	if err != nil || len(stats.Transitions) == 0 {
+		t.Fatalf("stats: %v", err)
 	}
+	comments, err := tracker.LoadComments(issuePath)
+	if err != nil || len(comments) == 0 {
+		t.Fatalf("comments: %v", err)
+	}
+	body, _ := os.ReadFile(issuePath)
 	src := timelineSources{
+		Comments:    comments,
+		Decisions:   tracker.ParseDecisions("workflow/local-ci", string(body)),
 		Transitions: stats.Transitions,
 		Calls:       loadCliCalls([]string{filepath.Join(dir, "agent.clilog")}, "issue-viewer", "workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures"),
 		Runs:        loadPlaytestRuns("workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures", dir),
@@ -103,8 +131,6 @@ func TestBuildTimelineLocalCI(t *testing.T) {
 			{SHA: "e545be0", At: time.Date(2026, 10, 22, 18, 50, 54, 0, time.UTC), Subject: "Merge branch 'main'", Merge: true},
 		},
 	}
-	src.Decisions = tracker.ParseDecisions("workflow/local-ci", "## Decisions\n\n"+
-		"- **D-7** · 2026-10-22 · agent chat: One issue, built in phased commits in the lead's build order (run/status/reset, watcher + detached runs, reporting, enable here). Enabling CI in RogueTech stays with the RogueTech lead, \"One issue, phased commits\"\n")
 	if len(src.Runs) != 5 {
 		t.Fatalf("runs = %d, want 5", len(src.Runs))
 	}
@@ -135,7 +161,7 @@ func TestBuildTimelineLocalCI(t *testing.T) {
 		t.Errorf("commits = %d, merges = %d", tl.Commits, tl.Merges)
 	}
 
-	var waits, decide string
+	var waits, decide, progress, refused string
 	for _, b := range tl.Bands {
 		for _, e := range b.Events {
 			if e.Row == "wait" {
@@ -144,16 +170,41 @@ func TestBuildTimelineLocalCI(t *testing.T) {
 			if e.Chip == "decide" && b.Status == "idea" {
 				decide = e.Text
 			}
+			if e.Chip == "progress" && b.Status == "in design" {
+				progress = e.Text
+			}
+			if e.Chip == "refused" {
+				refused = e.Text
+			}
 		}
+	}
+	if !strings.HasPrefix(progress, "progress: design written") {
+		t.Errorf("in design progress comment = %q; the redacted text is filled from the issue's comment", progress)
+	}
+	if refused != "transition → backlog refused: approval missing (dry run)" {
+		t.Errorf("refused row = %q", refused)
 	}
 	if !strings.Contains(waits, "in design: Waiting on you · 45m 48s · approval to leave in design") ||
 		!strings.Contains(waits, "human-testing: Waiting on you · 2h 53m") ||
 		!strings.Contains(waits, "approval to leave human-testing") {
 		t.Errorf("wait rows:\n%s", waits)
 	}
-	if !strings.Contains(decide, `4 decisions: D-7 "One issue, phased commits"`) {
-		t.Errorf("decide row = %q; decisions are matched by their text", decide)
+	if !strings.Contains(decide, `4 decisions: D-7 "One issue, phased commits" · D-8 "Accept all three"`) {
+		t.Errorf("decide row = %q; redacted decisions are matched by their placeholder", decide)
 	}
+	if n := legacyRecords(t, filepath.Join(dir, "agent.clilog")); n != 2 {
+		t.Errorf("the fixture should keep 2 legacy records (no exit, no dur_ms), has %d", n)
+	}
+}
+
+func legacyRecords(t *testing.T, path string) int {
+	n := 0
+	clilog.Read(path, func(r clilog.Record) {
+		if r.Exit == nil && r.DurMS == nil {
+			n++
+		}
+	})
+	return n
 }
 
 func TestTimelineFilters(t *testing.T) {
@@ -217,14 +268,13 @@ func TestTimelineNoCLILog(t *testing.T) {
 
 func TestResolveRedactedText(t *testing.T) {
 	text := "progress: design written"
-	sum := sha256.Sum256([]byte(text))
-	red := "‹text n=24 h=" + hex.EncodeToString(sum[:])[:6] + "›"
 	src := timelineSources{Comments: []tracker.Comment{{Text: text}}}
-	if got := resolveText("comment x "+red, src); got != "comment x "+text {
+	if got := resolveText("comment x "+clilog.Placeholder(text), src); got != "comment x "+text {
 		t.Errorf("resolveText = %q", got)
 	}
-	if got := resolveText("‹text n=3 h=000000›", src); got != "[text not kept]" {
-		t.Errorf("unknown hash = %q", got)
+	other := clilog.Placeholder("not in the issue")
+	if got := resolveText(other, src); got != other {
+		t.Errorf("unknown text = %q, want the placeholder kept", got)
 	}
 }
 
@@ -325,21 +375,42 @@ func TestDetailTimelineWithLog(t *testing.T) {
 	}
 	logDir := filepath.Join(tmp, ".agent-logs", "alice")
 	os.MkdirAll(logDir, 0o755)
+	comment := "progress: waiting on your approval"
+	if err := tracker.AddComment(issuePath, 0, comment, "cli"); err != nil {
+		t.Fatal(err)
+	}
 	lines := `{"args":["--project","test-project","show","bug-in-login"],"ts":"2026-10-22T10:00:00Z"}
-{"args":["--project","test-project","transition","bug-in-login","--to","in progress"],"ts":"2026-10-22T10:30:00Z","exit":0}
-{"args":["--project","test-project","transition","bug-in-login","--to","testing"],"ts":"2026-10-22T10:31:00Z","exit":1}
+{"args":["--project","test-project","comment","bug-in-login","--text","` + clilog.Placeholder(comment) + `"],"ts":"2026-10-22T10:05:00Z","pid":7,"ppid":6,"exit":0,"dur_ms":120}
+{"args":["--project","test-project","transition","bug-in-login","--to","in progress"],"ts":"2026-10-22T10:30:00Z","pid":8,"ppid":6,"exit":0,"dur_ms":200}
+{"args":["--project","test-project","transition","bug-in-login","--to","testing"],"ts":"2026-10-22T10:31:00Z","pid":9,"ppid":6,"exit":1,"err_class":"approval_missing","dur_ms":90}
 `
 	if err := os.WriteFile(filepath.Join(logDir, "alice.clilog"), []byte(lines), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The project log: the lead's call, with no --project flag.
+	lead := `{"args":["set-meta","bug-in-login","--key","version"],"ts":"2026-10-22T10:20:00Z","pid":5,"ppid":4,"exit":0,"dur_ms":80}
+`
+	if err := os.WriteFile(clilog.ProjectPath(tmp), []byte(lead), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
 
 	_, page := getBody(t, ts.URL+"/p/test-project/issue/bug-in-login?tab=timeline&show=cli")
-	for _, want := range []string{`data-testid="timeline.cli.call"`, "Workflow actions the bot saw", "refused", "exit 1", `data-testid="timeline.wait"`} {
+	if !strings.Contains(page, "set-meta bug-in-login --key version") {
+		t.Error("CLI calls: the project log's call (no --project flag) is missing")
+	}
+	for _, want := range []string{`data-testid="timeline.cli.call"`, "Workflow actions the bot saw", "refused", "(failed: approval missing)", comment, `data-testid="timeline.wait"`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("CLI calls: missing %q", want)
 		}
+	}
+	if strings.Contains(page, "‹text") {
+		t.Error("a redacted comment shows its placeholder instead of the issue's comment text")
+	}
+	_, all := getBody(t, ts.URL+"/p/test-project/issue/bug-in-login?tab=timeline")
+	if !strings.Contains(all, comment) {
+		t.Error("All filter: the redacted comment is not filled from the issue")
 	}
 	if strings.Contains(page, `CLI log:</span>`) {
 		t.Error("the clilog was found, yet the tab says it could not read it")

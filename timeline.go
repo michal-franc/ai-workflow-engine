@@ -1,16 +1,14 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/michal-franc/issue-viewer/internal/clilog"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -180,7 +178,8 @@ func buildTimeline(src timelineSources, in timelineInput) Timeline {
 	activity := activityTimes(src, tl.Start, tl.End)
 	var segs []seg
 	if tl.Known {
-		segs = classifyGaps(activity, approvals(src.Transitions), bands, tl.Start, tl.End)
+		segs = classifyGaps(activity, approvedTimes(src.Transitions), bands, tl.Start, tl.End)
+		segs = overlayWaits(segs, tracker.OwnerWaits(tracker.StatsStore{Transitions: src.Transitions}, agentCallEnds(src.Calls)))
 	}
 	tl.Loops = reworkLoops(src, in.WF, tl.End)
 	segs = markRework(segs, tl.Loops)
@@ -299,7 +298,7 @@ func bandAt(bands []lifeBand, t time.Time) *lifeBand {
 func activityTimes(src timelineSources, start, end time.Time) []time.Time {
 	var ts []time.Time
 	for _, c := range src.Calls {
-		at := c.At.Add(time.Duration(c.DurMS) * time.Millisecond)
+		at := c.End()
 		if !at.Before(start) && !at.After(end) {
 			ts = append(ts, at)
 		}
@@ -313,7 +312,7 @@ func activityTimes(src timelineSources, start, end time.Time) []time.Time {
 	return ts
 }
 
-func approvals(rows []statRow) []time.Time {
+func approvedTimes(rows []statRow) []time.Time {
 	var out []time.Time
 	for _, r := range rows {
 		if r.ApprovedAt != nil {
@@ -323,19 +322,41 @@ func approvals(rows []statRow) []time.Time {
 	return out
 }
 
+// agentCallEnds are when the agent's calls ended, for tracker.OwnerWaits:
+// the per-agent log's calls, or every call when no per-agent log was found.
+func agentCallEnds(calls []cliCall) []time.Time {
+	var ends, all []time.Time
+	for _, c := range calls {
+		all = append(all, c.End())
+		if c.Agent {
+			ends = append(ends, c.End())
+		}
+	}
+	if len(ends) == 0 {
+		return all
+	}
+	return ends
+}
+
 type seg struct {
 	From, To time.Time
 	Kind     string
 }
 
-// classifyGaps splits the life at each activity and classifies every gap:
-//  1. a gap that holds your approval is waiting on you up to the approval;
-//  2. in a status only you can move on, a gap of 15 min or more is waiting;
-//  3. any other gap of 15 min or more is idle;
-//  4. the rest is agent working.
+// classifyGaps splits the life at each activity and at each approval, and
+// classifies every gap: in a status only you can move on, a gap of 15 min or
+// more is waiting on you; any other gap of 15 min or more is idle; the rest
+// is agent working. The waits up to your approvals come on top, from
+// overlayWaits; splitting at the approval keeps the time after it apart.
 func classifyGaps(activity, approved []time.Time, bands []lifeBand, start, end time.Time) []seg {
 	points := append([]time.Time{start}, activity...)
+	for _, t := range approved {
+		if t.After(start) && t.Before(end) {
+			points = append(points, t)
+		}
+	}
 	points = append(points, end)
+	sort.Slice(points, func(i, j int) bool { return points[i].Before(points[j]) })
 	var segs []seg
 	add := func(a, b time.Time, kind string) {
 		if b.After(a) {
@@ -347,20 +368,7 @@ func classifyGaps(activity, approved []time.Time, bands []lifeBand, start, end t
 		if !b.After(a) {
 			continue
 		}
-		var appr time.Time
-		for _, t := range approved {
-			if t.After(a) && !t.After(b) {
-				appr = t
-			}
-		}
 		switch {
-		case !appr.IsZero():
-			add(a, appr, segWaiting)
-			if b.Sub(appr) >= agentIdleAfter {
-				add(appr, b, segIdle)
-			} else {
-				add(appr, b, segAgent)
-			}
 		case b.Sub(a) >= agentIdleAfter:
 			if band := bandAt(bands, a); band != nil && band.Gated {
 				add(a, b, segWaiting)
@@ -370,6 +378,31 @@ func classifyGaps(activity, approved []time.Time, bands []lifeBand, start, end t
 		default:
 			add(a, b, segAgent)
 		}
+	}
+	return segs
+}
+
+// overlayWaits marks each approval wait (tracker.OwnerWaits: from the
+// agent's last call in the status to your approval, D-8 of the clilog issue)
+// as waiting on you, whatever the gap rules made of that time.
+func overlayWaits(segs []seg, waits []tracker.GateWait) []seg {
+	for _, w := range waits {
+		var out []seg
+		for _, s := range segs {
+			if !s.To.After(w.Since) || !w.ApprovedAt.After(s.From) {
+				out = append(out, s)
+				continue
+			}
+			lo, hi := maxTime(s.From, w.Since), minTime(s.To, w.ApprovedAt)
+			if lo.After(s.From) {
+				out = append(out, seg{s.From, lo, s.Kind})
+			}
+			out = append(out, seg{lo, hi, segWaiting})
+			if s.To.After(hi) {
+				out = append(out, seg{hi, s.To, s.Kind})
+			}
+		}
+		segs = out
 	}
 	return segs
 }
@@ -614,19 +647,33 @@ func timelineEvents(src timelineSources, in timelineInput, segs []seg, loops []r
 
 	tag(tlEvent{At: start, Row: "event", Chip: "dispatch", Tone: "gray", Text: "Agent started", Detail: src.Prompt}, showAll, showCLI)
 
+	// Each call as the old Agent Timeline showed it: comment text the clilog
+	// redacted is filled from the issue's comments, and transitions carry
+	// the workflow actions they ran.
+	tes := make([]TimelineEvent, len(src.Calls))
+	for i := range src.Calls {
+		tes[i] = timelineEventFromRecord(src.Calls[i].record())
+	}
+	tes = FillRedactedComments(tes, src.Comments)
+	tes = EnrichTimelineWithWorkflow(tes, in.WF, "")
+
 	// Agent's work, grouped: same-kind writes in a row become one line.
-	var group []cliCall
+	var group []int
 	flush := func() {
 		if len(group) == 0 {
 			return
 		}
-		if e, ok := groupEvent(group, src); ok {
-			tag(e, eventFilters(group[0])...)
+		calls := make([]cliCall, len(group))
+		for k, i := range group {
+			calls[k] = src.Calls[i]
+		}
+		if e, ok := groupEvent(calls, tes[group[0]], src); ok {
+			tag(e, eventFilters(calls[0], tes[group[0]])...)
 		}
 		group = nil
 	}
 	var before []cliCall
-	for _, c := range src.Calls {
+	for i, c := range src.Calls {
 		if c.At.Before(start) {
 			before = append(before, c)
 			continue
@@ -635,10 +682,13 @@ func timelineEvents(src timelineSources, in timelineInput, segs []seg, loops []r
 			flush()
 			continue
 		}
-		if len(group) > 0 && (groupKind(group[0]) != groupKind(c) || c.At.Sub(group[len(group)-1].At) > 2*time.Minute || groupKind(c) == "") {
-			flush()
+		if len(group) > 0 {
+			first, last := src.Calls[group[0]], src.Calls[group[len(group)-1]]
+			if groupKind(first) != groupKind(c) || c.At.Sub(last.At) > 2*time.Minute || groupKind(c) == "" {
+				flush()
+			}
 		}
-		group = append(group, c)
+		group = append(group, i)
 	}
 	flush()
 
@@ -733,13 +783,7 @@ func timelineEvents(src timelineSources, in timelineInput, segs []seg, loops []r
 		tag(tlEvent{At: l.From, Row: "loop", Text: l.Label, Note: note}, showAll, showCLI)
 	}
 
-	// CLI calls: today's Agent Timeline rows, enriched with the workflow
-	// actions each transition saw.
-	tes := make([]TimelineEvent, len(src.Calls))
-	for i, c := range src.Calls {
-		tes[i] = timelineEventFromRecord(cliLogRecord{Args: c.Args, TS: c.At.Format(time.RFC3339)})
-	}
-	tes = EnrichTimelineWithWorkflow(tes, in.WF, "")
+	// CLI calls: the old Agent Timeline's rows.
 	var reads []cliCall
 	var readIdx []int
 	flushReads := func() {
@@ -822,9 +866,6 @@ func cliSummary(te TimelineEvent, c cliCall, src timelineSources) string {
 	if hasArg(c.Args, "--dry-run") {
 		s += " --dry-run"
 	}
-	if c.Exit != nil {
-		s += " · exit " + strconv.Itoa(*c.Exit)
-	}
 	return s
 }
 
@@ -870,9 +911,13 @@ func groupKind(c cliCall) string {
 	return ""
 }
 
-func eventFilters(c cliCall) []string {
+func eventFilters(c cliCall, te TimelineEvent) []string {
 	if c.cmd() == "comment" {
-		switch commentPrefix(callText(c)) {
+		prefix := commentPrefix(callText(c))
+		if clilog.IsPlaceholder(callText(c)) {
+			prefix = strings.TrimPrefix(te.Kind, "comment-")
+		}
+		switch prefix {
 		case "tests", "playtest", "ci":
 			return []string{showAll, showTests}
 		}
@@ -884,7 +929,7 @@ func eventFilters(c cliCall) []string {
 }
 
 // groupEvent is the All-filter line for a run of same-kind writes.
-func groupEvent(group []cliCall, src timelineSources) (tlEvent, bool) {
+func groupEvent(group []cliCall, te TimelineEvent, src timelineSources) (tlEvent, bool) {
 	c := group[0]
 	e := tlEvent{At: c.At, Row: "event", Tone: "gray"}
 	switch c.cmd() {
@@ -923,7 +968,7 @@ func groupEvent(group []cliCall, src timelineSources) (tlEvent, bool) {
 			e.Text = "1 box ticked: " + ids[0]
 		}
 	case "comment":
-		text := resolveText(callText(c), src)
+		text := commentText(c, te, src)
 		e.Chip = "comment"
 		if p := commentPrefix(text); p != "" {
 			e.Chip = p
@@ -941,6 +986,9 @@ func groupEvent(group []cliCall, src timelineSources) (tlEvent, bool) {
 		}
 		e.Chip, e.Tone = "refused", "red"
 		e.Text = "transition → " + flagValue(c.Args, "--to") + " refused"
+		if c.ErrClass != "" {
+			e.Text += ": " + strings.ReplaceAll(c.ErrClass, "_", " ")
+		}
 		if hasArg(c.Args, "--dry-run") {
 			e.Text += " (dry run)"
 		}
@@ -954,6 +1002,22 @@ func groupEvent(group []cliCall, src timelineSources) (tlEvent, bool) {
 		}
 	}
 	return e, true
+}
+
+// commentText is a comment call's text: what FillRedactedComments put in
+// the event when the clilog redacted it, else the call's own text.
+func commentText(c cliCall, te TimelineEvent, src timelineSources) string {
+	text := callText(c)
+	if clilog.IsPlaceholder(text) {
+		if te.Detail != "" {
+			return te.Detail
+		}
+		if te.Summary != "comment" {
+			return te.Summary
+		}
+		return resolveText(text, src)
+	}
+	return text
 }
 
 // callText is a comment call's text: --text, else the positional after the
@@ -978,11 +1042,17 @@ func commentPrefix(text string) string {
 	return ""
 }
 
+// decisionLabel names the D-n a decide call recorded. The decision line
+// drops a trailing period from --text, so a redacted call is also matched by
+// its --quote.
 func decisionLabel(c cliCall, decisions []tracker.Decision) string {
-	text := flagValue(c.Args, "--text")
+	text, quote := flagValue(c.Args, "--text"), flagValue(c.Args, "--quote")
 	norm := func(s string) string { return strings.TrimRight(strings.TrimSpace(s), ".") }
 	for _, d := range decisions {
-		if text != "" && (norm(d.Text) == norm(text) || redactedMatches(text, d.Text)) {
+		q := strings.Trim(d.Quote, `"`)
+		redacted := clilog.IsPlaceholder(text) && (text == clilog.Placeholder(d.Text) || text == clilog.Placeholder(d.Text+".") ||
+			(q != "" && quote == clilog.Placeholder(q)))
+		if text != "" && (norm(d.Text) == norm(text) || redacted) {
 			if d.Quote != "" {
 				return d.ID + ` "` + strings.Trim(d.Quote, `"`) + `"`
 			}
@@ -992,38 +1062,20 @@ func decisionLabel(c cliCall, decisions []tracker.Decision) string {
 	return "decision recorded"
 }
 
-// Newer clilogs keep no free text (cli/clilog-and-stats-…, D-6): a value is
-// ‹text n=<chars> h=<6 hex of sha256>›. The text is found again in the issue.
-var redactedRe = regexp.MustCompile(`‹text n=\d+ h=([0-9a-f]{6})›`)
-
-func redactedMatches(redacted, text string) bool {
-	m := redactedRe.FindStringSubmatch(redacted)
-	if m == nil {
-		return false
-	}
-	sum := sha256.Sum256([]byte(text))
-	return hex.EncodeToString(sum[:])[:6] == m[1]
-}
-
-// resolveText swaps each redacted value for the matching comment or
-// decision text from the issue, or "[text not kept]".
+// resolveText swaps each redacted value (clilog.Placeholder, cli/clilog-…
+// D-6) for the comment or decision text from the issue it was made from. A
+// value with no match stays a placeholder.
 func resolveText(s string, src timelineSources) string {
 	if !strings.Contains(s, "‹text") {
 		return s
 	}
-	return redactedRe.ReplaceAllStringFunc(s, func(m string) string {
-		for _, c := range src.Comments {
-			if redactedMatches(m, c.Text) {
-				return c.Text
-			}
-		}
-		for _, d := range src.Decisions {
-			if redactedMatches(m, d.Text) {
-				return d.Text
-			}
-		}
-		return "[text not kept]"
-	})
+	for _, c := range src.Comments {
+		s = strings.ReplaceAll(s, clilog.Placeholder(c.Text), c.Text)
+	}
+	for _, d := range src.Decisions {
+		s = strings.ReplaceAll(s, clilog.Placeholder(d.Text), d.Text)
+	}
+	return s
 }
 
 // waitLabel names what a wait was for: the approval that ended it, or the

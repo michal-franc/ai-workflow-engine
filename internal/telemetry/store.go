@@ -66,10 +66,7 @@ type FileSink struct {
 	MaxBytes int64 // 0 means MaxFileBytes
 }
 
-// Write serializes e and appends it as one line. The stat/rotate/append
-// sequence runs under an exclusive flock on Path+".lock" so concurrent
-// writers never double-rotate (which would drop a full file of history) and
-// each line lands in a single write.
+// Write serializes e and appends it as one line (see AppendLine).
 func (s FileSink) Write(e Event) error {
 	line, err := json.Marshal(e)
 	if err != nil {
@@ -78,31 +75,33 @@ func (s FileSink) Write(e Event) error {
 	if len(line)+1 > MaxEventBytes {
 		return errEventTooLarge
 	}
-	line = append(line, '\n')
+	return AppendLine(s.Path, append(line, '\n'), s.MaxBytes)
+}
 
-	if err := os.MkdirAll(filepath.Dir(s.Path), 0o755); err != nil {
+// AppendLine appends line (newline included) to path, rotating path to
+// path+".1" first once it holds max bytes (0 means MaxFileBytes). The
+// stat/rotate/append sequence runs under an exclusive flock on path+".lock"
+// so concurrent writers never double-rotate (which would drop a full file of
+// history) and each line lands in a single write. The clilog shares it.
+func AppendLine(path string, line []byte, max int64) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	lock, err := os.OpenFile(s.Path+".lock", os.O_CREATE|os.O_RDWR, 0o644)
+	unlock, err := LockFile(path, 500*time.Millisecond)
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
-	if err := flockWithTimeout(lock, 500*time.Millisecond); err != nil {
-		return err
-	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer unlock()
 
-	max := s.MaxBytes
 	if max <= 0 {
 		max = MaxFileBytes
 	}
-	if info, err := os.Stat(s.Path); err == nil && info.Size() >= max {
-		if err := os.Rename(s.Path, s.Path+".1"); err != nil {
+	if info, err := os.Stat(path); err == nil && info.Size() >= max {
+		if err := os.Rename(path, path+".1"); err != nil {
 			return err
 		}
 	}
-	f, err := os.OpenFile(s.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}
@@ -112,6 +111,24 @@ func (s FileSink) Write(e Event) error {
 		return werr
 	}
 	return cerr
+}
+
+// LockFile takes the exclusive flock AppendLine uses for path (on
+// path+".lock"), waiting up to timeout, so a rewrite of path cannot
+// interleave with an append. The caller must call unlock.
+func LockFile(path string, timeout time.Duration) (unlock func(), err error) {
+	lock, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0o644)
+	if err != nil {
+		return nil, err
+	}
+	if err := flockWithTimeout(lock, timeout); err != nil {
+		lock.Close()
+		return nil, err
+	}
+	return func() {
+		syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+		lock.Close()
+	}, nil
 }
 
 type telemetryError string

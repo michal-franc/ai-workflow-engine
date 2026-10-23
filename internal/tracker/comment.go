@@ -13,12 +13,37 @@ const commentMarkerStart = "<!-- issue-viewer-comments"
 const commentMarkerEnd = "-->"
 
 type Comment struct {
-	ID     int    `json:"id"`
-	Block  int    `json:"block"`
+	ID    int `json:"id"`
+	Block int `json:"block"`
+	// Date is when the comment was made: RFC3339 since v0.54, the day
+	// ("2006-01-02") before. Read it through CommentDay / CommentTime.
 	Date   string `json:"date"`
 	Text   string `json:"text"`
 	Status string `json:"status"`
 	Source string `json:"source"`
+}
+
+// CommentDay is the "2006-01-02" day of a comment date in either stored
+// form; other values come back unchanged.
+func CommentDay(date string) string {
+	date = strings.TrimSpace(date)
+	if len(date) > 10 && date[10] == 'T' {
+		return date[:10]
+	}
+	return date
+}
+
+// CommentTime parses a comment date in either stored form. A day-only date
+// is midnight local time; ok is false when date is neither.
+func CommentTime(date string) (time.Time, bool) {
+	date = strings.TrimSpace(date)
+	if t, err := time.Parse(time.RFC3339, date); err == nil {
+		return t, true
+	}
+	if t, err := time.ParseInLocation("2006-01-02", date, time.Local); err == nil {
+		return t, true
+	}
+	return time.Time{}, false
 }
 
 // ParseComments extracts comments from the bottom of a markdown file.
@@ -123,7 +148,7 @@ func AddComment(filePath string, block int, text, source string) error {
 		c := Comment{
 			ID:     NextCommentID(existing),
 			Block:  block,
-			Date:   time.Now().Format("2006-01-02"),
+			Date:   time.Now().Format(time.RFC3339),
 			Text:   text,
 			Status: "open",
 			Source: source,

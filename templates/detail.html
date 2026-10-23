@@ -764,7 +764,7 @@
                 html += '<div class="comment-item' + (isDone ? ' comment-done' : '') + '">'
                     + '<div class="comment-item-header">'
                     + '<span class="comment-source-icon ' + sourceClass + '">' + sourceIcon + '</span>'
-                    + '<span class="comment-date">' + c.date + '</span>'
+                    + '<span class="comment-date">' + (c.date || '').slice(0, 10) + '</span>'
                     + '<span class="comment-actions">'
                     + '<button class="comment-toggle-btn" onclick="toggleComment(' + c.id + ',' + blockIdx + ')" title="' + (isDone ? 'Reopen' : 'Mark done') + '">'
                     + (isDone ? '&#8634;' : '&#10003;') + '</button>'

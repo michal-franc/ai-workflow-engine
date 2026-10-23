@@ -388,11 +388,7 @@ func (s *Server) handleDispatchReprompt(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	dp := tracker.BuildDispatchPrompt(proj, issue, proj.LoadWorkflowForIssue(issue), resolveProjectWorkDir(proj), leadLive(proj))
-	workDir := resolveProjectWorkDir(proj)
-	if dp.Worktree != "" && fileExists(dp.Worktree) {
-		workDir = dp.Worktree
-	}
-	resp := repromptAgentSession(proj, tmuxSessionName(issue.Slug), dp.Prompt, issue.Slug, workDir)
+	resp := repromptAgentSession(proj, tmuxSessionName(issue.Slug), dp.Prompt, issue.Slug, resolveProjectWorkDir(proj))
 	w.Header().Set("Content-Type", "application/json")
 	if resp.Status == "no-session" {
 		w.WriteHeader(http.StatusConflict)

@@ -227,6 +227,9 @@ type WorkflowConfig struct {
 	// IssuesRoot is the working directory used by command_succeeds.
 	LookupIssue func(slug string) *Issue `yaml:"-" json:"-"`
 	IssuesRoot  string                   `yaml:"-" json:"-"`
+	// RepoRoot is the project's checkout (Project.TelemetryRoot), where a
+	// transition looks up the work/<slug> branch head and the merge sha.
+	RepoRoot string `yaml:"-" json:"-"`
 
 	// Set by ForType/ForIssue on a scoped config. ActiveType is the resolved
 	// type ("" when the project has no types); typePath is the set of statuses

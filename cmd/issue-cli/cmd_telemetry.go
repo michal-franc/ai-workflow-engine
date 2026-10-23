@@ -30,7 +30,7 @@ Files:
   no project:   ${XDG_STATE_HOME:-~/.local/state}/issue-cli/telemetry.jsonl  (--global)
 
 Opt out: ISSUE_CLI_TELEMETRY=off, or "telemetry: false" on the project in
-projects.yaml. This does not affect the agent timeline or retry hints, which
+projects.yaml. This does not affect the Timeline tab or retry hints, which
 use a separate log.`,
 	Run:         runTelemetry,
 	Subcommands: []string{"report", "path"},

@@ -23,10 +23,24 @@ A per-issue sidecar `<issue>.stats.json` is written next to the markdown file ev
       "static_tokens": 123,
       "dynamic_tokens": 456,
       "actual_tokens": null,
-      "approved_at": "2026-04-30T11:59:58Z"
+      "approved_at": "2026-04-30T11:59:58Z",
+      "branch_head": "4cbe7ea1f0…"
+    },
+    {
+      "from": "shipping",
+      "to": "done",
+      "ts": "2026-04-30T16:00:00Z",
+      "static_tokens": 80,
+      "dynamic_tokens": 900,
+      "actual_tokens": null,
+      "branch_head": "a3b2e33c9d…",
+      "merge_sha": "a3b2e33c9d…"
     }
   ],
-  "last_approval": { "status": "testing", "at": "2026-04-30T12:20:00Z" }
+  "last_approval": { "status": "testing", "at": "2026-04-30T12:20:00Z" },
+  "dispatches": [
+    { "at": "2026-04-30T11:58:10Z", "session": "agent-cli-foo", "agent": "claude" }
+  ]
 }
 ```
 
@@ -34,11 +48,21 @@ A per-issue sidecar `<issue>.stats.json` is written next to the markdown file ev
 - **`dynamic_tokens`** — `static_tokens` plus the issue body and joined comment text **at the moment of transition**. Snapshotted because the body drifts after transition.
 - **`actual_tokens`** — reserved for a future hybrid pass that records measured agent-run token counts. Always `null` today; nullable in the schema so adding actuals later requires no migration.
 - **`approved_at`** (optional) — when the viewer recorded the human approval this transition consumed. Absent when the transition needed no approval, or when the approval did not come through the viewer's approve endpoint (for example an older server binary). It is never guessed from detection time.
+- **`branch_head`** (optional) — the head of the issue's `work/<slug>` branch when the transition ran, looked up in the project's checkout (`workdir`). Absent when there is no such branch. The issue's commits stay reachable from it after the branch is deleted.
+- **`merge_sha`** (optional, on the move to `done` only) — the checkout's `HEAD` when it contains `branch_head`: the commit the shipping step fast-forwarded main to, and the one [local CI](workflow.md#local-ci) tests (`.ci/runs/<sha>.json`). Absent when main does not contain the branch. A git error never fails a transition; the fields are just left out.
 - **`last_approval`** — scratch state for the next transition row. The viewer's approve handler writes it, and clears it when the approval is toggled off. A transition that consumes an approval copies a matching `last_approval` into `approved_at`, then clears it.
+
+- **`dispatches`** (optional) — every launch of an agent on the issue from the viewer (board, detail page, API), oldest first: when, the tmux session, and the agent (`claude`, `codex`). Re-attaching to a live session is not a dispatch; lead launches are not recorded (they have no issue).
 
 Together these give exact gate latency: status entry (the previous row's `ts`) → approval (`approved_at`) → transition (`ts`). The issue page's [Timeline tab](#timeline-tab) uses them.
 
-Newer issue-cli versions (`cli/clilog-and-stats-record-what-the-timeline-needs`) add per-row `branch_head` and `merge_sha`, and a top-level `dispatches: [{at, session, agent}]`. The Timeline tab reads them when present; sidecars without them still give the same totals.
+### Waiting on you
+
+How long you held a gate is derived, not recorded. For each row with `approved_at`:
+
+> waiting on you = `approved_at` − the end of the agent's last `issue-cli` call while the issue was in that row's `from` status, before `approved_at`
+
+An agent that asks for approval stops, so its last call is when you became the blocker. If you approve while the agent is still working, the wait is about 0; time the agent spends answering your questions counts as agent time. With no agent call in the status, the wait runs from when the issue entered it. The one miss: an approval given while the agent sat idle away from a gate counts that idle time as waiting. Call times come from the [clilog](CLI/telemetry.md#the-clilog) (`ts + dur_ms`). `tracker.OwnerWaits(store, callEnds)` computes it for the Timeline tab and project health.
 
 Sidecars written before v0.49.0 may also hold `pending_wait` and per-row `wait_started_at`, written by the removed `issue-cli transition|start --wait`. They are ignored on load and dropped the next time the sidecar is saved.
 
@@ -67,7 +91,7 @@ The issue page's second tab (`/p/<project>/issue/<slug>?tab=timeline`) shows whe
 | Source | Read from | Without it |
 |:--|:--|:--|
 | Stats sidecar | `<issue>.stats.json`: transitions, `approved_at`, and `dispatches`, `branch_head`, `merge_sha` when present | No status bands or approvals |
-| CLI log | `.agent-logs/<agent>/<agent>.clilog` in the issue's worktree and in the project, under the assignee, `agent-<system>-<name>` and `agent-<name>`; the per-project `.agent-logs/clilog.jsonl` and the old `$TMPDIR/issue-cli-logs/actions.jsonl`, both filtered by project and slug | Agent, waiting and idle are "—"; the CLI calls filter is empty |
+| CLI log | `.agent-logs/<agent>/<agent>.clilog` in the issue's worktree and in the project, under the assignee, `agent-<system>-<name>` and `agent-<name>`; the per-project `.agent-logs/clilog.jsonl` (the lead's and your calls too), filtered by slug; the pre-v0.54 `$TMPDIR/issue-cli-logs/actions.jsonl` while it exists, filtered by project and slug. Deduped on `ts` + args | Agent, waiting and idle are "—"; the CLI calls filter is empty |
 | Work branch | `git log --first-parent` from `work/<slug>`, else the last recorded `branch_head`, else `merge_sha` (one call, 2 s timeout) | Commits and CI after merge are not shown |
 | Comments | the issue file | — |
 | Playtest runs | `.playtest/runs/*/*/results.yaml` in the project and in `.worktrees/<slug>/`, where `issue:` is the slug | No playtest events or playtest rework |
@@ -76,9 +100,9 @@ Local CI runs (`.ci/runs/<sha>.json`) are read from the merge sha. For a done is
 
 **The life** runs from the first dispatch (else the agent's first call in a per-agent log, else the first transition) to the `→ done` transition, or to now while the issue is in flight. Calls on the issue before that (the lead writing it up) fold into one "before dispatch" line and count toward nothing.
 
-**Where the time went.** Activity is an issue-cli call (its end, when `dur_ms` is recorded) or a commit on the work branch. Each gap between two activities is classified once:
+**Where the time went.** Activity is an issue-cli call (its end: `ts` + `dur_ms`, or `ts` for pre-v0.54 records) or a commit on the work branch. The life is split at each activity and at each approval, and every piece is classified once:
 
-1. A gap that holds your approval (`approved_at`) is **waiting on you** up to the approval. The rest of the gap is agent time, or idle when it is 15 min or more.
+1. Each approval's wait is [waiting on you](#what-is-recorded) as `tracker.OwnerWaits` derives it: from the agent's last call in that status to `approved_at`. It is **waiting on you** whatever the rules below say of that time.
 2. In a status only you can move on (its exit needs your approval: `in design`, `human-testing` in the bundled workflow), any other gap of 15 min or more is **waiting on you**.
 3. Any other gap of 15 min or more is **idle** (the same 15 min as `agentIdleAfter` in `agent_state.go`).
 4. Everything else is **agent working**.
@@ -106,7 +130,7 @@ Filters (`&show=`):
 - `tests`: `tests:`/`playtest:`/`ci:` comments, every playtest run, CI
 - `cli`: every call, in the old Agent Timeline's form, with the workflow actions each transition saw and the exit code; runs of reads fold into one line that opens
 
-Newer clilogs keep no free text (`‹text n=… h=…›`). The tab finds the text again in the issue's comments and decisions by the hash.
+The clilog keeps no free text (`clilog.Placeholder`: `‹text n=… h=…›`). Comment text comes back from the issue's comments the way the old list did it (`FillRedactedComments`: the comment saved during the call, else the one whose placeholder matches). A decision is matched by its `--text` or `--quote` placeholder. A value with no match stays a placeholder. A failed call shows `(failed: <err_class>)`, and a refused gate reads "refused: approval missing".
 
 **Side column:**
 - **Your part:** each wait.
@@ -119,9 +143,11 @@ The tab label on every tab ("5h 0m", "1h 50m so far") reads only the stats sidec
 ## Implementation
 
 - `internal/tokens/estimate.go` — `Estimate(s string) int = len(s) / 4`. Single function, easy to swap for a real BPE later.
-- `internal/tracker/stats.go` — `TransitionStat`, `StatsStore`, sidecar I/O (`StatsSidecarPath`, `LoadStats`, `SaveStats`, `AppendTransitionStat`), and the cost functions `StaticTransitionCost(wf, from, to)` and `DynamicTransitionCost(wf, from, to, body, comments)`.
+- `internal/tracker/stats.go` — `TransitionStat`, `StatsStore`, `Dispatch`, sidecar I/O (`StatsSidecarPath`, `LoadStats`, `SaveStats`, `AppendTransitionStat`, `RecordDispatch`), and the cost functions `StaticTransitionCost(wf, from, to)` and `DynamicTransitionCost(wf, from, to, body, comments)`.
+- `internal/tracker/stats_wait.go` — `OwnerWaits`, the derived "waiting on you" per approved gate.
+- `internal/agentrun/agentrun.go` — `Start` appends a `dispatches` entry once the agent's tmux session is created.
 - `internal/tracker/dispatch.go` — `AgentDispatchPromptTemplate` constant (single source of truth shared with `handlers_dispatch.go`; named `{{slug}}`, `{{system}}`, … placeholders that `BuildAgentPrompt` fills from `agentPromptFields`) and `AgentDispatchPromptStaticCost()`.
-- `internal/tracker/workflow_transition.go` — `ApplyTransitionToFileWithFields` snapshots a `TransitionStat` after a successful transition, capturing the pre-transition body and comments for the dynamic cost.
+- `internal/tracker/workflow_transition.go` — `ApplyTransitionToFileWithFields` snapshots a `TransitionStat` after a successful transition, capturing the pre-transition body and comments for the dynamic cost, and `branchShas` adds `branch_head` / `merge_sha` (`WorkflowConfig.RepoRoot`, set from the project).
 - `handlers_stats.go` — the `/stats` route handler. Walks the project's issues and aggregates per-(from→to) and per-issue. `runTelemetryReport` (package var, stubbed in tests) and `loadCLIUsage` produce the CLI usage block.
 - `templates/stats.html` — page template. Reuses the existing `data-table` styling.
 

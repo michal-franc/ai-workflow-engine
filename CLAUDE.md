@@ -66,11 +66,13 @@ handlers_metrics.go         — /metrics view (guard metrics, knobs, branches), 
 handlers_status.go          — /status page and /status.md (model in status.go: buildStatus, statusMarkdown)
 handlers_pages.go           — project pages (workbench.status_page / pages): frame, /pages/<n>, sandboxed /page-raw/, /status.json
 ci_watch.go                 — local CI watcher: polls each project's CI branch, starts detached `issue-cli ci run`
+health_watch.go             — daily project health snapshot: every 10 min, one per repository when none is from today
 release_wait.go             — Status "Waiting for release" card: milestone readiness, ## Unreleased entries, unpushed commits (one git call)
 ci_view.go                  — local CI on the pages: Status card (last runs boxes), waiting entry, ci-red markers
 attention.go                — what waits on the owner (ownerAttention, waitingOnOwner): Status page, sidebar count, system pages, board markers
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
+internal/health/            — project health snapshots: family registry (Register), .health/snapshots/ files, retention, the codebase family (git objects at the main head)
 internal/ci/                — local CI runner: .ci/ state and run records, lock, persistent .worktrees/.ci, blame, watcher, one-liner
 internal/agentrun/          — shared tmux/worktree launcher used by the server and issue-cli (leads, dispatch)
 internal/clilog/            — the clilog: one record per issue-cli call (result, no free text), paths, Redact, Scrub (tools/clilog-scrub)
@@ -173,7 +175,7 @@ Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI
 - [Agent Dispatch](docs/agent-dispatch.md) — terminal config, approval notifications, the lead session, worktrees
 - [GitHub Integration](docs/github-integration.md) — sync, issue reference, auto-close
 - [Per-issue Data Store](docs/data-store.md) — sidecar JSON, `<!-- data -->` marker, `issue-cli data` commands
-- [Workbench Files](docs/workbench-files.md) — metric runs, targets and knob exports the Metrics view reads, branch matching, hot files, `depends_on`; project pages (`status_page`, `pages`: sandboxed HTML, postMessage status)
+- [Workbench Files](docs/workbench-files.md) — metric runs, targets and knob exports the Metrics view reads, branch matching, hot files, `depends_on`; project pages (`status_page`, `pages`: sandboxed HTML, postMessage status); health snapshots (`.health/snapshots/`, `health:` config, metric names, adding a family)
 - [Local CI](docs/workflow.md#local-ci) — opt-in `ci:` block: commands run on local main after every merge in `.worktrees/.ci`, results in `.ci/`, red reported to Status, markers, `ci:` comments and the lead; `issue-cli ci status|run|reset|watch`
 - [Workflow Stats](docs/workflow-stats.md) — `/stats` tab, per-issue stats sidecar, token-cost estimation; the issue page's Timeline tab (`?tab=timeline`) and its time rules
 - [The Lead Session](docs/patterns/lead-session.md) — the project lead, one per project (`issue-cli lead`, `approve`), routing, authority, handoff, epics, agents canvas

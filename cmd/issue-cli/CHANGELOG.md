@@ -22,6 +22,20 @@ renames `## Unreleased` to `## vX.Y.Z — YYYY-MM-DD` and pushes, and the
 release-marker Action tags and builds it. Pushes with `## Unreleased` on top
 release nothing.
 
+## Unreleased
+
+- **The issue page has tabs, and the Timeline tab replaces the Agent Timeline.**
+  - **The tabs:** every issue page has Issue · Timeline · Evidence under the title, each a link (`?tab=timeline`, `?tab=evidence`). Issue is the page as before, minus the Agent Timeline list. Evidence says "coming".
+  - **Where the time went:** from dispatch to done, split into agent working, waiting on you and idle (agent + waiting + idle = total), with rework and commits beside them.
+    - Waiting on you is a gap between agent calls that ends with your approval, or a gap of 15 min or more in a status only you can move on.
+    - Idle is any other gap of 15 min or more with no CLI call and no commit.
+    - Rework is agent time after a backward transition, or after a failed playtest run from testing on, until it passes.
+  - **Life by status:** decisions, sections, ticks, comments, commits (a merge of main is one line), playtest runs, approvals, waits and CI inline. Filters: All, Your actions, Commits, Tests and CI, and CLI calls, which is the old list with the workflow actions each transition saw.
+  - **Side column:** your part, your words, what was left open at done, and CI after the merge.
+  - **Sources:** it reads the stats sidecar, the clilogs (worktree and project), the work branch, playtest runs and local CI. When one is missing, it says what it could not read. On local CI's issue: 5h 0m, 3h 48m waiting on you.
+  - **`issue-cli show`** prints `Timeline: <url>?tab=timeline`.
+  - See docs/workflow-stats.md#timeline-tab. (ui/timeline-tab-replaces-the-agent-timeline)
+
 ## v0.53.0 — 2026-10-23
 
 Focus: safe core. The viewer listens on localhost only and refuses cross-origin writes; local CI re-tests main after every merge; a redesigned Status page that scales to hundreds of issues; report-bug files real issues; and a batch of issue-cli fixes from agents' bug reports.

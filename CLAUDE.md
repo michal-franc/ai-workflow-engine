@@ -71,6 +71,7 @@ issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subd
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
 internal/ci/                — local CI runner: .ci/ state and run records, lock, persistent .worktrees/.ci, blame, watcher, one-liner
 internal/agentrun/          — shared tmux/worktree launcher used by the server and issue-cli (leads, dispatch)
+internal/clilog/            — the clilog: one record per issue-cli call (result, no free text), paths, Redact, Scrub (tools/clilog-scrub)
 internal/viewerstate/       — viewer.json: the running viewer's config/URL/pid, how issue-cli finds the config from any folder
 templates/                  — Go HTML templates (list.html, board.html, detail.html, docs.html); _sidebar.html on every project page
 internal/testids/           — every data-testid the templates carry; TestTemplateTestIDs keeps them in step

@@ -23,10 +23,24 @@ A per-issue sidecar `<issue>.stats.json` is written next to the markdown file ev
       "static_tokens": 123,
       "dynamic_tokens": 456,
       "actual_tokens": null,
-      "approved_at": "2026-04-30T11:59:58Z"
+      "approved_at": "2026-04-30T11:59:58Z",
+      "branch_head": "4cbe7ea1f0…"
+    },
+    {
+      "from": "shipping",
+      "to": "done",
+      "ts": "2026-04-30T16:00:00Z",
+      "static_tokens": 80,
+      "dynamic_tokens": 900,
+      "actual_tokens": null,
+      "branch_head": "a3b2e33c9d…",
+      "merge_sha": "a3b2e33c9d…"
     }
   ],
-  "last_approval": { "status": "testing", "at": "2026-04-30T12:20:00Z" }
+  "last_approval": { "status": "testing", "at": "2026-04-30T12:20:00Z" },
+  "dispatches": [
+    { "at": "2026-04-30T11:58:10Z", "session": "agent-cli-foo", "agent": "claude" }
+  ]
 }
 ```
 
@@ -34,9 +48,21 @@ A per-issue sidecar `<issue>.stats.json` is written next to the markdown file ev
 - **`dynamic_tokens`** — `static_tokens` plus the issue body and joined comment text **at the moment of transition**. Snapshotted because the body drifts after transition.
 - **`actual_tokens`** — reserved for a future hybrid pass that records measured agent-run token counts. Always `null` today; nullable in the schema so adding actuals later requires no migration.
 - **`approved_at`** (optional) — when the viewer recorded the human approval this transition consumed. Absent when the transition needed no approval, or when the approval did not come through the viewer's approve endpoint (for example an older server binary). It is never guessed from detection time.
+- **`branch_head`** (optional) — the head of the issue's `work/<slug>` branch when the transition ran, looked up in the project's checkout (`workdir`). Absent when there is no such branch. The issue's commits stay reachable from it after the branch is deleted.
+- **`merge_sha`** (optional, on the move to `done` only) — the checkout's `HEAD` when it contains `branch_head`: the commit the shipping step fast-forwarded main to, and the one [local CI](workflow.md#local-ci) tests (`.ci/runs/<sha>.json`). Absent when main does not contain the branch. A git error never fails a transition; the fields are just left out.
 - **`last_approval`** — scratch state for the next transition row. The viewer's approve handler writes it, and clears it when the approval is toggled off. A transition that consumes an approval copies a matching `last_approval` into `approved_at`, then clears it.
 
+- **`dispatches`** (optional) — every launch of an agent on the issue from the viewer (board, detail page, API), oldest first: when, the tmux session, and the agent (`claude`, `codex`). Re-attaching to a live session is not a dispatch; lead launches are not recorded (they have no issue).
+
 Together these give exact gate latency: status entry (the previous row's `ts`) → approval (`approved_at`) → transition (`ts`). The Stats tab does not show them yet.
+
+### Waiting on you
+
+How long you held a gate is derived, not recorded. For each row with `approved_at`:
+
+> waiting on you = `approved_at` − the end of the agent's last `issue-cli` call while the issue was in that row's `from` status, before `approved_at`
+
+An agent that asks for approval stops, so its last call is when you became the blocker. If you approve while the agent is still working, the wait is about 0; time the agent spends answering your questions counts as agent time. With no agent call in the status, the wait runs from when the issue entered it. The one miss: an approval given while the agent sat idle away from a gate counts that idle time as waiting. Call times come from the [clilog](CLI/telemetry.md#the-clilog) (`ts + dur_ms`). `tracker.OwnerWaits(store, callEnds)` computes it for the Timeline tab and project health.
 
 Sidecars written before v0.49.0 may also hold `pending_wait` and per-row `wait_started_at`, written by the removed `issue-cli transition|start --wait`. They are ignored on load and dropped the next time the sidecar is saved.
 
@@ -59,9 +85,11 @@ Three blocks, in order:
 ## Implementation
 
 - `internal/tokens/estimate.go` — `Estimate(s string) int = len(s) / 4`. Single function, easy to swap for a real BPE later.
-- `internal/tracker/stats.go` — `TransitionStat`, `StatsStore`, sidecar I/O (`StatsSidecarPath`, `LoadStats`, `SaveStats`, `AppendTransitionStat`), and the cost functions `StaticTransitionCost(wf, from, to)` and `DynamicTransitionCost(wf, from, to, body, comments)`.
+- `internal/tracker/stats.go` — `TransitionStat`, `StatsStore`, `Dispatch`, sidecar I/O (`StatsSidecarPath`, `LoadStats`, `SaveStats`, `AppendTransitionStat`, `RecordDispatch`), and the cost functions `StaticTransitionCost(wf, from, to)` and `DynamicTransitionCost(wf, from, to, body, comments)`.
+- `internal/tracker/stats_wait.go` — `OwnerWaits`, the derived "waiting on you" per approved gate.
+- `internal/agentrun/agentrun.go` — `Start` appends a `dispatches` entry once the agent's tmux session is created.
 - `internal/tracker/dispatch.go` — `AgentDispatchPromptTemplate` constant (single source of truth shared with `handlers_dispatch.go`; named `{{slug}}`, `{{system}}`, … placeholders that `BuildAgentPrompt` fills from `agentPromptFields`) and `AgentDispatchPromptStaticCost()`.
-- `internal/tracker/workflow_transition.go` — `ApplyTransitionToFileWithFields` snapshots a `TransitionStat` after a successful transition, capturing the pre-transition body and comments for the dynamic cost.
+- `internal/tracker/workflow_transition.go` — `ApplyTransitionToFileWithFields` snapshots a `TransitionStat` after a successful transition, capturing the pre-transition body and comments for the dynamic cost, and `branchShas` adds `branch_head` / `merge_sha` (`WorkflowConfig.RepoRoot`, set from the project).
 - `handlers_stats.go` — the `/stats` route handler. Walks the project's issues and aggregates per-(from→to) and per-issue. `runTelemetryReport` (package var, stubbed in tests) and `loadCLIUsage` produce the CLI usage block.
 - `templates/stats.html` — page template. Reuses the existing `data-table` styling.
 

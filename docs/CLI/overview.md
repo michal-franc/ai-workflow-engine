@@ -441,7 +441,7 @@ These checks read the environment and the session name; they are guardrails for 
 **What it files.** An issue in the engine project at the bugfix type's first status (`idea`), system `CLI`, label `cli-bug`, with:
 
 - the first sentence as the title (cut near 80 characters)
-- a `## Report` section: the full text, plus the reporter's project and issue slug, agent, issue-cli version and OS, and the command. The command is `--cmd "<command line>"` if given, otherwise the agent's previous issue-cli call from its clilog (if it's under 10 minutes old)
+- a `## Report` section: the full text, plus the reporter's project and issue slug, agent, issue-cli version and OS, and the command. The command is `--cmd "<command line>"` if given, otherwise the agent's previous issue-cli call from its clilog (if it's under 10 minutes old), with free text shown as the clilog's `‹text …›` placeholders
 - `reported_from: <project>:<issue slug>` and `reported_by: <agent>`
 
 The `## Repro` section is left for triage, so the bugfix gate still needs a human repro.

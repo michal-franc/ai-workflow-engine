@@ -427,7 +427,7 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 - **Tree:** the hierarchy only: You → the project lead (`lead-<project>`) → its workers, then any other live agent session (a project action, or a leftover `lead-*` session). Epics are not drawn here; the [issues canvas](#issues-canvas) shows them. Nodes show the session name without `agent-`, cut at 32 characters; the full name is the tooltip. Each open epic's children running and total stay in `agents.json`.
 - **Worker states:**
   - *working*: live session, nothing pending, an issue-cli call in the last 15 minutes (or no readable clilog);
-  - *idle*: live session, but its newest issue-cli call is 15 minutes old or more. The time comes from the agent's clilog (`<worktree>/.agent-logs/<session>/<session>.clilog`, else the project's). Records naming another `--project` are skipped, because test runs in the agent's shell log fixture projects;
+  - *idle*: live session, but its newest issue-cli call ended 15 minutes ago or more. The time is the newest call end (`ts + dur_ms`, see [the clilog](../CLI/telemetry.md#the-clilog)) across the agent's clilogs: `<workdir>/.agent-logs/<session>/<session>.clilog`, the assignee's, and the one in its worktree written before v0.54. Records naming another `--project` are skipped, because test runs in the agent's shell log fixture projects;
   - *at gate*: the next transition needs a human approval not yet given (the gate's status is shown);
   - *question*: the issue's newest comment starts with `question:`;
   - *stopped*: no live session, but a worktree or an active status (`in progress` up to, not including, `done`). "retro not swept" is added when a retro for the issue is not yet processed or archived.

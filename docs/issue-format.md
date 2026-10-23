@@ -163,6 +163,10 @@ The line format is `- **D-<n>** · <YYYY-MM-DD>[ · deferred] · <how>: <text>[,
 - **What is skipped.** Only lines under a level-2 `## Decisions` heading and outside fenced code are parsed. Free-form notes in that section are left alone and not listed.
 - **Revising.** `issue-cli show` prints `== Cites replaced decisions ==` for an issue that still builds on a replaced decision.
 
+## Comments
+
+Comments live in an `<!-- issue-viewer-comments … -->` block at the end of the file, written by `issue-cli comment` and the issue page. Each has an id, text, status, source and `date`. Since v0.54 `date` is a full RFC3339 timestamp (`2026-10-23T14:05:07+02:00`); older comments have the day only (`2026-10-23`). Both forms are read, and pages and `issue-cli show` show the day.
+
 ## Balance notes
 
 A balance note is a comment on the issue whose change it reports on, starting with the project's balance prefix (`workbench.balance.comment_prefix` in `workflow.yaml`, default `balance:`). `issue-cli balance` writes the typed form:

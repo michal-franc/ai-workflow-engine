@@ -154,7 +154,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *track
 
 	recorded, totals := aggregateRecordedStats(issues)
 	usage, usageNotice := loadCLIUsage(proj)
-	timeRep := timeline.Aggregate(proj, wf, issues, time.Now(), timeline.Window)
+	timeRep := timeline.Aggregate(r.Context(), proj, wf, issues, time.Now(), timeline.Window)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "stats.html", StatsData{

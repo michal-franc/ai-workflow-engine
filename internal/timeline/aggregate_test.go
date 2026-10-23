@@ -88,7 +88,7 @@ func testProject(t *testing.T) (*tracker.Project, []*tracker.Issue) {
 func TestAggregate(t *testing.T) {
 	proj, issues := testProject(t)
 	now := localCIDone.Add(24 * time.Hour)
-	rep := Aggregate(proj, tracker.DefaultWorkflow(), issues, now, Window)
+	rep := Aggregate(context.Background(), proj, tracker.DefaultWorkflow(), issues, now, Window)
 
 	if len(rep.Issues) != 2 {
 		t.Fatalf("issues in the window = %d, want 2 (old-thing is outside, no-stats is unread, open-thing in flight): %+v", len(rep.Issues), rep.Issues)
@@ -197,7 +197,7 @@ func TestAggregateUnsplit(t *testing.T) {
 	}})
 	proj := &tracker.Project{Slug: "p", IssueDir: dir, WorkDir: root}
 	issues, _ := tracker.LoadIssues(dir)
-	rep := Aggregate(proj, tracker.DefaultWorkflow(), issues, t0.Add(24*time.Hour), Window)
+	rep := Aggregate(context.Background(), proj, tracker.DefaultWorkflow(), issues, t0.Add(24*time.Hour), Window)
 	if len(rep.Issues) != 1 || rep.Issues[0].Known || len(rep.Unsplit()) != 1 {
 		t.Fatalf("issues = %+v", rep.Issues)
 	}

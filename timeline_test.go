@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -302,7 +303,7 @@ func TestTimelineMatchesAggregate(t *testing.T) {
 		t.Fatal(err)
 	}
 	wf := tracker.DefaultWorkflow()
-	rep := timeline.Aggregate(&proj, wf, issues, time.Now(), timeline.Window)
+	rep := timeline.Aggregate(context.Background(), &proj, wf, issues, time.Now(), timeline.Window)
 	var agg timeline.IssueStat
 	var issue *tracker.Issue
 	for _, s := range rep.Issues {

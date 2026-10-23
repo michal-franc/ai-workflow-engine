@@ -1,6 +1,7 @@
 package timeline
 
 import (
+	"context"
 	"math"
 	"sort"
 	"strings"
@@ -122,13 +123,17 @@ func (r Report) Unsplit() []string {
 // Aggregate builds the project report over the issues done in the window
 // before now, each through Load and Split as the Timeline tab builds it. wf
 // is the project workflow (nil loads it); each issue gets its own overlay.
-func Aggregate(proj *tracker.Project, wf *tracker.WorkflowConfig, issues []*tracker.Issue, now time.Time, window time.Duration) Report {
+// When ctx ends it stops and summarizes the issues it has.
+func Aggregate(ctx context.Context, proj *tracker.Project, wf *tracker.WorkflowConfig, issues []*tracker.Issue, now time.Time, window time.Duration) Report {
 	if wf == nil && proj != nil {
 		wf = proj.LoadWorkflow()
 	}
 	rep := Report{From: now.Add(-window), To: now}
 	cache := NewCache()
 	for _, issue := range issues {
+		if ctx.Err() != nil {
+			break
+		}
 		if issue.Status != "done" {
 			continue
 		}

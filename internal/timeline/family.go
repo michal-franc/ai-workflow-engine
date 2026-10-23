@@ -30,7 +30,7 @@ func workflowFamily(ctx context.Context, env health.Env) ([]health.Metric, error
 	if now.IsZero() {
 		now = time.Now()
 	}
-	return Metrics(Aggregate(env.Project, env.Workflow, issues, now, Window)), ctx.Err()
+	return Metrics(Aggregate(ctx, env.Project, env.Workflow, issues, now, Window)), ctx.Err()
 }
 
 // Metrics turns the report into the family's rows.

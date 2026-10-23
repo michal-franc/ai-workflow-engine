@@ -210,6 +210,35 @@ It reads git objects at the head of the main branch: one `git ls-tree`, then one
 
 A repository younger than the window has no growth rows for that window.
 
+### The workflow family
+
+Where the time goes, from `internal/timeline`: every issue done in the last 30 days goes through the same `Load` and `Split` as its Timeline tab (`?tab=timeline`), so a project number and the tab never disagree. An issue counts when its last transition to `done` in the stats sidecar falls in the window. The time rules (agent, waiting on you, idle, rework, the 15 min gap) are in [Workflow Stats](workflow-stats.md), "Timeline tab". /stats shows the same numbers as tables, built on each request.
+
+- **Left out:** issues not done or done earlier, and done issues with no recorded transition to `done` (counted in `workflow.unread`).
+- **No CLI calls:** an issue without clilog records counts for `cycle` and `status.total` only, and in `workflow.issues_unsplit`.
+- **Labels:** `type` is the issue's `type:` (`none` without one) or `all`. `status` is a workflow status. `transition` is `from→to`. Percentiles are nearest-rank over the issues in the row.
+- **Gate failures:** refused `transition` calls need the `exit` and `err_class` that clilog records carry from v0.54 on. `dry_run=true` is the agent checking with `--dry-run` before it asks, as the guidance tells it to; `false` is a real attempt.
+
+| Metric | Labels | Value |
+|:--|:--|:--|
+| `workflow.issues` | `type` | issues done in the window |
+| `workflow.issues_unsplit` | `type` | of those, issues without CLI calls |
+| `workflow.unread` | none | done issues with no recorded transition to done |
+| `workflow.cycle.p50`, `.p90` | `type` | life from the first dispatch (else the agent's first call) to done, `seconds` |
+| `workflow.status.total.p50`, `.p90` | `status`, `type` | time in the status, `seconds` |
+| `workflow.status.working.p50`, `.p90` | `status`, `type` | agent working in the status, rework included |
+| `workflow.status.waiting.p50`, `.p90` | `status`, `type` | waiting on the owner in the status |
+| `workflow.status.idle.p50`, `.p90` | `status`, `type` | idle in the status |
+| `workflow.approvals` | `transition` | approvals recorded at the transition |
+| `workflow.approval_wait.p50`, `.p90` | `transition` | from the agent's last call in the status to the approval, `seconds` |
+| `workflow.rework.loops` | `type` | rework loops: backward transitions and failed playtests from testing on |
+| `workflow.rework.backward` | `type` | backward transitions |
+| `workflow.rework.share` | `type` | agent time inside rework loops / agent working time (`share`) |
+| `workflow.dispatches.p50`, `.p90` | `type` | agent dispatches per issue (recorded from v0.54 on) |
+| `workflow.gate_failures` | `transition`, `err_class`, `dry_run` | refused transition calls |
+
+On RogueTech (813 issues, 65 in the window) the family takes about half a second.
+
 ### Adding a family
 
 A family is a Go function registered from `init()` in a package both binaries import (the server and `issue-cli`), so every snapshot includes it, whoever takes it:

@@ -268,6 +268,12 @@ The optional `ci:` block (`tracker.CIConfig` in `internal/tracker/ci.go`) turns 
 
 Nothing about statuses, transitions or overlays changes. Without the block nothing runs and nothing shows. The runner is `internal/ci/` (run records, lock, persistent worktree, blame, watcher, one-liner); the viewer's watcher is `ci_watch.go` and the page model is `ci_view.go`. `tracker.CIStatusLine` is a hook `internal/ci` sets at init, so the dispatch prompt (built in `tracker`) can carry the CI line while the server and the CLI build the same prompt. User guide: [Workflow: Local CI](../workflow.md#local-ci).
 
+## Health snapshots (`health:`)
+
+The optional `health:` block (`tracker.HealthConfig` in `internal/tracker/health.go`) tunes project health snapshots: `big_file_lines`, `test_globs`, `exclude`, the per-family `timeout`, and `off`. Every git project gets snapshots without it. It is project-wide like `ci:`, so system and type overlays can't change it, and `Clone` copies it into scoped workflows. `Lint` checks it.
+
+Nothing about statuses, transitions or overlays changes. The collector is `internal/health/`: the family registry, the `.health/snapshots/` files, retention and the codebase family. The server's daily job is `health_watch.go`, and `issue-cli ci run` and `issue-cli health snapshot` take the others. User guide: [Workbench files: Health snapshots](../workbench-files.md#health-snapshots).
+
 ## System Overlays
 
 System-specific overrides are defined under the `systems:` key. They merge with the base workflow — overriding status prompts and appending transition actions for that system:

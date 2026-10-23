@@ -22,6 +22,10 @@ renames `## Unreleased` to `## vX.Y.Z — YYYY-MM-DD` and pushes, and the
 release-marker Action tags and builds it. Pushes with `## Unreleased` on top
 release nothing.
 
+## Unreleased
+
+- **Frontmatter writes no longer leave orphan lines, and never write YAML that doesn't parse.** `set-meta` on a key holding a block list (`depends_on:` with `  - …` items) replaced only the key's line and left the items below it, and `--clear` left them under the key above. Either way the file stopped parsing, and the viewer and the CLI skipped the issue with "did not find expected key". `update --labels` had the same bug. Setting or clearing a key now replaces its whole value (list items, `|`/`>` block scalars, nested maps) up to the next top-level key. `set-meta` writes two or more `depends_on` slugs as a YAML list. Labels are written as quoted items in place. Every frontmatter write (`set-meta`, `update`, claim, approve, transitions, the detail page, `create`, the web create form, the GitHub import) now parses the result first. If it would not parse, nothing is written and the error names the keys: `not written: frontmatter would not parse after setting depends_on: …`. The GitHub import quotes label names, so a label like `priority: high` no longer breaks the imported file. (cli/set-meta-on-a-list-valued-key-leaves-orphan-list-items-and-corrupts-the-frontmatter)
+
 ## v0.53.0 — 2026-10-23
 
 Focus: safe core. The viewer listens on localhost only and refuses cross-origin writes; local CI re-tests main after every merge; a redesigned Status page that scales to hundreds of issues; report-bug files real issues; and a batch of issue-cli fixes from agents' bug reports.

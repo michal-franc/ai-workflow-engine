@@ -13,6 +13,10 @@ and anything unattended runs on an API key, not the subscription login.
 
 Owner, 2026-10-23: added for a new PR, to start on 2026-10-24.
 
+Owner, 2026-10-23: "This is just a precaution to control the agents a bit, especially leads." Nothing is broken
+today. This puts limits on what agents can do on their own, and most of all on the lead. The lead rules in section 2
+are the core of this issue.
+
 ## 1. Lead → worker messaging: use Claude Code's built-in messaging
 
 - Replace the tmux paste in `issue-cli lead message` (`pasteIntoSession` = `agentrun.Paste`,

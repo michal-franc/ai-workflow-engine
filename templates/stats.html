@@ -16,6 +16,72 @@
         <header class="page-head">
             <h1 class="page-title">Workflow stats</h1>
         </header>
+        <section class="stats-time" data-testid="stats.time">
+        <h2 id="time">Where the time goes (done in the last 30 days)</h2>
+        {{with .Time}}
+        <p class="stats-sub">From each issue's Timeline tab, split the same way: <strong>agent</strong> while issue-cli calls or commits come less than 15 min apart, <strong>waiting on you</strong> in a status only you can move on and up to each approval, <strong>idle</strong> for the other gaps. {{len .Issues}} {{if eq (len .Issues) 1}}issue{{else}}issues{{end}} done {{tlDay .From}} – {{tlDay .To}}; each cell is p50 / p90 across them. Rules: docs/workflow-stats.md, "Timeline tab".</p>
+        {{if .Unsplit}}<p class="stats-empty" data-testid="stats.time.unsplit">No CLI calls, so status time only: {{range $i, $s := .Unsplit}}{{if $i}}, {{end}}<code>{{$s}}</code>{{end}}.</p>{{end}}
+        {{if .Unread}}<p class="stats-empty" data-testid="stats.time.unread">Left out, no transition to done recorded in their stats sidecar: {{len .Unread}} done {{if eq (len .Unread) 1}}issue{{else}}issues{{end}}.</p>{{end}}
+        {{end}}
+        {{if .Time.Issues}}
+        <table class="data-table" data-testid="stats.time.types">
+            <thead><tr><th>Type</th><th class="num">Issues</th><th class="num">Cycle p50 / p90</th><th class="num">Rework loops</th><th class="num">Sent back</th><th class="num">Rework share</th><th class="num">Dispatches p50 / p90</th></tr></thead>
+            <tbody>
+            {{range .Time.Types}}
+                <tr><td>{{.Type}}</td><td class="num">{{.N}}</td><td class="num">{{tlP .Cycle}}</td><td class="num">{{.Loops}}</td><td class="num">{{.Backward}}</td><td class="num">{{tlFrac .ReworkShare}}</td><td class="num">{{printf "%.0f" (index .Dispatches 0)}} / {{printf "%.0f" (index .Dispatches 1)}}</td></tr>
+            {{end}}
+            </tbody>
+        </table>
+
+        <h3>Time per status</h3>
+        {{range $i, $g := .TimeGroups}}
+        <details class="stats-time-group"{{if eq $i 0}} open{{end}} data-testid="stats.time.status" data-type="{{$g.Type}}">
+            <summary>{{if eq $g.Type "all"}}All types{{else}}{{$g.Type}}{{end}} · {{$g.N}} {{if eq $g.N 1}}issue{{else}}issues{{end}}</summary>
+            <table class="data-table">
+                <thead><tr><th>Status</th><th class="num">Issues</th><th class="num">In status</th><th class="num">Agent</th><th class="num">Waiting on you</th><th class="num">Idle</th></tr></thead>
+                <tbody>
+                {{range $g.Statuses}}
+                    <tr><td>{{.Status}}</td><td class="num">{{.N}}</td><td class="num">{{tlP .Total}}</td>{{if .Split}}<td class="num">{{tlP .Working}}</td><td class="num">{{tlP .Waiting}}</td><td class="num">{{tlP .Idle}}</td>{{else}}<td class="num">—</td><td class="num">—</td><td class="num">—</td>{{end}}</tr>
+                {{end}}
+                </tbody>
+            </table>
+        </details>
+        {{end}}
+
+        <h3>Approval waits</h3>
+        <p class="stats-sub">From the agent's last call in the status to your approval.</p>
+        {{if .Time.Approvals}}
+        <table class="data-table" data-testid="stats.time.approvals">
+            <thead><tr><th>Transition</th><th class="num">Approvals</th><th class="num">Wait p50 / p90</th></tr></thead>
+            <tbody>
+            {{range .Time.Approvals}}
+                <tr><td>{{.Transition}}</td><td class="num">{{.N}}</td><td class="num">{{tlP .Wait}}</td></tr>
+            {{end}}
+            </tbody>
+        </table>
+        {{else}}
+        <p class="stats-empty">No approvals recorded.</p>
+        {{end}}
+
+        <h3>Gate failures</h3>
+        <p class="stats-sub">Refused <code>transition</code> calls, by the status they were made in and the error class (recorded from v0.54 on). A dry run is the agent checking before it asks; the others were real attempts.</p>
+        {{if .Time.Failures}}
+        <table class="data-table" data-testid="stats.time.failures">
+            <thead><tr><th>Transition</th><th>Error</th><th>Call</th><th class="num">Count</th></tr></thead>
+            <tbody>
+            {{range .Time.Failures}}
+                <tr><td>{{.Transition}}</td><td><code>{{.ErrClass}}</code></td><td>{{if .DryRun}}dry run{{else}}transition{{end}}</td><td class="num">{{.N}}</td></tr>
+            {{end}}
+            </tbody>
+        </table>
+        {{else}}
+        <p class="stats-empty">No refused transitions recorded.</p>
+        {{end}}
+        {{else}}
+        <p class="stats-empty">No issues done in the last 30 days with a recorded transition to done.</p>
+        {{end}}
+        </section>
+
         <p class="stats-intro">
             Approximate token cost of workflow steps. <strong>Static</strong> is the workflow scaffolding the bot reads on transition (validations, prompts, appended sections, entry guidance). <strong>Dynamic</strong> adds the issue body and comments at the moment of transition. Token counts use a <code>len(s)/4</code> approximation — useful for relative comparison, not exact for any specific model.
         </p>

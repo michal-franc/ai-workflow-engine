@@ -3894,3 +3894,8 @@ a.chip { text-decoration: none; }
     .project-page-head { padding: 16px 16px 12px; }
     .nav-sub { padding-left: 12px; }
 }
+
+/* Stats: where the time goes */
+.stats-time { margin-bottom: 24px; }
+.stats-time-group { margin: 8px 0; }
+.stats-time-group summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }

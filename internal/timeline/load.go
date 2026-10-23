@@ -46,34 +46,63 @@ func WorkDir(proj *tracker.Project) string {
 	return wd
 }
 
-// Logs reads each clilog once and keeps its records, so the aggregate reads
-// the project log once rather than once per issue. A nil *Logs reads from
-// disk on every call. Not safe for concurrent use.
-type Logs struct {
+// Cache keeps what Load reads from files many issues share: the clilogs and
+// the playtest runs' results, read once per Cache rather than once per
+// issue. The aggregate uses one; a nil *Cache reads from disk on every call.
+// Not safe for concurrent use.
+type Cache struct {
 	recs map[string][]clilog.Record
+	runs map[string][]playtestResultsFile
 }
 
-func NewLogs() *Logs { return &Logs{recs: map[string][]clilog.Record{}} }
+func NewCache() *Cache {
+	return &Cache{recs: map[string][]clilog.Record{}, runs: map[string][]playtestResultsFile{}}
+}
 
-func (l *Logs) read(path string, visit func(clilog.Record)) {
-	if l == nil {
+func (c *Cache) read(path string, visit func(clilog.Record)) {
+	if c == nil {
 		clilog.Read(path, visit)
 		return
 	}
-	recs, ok := l.recs[path]
+	recs, ok := c.recs[path]
 	if !ok {
 		clilog.Read(path, func(r clilog.Record) { recs = append(recs, r) })
-		l.recs[path] = recs
+		c.recs[path] = recs
 	}
 	for _, r := range recs {
 		visit(r)
 	}
 }
 
+// results are the playtest results.yaml files in dir's .playtest/runs.
+func (c *Cache) results(dir string) []playtestResultsFile {
+	if c != nil {
+		if r, ok := c.runs[dir]; ok {
+			return r
+		}
+	}
+	var out []playtestResultsFile
+	files, _ := filepath.Glob(filepath.Join(dir, ".playtest", "runs", "*", "*", "results.yaml"))
+	for _, f := range files {
+		data, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		var r playtestResultsFile
+		if yaml.Unmarshal(data, &r) == nil {
+			out = append(out, r)
+		}
+	}
+	if c != nil {
+		c.runs[dir] = out
+	}
+	return out
+}
+
 // Load reads the issue's stats sidecar, clilogs, work branch and playtest
 // runs. A source that can't be read is listed in Missing; it never fails.
-// logs may be nil.
-func Load(proj *tracker.Project, issue *tracker.Issue, logs *Logs) Sources {
+// cache may be nil.
+func Load(proj *tracker.Project, issue *tracker.Issue, cache *Cache) Sources {
 	root := ProjectRoot(proj)
 	workDir := WorkDir(proj)
 	worktree := filepath.Join(root, ".worktrees", issue.Slug)
@@ -103,7 +132,7 @@ func Load(proj *tracker.Project, issue *tracker.Issue, logs *Logs) Sources {
 		}
 	}
 
-	src.Calls = LoadCalls(logs, LogPaths(workDir, worktree, issue), projSlug, issue.Slug)
+	src.Calls = LoadCalls(cache, LogPaths(workDir, worktree, issue), projSlug, issue.Slug)
 	if len(src.Calls) == 0 {
 		src.Missing = append(src.Missing, Missing{"CLI log", "no calls for this issue in .agent-logs/<agent>/<agent>.clilog (project and worktree), .agent-logs/clilog.jsonl or $TMPDIR/issue-cli-logs/actions.jsonl. Agent, waiting and idle time can't be split; the CLI calls filter is empty."})
 	} else {
@@ -128,7 +157,7 @@ func Load(proj *tracker.Project, issue *tracker.Issue, logs *Logs) Sources {
 		}
 	}
 
-	src.Runs = LoadPlaytestRuns(issue.Slug, root, worktree)
+	src.Runs = LoadPlaytestRuns(cache, issue.Slug, root, worktree)
 	if len(src.Runs) == 0 {
 		src.Read = append(src.Read, "playtest runs (none for this issue)")
 	} else {
@@ -182,8 +211,8 @@ func LogPaths(workDir, worktree string, issue *tracker.Issue) []string {
 
 // LoadCalls merges the clilogs, keeping per-agent records for this project
 // and shared-log records that name this issue, deduped on (ts, args): a call
-// can be in both the per-agent and the project log. logs may be nil.
-func LoadCalls(logs *Logs, paths []string, projSlug, issueSlug string) []Call {
+// can be in both the per-agent and the project log. cache may be nil.
+func LoadCalls(cache *Cache, paths []string, projSlug, issueSlug string) []Call {
 	var calls []Call
 	seen := map[string]bool{}
 	for _, p := range paths {
@@ -195,7 +224,7 @@ func LoadCalls(logs *Logs, paths []string, projSlug, issueSlug string) []Call {
 		if legacy {
 			wantProj = projSlug
 		}
-		logs.read(p, func(rec clilog.Record) {
+		cache.read(p, func(rec clilog.Record) {
 			if shared && !MatchesIssue(rec, wantProj, issueSlug) {
 				return
 			}
@@ -322,19 +351,13 @@ type playtestResultsFile struct {
 
 // LoadPlaytestRuns reads the results.yaml of every run for issueSlug, in
 // each dir's .playtest/runs: agents run ux-test in their worktree, so most
-// runs live there.
-func LoadPlaytestRuns(issueSlug string, dirs ...string) []PlaytestRun {
+// runs live there. cache may be nil.
+func LoadPlaytestRuns(cache *Cache, issueSlug string, dirs ...string) []PlaytestRun {
 	var runs []PlaytestRun
 	seen := map[string]bool{}
 	for _, d := range dirs {
-		files, _ := filepath.Glob(filepath.Join(d, ".playtest", "runs", "*", "*", "results.yaml"))
-		for _, f := range files {
-			data, err := os.ReadFile(f)
-			if err != nil {
-				continue
-			}
-			var r playtestResultsFile
-			if yaml.Unmarshal(data, &r) != nil || r.Issue != issueSlug {
+		for _, r := range cache.results(d) {
+			if r.Issue != issueSlug {
 				continue
 			}
 			started, err := time.Parse(time.RFC3339, r.Started)

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/telemetry"
+	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -52,6 +53,31 @@ type StatsData struct {
 	// it could not be produced, in which case CLIUsageNotice says why.
 	CLIUsage       *telemetry.Report
 	CLIUsageNotice string
+	// Time is where the time goes over the issues done in the last 30 days
+	// (timeline.Aggregate, built on every request); TimeGroups are its
+	// status rows by type, All first.
+	Time       timeline.Report
+	TimeGroups []timeGroup
+}
+
+// timeGroup is one type of work's row and its status rows on /stats.
+type timeGroup struct {
+	timeline.TypeRow
+	Statuses []timeline.StatusRow
+}
+
+func timeGroups(rep timeline.Report) []timeGroup {
+	var out []timeGroup
+	for _, t := range rep.Types {
+		g := timeGroup{TypeRow: t}
+		for _, s := range rep.Statuses {
+			if s.Type == t.Type {
+				g.Statuses = append(g.Statuses, s)
+			}
+		}
+		out = append(out, g)
+	}
+	return out
 }
 
 // runTelemetryReport produces `issue-cli telemetry report --json` for a
@@ -128,6 +154,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *track
 
 	recorded, totals := aggregateRecordedStats(issues)
 	usage, usageNotice := loadCLIUsage(proj)
+	timeRep := timeline.Aggregate(proj, wf, issues, time.Now(), timeline.Window)
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "stats.html", StatsData{
@@ -139,6 +166,8 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *track
 		IssueTotals:         totals,
 		CLIUsage:            usage,
 		CLIUsageNotice:      usageNotice,
+		Time:                timeRep,
+		TimeGroups:          timeGroups(timeRep),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

@@ -353,6 +353,13 @@ var IDs = []string{
 
 	// recording issue's slug and the decision id ("d-1").
 	"decisions.stats",
+	"stats.time",
+	"stats.time.unsplit",
+	"stats.time.unread",
+	"stats.time.types",
+	"stats.time.status",
+	"stats.time.approvals",
+	"stats.time.failures",
 	"decisions.stat.total",
 	"decisions.stat.active",
 	"decisions.stat.replaced",

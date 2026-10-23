@@ -17,6 +17,10 @@ import (
 	"github.com/michal-franc/issue-viewer/internal/clilog"
 	"github.com/michal-franc/issue-viewer/internal/telemetry"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
+
+	// Registers the workflow health family, so snapshots taken by the CLI
+	// include it.
+	_ "github.com/michal-franc/issue-viewer/internal/timeline"
 )
 
 //go:embed CHANGELOG.md

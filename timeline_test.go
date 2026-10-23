@@ -42,7 +42,7 @@ func TestBuildTimelineLocalCI(t *testing.T) {
 		Decisions:   tracker.ParseDecisions("workflow/local-ci", string(body)),
 		Transitions: stats.Transitions,
 		Calls:       timeline.LoadCalls(nil, []string{filepath.Join(dir, "agent.clilog")}, "issue-viewer", "workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures"),
-		Runs:        timeline.LoadPlaytestRuns("workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures", dir),
+		Runs:        timeline.LoadPlaytestRuns(nil, "workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures", dir),
 		Commits: []gitCommit{
 			{SHA: "11826db", At: time.Date(2026, 10, 22, 15, 13, 38, 0, time.UTC), Subject: "ci: local CI runner"},
 			{SHA: "af4e2da", At: time.Date(2026, 10, 22, 18, 31, 39, 0, time.UTC), Subject: "ci: Last runs boxes"},
@@ -283,7 +283,57 @@ func TestDetailTimelineWithLog(t *testing.T) {
 	if !strings.Contains(all, comment) {
 		t.Error("All filter: the redacted comment is not filled from the issue")
 	}
+	// D-4 of the workflow timeline issue: each band shows its agent time,
+	// here up to the comment and from your approval to the transition.
+	if !strings.Contains(all, `data-testid="timeline.band.working">6m agent</span>`) {
+		t.Error("the in design band does not show its agent time")
+	}
 	if strings.Contains(page, `CLI log:</span>`) {
 		t.Error("the clilog was found, yet the tab says it could not read it")
+	}
+}
+
+// AC4: the Timeline tab and the project aggregate are one builder, so for a
+// done issue the tab's time per status is the aggregate's.
+func TestTimelineMatchesAggregate(t *testing.T) {
+	proj := fixItProject(t)
+	issues, err := tracker.LoadIssues(proj.IssueDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wf := tracker.DefaultWorkflow()
+	rep := timeline.Aggregate(&proj, wf, issues, time.Now(), timeline.Window)
+	var agg timeline.IssueStat
+	var issue *tracker.Issue
+	for _, s := range rep.Issues {
+		if s.Slug == "fix-it" {
+			agg = s
+		}
+	}
+	for _, is := range issues {
+		if is.Slug == "fix-it" {
+			issue = is
+		}
+	}
+	if issue == nil || agg.Slug == "" {
+		t.Fatalf("fix-it not found: aggregate %+v", rep.Issues)
+	}
+	tl := buildTimeline(loadTimelineSources(&proj, issue, wf), timelineInput{Status: "done", Now: time.Now(), WF: wf})
+	if tl.Total != agg.Cycle || tl.Working != agg.Working || tl.Rework != agg.Rework {
+		t.Errorf("tab total %v working %v rework %v; aggregate cycle %v working %v rework %v", tl.Total, tl.Working, tl.Rework, agg.Cycle, agg.Working, agg.Rework)
+	}
+	n := 0
+	for _, b := range tl.Bands {
+		st, ok := agg.Statuses[b.Status]
+		if !ok {
+			continue
+		}
+		n++
+		if b.Working != st.Working || b.Waiting != st.Waiting || b.Idle != st.Idle || b.Rework != st.Rework {
+			t.Errorf("%s: tab %v/%v/%v/%v, aggregate %+v", b.Status, b.Working, b.Waiting, b.Idle, b.Rework, st)
+		}
+	}
+	if n != 2 || agg.Statuses["human-testing"].Working == 0 {
+		t.Errorf("compared %d bands; human-testing = %+v", n, agg.Statuses["human-testing"])
 	}
 }

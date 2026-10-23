@@ -118,7 +118,7 @@ Failed runs before testing are the agent iterating and don't count. Agent time i
 
 **Life by status** has one band per status, with its span and the agent, waiting, idle and rework time inside it. Its events:
 - **The agent's writes, grouped:** decisions (matched to their D-n), sections written, boxes ticked, comments (kind = their prefix: `progress`, `tests`, `docs` …), refused calls (exit ≠ 0).
-- **Approvals:** "no words recorded" until the approve button takes words.
+- **Approvals:** "Approved → <status>", with your words quoted under it, or "no words recorded". The words come from the `approval:` comment that pairs with the approval: the latest one made after the previous transition and up to this one, whose `→` statuses name the target. A comment written before the `→` suffix matches any target, a pre-0.54 day-only date counts when its day overlaps that window, and each comment pairs once (`approvalWords`).
 - **Commits:** a merge of main into the branch is one muted line.
 - **Playtest runs**, and the first CI run on main.
 - **Rows for time:** amber waits, grey idle gaps and a purple loop row.
@@ -135,7 +135,7 @@ The clilog keeps no free text (`clilog.Placeholder`: `‹text n=… h=…›`). 
 
 **Side column:**
 - **Your part:** each wait.
-- **Your words:** decisions with your quote, and each approval.
+- **Your words:** decisions with your quote, and each approval with its words and how they came (`viewer`, `in the lead chat`), or "no words recorded". The count of quoted entries includes approvals with words.
 - **Left open at done:** unticked boxes; a section with more than 3 open shows as a count; failed playtest steps are marked.
 - **CI after merge:** the first run on main that contains the issue, and how many runs since were green.
 

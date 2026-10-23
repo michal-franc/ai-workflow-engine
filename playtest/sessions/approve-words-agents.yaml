@@ -1,0 +1,68 @@
+session: approve-words-agents
+issue: ui/approve-button-takes-your-words
+title: The words box on the agents panel goes with Approve gate and reaches the agent
+scenario: leads
+
+# A live ui/child (a `cat` session on the private tmux server) sits at the
+# in progress → testing gate. The nudge is typed into its pane, so the pane
+# shows what the agent would read. Every cli: call passes --project crew.
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP8
+    title: Approve gate with words writes the comment and quotes them to the agent
+    setup:
+      - tmux: [new-session, -d, -s, agent-ui-child, cat]
+      - open: /p/{project}/agents
+      - click: agents.node.agent-ui-child
+      - wait_for: agents.panel.approve
+    act:
+      - check: { below: [approve_words.agents_panel, agents.panel.approve] }
+      - type: { target: approve_words.agents_panel, text: "Child reads right, test it" }
+      - click: agents.panel.approve
+      - wait_for: { text_contains: { target: agents.node.agent-ui-child.state, text: working } }
+    checks:
+      - issue: { slug: ui/child, field: human_approval, equals: testing }
+      - issue: { slug: ui/child, comment_contains: 'approval: "Child reads right, test it" (viewer, ' }
+      - issue: { slug: ui/child, comment_contains: ") → testing" }
+      - tmux: { pane: agent-ui-child, contains: 'Approved for testing: "Child reads right, test it"' }
+
+  - id: TP9
+    title: Text typed in the panel's box survives the canvas poll
+    setup:
+      - tmux: [new-session, -d, -s, agent-ui-child, cat]
+      - open: /p/{project}/agents
+      - click: agents.node.agent-ui-child
+      - wait_for: approve_words.agents_panel
+    act:
+      - type: { target: approve_words.agents_panel, text: "still typing" }
+      # The canvas polls agents.json every 5s.
+      - wait: 6000
+    checks:
+      - value_equals: { target: approve_words.agents_panel, value: "still typing" }
+      - visible: agents.panel.approve
+
+  - id: TP11
+    title: The agents panel's words box reads clearly beside Approve gate
+    setup:
+      - tmux: [new-session, -d, -s, agent-ui-child, cat]
+      - open: /p/{project}/agents
+      - click: agents.node.agent-ui-child
+      - wait_for: agents.panel.approve
+    targets:
+      - { id: approve_words.agents_panel, note: Your words, optional }
+      - { id: agents.panel.approve, note: Approves the gate with the words }
+    do: |
+      1. Read the panel: the words box sits above "Approve gate: testing".
+      2. Type a sentence and click "Approve gate: testing".
+      3. Click "Copy attach" if you want to look at the agent's pane; it
+         shows the line the agent received.
+    expect: |
+      The box clearly belongs to the approve button, the button then says
+      "Approved with your words", and the agent's line quotes your words
+      instead of a canned "looks good" line.
+    why: ux-test checks the comment and the pane text; only you can judge the placement and wording.

@@ -338,3 +338,71 @@ func TestTimelineMatchesAggregate(t *testing.T) {
 		t.Errorf("compared %d bands; human-testing = %+v", n, agg.Statuses["human-testing"])
 	}
 }
+
+func TestApprovalWords_PairsCommentsWithApprovals(t *testing.T) {
+	rfc := func(min int) string { return at(min).Format(time.RFC3339) }
+	src := timelineSources{
+		Transitions: []statRow{
+			{From: "idea", To: "in design", TS: at(10)},
+			{From: "in design", To: "backlog", TS: at(30), ApprovedAt: ptr(at(25))},
+			{From: "backlog", To: "in progress", TS: at(60), ApprovedAt: ptr(at(55))},
+			{From: "in progress", To: "testing", TS: at(90), ApprovedAt: ptr(at(85))},
+		},
+		Comments: []tracker.Comment{
+			// Before the window of the backlog approval: ignored.
+			{Date: rfc(5), Text: tracker.ApprovalComment("too early", "viewer", "2026-10-22", "backlog")},
+			{Date: rfc(20), Text: tracker.ApprovalComment("first try", "viewer", "2026-10-22", "backlog")},
+			{Date: rfc(24), Text: tracker.ApprovalComment("design reads right", "viewer", "2026-10-22", "backlog")},
+			// Names another status: never pairs with in progress.
+			{Date: rfc(50), Text: tracker.ApprovalComment("wrong gate", "viewer", "2026-10-22", "documentation")},
+			// Older form, no → status: pairs by time.
+			{Date: rfc(70), Text: `approval: "ship the tests" (in the lead chat, 2026-10-22) — recorded by lead-x`},
+			{Date: rfc(71), Text: "question: anything else?"},
+		},
+	}
+	got := approvalWords(src)
+	if len(got) != 2 || got[1].Words != "design reads right" || got[3].Words != "ship the tests" || got[3].How != "in the lead chat" {
+		t.Fatalf("approvalWords = %+v", got)
+	}
+	if _, ok := got[2]; ok {
+		t.Fatalf("in progress paired with %+v, want no words", got[2])
+	}
+
+	items, words, approvals := wordItems(src)
+	if words != 2 || approvals != 3 || len(items) != 3 {
+		t.Fatalf("wordItems = %+v, %d, %d", items, words, approvals)
+	}
+	if items[0].Quote != "design reads right" || items[0].How != "approve → backlog · viewer" || items[0].Muted {
+		t.Errorf("backlog item = %+v", items[0])
+	}
+	if items[1].Quote != "no words recorded" || !items[1].Muted {
+		t.Errorf("in progress item = %+v", items[1])
+	}
+
+	tl := buildTimeline(src, timelineInput{Status: "testing", Now: at(100), Show: showAll, WF: tracker.DefaultWorkflow()})
+	quotes := map[string]string{}
+	for _, b := range tl.Bands {
+		for _, e := range b.Events {
+			if e.Chip == "you" {
+				quotes[e.Text] = e.Quote + "|" + e.Note
+			}
+		}
+	}
+	if quotes["Approved → backlog"] != "design reads right|" || quotes["Approved → in progress"] != "|no words recorded" {
+		t.Fatalf("approval events = %v", quotes)
+	}
+}
+
+func TestApprovalWords_DayOnlyCommentPairsWithinItsDay(t *testing.T) {
+	src := timelineSources{
+		Transitions: []statRow{
+			{From: "idea", To: "in design", TS: at(-600)},
+			{From: "in design", To: "backlog", TS: at(30), ApprovedAt: ptr(at(25))},
+		},
+		// Pre-0.54 comments carry only the day; it overlaps the window.
+		Comments: []tracker.Comment{{Date: tl0.Format("2006-01-02"), Text: `approval: "ok" (viewer, 2026-10-22)`}},
+	}
+	if got := approvalWords(src); got[1].Words != "ok" {
+		t.Fatalf("approvalWords = %+v", got)
+	}
+}

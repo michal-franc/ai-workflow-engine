@@ -417,6 +417,15 @@ The sidebar's **Human Approval** section shows one **Human-approved for <status>
 - The agent's tmux session gets one nudge naming both statuses.
 - Clicking it again clears both. Clicking it on an issue already approved for `backlog` only adds the queued approval.
 
+## Approving with your words
+
+Under the approve buttons, the Human Approval section has one **Your words (optional)** box (`approve_words.detail`). It goes with whichever button you click next.
+- **Filled:** the request carries `words`, and the approve handler writes an `approval: "<words>" (viewer, <date>) → <status>` comment (source `app`). That is the same comment `issue-cli approve --quote` writes, and an approve-then names both statuses (`→ backlog, in progress`). The agent's nudge quotes the words in place of the canned line. The box empties and the toast says "with your words".
+- **Empty, blank, or un-approving** (clicking a green button): no comment and the canned nudge. Un-approving keeps the box's text.
+- **Comment write fails:** the approval still stands (`words_error` in the response), the toast says the words were not saved, and the box keeps them.
+
+The box is `templates/_approve_words.html` (`{{template "approve-words" "<place>"}}`, test id `approve_words.<place>`). `static/approve-words.js` builds the same markup for pages that render in JS (`approveWords.html(place)`), reads it (`take`) and empties it (`clear`). The agents panel uses it, and the Issue tab's Needs-you bar is meant to. The Timeline shows the words beside the approval (see [Timeline tab](../workflow-stats.md#timeline-tab)).
+
 ## Create issue modal
 
 The sidebar's **New issue** button opens a shared modal defined in `templates/_create_modal.html`, included by `list.html` and `board.html`. On other pages the button links to `/?new=1`, and the list opens the modal on load. The modal posts to `POST /p/<project>/issues/create` (handler `handleCreateIssue` in `handlers_issue_mutate.go`) and on `201` navigates the browser to the new issue's detail page.
@@ -454,7 +463,7 @@ Auto-refresh interaction: `static/auto-refresh.js` skips its full-page `location
 - **Clicking a live agent** (the lead or a worker) opens its tmux session in a terminal: `POST /p/<project>/agents/open` `{"session"}` runs the same attach as a dispatch re-attach (the project's `terminal`, or in `tmux_session` mode a `select-window` plus a terminal only when no client is attached). A session that already has a terminal attached never gets a second window: on i3 the window titled with the session name is focused (`focused`; the default i3 + alacritty terminal titles its windows that way), otherwise the panel says it is already open (`already-open`). With `terminal: none` nothing opens: in `tmux_session` mode the agent's window is selected (`selected`). The panel shows `Inside tmux: <switch_cmd> · From a shell: <attach_cmd>`; the attach command is prefixed `TMUX_TMPDIR=…` when the board runs on a private tmux server. The page never shows the pane and has no message box (D-12); you watch and type in tmux.
 - **`?agent=<session>`** selects that agent on load without opening its terminal (the workboard's footer links here).
 - **Selected-agent panel** (shown for the clicked node): kind, state, tmux location, the last issue-cli call (`last_call` / `last_cmd` in agents.json), the issue, then:
-  - **Approve gate** (at-gate workers) calls the issue's existing `/approve` endpoint, a direct human action;
+  - **Approve gate** (at-gate workers) calls the issue's existing `/approve` endpoint, a direct human action. Above it sits the words box (`approve_words.agents_panel`, see [Approving with your words](#approving-with-your-words)). A poll re-renders the panel only when the agent's gate changes, so typed text survives it. After a click, the button reads **Approved with your words** when they were saved;
   - **Spawn lead** when the project lead is not running (one lead per project, workbench umbrella D-13);
   - **Open in tmux** (live sessions) does the same as clicking the node again: it opens the terminal, or brings the open one to the front, and a status line says which;
   - **Copy attach** copies the `tmux attach` command. With `terminal: none` (`terminal_none` in agents.json) the button is **Copy switch** and copies `tmux switch-client …`, because the owner is inside tmux;

@@ -7,6 +7,7 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='7' fill='{{urlEncodeColor (statusColor .Issue.Status)}}'/></svg>">
     <link rel="stylesheet" href="/static/style.css">
     <script src="/static/theme.js"></script>
+    <script src="/static/approve-words.js"></script>
     <script>
     (function() {
         if (localStorage.getItem('sidebar-locked') !== 'false') {
@@ -176,6 +177,7 @@
                         </div>
                     </div>
                     {{end}}
+                    {{template "approve-words" "detail"}}
                 </div>
                 {{end}}
 
@@ -931,7 +933,8 @@
     }
 
     function toggleApproval(status, then) {
-        const payload = { status: status };
+        // The words go with every click; un-approving ignores them.
+        const payload = { status: status, words: approveWords.take('detail') };
         if (then) payload.then = then;
         fetch(issueURL + '/approve', {
             method: 'POST',
@@ -950,8 +953,14 @@
                 mark(btn, data.human_approval === btn.dataset.thenStatus && data.queued_approval === btn.dataset.then);
             });
             if (data.human_approval) {
-                const what = data.queued_approval ? 'Approved for ' + data.human_approval + ' and ' + data.queued_approval : 'Human approval set';
-                if (data.notified_session) {
+                let what = data.queued_approval ? 'Approved for ' + data.human_approval + ' and ' + data.queued_approval : 'Approved for ' + data.human_approval;
+                if (data.words_saved) {
+                    what += ' with your words';
+                    approveWords.clear('detail');
+                }
+                if (data.words_error) {
+                    showToast(what + ', but your words were not saved: ' + data.words_error, true);
+                } else if (data.notified_session) {
                     showToast(what + ' and sent to bot session ' + data.notified_session);
                 } else if (data.notification_error) {
                     showToast(what + ', but bot notification was not delivered: ' + data.notification_error);

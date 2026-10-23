@@ -109,6 +109,7 @@ type tlEvent struct {
 	Tone    string
 	Text    string
 	Note    string
+	Quote   string // your words, shown under Text
 	Mono    string
 	Detail  string
 	Actions []TimelineAction
@@ -390,9 +391,14 @@ func timelineEvents(src timelineSources, in timelineInput, segs []seg, loops []r
 			Folded: callLines(after)}, showAll)
 	}
 
-	for _, r := range src.Transitions {
+	said := approvalWords(src)
+	for i, r := range src.Transitions {
 		if r.ApprovedAt != nil {
-			tag(tlEvent{At: *r.ApprovedAt, Row: "event", Chip: "you", Tone: "amber", Text: "Approved → " + r.To, Note: "no words recorded"}, showAll, showYou)
+			e := tlEvent{At: *r.ApprovedAt, Row: "event", Chip: "you", Tone: "amber", Text: "Approved → " + r.To, Note: "no words recorded"}
+			if a, ok := said[i]; ok {
+				e.Note, e.Quote = "", a.Words
+			}
+			tag(e, showAll, showYou)
 		}
 		if r.To == "done" && !r.TS.After(end) {
 			tag(tlEvent{At: r.TS, Row: "event", Chip: "done", Tone: "green", Text: r.From + " → done"}, showAll)
@@ -866,14 +872,82 @@ func wordItems(src timelineSources) (items []wordItem, words, approvalsN int) {
 		items = append(items, wordItem{Ref: d.ID, How: d.How, Quote: d.Quote})
 		words++
 	}
-	for _, r := range src.Transitions {
+	said := approvalWords(src)
+	for i, r := range src.Transitions {
 		if r.ApprovedAt == nil {
 			continue
 		}
 		approvalsN++
-		items = append(items, wordItem{Ref: r.ApprovedAt.Local().Format("15:04"), How: "approve → " + r.To, Quote: "no words recorded", Muted: true})
+		ref := r.ApprovedAt.Local().Format("15:04")
+		if a, ok := said[i]; ok {
+			how := "approve → " + r.To
+			if a.How != "" {
+				how += " · " + a.How
+			}
+			items = append(items, wordItem{Ref: ref, How: how, Quote: a.Words})
+			words++
+			continue
+		}
+		items = append(items, wordItem{Ref: ref, How: "approve → " + r.To, Quote: "no words recorded", Muted: true})
 	}
 	return items, words, approvalsN
+}
+
+// approvalWords pairs each approved transition (by index in
+// src.Transitions) with your words: the latest approval: comment made after
+// the previous transition and up to this one, whose statuses name its
+// target. A comment without statuses (written before the → suffix) matches
+// any target, a day-only date counts when that day overlaps the window, and
+// each comment pairs once.
+func approvalWords(src timelineSources) map[int]tracker.ApprovalWords {
+	type said struct {
+		words    tracker.ApprovalWords
+		at       time.Time
+		dayOnly  bool
+		consumed bool
+	}
+	var all []*said
+	for _, c := range src.Comments {
+		a, ok := tracker.ParseApprovalComment(c.Text)
+		if !ok {
+			continue
+		}
+		at, ok := tracker.CommentTime(c.Date)
+		if !ok {
+			continue
+		}
+		all = append(all, &said{words: a, at: at, dayOnly: tracker.CommentDay(c.Date) == strings.TrimSpace(c.Date)})
+	}
+	out := map[int]tracker.ApprovalWords{}
+	var prev time.Time
+	for i, r := range src.Transitions {
+		from := prev
+		prev = r.TS
+		if r.ApprovedAt == nil {
+			continue
+		}
+		var best *said
+		for _, s := range all {
+			if s.consumed || !s.words.Approves(r.To) {
+				continue
+			}
+			start, end := s.at, s.at
+			if s.dayOnly {
+				end = s.at.AddDate(0, 0, 1)
+			}
+			if start.After(r.TS) || (!from.IsZero() && !end.After(from)) {
+				continue
+			}
+			if best == nil || s.at.After(best.at) {
+				best = s
+			}
+		}
+		if best != nil {
+			best.consumed = true
+			out[i] = best.words
+		}
+	}
+	return out
 }
 
 // openItems is "Left open at done": unticked boxes, a section with many

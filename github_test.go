@@ -84,3 +84,29 @@ func TestImportGitHubIssue_ExplicitImportStatusOverrides(t *testing.T) {
 		t.Errorf("imported status = %q, want explicit override %q", got, "triage")
 	}
 }
+
+// GitHub label names are free text; "priority: high" unquoted would be a map
+// item, not a string, and the imported file would not load.
+func TestImportGitHubIssue_QuotesLabels(t *testing.T) {
+	tmp := t.TempDir()
+	issueDir := filepath.Join(tmp, "issues")
+	if err := os.MkdirAll(issueDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	proj := &tracker.Project{Slug: "test-project", IssueDir: issueDir, WorkflowFile: writeWorkflow(t, tmp, "idea")}
+	gh := GitHubIssue{Number: 7, Title: "Labelled", UpdatedAt: time.Now(),
+		Labels: []GitHubLabel{{Name: "priority: high"}, {Name: "[ui]"}, {Name: "#triage"}}}
+
+	path, err := ImportGitHubIssue(proj, gh)
+	if err != nil {
+		t.Fatalf("ImportGitHubIssue: %v", err)
+	}
+	data, _ := os.ReadFile(path)
+	issue, err := tracker.ParseIssue("7.md", data)
+	if err != nil {
+		t.Fatalf("imported issue does not parse: %v\n%s", err, data)
+	}
+	if got := strings.Join(issue.Labels, "|"); got != "priority: high|[ui]|#triage" {
+		t.Errorf("labels = %q", got)
+	}
+}

@@ -532,84 +532,56 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 	fmRaw := parts[0]
 	body := parts[1]
 
-	setLabels := func(fm string, labels []string) string {
-		fm = removeFrontmatterKey(fm, "labels")
-		if len(labels) == 0 {
-			return fm
+	// set writes key, or removes it when value is "" and clearable; touched
+	// names the keys for the error if the result doesn't parse.
+	var touched []string
+	set := func(key, value string, clearable bool) {
+		touched = append(touched, key)
+		if value == "" && clearable {
+			fmRaw = removeFrontmatterKey(fmRaw, key)
+		} else {
+			fmRaw = setFrontmatterScalar(fmRaw, key, value)
 		}
-		var buf strings.Builder
-		buf.WriteString("labels:\n")
-		for _, l := range labels {
-			buf.WriteString("  - " + l + "\n")
-		}
-		return strings.TrimRight(fm, "\n") + "\n" + buf.String()
 	}
 
 	if update.Title != nil {
-		fmRaw = setFrontmatterScalar(fmRaw, "title", *update.Title)
+		set("title", *update.Title, false)
 	}
 	if update.Status != nil {
-		fmRaw = setFrontmatterScalar(fmRaw, "status", *update.Status)
+		set("status", *update.Status, false)
 	}
 	if update.Priority != nil {
-		if *update.Priority == "" {
-			fmRaw = removeFrontmatterKey(fmRaw, "priority")
-		} else {
-			fmRaw = setFrontmatterScalar(fmRaw, "priority", *update.Priority)
-		}
+		set("priority", *update.Priority, true)
 	}
 	if update.Version != nil {
-		if *update.Version == "" {
-			fmRaw = removeFrontmatterKey(fmRaw, "version")
-		} else {
-			fmRaw = setFrontmatterScalar(fmRaw, "version", *update.Version)
-		}
+		set("version", *update.Version, true)
 	}
 	if update.Assignee != nil {
-		if *update.Assignee == "" {
-			fmRaw = removeFrontmatterKey(fmRaw, "assignee")
-		} else {
-			fmRaw = setFrontmatterScalar(fmRaw, "assignee", *update.Assignee)
-		}
+		set("assignee", *update.Assignee, true)
 	}
 	if update.HumanApproval != nil {
 		fmRaw = removeFrontmatterKey(fmRaw, "approved_for")
-		if *update.HumanApproval == "" {
-			fmRaw = removeFrontmatterKey(fmRaw, "human_approval")
-		} else {
-			fmRaw = setFrontmatterScalar(fmRaw, "human_approval", *update.HumanApproval)
-		}
+		set("human_approval", *update.HumanApproval, true)
 	}
 	if update.QueuedApproval != nil {
-		if *update.QueuedApproval == "" {
-			fmRaw = removeFrontmatterKey(fmRaw, "queued_approval")
-		} else {
-			fmRaw = setFrontmatterScalar(fmRaw, "queued_approval", *update.QueuedApproval)
-		}
+		set("queued_approval", *update.QueuedApproval, true)
 	}
 	if update.StartedAt != nil {
-		if *update.StartedAt == "" {
-			fmRaw = removeFrontmatterKey(fmRaw, "started_at")
-		} else {
-			fmRaw = setFrontmatterScalar(fmRaw, "started_at", *update.StartedAt)
-		}
+		set("started_at", *update.StartedAt, true)
 	}
 	if update.DoneAt != nil {
-		if *update.DoneAt == "" {
-			fmRaw = removeFrontmatterKey(fmRaw, "done_at")
-		} else {
-			fmRaw = setFrontmatterScalar(fmRaw, "done_at", *update.DoneAt)
-		}
+		set("done_at", *update.DoneAt, true)
 	}
 	if update.Labels != nil {
-		fmRaw = setLabels(fmRaw, update.Labels)
+		touched = append(touched, "labels")
+		if len(update.Labels) == 0 {
+			fmRaw = removeFrontmatterKey(fmRaw, "labels")
+		} else {
+			fmRaw = setFrontmatterList(fmRaw, "labels", update.Labels)
+		}
 	}
 	if update.Slug != nil {
-		if *update.Slug == "" {
-			fmRaw = removeFrontmatterKey(fmRaw, "slug")
-		} else {
-			fmRaw = setFrontmatterScalar(fmRaw, "slug", *update.Slug)
-		}
+		set("slug", *update.Slug, true)
 	}
 
 	if len(update.ExtraFields) > 0 {
@@ -622,13 +594,12 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 			if ProtectedFrontmatterFields[k] || !frontmatterKeyRe.MatchString(k) {
 				continue
 			}
-			v := update.ExtraFields[k]
-			if v == "" {
-				fmRaw = removeFrontmatterKey(fmRaw, k)
-			} else {
-				fmRaw = setFrontmatterScalar(fmRaw, k, v)
-			}
+			set(k, update.ExtraFields[k], true)
 		}
+	}
+
+	if err := checkFrontmatter(fmRaw, touched); err != nil {
+		return fmt.Errorf("%s: %w", filePath, err)
 	}
 
 	if update.Body != nil {
@@ -761,28 +732,108 @@ func escapeYAMLScalar(s string) string {
 }
 
 // setFrontmatterScalar is the one writer for scalar frontmatter keys. The
-// replacement is literal so `$1` or `${x}` in a value is not expanded.
+// value is written as one escaped, double-quoted line in place of the key's
+// old value, whatever shape that had.
 func setFrontmatterScalar(fm, key, value string) string {
-	re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `:.*$`)
-	newLine := key + `: "` + escapeYAMLScalar(value) + `"`
-	if re.MatchString(fm) {
-		return re.ReplaceAllLiteralString(fm, newLine)
+	return replaceFrontmatterKey(fm, key, []string{key + `: "` + escapeYAMLScalar(value) + `"`})
+}
+
+// setFrontmatterList writes key as a YAML block list of quoted values.
+func setFrontmatterList(fm, key string, values []string) string {
+	lines := []string{key + ":"}
+	for _, v := range values {
+		lines = append(lines, `  - "`+escapeYAMLScalar(v)+`"`)
 	}
-	return strings.TrimRight(fm, "\n") + "\n" + newLine + "\n"
+	return replaceFrontmatterKey(fm, key, lines)
 }
 
 func removeFrontmatterKey(fm, key string) string {
-	re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `:.*\n?`)
-	fm = re.ReplaceAllString(fm, "")
-	reList := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `:\s*\n([ \t]+-[^\n]*\n?)*`)
-	fm = reList.ReplaceAllString(fm, "")
-	return fm
+	return replaceFrontmatterKey(fm, key, nil)
 }
 
-// SetFrontmatterField writes or clears a single scalar frontmatter key.
-// Protected keys (see ProtectedFrontmatterFields) are refused. Pass clear=true
-// to remove the field; value is ignored in that case.
-func SetFrontmatterField(filePath, key, value string, clear bool) error {
+// replaceFrontmatterKey puts lines where key's first occurrence was and drops
+// every occurrence, continuation lines included. A missing key is appended,
+// or left missing when lines is nil.
+func replaceFrontmatterKey(fm, key string, lines []string) string {
+	fmLines := strings.Split(fm, "\n")
+	spans := frontmatterKeySpans(fmLines, key)
+	if len(spans) == 0 {
+		if lines == nil {
+			return fm
+		}
+		return strings.TrimRight(fm, "\n") + "\n" + strings.Join(lines, "\n") + "\n"
+	}
+	var out []string
+	prev := 0
+	for i, sp := range spans {
+		out = append(out, fmLines[prev:sp[0]]...)
+		if i == 0 {
+			out = append(out, lines...)
+		}
+		prev = sp[1]
+	}
+	out = append(out, fmLines[prev:]...)
+	return strings.Join(out, "\n")
+}
+
+// frontmatterKeySpans returns the [start, end) line ranges of key at the top
+// level: its own line plus the lines that continue its value (indented list
+// items, block scalars and nested maps, `- ` items at column 0, blank lines
+// inside a block), up to the next top-level line. Blank lines at the end of
+// a span stay outside it.
+func frontmatterKeySpans(lines []string, key string) [][2]int {
+	var spans [][2]int
+	for i := 0; i < len(lines); i++ {
+		rest, ok := strings.CutPrefix(lines[i], key+":")
+		if !ok || (rest != "" && rest[0] != ' ' && rest[0] != '\t') {
+			continue
+		}
+		end := i + 1
+		for j := i + 1; j < len(lines); j++ {
+			l := lines[j]
+			if strings.TrimSpace(l) == "" {
+				continue
+			}
+			if l[0] != ' ' && l[0] != '\t' && l != "-" && !strings.HasPrefix(l, "- ") {
+				break
+			}
+			end = j + 1
+		}
+		spans = append(spans, [2]int{i, end})
+		i = end - 1
+	}
+	return spans
+}
+
+// checkFrontmatter refuses frontmatter the YAML parser can't read, so a line
+// edit that went wrong never reaches disk. keys names what the edit changed.
+func checkFrontmatter(fm string, keys []string) error {
+	var probe Issue
+	if err := yaml.Unmarshal([]byte(fm), &probe); err != nil {
+		if len(keys) == 0 {
+			return fmt.Errorf("not written: frontmatter would not parse: %w", err)
+		}
+		return fmt.Errorf("not written: frontmatter would not parse after setting %s: %w", strings.Join(keys, ", "), err)
+	}
+	return nil
+}
+
+// CheckIssueFrontmatter is checkFrontmatter for a whole issue file that a
+// writer built by hand; call it before writing the file.
+func CheckIssueFrontmatter(content string) error {
+	if !strings.HasPrefix(content, "---") {
+		return fmt.Errorf("not written: missing frontmatter delimiter")
+	}
+	fm, _, ok := strings.Cut(content[3:], "\n---")
+	if !ok {
+		return fmt.Errorf("not written: missing closing frontmatter delimiter")
+	}
+	return checkFrontmatter(fm, nil)
+}
+
+// checkSettableKey refuses keys set-meta may not write: malformed ones and
+// those managed elsewhere (see ProtectedFrontmatterFields).
+func checkSettableKey(key string) error {
 	if key == "" {
 		return fmt.Errorf("key is required")
 	}
@@ -792,7 +843,36 @@ func SetFrontmatterField(filePath, key, value string, clear bool) error {
 	if ProtectedFrontmatterFields[key] {
 		return fmt.Errorf("field %q is managed by the workflow and cannot be set via set-meta", key)
 	}
+	return nil
+}
 
+// SetFrontmatterField writes or clears a single scalar frontmatter key.
+// Protected keys (see ProtectedFrontmatterFields) are refused. Pass clear=true
+// to remove the field; value is ignored in that case.
+func SetFrontmatterField(filePath, key, value string, clear bool) error {
+	if err := checkSettableKey(key); err != nil {
+		return err
+	}
+	return editFrontmatterKey(filePath, key, func(fm string) string {
+		if clear {
+			return removeFrontmatterKey(fm, key)
+		}
+		return setFrontmatterScalar(fm, key, value)
+	})
+}
+
+// SetFrontmatterList writes key as a YAML list of values, replacing whatever
+// it held. Protected keys are refused as in SetFrontmatterField.
+func SetFrontmatterList(filePath, key string, values []string) error {
+	if err := checkSettableKey(key); err != nil {
+		return err
+	}
+	return editFrontmatterKey(filePath, key, func(fm string) string {
+		return setFrontmatterList(fm, key, values)
+	})
+}
+
+func editFrontmatterKey(filePath, key string, edit func(fm string) string) error {
 	return withIssueLock(filePath, func() error {
 		data, err := os.ReadFile(filePath)
 		if err != nil {
@@ -809,13 +889,10 @@ func SetFrontmatterField(filePath, key, value string, clear bool) error {
 			return fmt.Errorf("invalid frontmatter in %s", filePath)
 		}
 
-		fmRaw := parts[0]
+		fmRaw := edit(parts[0])
 		body := parts[1]
-
-		if clear {
-			fmRaw = removeFrontmatterKey(fmRaw, key)
-		} else {
-			fmRaw = setFrontmatterScalar(fmRaw, key, value)
+		if err := checkFrontmatter(fmRaw, []string{key}); err != nil {
+			return fmt.Errorf("%s: %w", filePath, err)
 		}
 
 		var out strings.Builder
@@ -902,6 +979,9 @@ func CreateIssueFileOpts(issueDir string, opts CreateIssueOpts) (filePath, slug 
 		}
 	}
 	content.WriteString("---\n")
+	if err := CheckIssueFrontmatter(content.String()); err != nil {
+		return "", "", fmt.Errorf("creating issue: %w", err)
+	}
 	if opts.Body != "" {
 		content.WriteString("\n" + opts.Body + "\n")
 	} else {

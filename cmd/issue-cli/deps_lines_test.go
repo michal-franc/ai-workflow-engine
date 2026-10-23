@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
 const metricsWorkflow = untypedWorkflow + `
@@ -34,8 +36,21 @@ func TestSetMetaDependsOn(t *testing.T) {
 	if !strings.Contains(out.String(), `Set depends_on = "beta, gamma-shop"`) || !strings.Contains(out.String(), "show now list this dependency") {
 		t.Errorf("out = %s", out)
 	}
-	if got := readIssue(t, proj, "alpha").Field("depends_on"); got != "beta, gamma-shop" {
+	alpha := readIssue(t, proj, "alpha")
+	if got := tracker.DependsOn(alpha); strings.Join(got, ", ") != "beta, gamma-shop" {
 		t.Errorf("depends_on = %q", got)
+	}
+	if raw, _ := os.ReadFile(filepath.Join(proj.IssueDir, "alpha.md")); !strings.Contains(string(raw), "depends_on:\n  - \"beta\"\n  - \"gamma-shop\"\n") {
+		t.Errorf("two slugs not written as a YAML list:\n%s", raw)
+	}
+
+	// One slug is a scalar, and it replaces the list without leaving its items.
+	ctx, _, _ = newTestContext(proj, false)
+	if err := runSetMeta(ctx, []string{"alpha", "--key", "depends_on", "--value", "beta"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := readIssue(t, proj, "alpha").Field("depends_on"); got != "beta" {
+		t.Errorf("depends_on = %q, want beta", got)
 	}
 
 	ctx, _, _ = newTestContext(proj, false)
@@ -50,6 +65,9 @@ func TestSetMetaDependsOn(t *testing.T) {
 	ctx, _, _ = newTestContext(proj, false)
 	if err := runSetMeta(ctx, []string{"alpha", "--key", "depends_on", "--clear"}); err != nil {
 		t.Errorf("clear: %v", err)
+	}
+	if got := tracker.DependsOn(readIssue(t, proj, "alpha")); len(got) != 0 {
+		t.Errorf("depends_on after clear = %q", got)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/testids"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
@@ -235,6 +236,15 @@ var funcMap = template.FuncMap{
 		}
 		return template.JS(b)
 	},
+	// The Timeline tab's formats (timeline.go): durations, clock times and
+	// bar widths.
+	"tlDur":   fmtDur,
+	"tlSpan":  fmtSpan,
+	"tlClock": func(t time.Time) string { return t.Local().Format("15:04") },
+	"tlDay":   func(t time.Time) string { return t.Local().Format("Mon 2 Jan") },
+	"tlPct":   func(p float64) template.CSS { return template.CSS(fmt.Sprintf("%.3f%%", p)) },
+	"tlShare": func(d, total time.Duration) string { return fmt.Sprintf("%.0f%%", durPct(d, total)) },
+	"tlSub":   func(a, b time.Time) time.Duration { return a.Sub(b) },
 }
 
 var issueRefRe = regexp.MustCompile(`#([a-zA-Z0-9][\w/.-]*)`)

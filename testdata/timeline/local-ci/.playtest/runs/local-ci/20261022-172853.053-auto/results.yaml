@@ -1,0 +1,13 @@
+session: local-ci
+issue: workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures
+mode: auto
+started: '2026-10-22T17:28:53+02:00'
+steps:
+- id: TP4
+  status: fail
+- id: TP5
+  status: fail
+- id: TP6
+  status: fail
+- id: TP7
+  status: fail

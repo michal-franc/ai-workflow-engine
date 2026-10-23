@@ -1,0 +1,62 @@
+{
+  "transitions": [
+    {
+      "from": "idea",
+      "to": "in design",
+      "ts": "2026-10-22T14:10:53.516635665Z",
+      "static_tokens": 378,
+      "dynamic_tokens": 2554,
+      "actual_tokens": null
+    },
+    {
+      "from": "in design",
+      "to": "in progress",
+      "ts": "2026-10-22T15:01:05.101874845Z",
+      "static_tokens": 225,
+      "dynamic_tokens": 6584,
+      "actual_tokens": null,
+      "approved_at": "2026-10-22T15:00:48.061330289Z"
+    },
+    {
+      "from": "in progress",
+      "to": "testing",
+      "ts": "2026-10-22T15:33:30.788740472Z",
+      "static_tokens": 484,
+      "dynamic_tokens": 8637,
+      "actual_tokens": null
+    },
+    {
+      "from": "testing",
+      "to": "human-testing",
+      "ts": "2026-10-22T15:33:44.193824585Z",
+      "static_tokens": 208,
+      "dynamic_tokens": 8599,
+      "actual_tokens": null
+    },
+    {
+      "from": "human-testing",
+      "to": "documentation",
+      "ts": "2026-10-22T18:48:08.312248942Z",
+      "static_tokens": 81,
+      "dynamic_tokens": 9165,
+      "actual_tokens": null,
+      "approved_at": "2026-10-22T18:47:53.641235811Z"
+    },
+    {
+      "from": "documentation",
+      "to": "shipping",
+      "ts": "2026-10-22T18:50:33.24023471Z",
+      "static_tokens": 500,
+      "dynamic_tokens": 9844,
+      "actual_tokens": null
+    },
+    {
+      "from": "shipping",
+      "to": "done",
+      "ts": "2026-10-22T18:52:02.785357702Z",
+      "static_tokens": 9,
+      "dynamic_tokens": 9454,
+      "actual_tokens": null
+    }
+  ]
+}

@@ -25,9 +25,8 @@ type DetailData struct {
 	OptionalApprovals []OptionalApproval
 	// ApproveThen maps a required approval to the follow-up approval that
 	// "Approve <status> and <then>" queues in one click (queued_approval).
-	ApproveThen   map[string]string
-	Timeline      []TimelineEvent
-	RenderedBody  template.HTML
+	ApproveThen  map[string]string
+	RenderedBody template.HTML
 	CustomActions []tracker.CustomAction
 	WorkTypes     []WorkTypeOption
 	// TypeWarning flags an undefined type: value or an off-path status.
@@ -40,6 +39,29 @@ type DetailData struct {
 	// is the issue branch's overlap with other open branches (nil: none).
 	Deps   []tracker.IssueDep
 	Shared *tracker.SharedFiles
+
+	// Tab is the page tab: issue, timeline or evidence (?tab=).
+	Tab string
+	// TimelineTotal is the Timeline tab's label ("5h 0m", "1h 50m so far").
+	TimelineTotal string
+	// Timeline is built only on the Timeline tab.
+	Timeline        *Timeline
+	TimelineFilters []timelineFilterLink
+}
+
+type timelineFilterLink struct {
+	Key, Label, URL string
+	On              bool
+	Count           int
+}
+
+// detailTab normalizes ?tab=: unknown or missing is the Issue tab.
+func detailTab(q string) string {
+	switch q {
+	case "timeline", "evidence":
+		return q
+	}
+	return "issue"
 }
 
 // DetailLead is the detail page's Lead section: the project lead the issue
@@ -198,24 +220,40 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 	needsApprovals, optionalApprovals := issueApprovals(wf, found)
 	approveThen := approveThenFor(wf, needsApprovals)
 
-	workDir := resolveProjectWorkDir(proj)
-	timeline := LoadAgentTimeline(workDir, found.Assignee, proj.Slug, found.Slug)
-	timeline = EnrichTimelineWithWorkflow(timeline, wf, "")
-	if len(timeline) > 0 {
-		basePrompt := LoadDispatchPrompt(workDir, found.Assignee)
-		summary := "dispatch — base prompt"
-		if basePrompt == "" {
-			briefedStatus := FirstTransitionFromStatus(timeline)
+	tab := detailTab(r.URL.Query().Get("tab"))
+	var tl *Timeline
+	var filters []timelineFilterLink
+	if tab == "timeline" {
+		src := loadTimelineSources(proj, found, wf)
+		if src.Prompt == "" && len(src.Calls) > 0 {
+			// Dispatched before the prompt was saved: rebuild it as the
+			// agent saw it, at the status it started from.
 			issueCopy := *found
-			if briefedStatus != "" {
-				issueCopy.Status = briefedStatus
+			if len(src.Transitions) > 0 {
+				issueCopy.Status = src.Transitions[0].From
 			}
-			basePrompt = buildAgentPrompt(proj, &issueCopy, wf, "", "")
-			summary = "dispatch — base prompt (reconstructed)"
+			src.Prompt = buildAgentPrompt(proj, &issueCopy, wf, "", "") + "\n\n(reconstructed: no dispatch-prompt.txt was saved)"
 		}
-		dispatchEv := DispatchEvent(basePrompt, timeline[0].Timestamp)
-		dispatchEv.Summary = summary
-		timeline = append([]TimelineEvent{dispatchEv}, timeline...)
+		built := buildTimeline(src, timelineInput{
+			Status:    found.Status,
+			Now:       time.Now(),
+			Show:      r.URL.Query().Get("show"),
+			OpenGated: len(needsApprovals) > 0,
+			WF:        wf,
+		})
+		tl = &built
+		base := prefix + "/issue/" + found.Slug + "?tab=timeline"
+		for _, f := range timelineFilters {
+			u := base
+			if f.Key != showAll {
+				u += "&show=" + f.Key
+			}
+			link := timelineFilterLink{Key: f.Key, Label: f.Label, URL: u, On: f.Key == tl.Show}
+			if f.Key == showCLI {
+				link.Count = tl.Calls
+			}
+			filters = append(filters, link)
+		}
 	}
 
 	renderedBody := renderBodyWithDataTable(found, prefix, projectRoot(proj), slugMap)
@@ -236,7 +274,6 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		NeedsApprovals:    needsApprovals,
 		OptionalApprovals: optionalApprovals,
 		ApproveThen:       approveThen,
-		Timeline:          timeline,
 		RenderedBody:      template.HTML(renderedBody),
 		CustomActions:     wf.IssueActionList(),
 		WorkTypes:         workTypeOptions(wf),
@@ -245,6 +282,10 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		Lead:              detailLead(proj, found, issues),
 		Deps:              tracker.IssueDeps(found, issues, tracker.BuildDecisionIndex(issues, closed), closed),
 		Shared:            tracker.IssueSharedFiles(projectRoot(proj), found, issues),
+		Tab:               tab,
+		TimelineTotal:     timelineTotalLabel(proj, found),
+		Timeline:          tl,
+		TimelineFilters:   filters,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

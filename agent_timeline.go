@@ -259,7 +259,7 @@ func firstLine(s string) string {
 		s = s[:i]
 	}
 	if len(s) > 120 {
-		return s[:117] + "..."
+		return truncRunes(s, 117) + "..."
 	}
 	return s
 }

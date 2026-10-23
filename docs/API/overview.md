@@ -12,7 +12,7 @@ The API system covers HTTP handlers, routing, JSON endpoints, and server-side lo
 - `main.go` — `run` (flags, listener, signals), `newHTTPServer` (timeouts), `serve` (graceful shutdown); `main` only calls `os.Exit` on a `run` error
 - `background.go` — `background`: goroutines that outlive a request (`Go(name, fn)`, `Wait(deadline)`), with the shutdown context `ctx` and the deadline context `hard`
 - `routes.go` — `Server` struct, `NewServer`, `Routes`, `handleProjectRoutes` dispatcher, project list page (logs per-project load errors with the slug)
-- `origin.go` — `sameOriginOnly` (cross-origin write guard), `-host` helpers (`defaultHost`, `listenAddr`, `isLoopbackHost`)
+- `origin.go` — `hostAllowed` (Host allowlist, 421), `sameOriginOnly` (cross-origin write guard), `-host` helpers (`defaultHost`, `listenAddr`, `isLoopbackHost`, `allowedHostsFor`)
 - `template_funcs.go` — `funcMap`, `statusColor`/`priorityColor`/`assigneeColor`, `linkIssueRefs`, status ordering helpers
 - `helpers.go` — `projectRoot`, `fileExists`, `resolveProjectWorkDir`, `valueOrDash`, `trimSnippet`
 - `images.go` — `rewriteRelativeImages` (relative `<img src>` → `/files/`), `handleProjectFile` (image-only, root-confined `/p/<project>/files/` route)
@@ -47,6 +47,7 @@ When working on API changes:
 
 - If the change affects UI-visible state, identify the source of truth (server-side file vs. client state)
 - Server-side polling uses the `/hash` endpoint for cache invalidation — check whether your change affects the hash
+- Every request whose `Host` (port stripped, any case) is not `localhost`, `127.0.0.1`, `[::1]` or a `*.localhost` name gets `421 Misdirected Request` before anything else runs (`hostAllowed` in `origin.go`, the outermost wrapper in `Routes`). This applies to every method and route, GETs, `/static/` and `/page-raw/` included. It closes DNS rebinding: a page whose name now resolves to 127.0.0.1 is same-origin to itself, so `sameOriginOnly` would pass it, but it still sends its own name as `Host`. Other names come from `allowed_hosts:` in `projects.yaml` and, when `-host` is not loopback, from the bind address (every interface address for `0.0.0.0`, `::` or `""`); `allowedHostsFor` builds the list and the startup warning prints it. The 421 body is one line naming the allowed hosts and the config key. Tests that call `Routes()` with `httptest.NewRequest` must set `req.Host` (it defaults to `example.com`)
 - Every non-GET/HEAD request a browser sends for another site gets a 403 before any handler runs (`sameOriginOnly` in `origin.go`, wrapping `Routes`): `Sec-Fetch-Site: cross-site`, or an `Origin` whose host is not the request's `Host` — another port on localhost and `Origin: null` (a sandboxed project page) included. The UI's own fetches are same-origin; curl and `issue-cli` send neither header and pass. Do not add CORS headers to write endpoints
 - The server binds `127.0.0.1` by default (`-host`, `defaultHost`); a non-loopback bind prints a startup warning
 - The `http.Server` has timeouts: ReadHeader 5s, Read 30s, Write 60s, Idle 120s (constants in `main.go`). `WriteTimeout` bounds a whole handler, so keep handlers well under 60s; long work belongs in the background, not in the request. There are no streaming endpoints; adding one would need its own write deadline (`http.ResponseController`)

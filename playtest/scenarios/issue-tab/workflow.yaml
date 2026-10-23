@@ -1,0 +1,52 @@
+statuses:
+  - name: "idea"
+    description: "Raw idea"
+  - name: "in design"
+    description: "Being designed"
+  - name: "backlog"
+    description: "Ready to work on"
+  - name: "in progress"
+    description: "Being built"
+  - name: "testing"
+    description: "Being checked"
+  - name: "human-testing"
+    description: "The owner checks it"
+  - name: "done"
+    description: "Finished"
+  - name: "parked"
+    description: "Set aside"
+    optional: true
+
+transitions:
+  - from: "idea"
+    to: "in design"
+  - from: "in design"
+    to: "backlog"
+    actions:
+      - type: "require_human_approval"
+        status: "backlog"
+  - from: "in design"
+    to: "in progress"
+    actions:
+      - type: "require_human_approval"
+        status: "in progress"
+  - from: "backlog"
+    to: "in progress"
+    actions:
+      - type: "require_human_approval"
+        status: "in progress"
+  - from: "in progress"
+    to: "testing"
+    actions:
+      - type: "append_section"
+        title: "Testing"
+        body: "- [ ] Tests pass"
+  - from: "testing"
+    to: "human-testing"
+  - from: "human-testing"
+    to: "done"
+    actions:
+      - type: "require_human_approval"
+        status: "done"
+  - from: "in progress"
+    to: "parked"

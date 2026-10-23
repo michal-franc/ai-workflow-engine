@@ -19,7 +19,7 @@ steps:
     setup:
       - open: /p/{project}/issue/economy/shop-prices-per-stage
     act:
-      - check: { count: { pattern: approve_words.*, equals: 1 } }
+      - check: { count: { pattern: approve_words.detail, equals: 1 } }
       - check: { below: [detail.approve_then.backlog, approve_words.detail] }
       - type: { target: approve_words.detail, text: "Prices per stage read right, go" }
       - click: detail.approve.backlog

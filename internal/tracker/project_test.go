@@ -97,6 +97,20 @@ func TestLoadProjects_Empty(t *testing.T) {
 	}
 }
 
+func TestLoadProjectsConfig_AllowedHosts(t *testing.T) {
+	dir := t.TempDir()
+	fp := filepath.Join(dir, "projects.yaml")
+	os.WriteFile(fp, []byte("allowed_hosts:\n  - viewer.lan\n  - box.tail1234.ts.net\nprojects: []\n"), 0644)
+
+	cfg, err := LoadProjectsConfig(fp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.AllowedHosts) != 2 || cfg.AllowedHosts[0] != "viewer.lan" || cfg.AllowedHosts[1] != "box.tail1234.ts.net" {
+		t.Errorf("AllowedHosts = %v, want [viewer.lan box.tail1234.ts.net]", cfg.AllowedHosts)
+	}
+}
+
 func TestLoadProjects_SlugGeneration(t *testing.T) {
 	dir := t.TempDir()
 	fp := filepath.Join(dir, "projects.yaml")

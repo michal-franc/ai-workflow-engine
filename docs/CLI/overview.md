@@ -483,6 +483,8 @@ The `Sender` interface in `internal/clibug` is where a second transport (GitHub 
 
 **Timeline line.** `show` prints `Timeline: <viewer url>/p/<project>/issue/<slug>?tab=timeline` after the lead and dependency lines: the issue page's Timeline tab (where its time went, every CLI call), a link a lead or agent can hand the owner. Not in `--json`.
 
+**Brief line.** `show` prints `Brief: <text>` next: the sentence the issue page's Issue tab leads with (`tracker.Brief`, see [Issue File Format](../issue-format.md#the-brief)), so an agent sees what the owner will read first. With no brief it prints `Brief: none.` and how to write one (a lead paragraph or `**In short:**`).
+
 Rules are rendered from the loaded workflow rather than a hardcoded list. Each
 row lists the validation rules, human-approval gates, and side effects
 (`set_fields`, `append_section`, `inject_prompt`) attached to the transition;

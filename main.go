@@ -64,14 +64,15 @@ func run(args []string) error {
 	}
 
 	var projects []tracker.Project
+	var configuredHosts []string
 	absConfig := ""
 
 	if *configFile != "" {
-		var err error
-		projects, err = tracker.LoadProjects(*configFile)
+		cfg, err := tracker.LoadProjectsConfig(*configFile)
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
+		projects, configuredHosts = cfg.Projects, cfg.AllowedHosts
 		// Make the config path discoverable to dispatched bot sessions so the
 		// CLI doesn't fall back to its hard-coded "projects.yaml" default when
 		// the viewer was launched with a differently-named config.
@@ -98,6 +99,7 @@ func run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("initialize server: %w", err)
 	}
+	srv.allowedHosts = allowedHostsFor(*host, configuredHosts)
 
 	// The first signal starts a graceful shutdown; stop() then restores the
 	// default handling, so a second one kills the process straight away.
@@ -136,6 +138,7 @@ func run(args []string) error {
 	fmt.Printf("Issue Viewer running at %s\n", url)
 	if !isLoopbackHost(*host) {
 		fmt.Fprintf(os.Stderr, "WARNING: listening on %s, not loopback: anyone who can reach it can dispatch agents and edit issues\n", addr)
+		fmt.Fprintf(os.Stderr, "WARNING: answering Host %s; other names get 421 (add them under allowed_hosts: in projects.yaml)\n", hostList(srv.allowedHosts))
 	}
 	for _, p := range projects {
 		fmt.Printf("  Project: %s (issues: %s, docs: %s)\n", p.Name, p.IssueDir, p.DocsDir)

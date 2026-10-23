@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"html"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -47,6 +48,8 @@ type DetailData struct {
 	// Timeline is built only on the Timeline tab.
 	Timeline        *Timeline
 	TimelineFilters []timelineFilterLink
+	// IssueTab is built only on the Issue tab.
+	IssueTab *IssueTab
 }
 
 type timelineFilterLink struct {
@@ -256,6 +259,11 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		}
 	}
 
+	var issueTab *IssueTab
+	if tab == "issue" {
+		issueTab = loadIssueTab(proj, prefix, found, issues, wf, needsApprovals)
+	}
+
 	renderedBody := renderBodyWithDataTable(found, prefix, projectRoot(proj), slugMap)
 
 	closed := tracker.ClosedIssueFunc(proj)
@@ -286,9 +294,46 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		TimelineTotal:     timelineTotalLabel(proj, found),
 		Timeline:          tl,
 		TimelineFilters:   filters,
+		IssueTab:          issueTab,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+}
+
+// loadIssueTab gathers what the Issue tab reads, the same sources as the
+// Timeline tab plus the owner's attention and the agent's last call, and
+// builds it.
+func loadIssueTab(proj *tracker.Project, prefix string, issue *tracker.Issue, issues []*tracker.Issue, wf *tracker.WorkflowConfig, targets []string) *IssueTab {
+	now := time.Now()
+	src := loadTimelineSources(proj, issue, wf)
+	tl := buildTimeline(src, timelineInput{Status: issue.Status, Now: now, WF: wf, OpenGated: len(targets) > 0})
+	att := ownerAttention(proj, issue)
+	ca := newCardAgents(proj, prefix, now)
+	wt, _, _ := resolveWorktree(ca.workDir, issue.Slug, wf)
+	call, known := lastCliCall(proj.Slug, agentLogPaths(ca.workDir, wt, tracker.AgentSessionName(issue.Slug), issue.Assignee)...)
+	root, mdDir := projectRoot(proj), filepath.Dir(issue.FilePath)
+	t := buildIssueTab(issueTabInput{
+		Issue:   issue,
+		WF:      wf,
+		Src:     src,
+		TL:      tl,
+		Att:     att,
+		Targets: targets,
+		Parent:  tracker.FindIssue(issues, tracker.ParentSlug(issue)),
+		Epic:    epicProgress(prefix, issue, issues),
+		Footer:  ca.footer(wf, issue, att),
+		Call:    call,
+		Known:   known,
+		Now:     now,
+		Prefix:  prefix,
+		ImgSrc: func(path string) string {
+			if m := imgSrcRe.FindStringSubmatch(rewriteRelativeImages(`<img src="`+template.HTMLEscapeString(path)+`">`, prefix, mdDir, root)); m != nil {
+				return html.UnescapeString(m[2])
+			}
+			return path
+		},
+	})
+	return &t
 }
 
 // approveThenFor finds, for each required approval that lands on a handoff

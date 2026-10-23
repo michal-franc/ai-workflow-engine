@@ -22,8 +22,11 @@ var templateFS embed.FS
 var staticFS embed.FS
 
 type Server struct {
-	projects []tracker.Project
-	tmpl     *template.Template
+	projects     []tracker.Project
+	tmpl         *template.Template
+	// allowedHosts are the Host names past loopback the viewer answers to
+	// (allowedHostsFor); Routes refuses the rest with 421.
+	allowedHosts []string
 	// bg runs work that outlives a request; run swaps in one tied to the
 	// signal context so shutdown can wait for it.
 	bg *background
@@ -78,7 +81,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/stats", s.handleStatsOverview)
 	mux.HandleFunc("/project-for", s.handleProjectFor)
 	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
-	return sameOriginOnly(mux)
+	return hostAllowed(s.allowedHosts, sameOriginOnly(mux))
 }
 
 // handleProjectRoutes dispatches /p/<slug>/... to the right handler

@@ -2,6 +2,8 @@
 # terminal: none                  # a command with {{session}}, or none (never open a terminal)
 # tmux_session_per_project: true  # each project's lead and workers share a tmux session named after its slug
 # engine_project: issue-viewer      # where `issue-cli report-bug` files issue-cli bugs (default: the project with repo michal-franc/ai-workflow-engine)
+# allowed_hosts:                    # Host names the viewer answers to besides localhost, 127.0.0.1, [::1], *.localhost (others get 421)
+#   - viewer.lan
 #
 # One terminal with tmux (e.g. a Mac): set both, then `tmux attach -t <slug>`
 # and use prefix s to switch project. See docs/agent-dispatch.md.

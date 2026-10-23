@@ -34,7 +34,7 @@ Dependency links are a custom field too:
 
 | Field        | Description |
 |:-------------|:------------|
-| `depends_on` | The issues this one waits on, as a YAML list or a comma-separated string: `issue-cli set-meta <slug> --key depends_on --value "economy/shop-prices, ui/other"`. `set-meta` refuses unknown slugs (and suggests close ones) and the issue itself. The detail page shows **Depends on** and, on the other issue, **Depended on by**; `issue-cli show` prints both lines, plus **Decided by** for the `slug#D-n` decisions the body cites. |
+| `depends_on` | The issues this one waits on, as a YAML list or a comma-separated string: `issue-cli set-meta <slug> --key depends_on --value "economy/shop-prices, ui/other"`. `set-meta` writes two or more slugs as a YAML list and one as a string; the value replaces the old one, so pass every slug the issue waits on. It refuses unknown slugs (and suggests close ones) and the issue itself. The detail page shows **Depends on** and, on the other issue, **Depended on by**; `issue-cli show` prints both lines, plus **Decided by** for the `slug#D-n` decisions the body cites. |
 
 Blocking markers are custom fields (and one label) that the [workboard](UI/overview.md#workboard) shows as red chips on the card and on system-page rows:
 
@@ -110,6 +110,16 @@ issue-cli set-meta <slug> --key waiting --clear
 Workflow-managed fields (`title`, `status`, `human_approval`, `queued_approval`, `approved_for`, `started_at`, `done_at`, `number`, `repo`, `created`, `labels`) are refused — use the dedicated commands (`transition`, `update --title`, etc.) for those.
 
 Every single-value write (`set-meta`, `update --title`, the detail page edits, transition fields) stores the value as one double-quoted YAML line, escaping `\`, `"`, newlines, carriage returns and tabs. Any value reads back exactly as written, including `$1`, `${x}`, `: #` or a leading `-`.
+
+Setting or clearing a key replaces its whole old value, whatever its shape: the indented list items, block scalar (`|`, `>`) or nested map under it all go, up to the next top-level key. List writes (`labels`, a multi-slug `depends_on`) store each item as a quoted `  - "…"` line, in place.
+
+Every frontmatter write parses the result before it touches the file. If the YAML would not parse, nothing is written and the command fails, naming the keys it was setting:
+
+```
+failed to set frontmatter: <file>: not written: frontmatter would not parse after setting depends_on: yaml: …
+```
+
+The same check covers `issue-cli create`, the web create form and the GitHub import (`not written: frontmatter would not parse: …`). A file whose frontmatter is already broken is skipped on load (with a `warning: skipping …` line), so the CLI and the viewer can't find it; fix it in an editor.
 
 `queued_approval` is written by the detail page's **Approved for backlog and in progress** button next to `human_approval: backlog`. When the `backlog` approval is consumed by its transition, the queued approval becomes the new `human_approval`, so the agent's next `start` continues into `in progress` without a second wait. Any other transition drops it.
 

@@ -20,7 +20,7 @@ When you dispatch an issue from the app, the server builds a prompt with:
 - bug-report guidance via `issue-cli report-bug "..."`
 - retrospective guidance via `issue-cli retrospective <slug> --body "..."`
 
-The dispatch flow also exports these environment variables into the agent session:
+The agent starts with these environment variables set, among others (see [Agent Dispatch](agent-dispatch.md#environment-variables)):
 
 - `ISSUE_CLI_LOG`
 - `ISSUE_VIEWER_SERVER_PWD`

@@ -9,7 +9,7 @@ The board and detail views can dispatch issues to AI agents (Claude or Codex) vi
 
 ## Requirements
 
-- **tmux** is mandatory. The whole dispatch lifecycle is tmux: creating the session, injecting the environment, logging via `pipe-pane`, and launching the agent in the session.
+- **tmux** is mandatory (3.2 or newer). The whole dispatch lifecycle is tmux: the agent starts as the command of a new session or window, with its environment and working directory set by tmux.
 - **The agent CLI**: `claude` or `codex` on the `PATH` of the server.
 - **git**, when the workflow sets `worktree: true`.
 - **A terminal command**, or `terminal: "none"` to attach yourself (see [Terminal Configuration](#terminal-configuration)). The default, i3 + alacritty, is only needed if you leave `terminal` unset.
@@ -25,6 +25,18 @@ The board and detail views can dispatch issues to AI agents (Claude or Codex) vi
 ## How the prompt is delivered
 
 The prompt is saved to `<workdir>/.agent-logs/<session>/dispatch-prompt.txt`, and the agent starts with it as its positional argument (`claude "<prompt>"`, the same as codex). It is never pasted into a booting agent. Claude is also started with `-n <session name>` (`claude -n agent-<slug> "<prompt>"`, `-n lead-<project>` for the lead), so its tmux name is its address for Claude Code's built-in messaging between sessions (`ListAgents` / `SendMessage`); codex gets no name. Earlier versions typed `claude`, waited a fixed 3 s and pasted the prompt. When Claude took longer to start, the paste was dropped, yet every step still reported ok.
+
+### How the agent starts
+
+The agent is the window's own command. Dispatch creates the session or window detached, in one tmux call, with the working directory (`-c`), the [environment](#environment-variables) (`-e`) and the command:
+
+```sh
+tmux new-window -d -t '=work:' -n agent-<slug> -c <worktree> \
+  -e ISSUE_CLI_LOG=… -e ISSUE_VIEWER_PROJECT=… … \
+  "$SHELL" -lic 'trap : INT; claude -n agent-<slug> "$(cat "<log dir>/dispatch-prompt.txt")"; exec "$SHELL" -l'
+```
+
+(`new-session -d -s …` when there is no shared session yet, or no `tmux_session`.) The agent runs in your login shell, interactive, so it is found on the same `PATH`, with the same aliases, as when you type it. When it exits, or is stopped with Ctrl-C, the window keeps a shell in the worktree. Nothing is typed into a shell, so keys you type into an attached tmux client while a dispatch runs can't reach the start command, and dispatch never selects the new window. Before this, dispatch typed `export …`, `cd …` and the start command into the window's shell after selecting it or opening its terminal, and whatever you were typing landed in front of the command (`aclaude: command not found`). The pane's output is no longer copied to a `rawlog` file.
 
 Dispatch then polls the pane for the prompt's last line. It reports the step **Prompt delivered**, or a failed step after 20 s. Nothing is re-sent automatically.
 
@@ -102,7 +114,7 @@ By default every dispatch gets its own tmux session (`agent-<slug>`) and its own
 On dispatch:
 
 - If the `work` session doesn't exist, it is created with the agent as its first window (`agent-<slug>`).
-- If it exists, a new `agent-<slug>` window is added to it. It is selected, except with `terminal: none`: there the window is added in the background, so whoever is looking at the session (usually the lead) keeps it. A re-dispatch doesn't select it either. Opening the agent from the agents canvas selects it.
+- If it exists, a new `agent-<slug>` window is added to it in the background. Dispatch never selects it, so whoever is looking at the session (usually the lead) keeps their window and their typing. With `terminal: none` a re-dispatch doesn't select it either. Opening the agent from the agents canvas selects it.
 - A terminal (via `terminal`, where `{{session}}` becomes the shared session name) is opened **only when no client is attached** to the shared session. If you already have it open, the new window just appears there.
 - Re-dispatching an issue whose window is still alive reattaches (selects the window) instead of re-prompting.
 
@@ -217,7 +229,7 @@ Each project chooses whether dispatched agents get a pinned model or use their o
 - `global` (default) — no `--model` flag is passed; the agent uses its own configured model.
 - `project` — the model in `agent_models` for that agent type is passed as `--model <name>`. An agent type with no entry still launches without a flag.
 
-Model names may contain only letters, digits and `._:/[]-`; anything else is ignored (it is typed into a shell). Any other `agent_model_source` value fails config loading.
+Model names may contain only letters, digits and `._:/[]-`; anything else is ignored (it becomes part of the agent's shell command). Any other `agent_model_source` value fails config loading.
 
 ## Human Approval Notifications
 
@@ -267,7 +279,7 @@ The base URL comes from:
 
 ## Environment Variables
 
-Dispatched sessions export:
+Dispatched agents start with these set (passed to tmux with `-e`):
 
 - `ISSUE_CLI_LOG` — logging path
 - `ISSUE_VIEWER_SERVER_PWD` — server working directory
@@ -275,3 +287,4 @@ Dispatched sessions export:
 - `ISSUE_VIEWER_LEAD_SCOPE` — the lead's session only: `project`. `issue-cli lead whoami`, `approve` and `lead spawn` read it to know who is asking; any other value is ignored.
 - `ISSUE_VIEWER_PROJECT` — the project's slug (read by the `issue-approve` mod)
 - `ISSUE_VIEWER_URL` — base URL of the dispatching server, reconstructed from the inbound request's `Host` (and `X-Forwarded-Host`/`X-Forwarded-Proto` if behind a proxy). The CLI uses it to build approval-gate deep links so dispatched bots' errors point back at the same host the human just clicked from.
+- `ISSUE_VIEWER_CONFIG` — the config path the viewer was started with, when it has one in its environment

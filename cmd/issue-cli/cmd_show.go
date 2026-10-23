@@ -59,6 +59,8 @@ func runShow(ctx *Context, args []string) error {
 	printTypeWarnings(ctx.Stdout, wf, issue)
 	printLeadLines(ctx, issue)
 	printDepLines(ctx, issue, issues)
+	// Where the issue's time went, to hand the owner a link.
+	fmt.Fprintf(ctx.Stdout, "Timeline: %s?tab=timeline\n", issueURL(ctx.Project, issue.Slug))
 	fmt.Fprintln(ctx.Stdout)
 
 	fmt.Fprintln(ctx.Stdout, "== Body ==")

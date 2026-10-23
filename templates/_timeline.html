@@ -65,7 +65,7 @@ by status and the side column. Data is DetailData; the model is .Timeline
             <div class="tl-head">
                 <h2 id="tl-life">Life by status{{if eq .Show "cli"}} · CLI calls{{end}}</h2>
                 <nav class="tl-filters" aria-label="Show event kinds">
-                    {{range $.TimelineFilters}}<a class="btn{{if .On}} tl-filter-on{{end}}" href="{{.URL}}" data-testid="timeline.filter.{{.Key}}"{{if .On}} aria-current="true"{{end}}>{{.Label}}{{if .Count}} <span class="tl-muted">{{.Count}}</span>{{end}}</a>{{end}}
+                    {{range $.TimelineFilters}}<a class="btn{{if .On}} active{{end}}" href="{{.URL}}" data-testid="timeline.filter.{{.Key}}"{{if .On}} aria-current="true"{{end}}>{{.Label}}{{if .Count}} <span class="tl-muted">{{.Count}}</span>{{end}}</a>{{end}}
                 </nav>
             </div>
             {{range .Bands}}

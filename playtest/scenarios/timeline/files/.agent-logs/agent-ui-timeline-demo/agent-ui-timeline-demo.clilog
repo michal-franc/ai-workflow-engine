@@ -1,0 +1,26 @@
+{"args": ["--project", "tl", "show", "ui/timeline-demo"], "ts": "2026-10-01T14:30:10Z"}
+{"args": ["--project", "tl", "decide", "ui/timeline-demo", "--how", "agent chat", "--text", "The tabs are plain links", "--quote", "make them links"], "ts": "2026-10-01T14:31:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "transition", "ui/timeline-demo", "--to", "in design"], "ts": "2026-10-01T14:32:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "append", "ui/timeline-demo", "--section", "Design", "--body", "Tabs are links."], "ts": "2026-10-01T14:35:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "comment", "ui/timeline-demo", "--text", "progress: design written. Waiting on owner approval: in progress."], "ts": "2026-10-01T14:36:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "transition", "ui/timeline-demo", "--to", "in progress", "--dry-run"], "ts": "2026-10-01T14:36:30Z", "exit": 1, "dur_ms": 0}
+{"args": ["--project", "tl", "context", "ui/timeline-demo"], "ts": "2026-10-01T14:44:30Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "transition", "ui/timeline-demo", "--to", "in progress"], "ts": "2026-10-01T14:45:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "comment", "ui/timeline-demo", "--text", "progress: building the tab bar"], "ts": "2026-10-01T14:46:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "show", "ui/timeline-demo"], "ts": "2026-10-01T14:55:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "check", "ui/timeline-demo", "Im1"], "ts": "2026-10-01T15:20:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "append", "ui/timeline-demo", "--section", "Implementation", "--body", "Notes."], "ts": "2026-10-01T15:30:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "checklist", "ui/timeline-demo"], "ts": "2026-10-01T15:40:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "checklist", "ui/timeline-demo"], "ts": "2026-10-01T15:50:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "check", "ui/timeline-demo", "AC1"], "ts": "2026-10-01T16:05:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "transition", "ui/timeline-demo", "--to", "testing"], "ts": "2026-10-01T16:10:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "comment", "ui/timeline-demo", "--text", "tests: make validate green"], "ts": "2026-10-01T16:11:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "transition", "ui/timeline-demo", "--to", "human-testing"], "ts": "2026-10-01T16:12:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "comment", "ui/timeline-demo", "--text", "progress: waiting on your playtest"], "ts": "2026-10-01T16:12:30Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "show", "ui/timeline-demo"], "ts": "2026-10-01T16:52:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "comment", "ui/timeline-demo", "--text", "tests: TP2 fixed after your playtest"], "ts": "2026-10-01T16:55:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "comment", "ui/timeline-demo", "--text", "progress: fixed, approve done"], "ts": "2026-10-01T17:05:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "checklist", "ui/timeline-demo"], "ts": "2026-10-01T17:29:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "transition", "ui/timeline-demo", "--to", "done"], "ts": "2026-10-01T17:30:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "checklist", "ui/timeline-demo"], "ts": "2026-10-01T19:00:00Z", "exit": 0, "dur_ms": 0}
+{"args": ["--project", "tl", "checklist", "ui/timeline-demo"], "ts": "2026-10-01T19:05:00Z", "exit": 0, "dur_ms": 0}

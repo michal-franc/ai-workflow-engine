@@ -175,6 +175,9 @@ func TestShow_PrintsWorkflowFile(t *testing.T) {
 	if !strings.Contains(stdout.String(), "Workflow file: "+proj.WorkflowFile+"\n") {
 		t.Fatalf("show should print the workflow file:\n%s", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "/issue/a?tab=timeline\n") {
+		t.Fatalf("show should print the Timeline tab link:\n%s", stdout.String())
+	}
 }
 
 func TestProcessTransitions_PrintsWorkflowFile(t *testing.T) {

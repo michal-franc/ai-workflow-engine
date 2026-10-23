@@ -2482,6 +2482,7 @@ select.modal-input option {
 .tl-stat-waiting { border-color: var(--amber-border); background: var(--amber-bg); }
 .tl-stat-waiting .tl-big { color: var(--amber); }
 .tl-stat-idle .tl-big { color: var(--text-nav); }
+.tl-bar-wrap { position: relative; }
 .tl-bar { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--bg-tertiary); }
 .tl-seg { height: 100%; box-shadow: inset 1px 0 0 var(--bg); }
 .tl-seg-agent { background: var(--blue); }
@@ -2502,7 +2503,7 @@ select.modal-input option {
 .tl-stream { flex: 999 1 560px; }
 .tl-side { flex: 1 1 300px; max-width: 100%; display: flex; flex-direction: column; gap: 20px; }
 .tl-filters { display: flex; flex-wrap: wrap; gap: 6px; }
-.tl-filter-on { color: var(--blue); background: var(--blue-bg); border-color: var(--blue-border); }
+.tl-filters .btn.active { color: var(--blue); background: var(--blue-bg); border-color: var(--blue-border); }
 .tl-band { border-top: 1px solid var(--border-subtle); padding: 12px 16px; margin: 0; }
 .tl-band:first-of-type { border-top: 0; }
 .tl-band-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }

@@ -80,7 +80,7 @@ verified rather than trusted.
 The canvas (`mockups`) and the data analysis (`analysis`) are private Claude artifacts. Their sources are saved in
 `issues/attachments/issue-page-tabs-issue-timeline-evidence/`: the `.dc.html` artboards with `canvas.json`, a PNG of
 each (`tools/mockup-shots/shots.py`), and the analysis as
-[data-analysis.md](../attachments/issue-page-tabs-issue-timeline-evidence/data-analysis.md).
+[data-analysis.markdown](../attachments/issue-page-tabs-issue-timeline-evidence/data-analysis.markdown).
 
 ### Issue tab (board A)
 

@@ -148,3 +148,49 @@ func TestStartAgentSession_TypingDuringDispatchCannotChangeTheStartCommand(t *te
 		})
 	}
 }
+
+// Ctrl-C on an agent that takes the signal (one still starting, or hung)
+// leaves a shell in the window, as when the agent was typed into one. bash,
+// like zsh, abandons the rest of a -c command after a child dies of SIGINT;
+// dash doesn't, so the test runs under bash.
+func TestStartAgentSession_CtrlCOnTheAgentKeepsTheWindow(t *testing.T) {
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not installed")
+	}
+	out := installFakeAgents(t)
+	isolateTmux(t)
+	t.Setenv("SHELL", bash)
+	withPromptDeliveryTimeout(t, time.Second)
+	fake, err := exec.LookPath("claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/bin/sh\necho started > \"$FAKE_AGENT_OUT.args\"\nexec sleep 60\n"
+	if err := os.WriteFile(fake, []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	proj := &tracker.Project{Slug: "test", Terminal: "none", TmuxSession: "work", WorkDir: t.TempDir()}
+	if resp := startAgentSession(proj, "agent-x", "prompt\n", "x", "claude", "", nil); resp.Status != "dispatched" {
+		t.Fatalf("Status = %q; steps=%+v", resp.Status, resp.Steps)
+	}
+	waitForFile(t, out+".args")
+	target := agentrun.Target(proj, "agent-x")
+	if err := exec.Command("tmux", "send-keys", "-t", target, "C-c").Run(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		cmd, err := exec.Command("tmux", "display-message", "-p", "-t", target, "#{pane_current_command}").Output()
+		if err != nil {
+			t.Fatalf("the window closed after Ctrl-C: %v", err)
+		}
+		if strings.TrimSpace(string(cmd)) == "bash" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("pane still runs %q after Ctrl-C, want the shell back", cmd)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}

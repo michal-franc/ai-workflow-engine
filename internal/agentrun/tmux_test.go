@@ -133,7 +133,7 @@ func TestCreateTmuxRunsCommandDetached(t *testing.T) {
 func TestAgentCommandRunsInLoginShellAndKeepsAShell(t *testing.T) {
 	t.Setenv("SHELL", "/bin/zsh")
 	got := AgentCommand(`claude -n agent-a "$(cat "/p")"`)
-	want := []string{"/bin/zsh", "-lic", `claude -n agent-a "$(cat "/p")"; exec /bin/zsh -l`}
+	want := []string{"/bin/zsh", "-lic", `trap : INT; claude -n agent-a "$(cat "/p")"; exec /bin/zsh -l`}
 	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
 		t.Fatalf("AgentCommand = %q, want %q", got, want)
 	}

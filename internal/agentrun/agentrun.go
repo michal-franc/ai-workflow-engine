@@ -92,13 +92,15 @@ func LaunchCommand(proj *tracker.Project, agentType, session, promptPath string)
 // AgentCommand wraps launch for running as a tmux window's own command: in
 // the user's login shell, interactive, so the agent is found on the same PATH
 // and with the same aliases as when it was typed into a fresh window. When
-// the agent exits the window keeps a shell.
+// the agent exits the window keeps a shell, also after a Ctrl-C: the no-op INT
+// trap stops the wrapper shell from abandoning the rest of the command along
+// with the agent.
 func AgentCommand(launch string) []string {
 	shell := strings.TrimSpace(os.Getenv("SHELL"))
 	if shell == "" {
 		shell = "/bin/sh"
 	}
-	return []string{shell, "-lic", launch + "; exec " + shellWord(shell) + " -l"}
+	return []string{shell, "-lic", "trap : INT; " + launch + "; exec " + shellWord(shell) + " -l"}
 }
 
 // WritePrompt persists prompt as <sessionLogDir>/dispatch-prompt.txt and

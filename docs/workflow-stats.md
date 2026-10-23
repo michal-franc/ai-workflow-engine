@@ -36,7 +36,9 @@ A per-issue sidecar `<issue>.stats.json` is written next to the markdown file ev
 - **`approved_at`** (optional) — when the viewer recorded the human approval this transition consumed. Absent when the transition needed no approval, or when the approval did not come through the viewer's approve endpoint (for example an older server binary). It is never guessed from detection time.
 - **`last_approval`** — scratch state for the next transition row. The viewer's approve handler writes it, and clears it when the approval is toggled off. A transition that consumes an approval copies a matching `last_approval` into `approved_at`, then clears it.
 
-Together these give exact gate latency: status entry (the previous row's `ts`) → approval (`approved_at`) → transition (`ts`). The Stats tab does not show them yet.
+Together these give exact gate latency: status entry (the previous row's `ts`) → approval (`approved_at`) → transition (`ts`). The issue page's [Timeline tab](#timeline-tab) uses them.
+
+Newer issue-cli versions (`cli/clilog-and-stats-record-what-the-timeline-needs`) add per-row `branch_head` and `merge_sha`, and a top-level `dispatches: [{at, session, agent}]`. The Timeline tab reads them when present; sidecars without them still give the same totals.
 
 Sidecars written before v0.49.0 may also hold `pending_wait` and per-row `wait_started_at`, written by the removed `issue-cli transition|start --wait`. They are ignored on load and dropped the next time the sidecar is saved.
 
@@ -56,6 +58,64 @@ Three blocks, in order:
    - The handler runs `issue-cli [--config $ISSUE_VIEWER_CONFIG --project <slug>] --json telemetry report --since 30d` with a 5 s timeout and `ISSUE_CLI_TELEMETRY_SKIP=1`, so page loads aren't counted as usage. It shells out because only the CLI binary knows its own command registry.
    - Every failure becomes an inline notice, never a 500: `issue-cli` not on PATH, an exec error, bad JSON, a newer report version, telemetry disabled for the project, or no calls in the window.
 
+## Timeline tab
+
+The issue page's second tab (`/p/<project>/issue/<slug>?tab=timeline`) shows where one issue's time went. It is built on each visit from files already on disk, by `loadTimelineSources` (`timeline_sources.go`) and `buildTimeline` (`timeline.go`), and replaces the old Agent Timeline list.
+
+**Sources.** If one can't be read, the tab says so in a "Could not read N of 5 sources" box and hides what depends on it. It never errors.
+
+| Source | Read from | Without it |
+|:--|:--|:--|
+| Stats sidecar | `<issue>.stats.json`: transitions, `approved_at`, and `dispatches`, `branch_head`, `merge_sha` when present | No status bands or approvals |
+| CLI log | `.agent-logs/<agent>/<agent>.clilog` in the issue's worktree and in the project, under the assignee, `agent-<system>-<name>` and `agent-<name>`; the per-project `.agent-logs/clilog.jsonl` and the old `$TMPDIR/issue-cli-logs/actions.jsonl`, both filtered by project and slug | Agent, waiting and idle are "—"; the CLI calls filter is empty |
+| Work branch | `git log --first-parent` from `work/<slug>`, else the last recorded `branch_head`, else `merge_sha` (one call, 2 s timeout) | Commits and CI after merge are not shown |
+| Comments | the issue file | — |
+| Playtest runs | `.playtest/runs/*/*/results.yaml` in the project and in `.worktrees/<slug>/`, where `issue:` is the slug | No playtest events or playtest rework |
+
+Local CI runs (`.ci/runs/<sha>.json`) are read from the merge sha. For a done issue with none recorded, the branch head is used, which equals the merge after a fast-forward.
+
+**The life** runs from the first dispatch (else the agent's first call in a per-agent log, else the first transition) to the `→ done` transition, or to now while the issue is in flight. Calls on the issue before that (the lead writing it up) fold into one "before dispatch" line and count toward nothing.
+
+**Where the time went.** Activity is an issue-cli call (its end, when `dur_ms` is recorded) or a commit on the work branch. Each gap between two activities is classified once:
+
+1. A gap that holds your approval (`approved_at`) is **waiting on you** up to the approval. The rest of the gap is agent time, or idle when it is 15 min or more.
+2. In a status only you can move on (its exit needs your approval: `in design`, `human-testing` in the bundled workflow), any other gap of 15 min or more is **waiting on you**.
+3. Any other gap of 15 min or more is **idle** (the same 15 min as `agentIdleAfter` in `agent_state.go`).
+4. Everything else is **agent working**.
+
+So agent working + waiting on you + idle = the total. A question answered in chat shows as idle, because nothing records it.
+
+**Rework.** A loop opens in either of two ways:
+- at a backward transition, and closes when the issue is back in the status it left;
+- at a failed playtest run from `testing` onward, and closes at the next run in the same mode (judge or auto) where every failed step passes.
+
+Failed runs before testing are the agent iterating and don't count. Agent time inside a loop is rework: it is part of agent working, drawn purple on the bar.
+
+**Life by status** has one band per status, with its span and the waiting, idle and rework inside it. Its events:
+- **The agent's writes, grouped:** decisions (matched to their D-n), sections written, boxes ticked, comments (kind = their prefix: `progress`, `tests`, `docs` …), refused calls (exit ≠ 0).
+- **Approvals:** "no words recorded" until the approve button takes words.
+- **Commits:** a merge of main into the branch is one muted line.
+- **Playtest runs**, and the first CI run on main.
+- **Rows for time:** amber waits, grey idle gaps and a purple loop row.
+- **After done:** calls fold into one line.
+
+Filters (`&show=`):
+- `all`
+- `you`: approvals, your playtest runs, decisions, waits
+- `commits`
+- `tests`: `tests:`/`playtest:`/`ci:` comments, every playtest run, CI
+- `cli`: every call, in the old Agent Timeline's form, with the workflow actions each transition saw and the exit code; runs of reads fold into one line that opens
+
+Newer clilogs keep no free text (`‹text n=… h=…›`). The tab finds the text again in the issue's comments and decisions by the hash.
+
+**Side column:**
+- **Your part:** each wait.
+- **Your words:** decisions with your quote, and each approval.
+- **Left open at done:** unticked boxes; a section with more than 3 open shows as a count; failed playtest steps are marked.
+- **CI after merge:** the first run on main that contains the issue, and how many runs since were green.
+
+The tab label on every tab ("5h 0m", "1h 50m so far") reads only the stats sidecar and the first line of each per-agent clilog.
+
 ## Implementation
 
 - `internal/tokens/estimate.go` — `Estimate(s string) int = len(s) / 4`. Single function, easy to swap for a real BPE later.
@@ -69,6 +129,6 @@ Three blocks, in order:
 
 - **Actual measured tokens.** No plumbing into the agent dispatch / Claude API response path. The sidecar reserves the field; the population pass is a follow-up.
 - **Per-model breakdown.** One approximation across the board.
-- **Inline display in the timeline / detail sidebar.** The Stats tab is the only render target.
+- **Token cost on the Timeline tab.** Dropped on 2026-10-22; the Stats tab is the only place token estimates show.
 - **Backfilling historical transitions.** Only transitions performed after the feature shipped are recorded.
 - **Storing the verbatim input string.** Counts only; if "why is this transition expensive?" becomes a real question, snapshot text can be added later.

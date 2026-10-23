@@ -5,7 +5,7 @@ order: 2
 
 `issue-cli` records one small JSON line per invocation to a **local** file. The log shows how bots actually use the CLI, and which commands, flags and help topics nobody uses, so they can be removed or merged. Nothing is ever sent off-machine.
 
-Telemetry is separate from the existing action log (`logAction` → `$TMPDIR/issue-cli-logs/actions.jsonl`, `$ISSUE_CLI_LOG`, the per-agent `.clilog`). That log keeps raw arguments and feeds the agent timeline and the repeated-failure hint, and it is unchanged. Telemetry stores **names only**.
+Telemetry is separate from the existing action log (`logAction` → `$TMPDIR/issue-cli-logs/actions.jsonl`, `$ISSUE_CLI_LOG`, the per-agent `.clilog`). That log keeps raw arguments and feeds the issue page's Timeline tab (its CLI calls filter) and the repeated-failure hint, and it is unchanged. Telemetry stores **names only**.
 
 ## Where events go
 
@@ -35,7 +35,7 @@ projects:
     telemetry: true   # default; false opts this project out
 ```
 
-Opting out doesn't affect the agent timeline or the retry hint, which use the separate action log.
+Opting out doesn't affect the Timeline tab or the retry hint, which use the separate action log.
 
 `ISSUE_CLI_TELEMETRY_SKIP=1` is an internal variable. It skips recording only the current call and doesn't count as an opt-out. The viewer sets it on its own `telemetry report` call so `/stats` page loads aren't counted as CLI usage.
 

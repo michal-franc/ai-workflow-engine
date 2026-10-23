@@ -13,7 +13,8 @@ The UI system covers HTML templates, CSS styling, and client-side JavaScript for
 - `templates/workboard.html` — the board (`/workboard`): read-only cards with markers, epic progress and the agent footer (`handlers_workboard.go`; see [Workboard](#workboard))
 - `templates/_markers.html` — card marker partials: `markers`, `marker-chips`, `epic-progress`, `agent-footer`, `card-legend` (data from `markers.go`; agent state from `agent_state.go`)
 - `templates/board.html` — the classic kanban board with drag-and-drop (More › Classic board)
-- `templates/detail.html` — issue detail with sidebar, comments, dispatch
+- `templates/detail.html` — issue page: title, the Issue · Timeline · Evidence tabs (`?tab=`), and on the Issue tab the body with comments and the sidebar with dispatch (see [Issue page tabs](#issue-page-tabs))
+- `templates/_timeline.html` — the Timeline tab (`timeline.go` builds it, `timeline_sources.go` reads its files; rules in [Workflow Stats](../workflow-stats.md#timeline-tab))
 - `templates/graph.html` — workflow status graph
 - `templates/agents.html` — agents canvas: lead/worker tree, unfinished jobs, selected-agent panel (handlers in `handlers_agents.go`)
 - `templates/canvas.html` — issues canvas: version columns × epic or system rows, pan and zoom (`handlers_canvas.go` builds it)
@@ -91,7 +92,7 @@ Status colours stay per status (`statusColor`). A status chip tints its colour w
 | `/agents`         | `agents.html` | Agents canvas: leads, workers, their issues (see below) |
 | `/canvas`         | `canvas.html` | Issues canvas: versions × epics (or systems), see [Issues canvas](#issues-canvas) |
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
-| `/issue/<slug>`   | `detail.html` | Detail with edit, approve, dispatch, comments    |
+| `/issue/<slug>`   | `detail.html` | Issue page with tabs: Issue (edit, approve, dispatch, comments), Timeline (`?tab=timeline`, `&show=`), Evidence (`?tab=evidence`, coming). See [Issue page tabs](#issue-page-tabs) |
 | `/stats`          | `stats.html`  | Workflow token-cost estimates (see [Workflow Stats](../workflow-stats.md)) |
 | `/balance`        | `balance.html` | `?system=` scopes it to one system's issues (the system pages link here). Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise its sidebar entry is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
 | `/systems`        | `systems.html` | One card per system, most open first: summary and design doc (from `workbench.systems`), open / done counts, status bar, waiting-on-you count and family chips, plus a "No system" line. See [System pages](#system-pages) |
@@ -372,6 +373,22 @@ A UI issue's manual checks are written as a playtest session (`playtest/sessions
 - **The id list:** every id or pattern (`*` any one segment, `#` an index) goes in `internal/testids/testids.go`. `TestTemplateTestIDs` fails when templates and that list drift apart, and `make playtest-check` rejects session targets that aren't listed.
 - **Containers:** label containers too (`nav.sidebar`, `board.filters`). A session's `layout_ignore` on a container waives a known layout bug inside it.
 - **Known bug:** at phone width (390px) the page headers and the board filter bar don't wrap. Sessions waive them with `layout_ignore`.
+
+## Issue page tabs
+
+`/p/<project>/issue/<slug>` has the back link, the title (click to edit), a chip row (status, type, priority, system) and a tab bar. The bar reuses the Status page's `status-tabs` look, with links instead of JS:
+
+- **Issue** (default; any unknown `?tab=`): the body with Preview / Edit and block comments, and the sidebar. This is the page as it was, minus the Agent Timeline list that used to follow the body.
+- **Timeline** (`?tab=timeline`): where the issue's time went. Its label carries the total ("5h 0m", or "… so far" in flight). It is built only when this tab is open and has no issue sidebar (its own side column instead):
+  - **Missing sources:** an amber "Could not read N of 5 sources" box, when a source is missing.
+  - **Where the time went:** the total, then agent working (with its rework), waiting on you, idle, rework loops and commits. Under them, a bar cut by time in blue (agent), amber (waiting), purple (rework) and grey (idle), with the statuses and clock ticks under it.
+  - **Life by status:** one band per status, with its events, amber wait rows, grey idle rows and purple loop rows. The filters are links (`&show=you|commits|tests|cli`); **CLI calls** is the old Agent Timeline, with the workflow actions each transition saw.
+  - **Side column:** Your part, Your words, Left open at done (done issues), CI after merge.
+
+  The rules (what counts as waiting, idle and rework) are in [Workflow Stats](../workflow-stats.md#timeline-tab). It wraps to one column at phone width.
+- **Evidence** (`?tab=evidence`): "Evidence is coming" until `ui/evidence-tab-proof-shots-and-criteria` lands.
+
+Each tab is a URL, so a lead or an agent can hand the owner a link: `issue-cli show` prints `Timeline: <url>?tab=timeline`. Tab and filter links carry `aria-current="true"` (`page` stays the sidebar's). Test ids: `detail.pagetab.*`, `evidence.coming`, `timeline.*` (`timeline.total`, `.working`, `.waiting`, `.idle`, `.rework`, `.commits`, `.bar`, `.filter.<key>`, `.band`, `.wait`, `.idlegap`, `.reworkloop`, `.folded`, `.cli.call`, `.cli.actions`, `.side.*`, `.missing`). The playtest session is `playtest/sessions/timeline-tab.yaml` on scenario `playtest/scenarios/timeline`.
 
 ## Stale body saves
 

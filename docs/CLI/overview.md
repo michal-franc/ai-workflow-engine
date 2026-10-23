@@ -469,6 +469,8 @@ The `Sender` interface in `internal/clibug` is where a second transport (GitHub 
 
 **Workflow file line.** `process workflow`, `process transitions` and `show` print `Workflow file: <absolute path>` under their header (`built-in default` when the project has no workflow file), so an agent can see which workflow it is being walked through. `show --json` carries it as `workflow_file`.
 
+**Timeline line.** `show` prints `Timeline: <viewer url>/p/<project>/issue/<slug>?tab=timeline` after the lead and dependency lines: the issue page's Timeline tab (where its time went, every CLI call), a link a lead or agent can hand the owner. Not in `--json`.
+
 Rules are rendered from the loaded workflow rather than a hardcoded list. Each
 row lists the validation rules, human-approval gates, and side effects
 (`set_fields`, `append_section`, `inject_prompt`) attached to the transition;

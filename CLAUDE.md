@@ -51,6 +51,8 @@ markers.go                  — card markers (cardMarkers, blocked_on, needs-rev
 agent_state.go              — worker state for the agents canvas and card footers (workerState, idle from the clilog's last call)
 handlers_canvas.go          — issues canvas (/canvas): version columns × epic or system rows
 handlers_detail.go          — detail page, transition preview, data-table render
+timeline.go                 — the detail page's Timeline tab model: where the time went (agent, waiting on you, idle, rework), life by status, filters
+timeline_sources.go         — what the Timeline tab reads: stats sidecar, clilogs, work branch, playtest runs, local CI; lists what it could not read
 handlers_issue_mutate.go    — update/create/delete/approve/upload, body editor
 handlers_data.go            — /data sidecar endpoints
 handlers_comments.go        — comment add/get/toggle/delete
@@ -172,7 +174,7 @@ Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI
 - [Per-issue Data Store](docs/data-store.md) — sidecar JSON, `<!-- data -->` marker, `issue-cli data` commands
 - [Workbench Files](docs/workbench-files.md) — metric runs, targets and knob exports the Metrics view reads, branch matching, hot files, `depends_on`; project pages (`status_page`, `pages`: sandboxed HTML, postMessage status)
 - [Local CI](docs/workflow.md#local-ci) — opt-in `ci:` block: commands run on local main after every merge in `.worktrees/.ci`, results in `.ci/`, red reported to Status, markers, `ci:` comments and the lead; `issue-cli ci status|run|reset|watch`
-- [Workflow Stats](docs/workflow-stats.md) — `/stats` tab, per-issue stats sidecar, token-cost estimation
+- [Workflow Stats](docs/workflow-stats.md) — `/stats` tab, per-issue stats sidecar, token-cost estimation; the issue page's Timeline tab (`?tab=timeline`) and its time rules
 - [The Lead Session](docs/patterns/lead-session.md) — the project lead, one per project (`issue-cli lead`, `approve`), routing, authority, handoff, epics, agents canvas
 - [Playtest Sessions](docs/patterns/playtest/README.md) — an issue's manual checks as YAML sessions: shared contract, [web app example](docs/patterns/playtest/web-app.md) (this repo, chromedp), [game example](docs/patterns/playtest/game.md); `issue-cli process playtest`
 

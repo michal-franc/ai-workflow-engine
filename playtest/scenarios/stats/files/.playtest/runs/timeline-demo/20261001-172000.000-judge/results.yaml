@@ -1,0 +1,9 @@
+session: timeline-demo
+issue: ui/timeline-demo
+mode: judge
+started: "2026-10-01T17:20:00Z"
+steps:
+  - id: TP1
+    status: pass
+  - id: TP2
+    status: pass

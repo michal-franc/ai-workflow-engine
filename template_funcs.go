@@ -115,6 +115,10 @@ var funcMap = template.FuncMap{
 	// internal/testids).
 	"tid":    testids.Segment,
 	"plural": plural,
+	// statsCard pairs a chart card with its dashboard for the statsChart
+	// template; statsRangeLabel names the range ("30 days").
+	"statsCard":       func(d *Dashboard, c ChartCard) statsCardData { return statsCardData{Dash: d, Card: c} },
+	"statsRangeLabel": statsRangeLabel,
 	// head and rest split a list at n for "+K more" folds: range head 5 .X
 	// shows the first five, with rest 5 .X the others go in the fold.
 	// inlineMarkdown renders a changelog line's bold and code.

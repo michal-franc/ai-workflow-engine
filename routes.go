@@ -27,6 +27,8 @@ type Server struct {
 	// bg runs work that outlives a request; run swaps in one tied to the
 	// signal context so shutdown can wait for it.
 	bg *background
+	// stats caches the stats page's aggregate and CLI usage per project.
+	stats *statsCache
 }
 
 // AgentSession is one live tmux session (or shared-session window).
@@ -54,6 +56,7 @@ func NewServer(projects []tracker.Project) (*Server, error) {
 		projects: projects,
 		tmpl:     tmpl,
 		bg:       newBackground(context.Background()),
+		stats:    newStatsCache(),
 	}
 	tmpl.Funcs(template.FuncMap{"sidebar": s.sidebarNav})
 	return s, nil
@@ -72,6 +75,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleProjectList)
 	mux.HandleFunc("/p/", s.handleProjectRoutes)
+	mux.HandleFunc("/stats", s.handleStatsOverview)
 	mux.HandleFunc("/project-for", s.handleProjectFor)
 	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
 	return sameOriginOnly(mux)

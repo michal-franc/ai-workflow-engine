@@ -7,13 +7,14 @@ import (
 )
 
 // BackfillDay is one past day Backfill looked at. Skipped says why nothing
-// was written: a snapshot from that day exists, or the branch had no commit
-// yet.
+// was written (a snapshot from that day exists); NoCommit says the branch
+// had no commit yet, so the codebase family was left out of the day.
 type BackfillDay struct {
-	Day     time.Time
-	Path    string
-	Skipped string
-	Err     error
+	Day      time.Time
+	Path     string
+	Skipped  string
+	NoCommit bool
+	Err      error
 }
 
 // backfillHour and backfillMinute place a backfilled snapshot at the end of
@@ -22,7 +23,8 @@ const backfillHour, backfillMinute = 23, 59
 
 // Backfill takes one snapshot for each of the days before env.Now (oldest
 // first), as the families would have measured it at the end of that day:
-// Now is 23:59 local, Commit where env.Branch stood then. Days that already
+// Now is 23:59 local, Commit where env.Branch stood then ("" before the
+// first commit: the codebase family sits that day out). Days that already
 // have a snapshot are skipped. each is called after every day; Backfill
 // stops early when ctx ends.
 func Backfill(ctx context.Context, env Env, days int, each func(BackfillDay)) error {
@@ -56,11 +58,7 @@ func backfill(ctx context.Context, env Env, days int, fams []registered, each fu
 			each(day)
 			continue
 		}
-		if commit == "" {
-			day.Skipped = "no commit on " + env.Branch + " yet"
-			each(day)
-			continue
-		}
+		day.NoCommit = commit == ""
 		e := env
 		e.Now, e.Commit, e.Backfill = at, commit, true
 		_, day.Path, day.Err = take(ctx, e, TriggerBackfill, fams)

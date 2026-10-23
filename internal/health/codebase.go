@@ -73,6 +73,9 @@ type scanRules struct {
 
 func codebaseFamily(ctx context.Context, env Env) ([]Metric, error) {
 	if env.Commit == "" {
+		if env.Backfill {
+			return nil, ErrNoPast
+		}
 		return nil, fmt.Errorf("no commit to measure")
 	}
 	rules := rulesFor(env)

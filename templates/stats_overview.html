@@ -1,0 +1,68 @@
+{{define "stats_overview.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stats, all projects</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='2' y='8' width='3' height='6' fill='%238b949e'/><rect x='6.5' y='4' width='3' height='10' fill='%238b949e'/><rect x='11' y='2' width='3' height='12' fill='%238b949e'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="container stats-page" data-testid="stats.overview">
+    <header class="stats-head">
+        <div class="stats-head-text">
+            <div class="stats-crumb"><a href="/">All projects</a> / stats</div>
+            <h1 class="page-title">Stats, all projects</h1>
+            <p class="stats-sub">Each project's latest health snapshot, with the last {{.Days}} days as a sparkline · click a project for its stats page</p>
+        </div>
+        <nav class="stats-options" aria-label="Overview options">
+            <div class="stats-seg" role="group" aria-label="Sparkline range">
+                {{range .Ranges}}<a href="{{.Href}}" class="stats-seg-btn{{if .On}} active{{end}}"{{if .On}} aria-current="true"{{end}}>{{.Label}}</a>{{end}}
+            </div>
+            <div class="stats-seg" role="group" aria-label="Sort by">
+                {{range .Sorts}}<a href="{{.Href}}" class="stats-seg-btn{{if .On}} active{{end}}"{{if .On}} aria-current="true"{{end}}>{{.Label}}</a>{{end}}
+            </div>
+        </nav>
+    </header>
+
+    <div class="stats-tables">
+        <div class="stats-time-scroll">
+        <table class="data-table stats-overview-table">
+            <thead><tr>
+                <th scope="col">Project</th><th scope="col">Waiting on you</th><th scope="col">Cycle p50</th><th scope="col">Rework share</th><th scope="col" class="num">Issues done</th><th scope="col">Lines of code</th><th scope="col">Test ratio</th><th scope="col" class="num">Big files</th><th scope="col">Latest snapshot</th>
+            </tr></thead>
+            <tbody>
+            {{range .Rows}}
+            <tr data-testid="stats.overview.row" data-project="{{.Slug}}">
+                <th scope="row"><a href="{{.Href}}"><strong>{{.Name}}</strong></a><div class="mono stats-muted">{{.Slug}}</div></th>
+                {{if .Waiting.Has}}
+                <td><div class="stats-cell"><span class="v">{{.Waiting.Value}}</span>
+                    <div class="stats-meter s-waiting" role="img" aria-label="{{.Waiting.Value}}{{if .Limit}} against a {{.Pct .Limit}}% limit{{end}}"><span style="width: {{.Pct .WaitingShare}}%"></span>{{if .Limit}}<i style="left: {{.Pct .Limit}}%"></i>{{end}}</div>
+                    {{if .WaitingOver}}<span class="stats-chip over">over {{.Pct .Limit}}%</span>{{end}}</div></td>
+                <td><div class="stats-cell"><span class="v">{{.Cycle.Value}}</span>{{.Cycle.Spark}}</div></td>
+                <td><div class="stats-cell"><span class="v">{{.Rework.Value}}</span>{{.Rework.Spark}}</div></td>
+                {{else}}
+                <td colspan="3" class="stats-muted">No issues done in the last 30 days{{if not .Done}}{{else}} with CLI calls{{end}}</td>
+                {{end}}
+                <td class="num"><span class="v">{{.Done}}</span><div class="stats-muted">in 30 days</div></td>
+                <td>{{if .LOC.Has}}<div class="stats-cell"><span class="v">{{.LOC.Value}}</span>{{.LOC.Spark}}</div>{{else}}<span class="stats-muted">—</span>{{end}}</td>
+                <td>{{if .HasRatio}}<div class="stats-cell"><span class="v">{{printf "%.2f" .TestRatio}}</span><div class="stats-meter s-tweak" role="img" aria-label="Test ratio {{printf "%.2f" .TestRatio}}"><span style="width: {{.Pct .TestRatio}}%"></span></div></div>{{else}}<span class="stats-muted">—</span>{{end}}</td>
+                <td class="num">{{if .HasBig}}<span class="v">{{.BigFiles}}</span>{{else}}—{{end}}</td>
+                <td class="mono stats-muted">{{.Latest}}</td>
+            </tr>
+            {{end}}
+            </tbody>
+        </table>
+        </div>
+        {{if .None}}
+        <div class="stats-overview-none" data-testid="stats.overview.none">
+            <strong>No snapshots yet:</strong> {{range $i, $n := .None}}{{if $i}}, {{end}}{{$n}}{{end}} · a project in git gets one daily while the viewer runs, or now with <code>issue-cli --project &lt;slug&gt; health snapshot</code>; history with <code>issue-cli --project &lt;slug&gt; health backfill</code>
+        </div>
+        {{end}}
+    </div>
+</div>
+</body>
+</html>
+{{end}}

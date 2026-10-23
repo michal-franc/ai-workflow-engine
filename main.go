@@ -119,6 +119,9 @@ func run(args []string) error {
 	}
 	// Project health: a snapshot a day per project (health_watch.go).
 	srv.bg.Go("health snapshots", func() { srv.watchHealth(ctx.Done()) })
+	// The stats page's aggregate and CLI usage, built before the first
+	// visit (stats_cache.go).
+	srv.bg.Go("stats warm-up", func() { srv.warmStats(ctx.Done()) })
 
 	url := "http://" + listenAddr(displayHost(*host), *port)
 	// Shells and leads the viewer did not start have no ISSUE_VIEWER_CONFIG;

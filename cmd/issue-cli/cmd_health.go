@@ -125,11 +125,13 @@ func runHealthBackfill(ctx *Context, args []string) error {
 		Path    string `json:"path,omitempty"`
 		Skipped string `json:"skipped,omitempty"`
 		Error   string `json:"error,omitempty"`
+		// NoCommit: before the branch's first commit, so no codebase rows.
+		NoCommit bool `json:"no_commit,omitempty"`
 	}
 	var results []dayResult
 	written, skipped, failed := 0, 0, 0
 	err = health.Backfill(context.Background(), env, *days, func(d health.BackfillDay) {
-		r := dayResult{Day: d.Day.Format("2006-01-02"), Path: d.Path, Skipped: d.Skipped}
+		r := dayResult{Day: d.Day.Format("2006-01-02"), Path: d.Path, Skipped: d.Skipped, NoCommit: d.NoCommit}
 		switch {
 		case d.Err != nil:
 			r.Error = d.Err.Error()
@@ -148,6 +150,8 @@ func runHealthBackfill(ctx *Context, args []string) error {
 			fmt.Fprintf(ctx.Stdout, "  %s  error: %s\n", r.Day, r.Error)
 		case r.Skipped != "":
 			fmt.Fprintf(ctx.Stdout, "  %s  skipped: %s\n", r.Day, r.Skipped)
+		case r.NoCommit:
+			fmt.Fprintf(ctx.Stdout, "  %s  %s (before the first commit: no codebase)\n", r.Day, r.Path)
 		default:
 			fmt.Fprintf(ctx.Stdout, "  %s  %s\n", r.Day, r.Path)
 		}

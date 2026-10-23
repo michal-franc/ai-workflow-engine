@@ -2,7 +2,6 @@ package health
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -50,11 +49,11 @@ func TestBackfillWritesOnePastSnapshotPerDay(t *testing.T) {
 	if len(days) != 4 {
 		t.Fatalf("days = %+v", days)
 	}
-	if !strings.HasPrefix(days[0].Skipped, "no commit") || days[1].Path == "" || days[2].Skipped != "has a snapshot" || days[3].Path == "" {
+	if !days[0].NoCommit || days[0].Path == "" || days[1].Path == "" || days[1].NoCommit || days[2].Skipped != "has a snapshot" || days[3].Path == "" {
 		t.Fatalf("days = %+v", days)
 	}
-	if len(commits) != 2 || commits[0] != first || commits[1] != head {
-		t.Fatalf("measured commits = %v, want %s then %s", commits, first, head)
+	if len(commits) != 3 || commits[0] != "" || commits[1] != first || commits[2] != head {
+		t.Fatalf("measured commits = %v, want none, then %s, then %s", commits, first, head)
 	}
 	s, err := Read(days[1].Path)
 	if err != nil {
@@ -68,6 +67,10 @@ func TestBackfillWritesOnePastSnapshotPerDay(t *testing.T) {
 	}
 	if v, ok := s.Value("probe.day", nil); !ok || v != 20 {
 		t.Fatalf("probe.day = %v, %v", v, ok)
+	}
+	// Before the first commit the codebase family sits the day out.
+	if _, err := codebaseFamily(context.Background(), Env{Root: root, Backfill: true}); err != ErrNoPast {
+		t.Fatalf("codebase before the first commit: %v, want ErrNoPast", err)
 	}
 	got := Range(root, time.Date(2026, 10, 20, 0, 0, 0, 0, time.Local), now)
 	if len(got) != 3 || got[0].Run.Date != "2026-10-20T23:59" || got[2].Run.Date != "2026-10-22T23:59" {

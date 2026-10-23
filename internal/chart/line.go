@@ -157,18 +157,23 @@ func (l Line) SVG() template.HTML {
 			run = append(run, f(l.x(p.At))+","+f(y(p.Value)))
 		}
 		flush()
-		for _, p := range pts {
+		// Many points: small dots, the last one full size.
+		dense := len(pts) > 16
+		for i, p := range pts {
 			title := s.Name + " · " + p.At.Format("2 Jan") + " · " + Format(l.Unit, p.Value)
 			if p.Note != "" {
 				title += " · " + p.Note
 			}
 			x, py := f(l.x(p.At)), f(y(p.Value))
-			r := pointR
+			r := float64(pointR)
 			cls := "chart-point"
+			if dense && i < len(pts)-1 {
+				r, cls = 2, "chart-point dense"
+			}
 			if !l.SelectedAt.IsZero() && p.At.Equal(l.SelectedAt) && s.Name == l.SelectedSeries {
 				r, cls = ringR, "chart-point selected"
 			}
-			mark := `<circle class="chart-hit" cx="` + x + `" cy="` + py + `" r="10"></circle><circle class="` + cls + `" cx="` + x + `" cy="` + py + `" r="` + f(float64(r)) + `"></circle><title>` + esc(title) + `</title>`
+			mark := `<circle class="chart-hit" cx="` + x + `" cy="` + py + `" r="10"></circle><circle class="` + cls + `" cx="` + x + `" cy="` + py + `" r="` + f(r) + `"></circle><title>` + esc(title) + `</title>`
 			if p.Href != "" {
 				b.WriteString(`<a href="` + esc(p.Href) + `">` + mark + `</a>`)
 			} else {

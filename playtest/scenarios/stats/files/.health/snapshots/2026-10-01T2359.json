@@ -1,0 +1,205 @@
+{
+  "run": {
+    "date": "2026-10-01T23:59",
+    "project": "st",
+    "branch": "main",
+    "commit": "0000000",
+    "trigger": "backfill",
+    "duration_ms": 12
+  },
+  "families": {
+    "codebase": {
+      "ms": 3,
+      "metrics": 3
+    },
+    "workflow": {
+      "ms": 9,
+      "metrics": 13
+    }
+  },
+  "metrics": [
+    {
+      "id": "workflow.issues{type=all}",
+      "metric": "workflow.issues",
+      "value": 2,
+      "group": "workflow",
+      "band": {
+        "unit": "count"
+      },
+      "labels": {
+        "type": "all"
+      }
+    },
+    {
+      "id": "workflow.cycle.p50{type=all}",
+      "metric": "workflow.cycle.p50",
+      "value": 10800,
+      "group": "workflow",
+      "band": {
+        "unit": "seconds"
+      },
+      "labels": {
+        "type": "all"
+      }
+    },
+    {
+      "id": "workflow.cycle.p90{type=all}",
+      "metric": "workflow.cycle.p90",
+      "value": 10800,
+      "group": "workflow",
+      "band": {
+        "unit": "seconds"
+      },
+      "labels": {
+        "type": "all"
+      }
+    },
+    {
+      "id": "workflow.working.p50{type=all}",
+      "metric": "workflow.working.p50",
+      "value": 5400,
+      "group": "workflow",
+      "band": {
+        "unit": "seconds"
+      },
+      "labels": {
+        "type": "all"
+      }
+    },
+    {
+      "id": "workflow.working.p90{type=all}",
+      "metric": "workflow.working.p90",
+      "value": 5400,
+      "group": "workflow",
+      "band": {
+        "unit": "seconds"
+      },
+      "labels": {
+        "type": "all"
+      }
+    },
+    {
+      "id": "workflow.rework.loops{type=all}",
+      "metric": "workflow.rework.loops",
+      "value": 1,
+      "group": "workflow",
+      "band": {
+        "unit": "count"
+      },
+      "labels": {
+        "type": "all"
+      }
+    },
+    {
+      "id": "workflow.issues{type=none}",
+      "metric": "workflow.issues",
+      "value": 2,
+      "group": "workflow",
+      "band": {
+        "unit": "count"
+      },
+      "labels": {
+        "type": "none"
+      }
+    },
+    {
+      "id": "workflow.cycle.p50{type=none}",
+      "metric": "workflow.cycle.p50",
+      "value": 10800,
+      "group": "workflow",
+      "band": {
+        "unit": "seconds"
+      },
+      "labels": {
+        "type": "none"
+      }
+    },
+    {
+      "id": "workflow.cycle.p90{type=none}",
+      "metric": "workflow.cycle.p90",
+      "value": 10800,
+      "group": "workflow",
+      "band": {
+        "unit": "seconds"
+      },
+      "labels": {
+        "type": "none"
+      }
+    },
+    {
+      "id": "workflow.working.p50{type=none}",
+      "metric": "workflow.working.p50",
+      "value": 5400,
+      "group": "workflow",
+      "band": {
+        "unit": "seconds"
+      },
+      "labels": {
+        "type": "none"
+      }
+    },
+    {
+      "id": "workflow.working.p90{type=none}",
+      "metric": "workflow.working.p90",
+      "value": 5400,
+      "group": "workflow",
+      "band": {
+        "unit": "seconds"
+      },
+      "labels": {
+        "type": "none"
+      }
+    },
+    {
+      "id": "workflow.rework.loops{type=none}",
+      "metric": "workflow.rework.loops",
+      "value": 1,
+      "group": "workflow",
+      "band": {
+        "unit": "count"
+      },
+      "labels": {
+        "type": "none"
+      }
+    },
+    {
+      "id": "workflow.time.share{kind=waiting}",
+      "metric": "workflow.time.share",
+      "value": 0.39,
+      "group": "workflow",
+      "band": {
+        "unit": "share"
+      },
+      "labels": {
+        "kind": "waiting"
+      }
+    },
+    {
+      "id": "codebase.source_lines",
+      "metric": "codebase.source_lines",
+      "value": 126,
+      "group": "codebase",
+      "band": {
+        "unit": "count"
+      }
+    },
+    {
+      "id": "codebase.test_ratio",
+      "metric": "codebase.test_ratio",
+      "value": 0.4,
+      "group": "codebase",
+      "band": {
+        "unit": "count"
+      }
+    },
+    {
+      "id": "codebase.big_files",
+      "metric": "codebase.big_files",
+      "value": 2,
+      "group": "codebase",
+      "band": {
+        "unit": "count"
+      }
+    }
+  ]
+}

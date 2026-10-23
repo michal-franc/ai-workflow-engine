@@ -10,10 +10,11 @@ import (
 	"os"
 	"os/exec"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/health"
+	"github.com/michal-franc/issue-viewer/internal/milestone"
 	"github.com/michal-franc/issue-viewer/internal/telemetry"
 	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
@@ -54,26 +55,24 @@ type StatsData struct {
 	// it could not be produced, in which case CLIUsageNotice says why.
 	CLIUsage       *telemetry.Report
 	CLIUsageNotice string
-	// Time is where the time goes over the issues done in the last 30 days
-	// (timeline.Aggregate, built on every request); TimeGroups are its
-	// status rows by type, All first.
+	// CLIUsageLoading: the report is being read in the background for the
+	// first time (stats_cache.go).
+	CLIUsageLoading bool
+	// Time is where the time goes over the issues done in the page's range
+	// (the cached timeline.Aggregate, filtered); TimeGroups are its status
+	// rows by type, All first.
 	Time       timeline.Report
 	TimeGroups []timeGroup
+	// Dash is the dashboard above the tables; TablesOpen unfolds the time
+	// tables (?days=N, as /stats?days=N showed them before).
+	Dash       *Dashboard
+	TablesOpen bool
 }
 
 // timeGroup is one type of work's row and its status rows on /stats.
 type timeGroup struct {
 	timeline.TypeRow
 	Statuses []timeline.StatusRow
-}
-
-// statsWindow is ?days=N (1 to 3650) for the time section, else the
-// snapshot's 30 days.
-func statsWindow(r *http.Request) time.Duration {
-	if n, err := strconv.Atoi(r.URL.Query().Get("days")); err == nil && n >= 1 && n <= 3650 {
-		return time.Duration(n) * 24 * time.Hour
-	}
-	return timeline.Window
 }
 
 // Days is the time section's window in days.
@@ -165,9 +164,21 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *track
 		return
 	}
 
+	now := time.Now()
+	opts := parseStatsOpts(r.URL.Query())
+	if s.stats == nil {
+		s.stats = newStatsCache()
+	}
+	wide, aggMS := s.stats.aggregate(proj, wf, issues, opts.window(), now, s.statsBG("stats refresh "+proj.Slug))
+	dash := buildDashboard(dashIn{
+		Proj: proj, Base: prefix + "/stats", Prefix: prefix, WF: wf, Issues: issues, Opts: opts, Now: now,
+		Wide: wide, AggMS: aggMS, Snaps: health.Range(ciRootFor(proj), time.Time{}, now),
+		Released: milestone.Released(r.Context(), projectRoot(proj), wf.Workbench.Changelog),
+	})
+	timeRep := wide.Filter(dash.From, dash.To)
+
 	recorded, totals := aggregateRecordedStats(issues)
-	usage, usageNotice := loadCLIUsage(proj)
-	timeRep := timeline.Aggregate(r.Context(), proj, wf, issues, time.Now(), statsWindow(r))
+	usage, usageNotice, usageLoading := s.stats.cliUsage(proj, now, s.statsBG("stats cli usage "+proj.Slug))
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.tmpl.ExecuteTemplate(w, "stats.html", StatsData{
@@ -179,8 +190,11 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request, proj *track
 		IssueTotals:         totals,
 		CLIUsage:            usage,
 		CLIUsageNotice:      usageNotice,
+		CLIUsageLoading:     usageLoading,
 		Time:                timeRep,
 		TimeGroups:          timeGroups(timeRep),
+		Dash:                dash,
+		TablesOpen:          opts.Days > 0,
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}

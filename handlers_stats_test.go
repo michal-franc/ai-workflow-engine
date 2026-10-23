@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/michal-franc/issue-viewer/internal/clilog"
 	"github.com/michal-franc/issue-viewer/internal/telemetry"
-	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -31,16 +31,23 @@ func getStatsPage(t *testing.T) string {
 	proj, _ := setupTestProject(t)
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
-	resp, err := http.Get(ts.URL + "/p/test-project/stats")
-	if err != nil {
-		t.Fatal(err)
+	// The CLI usage report is read in the background; the page says so
+	// until it lands, like a reload a moment later would.
+	for i := 0; ; i++ {
+		resp, err := http.Get(ts.URL + "/p/test-project/stats")
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("stats page must not fail because of CLI usage, got %d:\n%s", resp.StatusCode, body)
+		}
+		if !strings.Contains(string(body), "being read in the background") || i == 200 {
+			return string(body)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("stats page must not fail because of CLI usage, got %d:\n%s", resp.StatusCode, body)
-	}
-	return string(body)
 }
 
 func TestStatsPageRendersCLIUsageSection(t *testing.T) {
@@ -182,17 +189,33 @@ func fixItProject(t *testing.T) tracker.Project {
 	return proj
 }
 
-func TestStatsWindow(t *testing.T) {
-	for q, want := range map[string]time.Duration{
-		"":           timeline.Window,
-		"?days=90":   90 * 24 * time.Hour,
-		"?days=0":    timeline.Window,
-		"?days=9999": timeline.Window,
-		"?days=x":    timeline.Window,
+func TestParseStatsOpts(t *testing.T) {
+	for q, want := range map[string]struct {
+		days   int
+		window time.Duration
+		group  string
+	}{
+		"":                        {30, 60 * 24 * time.Hour, "type"},
+		"range=90d&group=system":  {90, 120 * 24 * time.Hour, "system"},
+		"range=all":               {0, 3650 * 24 * time.Hour, "type"},
+		"range=bogus&group=bogus": {30, 60 * 24 * time.Hour, "type"},
+		"days=45":                 {45, 75 * 24 * time.Hour, "type"},
+		"days=9999":               {30, 60 * 24 * time.Hour, "type"},
 	} {
-		r, _ := http.NewRequest("GET", "/p/x/stats"+q, nil)
-		if got := statsWindow(r); got != want {
-			t.Errorf("%q: window = %v, want %v", q, got, want)
+		v, _ := url.ParseQuery(q)
+		o := parseStatsOpts(v)
+		if o.days() != want.days || o.window() != want.window || o.Group != want.group {
+			t.Errorf("%q: days %d window %v group %q, want %+v", q, o.days(), o.window(), o.Group, want)
 		}
+	}
+	o := parseStatsOpts(url.Values{"range": {"7d"}, "hide": {"none,tweak"}, "p": {"90"}, "drill": {"status:testing"}})
+	if !o.hidden("none") || o.hidden("feature") || o.P != "90" {
+		t.Errorf("opts = %+v", o)
+	}
+	if got := o.query(false); got != "group=type&hide=none%2Ctweak&p=90&range=7d" {
+		t.Errorf("query = %q", got)
+	}
+	if got := o.query(true); !strings.Contains(got, "drill=status%3Atesting") {
+		t.Errorf("query with drill = %q", got)
 	}
 }

@@ -26,6 +26,10 @@ var playtestGuideFiles = map[string]string{
 }
 
 func runProcessPlaytest(ctx *Context, args []string) error {
+	args, err := parsePositionals(ctx, "process playtest", args, 1)
+	if err != nil {
+		return err
+	}
 	name := ""
 	if len(args) > 0 {
 		name = strings.ToLower(strings.TrimSpace(args[0]))

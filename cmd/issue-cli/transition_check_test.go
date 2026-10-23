@@ -259,3 +259,29 @@ func TestRemovedWaitFlagsFailWithStopHint(t *testing.T) {
 		t.Fatalf("a removed flag must change nothing:\n%s", after)
 	}
 }
+
+// A dry run says what each append_section will do to this body: create the
+// section, top up one that lacks the gate's boxes, or leave a complete one.
+func TestTransitionDryRunNamesSectionTopUp(t *testing.T) {
+	proj, issuePath := makeTransitionFixture(t)
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runTransition(ctx, []string{"cli/sample", "--to", "in progress", "--dry-run"}); err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	assertContains(t, stdout.String(), "Side-effect: appends ## Implementation section")
+
+	raw := readFile(t, issuePath) + "\n## Implementation\nNotes written early.\n"
+	if err := os.WriteFile(issuePath, []byte(raw), 0644); err != nil {
+		t.Fatalf("write issue: %v", err)
+	}
+	ctx, stdout, _ = newTestContext(proj, false)
+	if err := runTransition(ctx, []string{"cli/sample", "--to", "in progress", "--dry-run"}); err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	out := stdout.String()
+	assertContains(t, out, "Side-effect: ## Implementation exists — adds")
+	assertNotContains(t, out, "appends ## Implementation section")
+	if after := readFile(t, issuePath); after != raw {
+		t.Fatalf("dry run modified the issue:\n%s", after)
+	}
+}

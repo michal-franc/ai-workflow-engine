@@ -171,6 +171,10 @@ func anyEntryHasTier(entries []tracker.DataEntry) bool {
 }
 
 func runDataSetStatus(ctx *Context, args []string) error {
+	args, err := parsePositionals(ctx, "data set-status", args, 3)
+	if err != nil {
+		return err
+	}
 	if len(args) < 3 {
 		return fmt.Errorf("data set-status requires <slug> <id> <status>\n\nExample:\n  issue-cli data set-status my-issue 1 resolved")
 	}
@@ -193,6 +197,10 @@ func runDataSetStatus(ctx *Context, args []string) error {
 }
 
 func runDataSetTier(ctx *Context, args []string) error {
+	args, err := parsePositionals(ctx, "data set-tier", args, 3)
+	if err != nil {
+		return err
+	}
 	if len(args) < 3 {
 		return fmt.Errorf("data set-tier requires <slug> <id> <tier>\n\nExample:\n  issue-cli data set-tier my-issue 1 \"🔴 critical\"\n\nPass an empty tier to clear: issue-cli data set-tier my-issue 1 \"\"")
 	}
@@ -224,6 +232,13 @@ func runDataSetTier(ctx *Context, args []string) error {
 }
 
 func runDataSetComment(ctx *Context, args []string) error {
+	fs := newFlagSet("data set-comment", ctx)
+	textFlag := fs.String("text", "", "comment text")
+	bodyFlag := fs.String("body", "", "alias for --text")
+	if err := parseFlagsArgs(ctx, fs, args); err != nil {
+		return err
+	}
+	args = fs.Args()
 	if len(args) < 2 {
 		return fmt.Errorf("data set-comment requires <slug> <id> --text \"...\"")
 	}
@@ -232,19 +247,12 @@ func runDataSetComment(ctx *Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	rest := args[2:]
-	fs := newFlagSet("data set-comment", ctx)
-	textFlag := fs.String("text", "", "comment text")
-	bodyFlag := fs.String("body", "", "alias for --text")
-	if err := parseFlags(ctx, fs, rest); err != nil {
-		return err
-	}
 	text := normalizeEscapedText(*textFlag)
 	if text == "" {
 		text = normalizeEscapedText(*bodyFlag)
 	}
 	if text == "" {
-		text = strings.Join(fs.Args(), " ")
+		text = strings.Join(args[2:], " ")
 	}
 
 	issue, _, err := findIssueOrErr(ctx, slug)
@@ -259,6 +267,10 @@ func runDataSetComment(ctx *Context, args []string) error {
 }
 
 func runDataRemove(ctx *Context, args []string) error {
+	args, err := parsePositionals(ctx, "data remove", args, 2)
+	if err != nil {
+		return err
+	}
 	if len(args) < 2 {
 		return fmt.Errorf("data remove requires <slug> <id>")
 	}

@@ -33,7 +33,7 @@ const (
 )
 
 // globalFlagNames are issue-cli's global flags, recorded like any other flag.
-var globalFlagNames = []string{"config", "project", "json"}
+var globalFlagNames = []string{"config", "project", "json", "debug"}
 
 // recordTelemetry builds and writes the event for one invocation. It must
 // never affect the CLI: every failure (including a panic) is swallowed.
@@ -108,11 +108,7 @@ func buildEvent(inv *invocation, rawArgs []string, runErr error, panicked bool) 
 		ev.Exit = 2
 		ev.ErrClass = telemetry.ErrPanic
 	} else if runErr != nil {
-		ev.Exit = 1
-		var codeErr *exitCodeError
-		if errors.As(runErr, &codeErr) {
-			ev.Exit = codeErr.Code
-		}
+		ev.Exit = processExitCode(runErr)
 		ev.ErrClass, ev.Unknown = classifyError(inv, runErr)
 	}
 
@@ -248,11 +244,10 @@ func classifyError(inv *invocation, err error) (class, unknown string) {
 	}
 	msg := err.Error()
 	firstLine := strings.SplitN(msg, "\n", 2)[0]
-	var fpe *flagParseError
-	if errors.As(err, &fpe) {
-		const undefined = "flag provided but not defined: -"
-		if strings.HasPrefix(firstLine, undefined) {
-			return telemetry.ErrUnknownFlag, trunc("--" + strings.TrimPrefix(firstLine, undefined))
+	var ue *usageError
+	if errors.As(err, &ue) {
+		if ue.flag != "" {
+			return telemetry.ErrUnknownFlag, trunc(ue.flag)
 		}
 		return telemetry.ErrFlagParse, ""
 	}
@@ -316,13 +311,25 @@ type introspectedFlags struct{ fs *flag.FlagSet }
 // parsing flags (slug, numeric id, value) so it reaches parseFlags.
 var introspectArgs = []string{"_introspect_", "1", "_introspect_"}
 
-// introspectFlags returns the flag names cmd (or cmd sub) defines, by running
+// introspectFlags returns the flag names cmd (or cmd sub) defines; see
+// introspectFlagSet.
+func introspectFlags(cmd *Command, sub, issueDir string) (flags []string, ok bool) {
+	fs, ok := introspectFlagSet(cmd, sub, issueDir)
+	if fs == nil {
+		return nil, ok
+	}
+	fs.VisitAll(func(f *flag.Flag) { flags = append(flags, f.Name) })
+	sort.Strings(flags)
+	return flags, ok
+}
+
+// introspectFlagSet returns the FlagSet cmd (or cmd sub) parses, by running
 // it in introspection mode: parseFlags panics with the FlagSet before the
 // command does any work. The context points at an empty issues dir, discards
 // all output, and reads empty stdin, so a command that never reaches
-// parseFlags still cannot touch real data. ok is false when the command
-// panicked for another reason.
-func introspectFlags(cmd *Command, sub, issueDir string) (flags []string, ok bool) {
+// parseFlags still cannot touch real data. fs is nil when the command has no
+// FlagSet; ok is false when it panicked for another reason.
+func introspectFlagSet(cmd *Command, sub, issueDir string) (fs *flag.FlagSet, ok bool) {
 	ctx := &Context{
 		Stdout:     io.Discard,
 		Stderr:     io.Discard,
@@ -342,12 +349,10 @@ func introspectFlags(cmd *Command, sub, issueDir string) (flags []string, ok boo
 		}
 		got, isFlags := r.(introspectedFlags)
 		if !isFlags {
-			flags, ok = nil, false
+			fs, ok = nil, false
 			return
 		}
-		got.fs.VisitAll(func(f *flag.Flag) { flags = append(flags, f.Name) })
-		sort.Strings(flags)
-		ok = true
+		fs, ok = got.fs, true
 	}()
 	_ = cmd.Run(ctx, args)
 	return nil, true // returned without parsing flags: the command has none
@@ -377,7 +382,7 @@ func buildManifest() telemetry.Manifest {
 				mc.Flags[key] = flags
 			}
 		}
-		if len(cmd.Subcommands) > 0 && name != "help" && name != "process" {
+		if hasFlagSubcommands(cmd) {
 			mc.Subcommands = append([]string(nil), cmd.Subcommands...)
 			for _, s := range cmd.Subcommands {
 				addFlags(name+" "+s, s)

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/clibug"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -141,10 +142,46 @@ type StatusModel struct {
 	Releases      []Release
 	ReleaseSource string
 	DoneRecent    []DoneRow
+	// CI is the Local CI card; nil without a ci: block.
+	CI *CIRow
+	// ReleaseWait is the Waiting for release card; nil when it has nothing
+	// to show.
+	ReleaseWait *ReleaseWait
+
+	// Milestone is the Current milestone card; nil without a version to
+	// cut (then the card shows All issues).
+	Milestone *MilestoneView
+	// EpicsByArea is the Epics card: Epics grouped by area per version.
+	EpicsByArea EpicsView
+	// Shipped is DoneRecent grouped by area.
+	Shipped []ShippedArea
+	// UnsentBugReports counts issue-cli bug reports queued on this machine
+	// because report-bug found no engine project.
+	UnsentBugReports int
 }
 
-// WaitingCount is the number shown on the sidebar's Status entry.
-func (m *StatusModel) WaitingCount() int { return len(m.Waiting) }
+// unsentBugReports counts this user's queued report-bug files. A var so
+// tests never read the real queue.
+var unsentBugReports = clibug.PendingCount
+
+// IsCurrent reports whether version is the current milestone.
+func (m *StatusModel) IsCurrent(version string) bool {
+	return m.Milestone != nil && m.Milestone.Version == version
+}
+
+// WaitingCount is the number shown on the sidebar's Status entry: the
+// waiting items, plus one while local CI is red, plus one while issue-cli
+// bug reports wait to be sent.
+func (m *StatusModel) WaitingCount() int {
+	n := len(m.Waiting)
+	if m.CI.Red() {
+		n++
+	}
+	if m.UnsentBugReports > 0 {
+		n++
+	}
+	return n
+}
 
 // AgeOf is how long ago t was, as of the page: 25m, 1h 30m, 13d.
 func (m *StatusModel) AgeOf(t time.Time) string { return shortDuration(m.AsOf.Sub(t)) }
@@ -272,9 +309,26 @@ func buildStatus(proj *tracker.Project, issues []*tracker.Issue, agents *AgentsM
 	sort.Slice(m.DoneRecent, func(i, j int) bool { return m.DoneRecent[i].At.After(m.DoneRecent[j].At) })
 
 	m.Waiting = waitingOnOwner(proj, sorted)
+	m.CI = ciRow(proj, issues, now)
+	m.UnsentBugReports = unsentBugReports()
 	root := projectRoot(proj)
 	m.Next = leadNextSteps(root, tracker.LeadSessionName(proj), now)
-	m.Releases, m.ReleaseSource = recentReleases(root, wf.Workbench.Changelog, statusReleases)
+	text, changelog := readChangelog(root, wf.Workbench.Changelog)
+	m.Releases, m.ReleaseSource = recentReleasesFrom(root, text, changelog, statusReleases)
+	released := ""
+	if len(m.Releases) > 0 {
+		released = m.Releases[0].Version
+	}
+	m.ReleaseWait = buildReleaseWait(proj, wf, cs, byVersion, released, changelog, text, now)
+	if v, p, items := pickMilestone(byVersion, cs, released); v != "" {
+		m.Milestone = buildMilestoneView(wf, cs, v, p, items)
+	}
+	current := ""
+	if m.Milestone != nil {
+		current = m.Milestone.Version
+	}
+	m.EpicsByArea = buildEpicsView(cs, issues, m.Epics, current)
+	m.Shipped = groupShipped(m.DoneRecent)
 	return m
 }
 
@@ -394,13 +448,29 @@ func relTo(root, path string) string {
 // recentReleases reads the newest n releases from the changelog (configured,
 // else CHANGELOG.md), else from git tags. source names where they came from.
 func recentReleases(root, configured string, n int) (rels []Release, source string) {
-	name := configured
+	text, name := readChangelog(root, configured)
+	return recentReleasesFrom(root, text, name, n)
+}
+
+// readChangelog reads the changelog (configured, else CHANGELOG.md). name is
+// its slash path, "" when there is none.
+func readChangelog(root, configured string) (text, name string) {
+	name = configured
 	if name == "" {
 		name = "CHANGELOG.md"
 	}
-	if data, err := os.ReadFile(filepath.Join(root, name)); err == nil {
-		if rels = parseChangelog(string(data), n); len(rels) > 0 {
-			return rels, filepath.ToSlash(name)
+	data, err := os.ReadFile(filepath.Join(root, name))
+	if err != nil {
+		return "", ""
+	}
+	return string(data), filepath.ToSlash(name)
+}
+
+// recentReleasesFrom is recentReleases on a changelog already read.
+func recentReleasesFrom(root, text, name string, n int) (rels []Release, source string) {
+	if name != "" {
+		if rels = parseChangelog(text, n); len(rels) > 0 {
+			return rels, name
 		}
 	}
 	if rels = gitTags(root, n); len(rels) > 0 {
@@ -414,7 +484,8 @@ func recentReleases(root, configured string, n int) (rels []Release, source stri
 var changelogHeading = regexp.MustCompile(`^##\s+\[?(v?\d[^\s\]]*)\]?(?:\s+[—–-]\s+(\d{4}-\d{2}-\d{2}))?`)
 
 // parseChangelog returns the first n "## <version> — <date>" entries, each
-// summarised by its first bullet.
+// summarised by its first bullet (whole, markdown and all: SummaryText and
+// SummaryHTML clip or render it).
 func parseChangelog(text string, n int) []Release {
 	var rels []Release
 	var cur *Release
@@ -449,9 +520,6 @@ func parseChangelog(text string, n int) []Release {
 			inSummary = false
 		}
 	}
-	for i := range rels {
-		rels[i].Summary = clip(rels[i].Summary, 140)
-	}
 	return rels
 }
 
@@ -465,50 +533,53 @@ func clip(s string, n int) string {
 }
 
 // statusMarkdown is the text form of the page (status.md), for pasting as a
-// stand-up. Slugs, not titles, so the text still works with issue-cli.
+// stand-up. Slugs, not titles, so the text still works with issue-cli. It
+// follows the page: what needs the owner and what is running first, then
+// counts and groups; every list stops at a cap with "+K more" and, where one
+// exists, the issue-cli command that lists the rest.
 func statusMarkdown(m *StatusModel) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# %s status, %s\n\n", m.Project, m.AsOf.Format("2006-01-02 15:04"))
+	fmt.Fprintf(&b, "# %s status, %s\n", m.Project, m.AsOf.Format("2006-01-02 15:04"))
+	fmt.Fprintf(&b, "%d/%d done", m.All.Done, m.All.Total)
+	if ev := m.EpicsByArea; ev.Epics > 0 {
+		fmt.Fprintf(&b, " · %s in %s", plural(ev.Epics, "epic", "epics"), plural(ev.Areas, "area", "areas"))
+	}
+	b.WriteString("\n")
 
-	b.WriteString("## Where we are\n")
-	note := ""
-	if len(m.Versions) == 0 {
-		note = " (no versions set)"
+	fmt.Fprintf(&b, "\n## Waiting on you (%d)\n", m.WaitingCount())
+	if m.CI.Red() {
+		fmt.Fprintf(&b, "- Local CI red on %s since %s: %s (issue-cli ci status)\n", m.CI.Branch, m.CI.Sha, m.CI.Failed)
 	}
-	fmt.Fprintf(&b, "- All issues: %d/%d done%s\n", m.All.Done, m.All.Total, note)
-	for _, v := range m.Versions {
-		fmt.Fprintf(&b, "- Version %s: %d/%d done\n", v.Label, v.Done, v.Total)
+	if m.UnsentBugReports > 0 {
+		fmt.Fprintf(&b, "- %d issue-cli bug report(s) not sent (issue-cli report-bug --send)\n", m.UnsentBugReports)
 	}
-	if len(m.Epics) > 0 {
-		b.WriteString("- Epics:\n")
-		for _, e := range m.Epics {
-			fmt.Fprintf(&b, "  - %s (%s): %d/%d\n", e.Issue.Slug, e.Issue.Status, e.Progress.Done, e.Progress.Total)
+	for i, it := range m.Waiting {
+		if i == capMDList {
+			fmt.Fprintf(&b, "- +%d more on the Status page\n", len(m.Waiting)-i)
+			break
+		}
+		switch it.Kind {
+		case "gate":
+			fmt.Fprintf(&b, "- Approve %s: %s → %s\n", it.Issue.Slug, it.Issue.Status, it.Target)
+		case "playtest":
+			fmt.Fprintf(&b, "- Playtest %s: session %s, no judge run\n", it.Issue.Slug, strings.Join(it.Sessions, ", "))
+		case "question":
+			fmt.Fprintf(&b, "- Answer %s: open question: comment\n", it.Issue.Slug)
 		}
 	}
-
-	b.WriteString("\n## Recently shipped\n")
-	for _, r := range m.Releases {
-		date := ""
-		if r.Date != "" {
-			date = " (" + r.Date + ")"
-		}
-		fmt.Fprintf(&b, "- %s%s: %s\n", r.Version, date, r.Summary)
-	}
-	if len(m.DoneRecent) > 0 {
-		fmt.Fprintf(&b, "- Done in the last 7 days (%d):\n", len(m.DoneRecent))
-		for _, d := range m.DoneRecent {
-			fmt.Fprintf(&b, "  - %s\n", d.Issue.Slug)
-		}
-	}
-	if len(m.Releases) == 0 && len(m.DoneRecent) == 0 {
-		b.WriteString("- Nothing in the last 7 days\n")
+	if m.WaitingCount() == 0 {
+		b.WriteString("- Nothing\n")
 	}
 
 	b.WriteString("\n## Working on\n")
 	if m.LeadName != "" {
 		fmt.Fprintf(&b, "Lead: %s (%s)\n", m.LeadName, strings.ReplaceAll(m.LeadState, "-", " "))
 	}
-	for _, r := range m.Active {
+	for i, r := range m.Active {
+		if i == capMDList {
+			fmt.Fprintf(&b, "- +%d more on the Status page\n", len(m.Active)-i)
+			break
+		}
 		agent := "no agent"
 		if r.Agent != "" {
 			agent = "agent " + r.Agent
@@ -527,11 +598,42 @@ func statusMarkdown(m *StatusModel) string {
 	}
 	if len(m.InDesign) > 0 {
 		var parts []string
-		for _, c := range m.InDesign {
+		for i, c := range m.InDesign {
+			if i == capChips {
+				parts = append(parts, fmt.Sprintf("+%d more", len(m.InDesign)-i))
+				break
+			}
 			parts = append(parts, fmt.Sprintf("%s (%s)", c.Issue.Slug, c.State))
 		}
 		fmt.Fprintf(&b, "- Agents on issues not yet in progress: %s\n", strings.Join(parts, ", "))
 	}
+
+	if ms := m.Milestone; ms != nil {
+		fmt.Fprintf(&b, "\n## Current milestone %s: %d/%d done\n", ms.Version, ms.Progress.Done, ms.Progress.Total)
+		var parts []string
+		for _, sg := range ms.Legend {
+			parts = append(parts, fmt.Sprintf("%d %s", sg.Count, sg.Status))
+		}
+		if len(parts) > 0 {
+			fmt.Fprintf(&b, "- By status: %s\n", strings.Join(parts, ", "))
+		}
+		if len(ms.OpenAreas) > 0 {
+			fmt.Fprintf(&b, "- Open by area: %s\n", areaCountsLine(ms.OpenAreas, capMilestoneAreas))
+		}
+	} else {
+		b.WriteString("\n## Where we are\n")
+		note := ""
+		if len(m.Versions) == 0 {
+			note = " (no versions set)"
+		}
+		fmt.Fprintf(&b, "- All issues: %d/%d done%s\n", m.All.Done, m.All.Total, note)
+	}
+	ciMarkdown(&b, m.CI)
+	if m.ReleaseWait != nil {
+		releaseWaitMarkdown(&b, m.ReleaseWait, m.AsOf)
+	}
+
+	epicsMarkdown(&b, m.EpicsByArea)
 
 	b.WriteString("\n## Next\n")
 	if m.Next.Found {
@@ -540,8 +642,12 @@ func statusMarkdown(m *StatusModel) string {
 		b.WriteString("No ## Next section in the lead's handoff note.\n")
 	}
 	if len(m.Backlog) > 0 {
-		b.WriteString("Backlog:\n")
-		for _, issue := range m.Backlog {
+		fmt.Fprintf(&b, "Backlog (%d):\n", len(m.Backlog))
+		for i, issue := range m.Backlog {
+			if i == capNext {
+				fmt.Fprintf(&b, "- +%d more: issue-cli list --status backlog\n", len(m.Backlog)-i)
+				break
+			}
 			prio := issue.Priority
 			if prio == "" {
 				prio = "no priority"
@@ -552,25 +658,150 @@ func statusMarkdown(m *StatusModel) string {
 	if len(m.Parked) == 0 {
 		b.WriteString("Parked: none\n")
 	} else {
-		b.WriteString("Parked:\n")
-		for _, p := range m.Parked {
+		fmt.Fprintf(&b, "Parked (%d):\n", len(m.Parked))
+		for i, p := range m.Parked {
+			if i == capNext {
+				fmt.Fprintf(&b, "- +%d more: issue-cli list --status parked\n", len(m.Parked)-i)
+				break
+			}
 			fmt.Fprintf(&b, "- %s: %s\n", p.Issue.Slug, p.Reason)
 		}
 	}
 
-	fmt.Fprintf(&b, "\n## Waiting on you (%d)\n", len(m.Waiting))
-	for _, it := range m.Waiting {
-		switch it.Kind {
-		case "gate":
-			fmt.Fprintf(&b, "- Approve %s: %s → %s\n", it.Issue.Slug, it.Issue.Status, it.Target)
-		case "playtest":
-			fmt.Fprintf(&b, "- Playtest %s: session %s, no judge run\n", it.Issue.Slug, strings.Join(it.Sessions, ", "))
-		case "question":
-			fmt.Fprintf(&b, "- Answer %s: open question: comment\n", it.Issue.Slug)
+	fmt.Fprintf(&b, "\n## Recently shipped: %d in 7 days\n", len(m.DoneRecent))
+	for _, g := range m.Shipped {
+		var slugs []string
+		for i, d := range g.Rows {
+			if i == capShippedItems {
+				more := fmt.Sprintf("+%d more", len(g.Rows)-i)
+				if sys := g.Rows[0].Issue.System; !g.Merged && sys != "" {
+					more += " (issue-cli list --status done --system " + sys + ")"
+				}
+				slugs = append(slugs, more)
+				break
+			}
+			slugs = append(slugs, d.Issue.Slug)
 		}
+		fmt.Fprintf(&b, "- %s %d: %s\n", g.Area, len(g.Rows), strings.Join(slugs, ", "))
 	}
-	if len(m.Waiting) == 0 {
+	if len(m.DoneRecent) == 0 {
 		b.WriteString("- Nothing\n")
 	}
+
+	if len(m.Versions) > 0 {
+		b.WriteString("\n## Versions\n")
+		var parts []string
+		for i, v := range m.Versions {
+			if i == capVersions {
+				parts = append(parts, fmt.Sprintf("+%d more", len(m.Versions)-i))
+				break
+			}
+			cur := ""
+			if m.IsCurrent(v.Label) {
+				cur = " (current)"
+			}
+			parts = append(parts, fmt.Sprintf("%s %d/%d%s", v.Label, v.Done, v.Total, cur))
+		}
+		fmt.Fprintf(&b, "- %s\n", strings.Join(parts, " · "))
+	}
+
+	b.WriteString("\n## Recently released\n")
+	for _, r := range m.Releases {
+		date := ""
+		if r.Date != "" {
+			date = " (" + r.Date + ")"
+		}
+		fmt.Fprintf(&b, "- %s%s: %s\n", r.Version, date, r.SummaryText())
+	}
+	if len(m.Releases) == 0 {
+		b.WriteString("- None yet\n")
+	}
 	return b.String()
+}
+
+// ciMarkdown is the Local CI line, with what landed and the log tail when
+// red.
+func ciMarkdown(b *strings.Builder, c *CIRow) {
+	if c == nil {
+		return
+	}
+	fmt.Fprintf(b, "- Local CI: %s\n", c.Line)
+	if !c.Red() {
+		return
+	}
+	if len(c.Blamed) > 0 {
+		var slugs []string
+		for _, issue := range c.Blamed {
+			slugs = append(slugs, issue.Slug)
+		}
+		fmt.Fprintf(b, "  - Landed since green: %s\n", strings.Join(slugs, ", "))
+	}
+	if len(c.LogTail) > 0 {
+		tail := c.LogTail
+		if len(tail) > 20 {
+			tail = tail[len(tail)-20:]
+		}
+		fmt.Fprintf(b, "\n```\n%s\n```\n", strings.Join(tail, "\n"))
+	}
+}
+
+// epicsMarkdown is the Epics card for the current panel: one line per
+// active area with its epics, then the areas with nothing started on one
+// line.
+func epicsMarkdown(b *strings.Builder, ev EpicsView) {
+	p := ev.CurrentPanel()
+	if p == nil {
+		return
+	}
+	scope := ""
+	if p.Key != epicsAll {
+		scope = " (" + p.Key + ")"
+	}
+	var started, idle []AreaRow
+	for _, a := range p.Areas {
+		if a.Started() {
+			started = append(started, a)
+		} else {
+			idle = append(idle, a)
+		}
+	}
+	fmt.Fprintf(b, "\n## Epics%s: %d active, %d not started, in %s\n", scope, p.Active, p.NotStarted, plural(len(p.Areas), "area", "areas"))
+	for _, a := range started {
+		var parts []string
+		for i, e := range a.Epics {
+			if i == capMDAreaEpics {
+				parts = append(parts, fmt.Sprintf("+%d more", len(a.Epics)-i))
+				break
+			}
+			parts = append(parts, fmt.Sprintf("%s %d/%d", e.Issue.Slug, e.Progress.Done, e.Progress.Total))
+		}
+		fmt.Fprintf(b, "- %s %d/%d, %s: %s\n", a.Area, a.Progress.Done, a.Progress.Total, plural(len(a.Epics), "epic", "epics"), strings.Join(parts, ", "))
+	}
+	if len(idle) > 0 {
+		var parts []string
+		for i, a := range idle {
+			if i == capMDNotStarted {
+				parts = append(parts, fmt.Sprintf("+%d more areas", len(idle)-i))
+				break
+			}
+			parts = append(parts, fmt.Sprintf("%s 0/%d (%d)", a.Area, a.Progress.Total, len(a.Epics)))
+		}
+		fmt.Fprintf(b, "- Not started: %s\n", strings.Join(parts, ", "))
+	}
+	if len(ev.Panels) > 1 {
+		fmt.Fprintf(b, "- Other versions on the Status page's Version select; all versions: %s\n", plural(ev.Epics, "open epic", "open epics"))
+	}
+}
+
+// areaCountsLine is "campaign 14, ui 10, +4 areas".
+func areaCountsLine(areas []AreaCount, n int) string {
+	var parts []string
+	for i, a := range areas {
+		if i == n {
+			parts = append(parts, fmt.Sprintf("+%s", plural(len(areas)-i, "area", "areas")))
+			break
+		}
+		parts = append(parts, fmt.Sprintf("%s %d", a.Area, a.Count))
+	}
+	return strings.Join(parts, ", ")
 }

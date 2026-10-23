@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"sort"
@@ -32,7 +33,6 @@ Topics:
 For per-command help (flags, examples) run: issue-cli help <command>`,
 	Run:         runProcess,
 	Subcommands: processTopics,
-	ExtraFlags:  []string{"system", "workflow", "type"},
 }
 
 // processTopics are the canonical topic names normalizeTopic resolves to.
@@ -44,43 +44,73 @@ func init() {
 }
 
 func runProcess(ctx *Context, args []string) error {
-	topic := ""
+	// Every topic flag is known here, so a flag no topic takes is rejected
+	// wherever it appears; each topic then checks its own flags.
+	fs := newFlagSet("process", ctx)
+	fs.String("type", "", "type of work (workflow, transitions)")
+	fs.String("system", "", "system overlay (transitions)")
+	fs.String("workflow", "", "alias for --system (transitions)")
+	if err := parseFlagsArgs(ctx, fs, args); err != nil {
+		return err
+	}
+	topic, topicName := "", ""
 	var topicArgs []string
-	if len(args) > 0 {
-		topic = normalizeTopic(args[0])
-		topicArgs = args[1:]
+	if fs.NArg() > 0 {
+		topicName = fs.Arg(0)
+		topic = normalizeTopic(topicName)
+		topicArgs = withoutTopic(fs, args)
+	}
+	// Topics that print fixed text take no arguments.
+	static := func(text string) error {
+		if _, err := parsePositionals(ctx, "process "+topic, topicArgs, 0); err != nil {
+			return err
+		}
+		fmt.Fprint(ctx.Stdout, text)
+		return nil
 	}
 	switch topic {
 	case "", "all":
-		fmt.Fprint(ctx.Stdout, processOverviewText)
-		return nil
+		return static(processOverviewText)
 	case "workflow":
 		return runProcessWorkflow(ctx, topicArgs)
 	case "transitions":
 		return runProcessTransitions(ctx, topicArgs)
 	case "format":
-		fmt.Fprint(ctx.Stdout, processFormatText)
-		return nil
+		return static(processFormatText)
 	case "testing":
-		fmt.Fprint(ctx.Stdout, processTestingText)
-		return nil
+		return static(processTestingText)
 	case "playtest":
 		return runProcessPlaytest(ctx, topicArgs)
 	case "docs":
-		fmt.Fprint(ctx.Stdout, processDocsText)
-		return nil
-	case "systems":
-		return runProcessSystems(ctx)
-	case "schema":
-		return runProcessSchema(ctx)
-	case "changes":
+		return static(processDocsText)
+	case "systems", "schema", "changes":
+		if _, err := parsePositionals(ctx, "process "+topic, topicArgs, 0); err != nil {
+			return err
+		}
+		switch topic {
+		case "systems":
+			return runProcessSystems(ctx)
+		case "schema":
+			return runProcessSchema(ctx)
+		}
 		return runProcessChanges(ctx)
 	case "references":
-		fmt.Fprint(ctx.Stdout, processReferencesText)
-		return nil
+		return static(processReferencesText)
 	default:
-		return fmt.Errorf("unknown topic: %s\n\nAvailable topics: workflow, format, transitions, schema, changes, testing, playtest, docs, systems, references\nFor a specific command run: issue-cli help <command>  (e.g. issue-cli help transition)", args[0])
+		return fmt.Errorf("unknown topic: %s\n\nAvailable topics: workflow, format, transitions, schema, changes, testing, playtest, docs, systems, references\nFor a specific command run: issue-cli help <command>  (e.g. issue-cli help transition)", topicName)
 	}
+}
+
+// withoutTopic returns args minus the topic (the first positional), with
+// the flags kept for the topic's own parse.
+func withoutTopic(fs *flag.FlagSet, args []string) []string {
+	ordered := flagsFirst(fs, args)
+	for i, a := range ordered {
+		if a == "--" {
+			return append(append([]string{}, ordered[:i+1]...), ordered[i+2:]...)
+		}
+	}
+	return ordered
 }
 
 // normalizeTopic accepts singular/plural and a few legacy aliases so the bot
@@ -118,9 +148,14 @@ func runProcessWorkflow(ctx *Context, args []string) error {
 	if ctx.Project == nil {
 		return fmt.Errorf("process workflow needs a project — pass --project <slug> or run from a project root")
 	}
+	fs := newFlagSet("process workflow", ctx)
+	typeArg := fs.String("type", "", "show the lifecycle of one type of work")
+	if err := parseFlags(ctx, fs, args); err != nil {
+		return err
+	}
 	base := ctx.Project.LoadWorkflow()
 	wf := base
-	typeFlag := strings.TrimSpace(flagValue(args, "--type"))
+	typeFlag := strings.TrimSpace(*typeArg)
 	if typeFlag != "" {
 		if err := checkTypeFlag(base, typeFlag); err != nil {
 			return err
@@ -244,25 +279,24 @@ func runProcessTransitions(ctx *Context, args []string) error {
 		hasIssueRef  bool
 	)
 
-	systemFlag := flagValue(args, "--system")
-	workflowFlag := flagValue(args, "--workflow")
-	if systemFlag == "" {
-		systemFlag = workflowFlag
+	fs := newFlagSet("process transitions", ctx)
+	systemArg := fs.String("system", "", "scope the rules to a system overlay")
+	workflowArg := fs.String("workflow", "", "alias for --system")
+	typeArg := fs.String("type", "", "scope the rules to a type of work")
+	if err := parseFlagsArgs(ctx, fs, args); err != nil {
+		return err
 	}
-	typeFlag := strings.TrimSpace(flagValue(args, "--type"))
-
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if a == "--system" || a == "--workflow" || a == "--type" {
-			i++ // skip the flag's value
-			continue
-		}
-		if strings.HasPrefix(a, "--") {
-			continue
-		}
-		issueRef = a
+	if fs.NArg() > 1 {
+		return unexpectedArgError(fs, fs.Arg(1))
+	}
+	systemFlag := *systemArg
+	if systemFlag == "" {
+		systemFlag = *workflowArg
+	}
+	typeFlag := strings.TrimSpace(*typeArg)
+	if fs.NArg() == 1 {
+		issueRef = fs.Arg(0)
 		hasIssueRef = true
-		break
 	}
 	if typeFlag != "" {
 		if err := checkTypeFlag(wf, typeFlag); err != nil {
@@ -619,18 +653,6 @@ func maxNamedWidth(items []tracker.SchemaNamedDoc) int {
 		}
 	}
 	return w
-}
-
-// flagValue is a small ad-hoc lookup retained only for runProcessTransitions
-// because that command's positional/flag interleaving (issue-slug + --system)
-// is incompatible with FlagSet's strict flag-then-positional ordering.
-func flagValue(args []string, flag string) string {
-	for i, a := range args {
-		if a == flag && i+1 < len(args) {
-			return args[i+1]
-		}
-	}
-	return ""
 }
 
 const processOverviewText = `== AI Workflow Engine ==

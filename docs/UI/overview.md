@@ -191,29 +191,77 @@ workbench:
 
 ## Status page
 
-`/p/<project>/status` is the first sidebar entry. It answers "where are we" without asking the lead. It is read-only, and everything comes from repo files. `buildStatus` (`status.go`) holds the rules and is tested without HTTP.
+`/p/<project>/status` is the first sidebar entry. It answers "where are we" without asking the lead. It is read-only, and everything comes from repo files. `buildStatus` (`status.go`) holds the rules and is tested without HTTP; the grouping and the caps are in `status_groups.go`.
 
-- **Where we are:**
-  - an "All issues" done/total bar (side statuses such as parked are left out)
-  - a row per `version:` when any issue sets one
-  - open epics with their children's done/total
-- **What we are working on:**
-  - every issue from in progress up to (not including) done, with its agent state from the agents model and its time in status
+**Layout.** A row of three tiles, then three rows on one shared grid (`.status-grid`: `minmax(0,1fr) 320px`, gap 20 px), so the side column keeps the same width and edges down the page. A row whose side card is missing (no `ci:` block, nothing waiting for release) gives the main card the full width. Under 900 px everything is one column, in DOM order. What needs the owner or is running comes first.
+
+| Row | Main | Side (320 px) |
+|:--|:--|:--|
+| Tiles | Needs you · Working on · What's next (`status.strip`) | |
+| 1 | Current milestone | Local CI |
+| 2 | Epics | Waiting for release |
+| 3 | Recently shipped | Versions, Recently released |
+
+**Tiles** (D-6). Each of Needs you, Working on and What's next is a `<details class="status-pop">` (`status.<card>.pop`). Its summary shows the title, a count and one line (`NeedsSummary`: "7 to approve · 1 question"; `WorkingSummary`: "3 agents working · 9 without an agent · lead not running"; `NextSummary`: "the lead's ## Next · 8 backlog · 6 parked"). Needs you is amber while anything waits. Clicking a tile opens the full card in a panel positioned over the page (absolute, `z-index` 40, at most 70vh, scrolls), so nothing below moves. Only one is open at a time. A click outside, focus leaving it, or Escape folds it back. The open state is not saved.
+
+**Side cards fit their row** (D-7). In the rows under the milestone the main card sets the row's height (at least 240 px); the side column takes that height and adds none (`height: 0; min-height: 100%`), so there are no gaps. The last side card fills what is left; when space is short the cards above it shrink too, to 120 px at least. A card whose content doesn't fit is cut off (`overflow: clip`, so focus can't scroll it) under a fade and **Show all** (`status.<card>.fit`). That opens the whole card over the page (at most 80vh, scrolls), ending in **Show less**; a click outside, focus leaving it, or Escape folds it back. A `ResizeObserver` re-measures when a fold opens or the window resizes. On a phone the cards take their natural height.
+
+**Every list is capped** (the `cap…` constants in `status_groups.go`, read by the template as `.Cap`): it shows its first N rows, then the rest sit in a `<details class="status-more">` "+K more" that opens in place, without JS. The caps: Needs you 5 per kind, Working on 8, in-design agent chips 6, backlog and parked 5 each, epics per area 8, Versions 8, Unreleased 5, and the release-wait open list folds whole past 5 (10 rows inside, then "+K more"). The template splits a list with `head N list` / `rest N list` (`template_funcs.go`).
+
+**Remembered per project.** Every fold (`details[data-fold]`) and the Epics tab, version and text filter are kept in `localStorage` under `status:<project>` as `{tab, version, q, open}`. Every read and write is in try/catch; without storage the page uses the defaults (Active, the current milestone, no text, the server's open state). A `<details open>` fires `toggle` while it is parsed, so the script records the state it set in `data-was` and saves only a real click.
+
+- **Header:** "<project> · done/total done · N epics in K areas · as of …".
+- **Current milestone** (`status.milestone`, `MilestoneView`), the version Waiting for release cuts (`pickMilestone`):
+  - done/total and the percentage
+  - one bar split by status (`status.milestone.segment.<status>`): done green, then each open status furthest along first in its `statusColor`; the workflow's first status (idea) is the empty track
+  - a legend with counts, and "Open by area" chips (top 5, then "+N areas" with the rest in its tooltip)
+  - with no milestone (no `version:` set) the card is "Where we are": the All issues bar and the no-versions hint (`status.no_versions`)
+- **Epics** (`status.epics`, `EpicsView`): open epics grouped by **area**, the epic's `system` lower-cased (else its slug prefix, else `other`).
+  - One panel per version that has epic children (`status.epics.panel.<version>`), the current milestone first, then "all". A version's panel counts **only the children in that version** (D-3), so the area totals add up to the milestone's. The server renders every panel and hides all but the current one; the Version select swaps them.
+  - Tabs: **Active** (an epic with a done child; the default), **Not started**, **All**, with counts per panel. Under Active an area with nothing started stays as a folded row, so the page still shows what exists.
+  - The text filter matches area names, epic slugs and titles, and opens matching areas without saving that.
+  - Area rows (`status.epics.area.<area>`) show a chevron, a bar, done/total and the epic count; areas with progress come first (most done first) and start open, the rest by size, folded. Inside, epics are furthest along first.
+  - `status.md` shows the current panel: one line per active area with its epics (5), then the not-started areas on one line (8).
+- **Recently shipped** (`status.shipped`), on the same column grid as the Epics rows: issues that reached the final status in the last 7 days, grouped by area, largest first, with a bar per area. The largest group starts open with its newest 3 and "Show K more"; past 5 areas the rest merge into "N more areas". **Full list** links `/?status=done`.
+- **Versions** (`status.versions`): a bar per `version:`, the current milestone marked "· now".
+- **Recently released** (`status.released`): the newest 3 releases from the changelog (or git tags), each with its version in green mono, the date and the summary clamped to 3 lines. Summaries render their inline markdown (bold, code, links; raw HTML dropped) as `Release.SummaryHTML`; `status.md` and `status.json` get plain text (`SummaryText`, clipped at 140). With none: "No releases yet: vX.Y.0 will be the first".
+- **Working on** (`status.working`, in its tile's panel):
+  - every issue from in progress up to (not including) done: title, status chip, time in status and agent state from the agents model
   - the time is the stats sidecar's last transition into the status; without one it is the file's mtime, marked `≈`
   - the time turns amber at 7 days and red at 14
   - the project lead's state
   - chips for live agents on issues not yet in progress
-- **What's next:** the `## Next` section of the project lead's newest handoff note (`tracker.NewestHandoffNote`), rendered as markdown, with slugs in code spans linked to their issues. Then the backlog by priority, then parked issues with the first line of their `## Parked Record`.
-- **Waiting on you** (`waitingOnOwner` in `attention.go`, shared with the board markers and the system pages):
+- **What's next** (`status.next`, in its tile's panel): the `## Next` section of the project lead's newest handoff note (`tracker.NewestHandoffNote`), rendered as markdown, with slugs in code spans linked to their issues. Then the backlog by priority, then parked issues with the first line of their `## Parked Record`.
+- **Needs you** (`status.waiting`, in its tile's panel; `waitingOnOwner` in `attention.go`, shared with the board markers and the system pages), amber while anything waits, each gate with an amber Review button:
   - gates whose approval is the only unmet requirement (`WorkflowConfig.ReadyForApproval`, which skips `command_succeeds`)
   - human-testing issues with a playtest session (`issue: <slug>`) and no `-judge` run
   - issues whose newest comment starts with `question:`
+  - issue-cli bug reports queued on this machine because `report-bug` found no engine project (`status.waiting.cli_bugs`, `clibug.PendingCount`): one row naming the count and `issue-cli report-bug --send`, one more on the waiting count and the sidebar's Status number, and a line in `status.md`
   - a footer counts gates whose checklist is still open
   - the sidebar's Status count is the same number
-- **Recently shipped:** the newest 3 `## vX.Y.Z — date` entries of the changelog, then issues that reached the final status in the last 7 days.
+- **Local CI** (only with a `ci:` block; `ci_view.go`), in the side column beside Current milestone:
+  - a state chip (green, red, amber when CI can't run) and the one-liner `issue-cli ci status` prints
+  - **Last runs:** the last 12 default-tier runs as boxes, oldest first (`status.ci.run.<sha>`, `data-state`), with a dashed box for a live run; each tooltip has the commit, result, age, duration and what failed
+  - while red: the failing command and tests, the issues that landed since the last green run (and how many commits had no issue), the bugfix issue with `on_red: file_issue`, and the log tail in a `<details>`
+  - red CI is the first entry under Waiting on you (`status.waiting.ci`) and adds one to the waiting count and the sidebar's Status number; `status.md` gets a `Local CI:` line, the tail while red, and the waiting entry
+  - the same state gives the merged issues a red `ci-red` card marker (`markers.go`, `ciMarkers`), which done workboard cards get too
+- **Waiting for release** (`release_wait.go`), in the side column beside Epics:
+  - **Milestone:** the lowest issue `version:` after the newest released version (the top `## vX.Y.Z` changelog heading, else the newest git tag). `0.53` and `v0.53.0` compare equal. Parked issues don't count, and a version with only parked issues is skipped. With no release yet, it is the lowest version with an open issue. It shows done/total, its open issues (furthest along first, with status and assignee), and a chip: amber `vX.Y.0 not ready` or green `ready to cut`.
+  - **Checks** (`status.release_wait.check.<key>`, `data-ok`):
+    - `issues`: every milestone issue done.
+    - `ci`: only with a `ci:` block. Local CI is green and its green commit is the branch head, read from `.ci/state.json` (nothing re-runs). When it fails, a red second line says why (red since, head not tested yet, can't run, no run yet), with a link to the Local CI card.
+    - `changelog`: only with a changelog. At least one entry under `## Unreleased`.
+  - **Ready to cut vX.Y.0** (`status.release_wait.ready`), when every check passes: rename `## Unreleased` to `## vX.Y.0 — <today>` with a focus summary, then push with the owner's go-ahead.
+  - **Unreleased:** each top-level bullet under `## Unreleased` (wrapped lines joined, nested bullets left out, clipped at 140 characters), with a count. Hidden without a changelog, or when the changelog has no `## Unreleased` and there is no milestone.
+  - **Not pushed:** commits on the branch (`ci.branch`, else the checked-out one) that aren't on its upstream, and the age of the newest. Hidden without an upstream (or when it is gone). It costs one `git for-each-ref` per render (`gitBranchState`, a var for tests).
+  - **Folds:** past 5 open issues the list folds behind "N open: 1 in progress, 2 in design, …" (`status.release_wait.open.fold`), 10 rows inside, then "+K more"; Unreleased shows 5, then "+K more". Unreleased lines render their inline markdown.
+  - A row with no data is hidden; with nothing to show, the card is hidden. `status.md` gets a `## Waiting for release` block after the current milestone, with the verdict and reasons on the milestone line, the open list capped at 10 with `+K more: issue-cli list --version <v> --status open`.
+- **Where releases come from:**
   - The changelog is `workbench.changelog` in `workflow.yaml` (relative to the project root), or `CHANGELOG.md` when that exists.
   - Without either, the page lists the newest 3 git tags.
   - This repo sets `workbench.changelog: cmd/issue-cli/CHANGELOG.md`.
+
+**`status.md`** follows the page, for the lead and for pasting as a stand-up: the summary line, `## Waiting on you`, `## Working on`, `## Current milestone` (by status, open by area, the Local CI line) or `## Where we are`, `## Waiting for release`, `## Epics (<version>)`, `## Next`, `## Recently shipped: N in 7 days` (one line per area: newest 3 slugs, then `+K more (issue-cli list --status done --system <S>)`), `## Versions` (one line) and `## Recently released`. Every list stops at its cap (10 for Waiting on you, Working on and the open list) with "+K more" and, where one exists, the `issue-cli list` command for the rest.
 
 **Copy as markdown** fetches `status.md` onto the clipboard and shows "✓ Copied" for 2 s. Without a clipboard (plain http on another host) it opens `status.md` instead.
 
@@ -226,7 +274,7 @@ With `workbench.status_page` or `workbench.pages` in `workflow.yaml`, the viewer
   - A missing file or a bad path shows the `page.missing` card in place of the iframe.
 - **Sidebar:** `Nav.Pages` render as `.nav-sub` rows right after Status (`nav.page.<n>`); the active one is highlighted and Status is not.
 - **Refresh:** the frame polls `/hash`. When its `pages` value changes, the frame reloads only the iframe and shows "· reloaded" (`page.source.reloaded`). When `hash` changes, it re-posts the status.
-- **Origin guard:** `handleProjectRoutes` answers 403 to any non-GET/HEAD request with `Origin: null`.
+- **Origin guard:** `sameOriginOnly` (`origin.go`) answers 403 to any non-GET/HEAD request from another origin, `Origin: null` included, so a page may read but never write.
 
 ## Issues canvas
 
@@ -243,6 +291,12 @@ With `workbench.status_page` or `workbench.pages` in `workflow.yaml`, the viewer
     - "No epic" is the last row. A card whose `parent:` matches no issue lands there with an "unknown parent" marker.
     - Parent cycles list each epic once.
   - `system` gives one row per `system:`, with "No system" last. Epics appear as cards, and every card under an epic carries a **⧉ <epic>** badge.
+- **Folding:** every lane, in both row modes, starts folded: the header shrinks to three lines (title on one line), and each cell shows a count per open status (coloured dot, workflow order) and one "✓ n" for closed cards instead of the cards.
+  - A click anywhere on a lane head but its title link (or the ▸/▾ button) unfolds or folds it. **Expand all** / **Fold all** sit in the toolbar.
+  - Open lanes go in `?open=<key>,<key>` (lane keys: epic slug, `no epic`, or the system) via `history.replaceState` and the toolbar's hidden `open` field, so a reload or a toolbar change keeps them. The server drops keys that match no lane.
+  - The pan starts capturing the pointer only after it moves 4px, so a plain click reaches the head and a drag pans without folding.
+- **Epic filter** (`?epic=<slug>`, epic rows only): the toolbar's **Epic** select lists every epic in lane order, sub-epics indented. Picking one shows its lane and its sub-epics, unfolded, without "No epic". Folding there is not written to the URL, and **All** brings every lane back folded.
+- **Toolbar changes** submit through `submit()`, which leaves empty fields out of the URL.
 - **Highlight** comes from `?hl=<epic slug>`, a row's Highlight button, or a card's badge. It rings the epic's cards and sorts them first, fades the rest, and shows a "Highlight ⧉ <epic> ×" chip.
   - Client-side changes are mirrored into the URL with `history.replaceState`, and `data-order` restores the original card order when the highlight is cleared.
   - An epic's detail page links to `/canvas?hl=<slug>` ("View on canvas").
@@ -251,7 +305,7 @@ With `workbench.status_page` or `workbench.pages` in `workflow.yaml`, the viewer
   - The function has no canvas-specific names, so another map view can reuse it.
   - Nothing is saved: the layout is always computed.
 - **Parent lookup** is `epicParentSlug` (`parent:`, then `umbrella:`). Swap it for `tracker.ParentSlug` once the lead-engineer branch lands.
-- **Test ids** are `canvas.*`: lanes are keyed by epic slug, `no_epic` or the system; columns and cells by version (`0_1`, `no_version`). The playtest sessions are `playtest/sessions/canvas-basics.yaml` and `canvas-phone.yaml`, on the `canvas` scenario.
+- **Test ids** are `canvas.*`: lanes are keyed by epic slug, `no_epic` or the system; columns and cells by version (`0_1`, `no_version`). The playtest sessions are `playtest/sessions/canvas-basics.yaml` (its steps click Expand all first), `canvas-fold.yaml` and `canvas-phone.yaml`, on the `canvas` scenario.
 
 ## Metrics view
 
@@ -318,6 +372,15 @@ A UI issue's manual checks are written as a playtest session (`playtest/sessions
 - **The id list:** every id or pattern (`*` any one segment, `#` an index) goes in `internal/testids/testids.go`. `TestTemplateTestIDs` fails when templates and that list drift apart, and `make playtest-check` rejects session targets that aren't listed.
 - **Containers:** label containers too (`nav.sidebar`, `board.filters`). A session's `layout_ignore` on a container waives a known layout bug inside it.
 - **Known bug:** at phone width (390px) the page headers and the board filter bar don't wrap. Sessions waive them with `layout_ignore`.
+
+## Stale body saves
+
+A checkbox click and the editor's **Save** on `/issue/<slug>` post the whole body (`{"body": …}` to `POST /issue/<slug>`). An agent or the CLI may have written the file since the page loaded (a transition appending `## Documentation`, say), and posting the page's copy would erase that. So the page sends `base_body_hash`, the hash of the body it started from (`data-body-hash` on `detail.body.textarea`, `tracker.BodyHash`):
+
+- The server compares it with the file's body under the issue lock (`tracker.UpdateIssueFrontmatterIfBody`). When they differ it writes nothing and answers 409 with "This issue changed since the page loaded …", shown as a red toast.
+- A refused checkbox click is undone and the page reloads after the toast. A refused Save keeps the text in the editor so it can be copied.
+- A successful save returns `body_hash`; the page keeps it, so clicks in a row keep saving.
+- A body write without `base_body_hash` (a script, an older page) is applied as before.
 
 ## Detail Sidebar Toggles
 

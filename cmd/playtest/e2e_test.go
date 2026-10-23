@@ -261,7 +261,7 @@ func TestStylesAppliedCatchesV048(t *testing.T) {
 	if len(v) == 0 {
 		t.Fatal("v0.48.0 style.css: styles_applied found nothing")
 	}
-	if !strings.Contains(strings.Join(shapes, "\n"), "beside [status.where, status.waiting]") {
+	if !strings.Contains(strings.Join(shapes, "\n"), "beside [status.waiting.pop, status.working.pop]") {
 		t.Errorf("v0.48.0 style.css: want the two-column check to fail, failed: %v", shapes)
 	}
 	if !strings.Contains(v[0].Detail, "has no CSS rule active at 1440x900") {

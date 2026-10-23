@@ -56,8 +56,8 @@ Each step at each viewport starts a fresh scenario:
 
 - **Its own project:** a temp dir under `/tmp/pt-…`, with a marker file in
   it. The fixtures are copied into `proj/issues/` and committed to a new git
-  repo. Fixtures live under `tracker/`, never under `issues/`, because the
-  sparse-checkout rule `!issues/` would hide them in dispatched worktrees.
+  repo. Fixtures live under `tracker/`, never under `issues/`, so they never
+  read as a real issues tree.
 - **Files beside the issues:** with `root: <folder>` in `scenario.yaml`,
   that folder is copied into the project root as is: `sessions/` handoff
   notes, a `CHANGELOG.md`, `playtest/sessions/` and `.playtest/runs/`
@@ -67,7 +67,8 @@ Each step at each viewport starts a fresh scenario:
   checkout, once per run, and put first on `PATH`.
 - **Its own board:** on a free port.
 - **Its own environment:**
-  - `HOME` and the XDG dirs point into the temp dir.
+  - `HOME` and the XDG dirs point into the temp dir, so the scenario
+    viewer's `viewer.json` never replaces the real one.
   - `ISSUE_VIEWER_CONFIG` is the scenario's config.
   - `TMUX` is unset, and `TMUX_TMPDIR` is a private dir that also holds a
     marker. tmux calls refuse to run without the marker, and teardown's
@@ -127,6 +128,7 @@ branches:
 
 - **Fixed commit dates:** scenario commits get fixed dates, an hour apart from 2026-10-01 12:00 UTC, so shas and dates match between runs and `REPEAT=2` passes.
 - **Worktrees** are excluded from the project's own commits.
+- **Upstream:** `upstream: <branch>` makes main track that branch (`git branch -u`), so views that compare main with its upstream have one. Create the branch with `from: main~N` to leave main N commits ahead. Example: `playtest/scenarios/release/`.
 - **Example:** `playtest/scenarios/metrics/` (the Metrics view).
 
 ## The runner (cmd/playtest)

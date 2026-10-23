@@ -1,7 +1,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"io"
+	"os"
 	"sort"
 	"strings"
 )
@@ -44,6 +47,9 @@ func runHelp(ctx *Context, args []string) error {
 	// Resolve as a command name or alias next so `help transition` describes
 	// the command rather than rejecting the singular form of the topic.
 	if cmd := lookupCommand(name); cmd != nil && name != "help" {
+		if _, err := parsePositionals(ctx, "help", args[1:], 0); err != nil {
+			return err
+		}
 		return printCommandHelp(ctx, cmd, name)
 	}
 	return runProcess(ctx, args)
@@ -83,7 +89,75 @@ func printCommandHelp(ctx *Context, cmd *Command, requested string) error {
 		fmt.Fprintln(w)
 		fmt.Fprintf(w, "Related topic: issue-cli help %s\n", related)
 	}
+	printCommandFlags(w, cmd)
 	return nil
+}
+
+// printCommandFlags lists the flags cmd parses (per subcommand when it has
+// any), read from its FlagSet in introspection mode so the list can't drift
+// from the code.
+func printCommandFlags(w io.Writer, cmd *Command) {
+	issueDir, err := os.MkdirTemp("", "issue-cli-help-")
+	if err != nil {
+		return
+	}
+	defer os.RemoveAll(issueDir)
+	subs := []string{""}
+	if hasFlagSubcommands(cmd) {
+		subs = cmd.Subcommands
+	}
+	for _, sub := range subs {
+		fs, _ := introspectFlagSet(cmd, sub, issueDir)
+		var lines []string
+		if fs != nil {
+			fs.VisitAll(func(f *flag.Flag) {
+				typ, usage := flag.UnquoteUsage(f)
+				name := "--" + f.Name
+				if typ != "" {
+					name += " <" + typ + ">"
+				}
+				lines = append(lines, fmt.Sprintf("  %-24s %s", name, usage))
+			})
+		}
+		for _, extra := range cmd.ExtraFlags {
+			if sub == "" {
+				lines = append(lines, fmt.Sprintf("  %-24s (repeatable)", "--"+extra+" <value>"))
+			}
+		}
+		if len(lines) == 0 {
+			continue
+		}
+		fmt.Fprintln(w)
+		if sub == "" {
+			fmt.Fprintln(w, "Flags:")
+		} else {
+			fmt.Fprintf(w, "Flags (%s %s):\n", cmd.Name, sub)
+		}
+		for _, l := range lines {
+			fmt.Fprintln(w, l)
+		}
+	}
+}
+
+// hasFlagSubcommands reports whether cmd's Subcommands each parse their own
+// flags (data, ci, lead…), as opposed to help/process topics.
+func hasFlagSubcommands(cmd *Command) bool {
+	return len(cmd.Subcommands) > 0 && cmd.Name != "help" && cmd.Name != "process"
+}
+
+// wantsHelp reports whether args ask for help: -h, -help or --help anywhere
+// before a "--". It runs before project resolution, so `<cmd> --help` works
+// without a project and never reads --help as a slug or as text.
+func wantsHelp(args []string) bool {
+	for _, a := range args {
+		switch a {
+		case "--":
+			return false
+		case "-h", "--h", "-help", "--help":
+			return true
+		}
+	}
+	return false
 }
 
 // aliasesFor returns every alias that resolves to the given canonical command

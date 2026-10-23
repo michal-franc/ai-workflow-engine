@@ -2,6 +2,9 @@ package tracker
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
@@ -31,7 +35,7 @@ var knownFrontmatterFields = map[string]bool{
 	"labels": true, "priority": true, "assignee": true,
 	"human_approval": true, "approved_for": true, "queued_approval": true,
 	"started_at": true, "done_at": true, "created": true,
-	"number": true, "repo": true,
+	"number": true, "repo": true, "slug": true,
 }
 
 func formatFieldLabel(key string) string {
@@ -104,6 +108,10 @@ type Issue struct {
 	Created        string   `yaml:"created"`
 	Number         int      `yaml:"number"`
 	Repo           string   `yaml:"repo"`
+	// SlugPin is the `slug:` field. When set it names the issue instead of
+	// its title, so a retitle (update --title) keeps the slug and every
+	// reference to it.
+	SlugPin string `yaml:"slug"`
 
 	// Type is the `type:` frontmatter value (type of work: feature, tweak, …).
 	// Read from the raw map rather than decoded so a non-scalar `type:` in a
@@ -142,6 +150,9 @@ func ParseIssue(filename string, data []byte) (*Issue, error) {
 	issue.BodyHTML = buf.String()
 
 	issue.Slug = Slugify(issue.Title)
+	if pin := Slugify(issue.SlugPin); pin != "" {
+		issue.Slug = pin
+	}
 
 	issue.Status = strings.ToLower(strings.TrimSpace(issue.Status))
 	issue.Priority = strings.ToLower(strings.TrimSpace(issue.Priority))
@@ -307,6 +318,33 @@ type IssueUpdate struct {
 	Labels         []string          `json:"labels,omitempty"`
 	Body           *string           `json:"body,omitempty"`
 	ExtraFields    map[string]string `json:"extra_fields,omitempty"`
+	// Slug pins the slug (slug:); "" removes the pin.
+	Slug *string `json:"slug,omitempty"`
+}
+
+// BaseSlug is the issue's slug without its subdirectory prefix: the part a
+// slug: pin or the file name holds.
+func BaseSlug(issue *Issue) string {
+	return issue.Slug[strings.LastIndex(issue.Slug, "/")+1:]
+}
+
+// RetitleUpdate builds the update that sets issue's title to title. By
+// default the slug is kept: when the new title would give a different slug
+// and the issue has no pin yet, the current slug is pinned with slug:.
+// With rename the pin is removed so the slug follows the new title.
+func RetitleUpdate(issue *Issue, title string, rename bool) IssueUpdate {
+	u := IssueUpdate{Title: &title}
+	switch {
+	case rename:
+		if issue.SlugPin != "" {
+			empty := ""
+			u.Slug = &empty
+		}
+	case issue.SlugPin == "" && Slugify(title) != BaseSlug(issue):
+		pin := BaseSlug(issue)
+		u.Slug = &pin
+	}
+	return u
 }
 
 func AppendIssueBody(body, text string) (string, bool, error) {
@@ -362,6 +400,7 @@ func AppendIssueBody(body, text string) (string, bool, error) {
 }
 
 func AppendIssueBodyToSection(body, section, text string, force bool) (string, bool, error) {
+	text = stripLeadingHeading(text, section)
 	matches := findHeadingMatches(body, section)
 	if len(matches) > 1 && !force {
 		var labels []string
@@ -381,6 +420,18 @@ func AppendIssueBodyToSection(body, section, text string, force bool) (string, b
 
 	nextBody, changed := appendToSection(body, section, text)
 	return nextBody, changed, nil
+}
+
+// stripLeadingHeading drops text's first non-blank line when it is a heading
+// titled section, so `append --section X` with a body that opens with "## X"
+// does not write the heading a second time.
+func stripLeadingHeading(text, section string) string {
+	trimmed := strings.TrimLeft(text, " \t\r\n")
+	first, rest, _ := strings.Cut(trimmed, "\n")
+	if _, title, ok := parseHeadingLine(first); ok && normalizeHeadingKey(title) == normalizeHeadingKey(section) {
+		return rest
+	}
+	return text
 }
 
 // ReplaceIssueBodySection replaces the content of an existing section with text.
@@ -481,25 +532,8 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 	fmRaw := parts[0]
 	body := parts[1]
 
-	setScalar := func(fm, key, value string) string {
-		re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `:.*$`)
-		newLine := key + `: "` + value + `"`
-		if re.MatchString(fm) {
-			return re.ReplaceAllString(fm, newLine)
-		}
-		return strings.TrimRight(fm, "\n") + "\n" + newLine + "\n"
-	}
-
-	removeField := func(fm, key string) string {
-		re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `:.*\n?`)
-		fm = re.ReplaceAllString(fm, "")
-		reList := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `:\s*\n([ \t]+-[^\n]*\n?)*`)
-		fm = reList.ReplaceAllString(fm, "")
-		return fm
-	}
-
 	setLabels := func(fm string, labels []string) string {
-		fm = removeField(fm, "labels")
+		fm = removeFrontmatterKey(fm, "labels")
 		if len(labels) == 0 {
 			return fm
 		}
@@ -512,63 +546,70 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 	}
 
 	if update.Title != nil {
-		fmRaw = setScalar(fmRaw, "title", *update.Title)
+		fmRaw = setFrontmatterScalar(fmRaw, "title", *update.Title)
 	}
 	if update.Status != nil {
-		fmRaw = setScalar(fmRaw, "status", *update.Status)
+		fmRaw = setFrontmatterScalar(fmRaw, "status", *update.Status)
 	}
 	if update.Priority != nil {
 		if *update.Priority == "" {
-			fmRaw = removeField(fmRaw, "priority")
+			fmRaw = removeFrontmatterKey(fmRaw, "priority")
 		} else {
-			fmRaw = setScalar(fmRaw, "priority", *update.Priority)
+			fmRaw = setFrontmatterScalar(fmRaw, "priority", *update.Priority)
 		}
 	}
 	if update.Version != nil {
 		if *update.Version == "" {
-			fmRaw = removeField(fmRaw, "version")
+			fmRaw = removeFrontmatterKey(fmRaw, "version")
 		} else {
-			fmRaw = setScalar(fmRaw, "version", *update.Version)
+			fmRaw = setFrontmatterScalar(fmRaw, "version", *update.Version)
 		}
 	}
 	if update.Assignee != nil {
 		if *update.Assignee == "" {
-			fmRaw = removeField(fmRaw, "assignee")
+			fmRaw = removeFrontmatterKey(fmRaw, "assignee")
 		} else {
-			fmRaw = setScalar(fmRaw, "assignee", *update.Assignee)
+			fmRaw = setFrontmatterScalar(fmRaw, "assignee", *update.Assignee)
 		}
 	}
 	if update.HumanApproval != nil {
-		fmRaw = removeField(fmRaw, "approved_for")
+		fmRaw = removeFrontmatterKey(fmRaw, "approved_for")
 		if *update.HumanApproval == "" {
-			fmRaw = removeField(fmRaw, "human_approval")
+			fmRaw = removeFrontmatterKey(fmRaw, "human_approval")
 		} else {
-			fmRaw = setScalar(fmRaw, "human_approval", *update.HumanApproval)
+			fmRaw = setFrontmatterScalar(fmRaw, "human_approval", *update.HumanApproval)
 		}
 	}
 	if update.QueuedApproval != nil {
 		if *update.QueuedApproval == "" {
-			fmRaw = removeField(fmRaw, "queued_approval")
+			fmRaw = removeFrontmatterKey(fmRaw, "queued_approval")
 		} else {
-			fmRaw = setScalar(fmRaw, "queued_approval", *update.QueuedApproval)
+			fmRaw = setFrontmatterScalar(fmRaw, "queued_approval", *update.QueuedApproval)
 		}
 	}
 	if update.StartedAt != nil {
 		if *update.StartedAt == "" {
-			fmRaw = removeField(fmRaw, "started_at")
+			fmRaw = removeFrontmatterKey(fmRaw, "started_at")
 		} else {
-			fmRaw = setScalar(fmRaw, "started_at", *update.StartedAt)
+			fmRaw = setFrontmatterScalar(fmRaw, "started_at", *update.StartedAt)
 		}
 	}
 	if update.DoneAt != nil {
 		if *update.DoneAt == "" {
-			fmRaw = removeField(fmRaw, "done_at")
+			fmRaw = removeFrontmatterKey(fmRaw, "done_at")
 		} else {
-			fmRaw = setScalar(fmRaw, "done_at", *update.DoneAt)
+			fmRaw = setFrontmatterScalar(fmRaw, "done_at", *update.DoneAt)
 		}
 	}
 	if update.Labels != nil {
 		fmRaw = setLabels(fmRaw, update.Labels)
+	}
+	if update.Slug != nil {
+		if *update.Slug == "" {
+			fmRaw = removeFrontmatterKey(fmRaw, "slug")
+		} else {
+			fmRaw = setFrontmatterScalar(fmRaw, "slug", *update.Slug)
+		}
 	}
 
 	if len(update.ExtraFields) > 0 {
@@ -606,6 +647,51 @@ func updateIssueFrontmatterLocked(filePath string, update IssueUpdate) error {
 		return fmt.Errorf("stat %s: %w", filePath, err)
 	}
 	return writeFileAtomically(filePath, []byte(out.String()), info.Mode().Perm())
+}
+
+// BodyHash fingerprints an issue body (as in Issue.BodyRaw) so a writer
+// holding an older copy can be refused.
+func BodyHash(body string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(body)))
+	return hex.EncodeToString(sum[:8])
+}
+
+// ErrStaleBody marks a body write refused because the file's body is no
+// longer the one the writer started from.
+var ErrStaleBody = errors.New("issue body changed since it was read")
+
+// UpdateIssueFrontmatterIfBody is UpdateIssueFrontmatter that first checks,
+// under the issue lock, that the file's body still hashes to baseHash
+// (ErrStaleBody otherwise). It returns the hash of the body as written.
+func UpdateIssueFrontmatterIfBody(filePath, baseHash string, update IssueUpdate) (string, error) {
+	var written string
+	err := withIssueLock(filePath, func() error {
+		current, err := readIssueBodyHash(filePath)
+		if err != nil {
+			return err
+		}
+		if current != baseHash {
+			return ErrStaleBody
+		}
+		if err := updateIssueFrontmatterLocked(filePath, update); err != nil {
+			return err
+		}
+		written, err = readIssueBodyHash(filePath)
+		return err
+	})
+	return written, err
+}
+
+func readIssueBodyHash(filePath string) (string, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("reading %s: %w", filePath, err)
+	}
+	issue, err := ParseIssue(filepath.Base(filePath), data)
+	if err != nil {
+		return "", err
+	}
+	return BodyHash(issue.BodyRaw), nil
 }
 
 func UpdateIssueFrontmatter(filePath string, update IssueUpdate) error {
@@ -660,17 +746,27 @@ var ProtectedFrontmatterFields = map[string]bool{
 
 var frontmatterKeyRe = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
+// yamlScalarEscaper keeps a double-quoted scalar on one line: the frontmatter
+// writers edit line by line, so a raw newline would split the value.
+var yamlScalarEscaper = strings.NewReplacer(
+	`\`, `\\`,
+	`"`, `\"`,
+	"\n", `\n`,
+	"\r", `\r`,
+	"\t", `\t`,
+)
+
 func escapeYAMLScalar(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `"`, `\"`)
-	return s
+	return yamlScalarEscaper.Replace(s)
 }
 
+// setFrontmatterScalar is the one writer for scalar frontmatter keys. The
+// replacement is literal so `$1` or `${x}` in a value is not expanded.
 func setFrontmatterScalar(fm, key, value string) string {
 	re := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(key) + `:.*$`)
 	newLine := key + `: "` + escapeYAMLScalar(value) + `"`
 	if re.MatchString(fm) {
-		return re.ReplaceAllString(fm, newLine)
+		return re.ReplaceAllLiteralString(fm, newLine)
 	}
 	return strings.TrimRight(fm, "\n") + "\n" + newLine + "\n"
 }
@@ -982,6 +1078,31 @@ type CheckboxItem struct {
 	ID string
 }
 
+// Label is the box's text for display next to its id: a leading copy of
+// the id that the author wrote into the text ("MV1: …") is dropped so the
+// box doesn't read "MV1 [ ] MV1: …". The body is never changed.
+func (it CheckboxItem) Label() string {
+	return StripCheckboxID(it.ID, it.Text)
+}
+
+// StripCheckboxID returns text without a leading copy of id (any case)
+// followed by a separator (space, ":", ".", ")", "-", "–", "—"). Text that
+// is only the id, or that starts with another box's id, is returned as is.
+func StripCheckboxID(id, text string) string {
+	if id == "" || len(text) <= len(id) || !strings.EqualFold(text[:len(id)], id) {
+		return text
+	}
+	const seps = " \t:.)-–—"
+	rest := text[len(id):]
+	if r, _ := utf8.DecodeRuneInString(rest); !strings.ContainsRune(seps, r) {
+		return text
+	}
+	if r := strings.TrimLeft(rest, seps); r != "" {
+		return r
+	}
+	return text
+}
+
 // ListCheckboxes enumerates every checkbox in body, skipping those inside
 // fenced code blocks (illustrative quotes, not workflow state). Index is
 // 1-based and resets at each "## " section heading, matching the section
@@ -1064,6 +1185,30 @@ func CheckByIndex(body, section string, index int) (newBody string, item Checkbo
 	lines := strings.Split(body, "\n")
 	lines[target.Line] = strings.Replace(lines[target.Line], "- [ ]", "- [x]", 1)
 	return strings.Join(lines, "\n"), *target, false, true
+}
+
+// EditCheckboxText replaces the text of the box ref names (short "D3" or
+// long "Design#3", as ResolveCheckboxRef reads them), keeping its tick state
+// and indentation. A leading copy of the box's own id in text is dropped.
+// Returns the new body and the box as it was.
+func EditCheckboxText(body, ref, text string) (string, CheckboxItem, error) {
+	items := ListCheckboxes(body)
+	item, st := ResolveCheckboxRef(items, ref)
+	if st != RefFound {
+		var ids []string
+		for _, it := range items {
+			if it.ID != "" {
+				ids = append(ids, it.ID)
+			}
+		}
+		return body, CheckboxItem{}, fmt.Errorf("no checkbox %q; ids in this issue: %s", ref, strings.Join(ids, " "))
+	}
+	text = StripCheckboxID(item.ID, strings.TrimSpace(text))
+	lines := strings.Split(body, "\n")
+	line := lines[item.Line]
+	marker := strings.Index(line, "- [")
+	lines[item.Line] = line[:marker+len("- [ ]")] + " " + text
+	return strings.Join(lines, "\n"), item, nil
 }
 
 // MatchUncheckedByText returns every unchecked checkbox whose label contains

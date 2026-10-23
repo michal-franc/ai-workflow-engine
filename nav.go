@@ -161,7 +161,14 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 		item := NavItem{Key: v.Key, Label: v.Label, Href: prefix + v.Path, Active: v.Key == active}
 		switch v.Key {
 		case "status":
-			if n := len(waitingOnOwner(proj, openIssues)); n > 0 {
+			n := len(waitingOnOwner(proj, openIssues))
+			if ciRedState(proj) != nil {
+				n++
+			}
+			if unsentBugReports() > 0 {
+				n++
+			}
+			if n > 0 {
 				item.Note, item.Attention = fmt.Sprint(n), true
 			}
 		case "systems":

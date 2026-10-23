@@ -13,10 +13,12 @@ import (
 // CanvasOptions is the toolbar state of the issues canvas, read from the
 // query string so a view can be linked.
 type CanvasOptions struct {
-	Rows          string // "epic" (default) or "system"
-	CollapseDone  bool   // ?done=collapse
-	ShowNoVersion bool   // ?nover=1
-	Highlight     string // ?hl=<epic slug>
+	Rows          string   // "epic" (default) or "system"
+	CollapseDone  bool     // ?done=collapse
+	ShowNoVersion bool     // ?nover=1
+	Highlight     string   // ?hl=<epic slug>
+	Open          []string // ?open=<key>,<key>: unfolded lanes
+	Epic          string   // ?epic=<epic slug>: only that epic and its sub-epics (epic rows)
 }
 
 // CanvasData is the issues canvas view model: version columns × epic or
@@ -33,6 +35,8 @@ type CanvasData struct {
 	NoVersionForced bool // no issue has a version: the column is always shown
 	HiddenNoVersion int  // issues hidden because they have no version
 	HighlightName   string
+	OpenKeys        string             // the unfolded lanes for the toolbar's hidden open field
+	EpicChoices     []CanvasEpicChoice // the Epic filter's options, in lane order
 
 	Columns []CanvasColumn
 	Lanes   []CanvasLane
@@ -44,6 +48,12 @@ type CanvasColumn struct {
 	Progress string
 	Bar      []CanvasSegment
 	Extra    string
+}
+
+// CanvasEpicChoice is one option of the Epic filter; sub-epics are indented.
+type CanvasEpicChoice struct {
+	Slug  string
+	Label string
 }
 
 // CanvasSegment is one status's share of a progress bar.
@@ -67,6 +77,7 @@ type CanvasLane struct {
 	Bar         []CanvasSegment
 	Epics       string // space-separated epic slugs the lane holds, for highlight
 	Lit         bool
+	Open        bool // cards shown; a folded lane shows each cell's counts
 
 	// Note replaces the cells when an epic has nothing to show.
 	Note          string
@@ -80,6 +91,11 @@ type CanvasCell struct {
 	Cards  []CanvasCard
 	Closed string // "17 done · 20 obsolete" when closed cards are collapsed
 	Empty  bool
+
+	// Fold is the folded lane's summary: a count per open status in
+	// workflow order, then every closed card as one ✓ count.
+	Fold       []CanvasSegment
+	FoldClosed int
 }
 
 // CanvasCard is one issue on the canvas.
@@ -109,6 +125,12 @@ func (s *Server) handleCanvas(w http.ResponseWriter, r *http.Request, proj *trac
 		CollapseDone:  q.Get("done") == "collapse",
 		ShowNoVersion: q.Get("nover") == "1",
 		Highlight:     q.Get("hl"),
+		Epic:          q.Get("epic"),
+	}
+	for _, k := range strings.Split(q.Get("open"), ",") {
+		if k = strings.TrimSpace(k); k != "" {
+			opts.Open = append(opts.Open, k)
+		}
 	}
 
 	data := buildCanvas(issues, proj.LoadWorkflow(), opts)
@@ -332,6 +354,33 @@ func (cs *canvasStatuses) sideCounts(items []*tracker.Issue) string {
 	return strings.Join(parts, " · ")
 }
 
+// fold counts items per open status in workflow order (statuses outside the
+// workflow last, by name) and returns the closed ones as a single count.
+func (cs *canvasStatuses) fold(items []*tracker.Issue) ([]CanvasSegment, int) {
+	counts := map[string]int{}
+	closed := 0
+	for _, it := range items {
+		if cs.closed(it.Status) {
+			closed++
+		} else {
+			counts[statusKey(it.Status)]++
+		}
+	}
+	keys := sortedKeys(counts)
+	sort.SliceStable(keys, func(i, j int) bool {
+		pi, pj := cs.pos(keys[i]), cs.pos(keys[j])
+		if (pi < 0) != (pj < 0) {
+			return pj < 0
+		}
+		return pi < pj
+	})
+	var segs []CanvasSegment
+	for _, k := range keys {
+		segs = append(segs, CanvasSegment{Status: k, Count: counts[k]})
+	}
+	return segs, closed
+}
+
 func joinParts(parts ...string) string {
 	var out []string
 	for _, p := range parts {
@@ -477,6 +526,7 @@ func buildCanvas(issues []*tracker.Issue, wf *tracker.WorkflowConfig, opts Canva
 				column = "no version"
 			}
 			cell := CanvasCell{Column: column, Empty: len(here) == 0}
+			cell.Fold, cell.FoldClosed = cs.fold(here)
 			var closed []*tracker.Issue
 			for _, it := range here {
 				if cs.closed(it.Status) {
@@ -515,8 +565,26 @@ func buildCanvas(issues []*tracker.Issue, wf *tracker.WorkflowConfig, opts Canva
 		return out
 	}
 
+	epic := idx.bySlug[strings.ToLower(opts.Epic)]
+	if !epicMode || epic == nil || !idx.isEpic[epic] {
+		epic = nil
+		data.Options.Epic = ""
+	} else {
+		data.Options.Epic = epic.Slug
+	}
+
 	if epicMode {
 		data.Lanes = epicLanes(issues, idx, cs, hl, visible, showNoVersion, cells)
+		for _, l := range data.Lanes {
+			data.EpicChoices = append(data.EpicChoices, CanvasEpicChoice{
+				Slug:  l.Slug,
+				Label: strings.Repeat("\u00a0\u00a0", l.Depth) + l.ShortTitle,
+			})
+		}
+	}
+	if epic != nil {
+		data.Lanes = epicSubtree(data.Lanes, epic.Slug)
+	} else if epicMode {
 		var loose []*tracker.Issue
 		for _, issue := range issues {
 			if epicOf(issue) == nil && !idx.isEpic[issue] {
@@ -583,6 +651,22 @@ func buildCanvas(issues []*tracker.Issue, wf *tracker.WorkflowConfig, opts Canva
 			})
 		}
 	}
+
+	// The Epic filter unfolds its lanes; otherwise only ?open= lanes are open.
+	open := map[string]bool{}
+	for _, k := range opts.Open {
+		open[k] = true
+	}
+	var openKeys []string
+	for i := range data.Lanes {
+		l := &data.Lanes[i]
+		l.Open = epic != nil || open[l.Key]
+		if l.Open && epic == nil {
+			openKeys = append(openKeys, l.Key)
+		}
+	}
+	data.OpenKeys = strings.Join(openKeys, ",")
+	data.Options.Open = openKeys
 
 	for _, v := range colKeys {
 		var items []*tracker.Issue
@@ -688,6 +772,26 @@ func epicLanes(issues []*tracker.Issue, idx *epicIndex, cs *canvasStatuses, hl *
 	return lanes
 }
 
+// epicSubtree keeps the lane of epic slug and the sub-epic lanes under it,
+// with depths starting at 0.
+func epicSubtree(lanes []CanvasLane, slug string) []CanvasLane {
+	var out []CanvasLane
+	base := -1
+	for _, l := range lanes {
+		switch {
+		case base < 0 && l.Slug == slug:
+			base = l.Depth
+		case base >= 0 && l.Depth <= base:
+			return out
+		case base < 0:
+			continue
+		}
+		l.Depth -= base
+		out = append(out, l)
+	}
+	return out
+}
+
 func epicLane(e *tracker.Issue, depth int, idx *epicIndex, cs *canvasStatuses, hl *tracker.Issue, kids []*tracker.Issue,
 	hasSubEpics bool, visible func(*tracker.Issue) bool, showNoVersion bool, cells func([]*tracker.Issue) []CanvasCell) CanvasLane {
 
@@ -742,7 +846,7 @@ func epicLane(e *tracker.Issue, depth int, idx *epicIndex, cs *canvasStatuses, h
 	return lane
 }
 
-func sortedKeys(m map[string]bool) []string {
+func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

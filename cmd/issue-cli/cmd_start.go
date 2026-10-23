@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/michal-franc/issue-viewer/internal/ci"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -69,6 +70,9 @@ func runStart(ctx *Context, args []string) error {
 	fmt.Fprintf(ctx.Stdout, "Status: %s%s\n", statusLabel(wf, started.FromStatus), typeLabel(wf))
 	printTypeWarnings(ctx.Stdout, wf, issue)
 	printLeadLines(ctx, issue)
+	if line := ci.AgentLine(projectRoot(ctx.Project), wf); line != "" {
+		fmt.Fprintln(ctx.Stdout, line)
+	}
 
 	// A start that transitions is always a handoff auto-advance: StartIssueOnce
 	// only sets a target status when the from-status is a handoff state. This is
@@ -88,7 +92,11 @@ func runStart(ctx *Context, args []string) error {
 	if !advanced {
 		fmt.Fprintf(ctx.Stdout, "Status unchanged (%s is a work status — ready to pick up)\n", started.ToStatus)
 	}
-	if started.Result.BodyAppended {
+	if sections := sectionEffects(started.Result); len(sections) > 0 {
+		for _, line := range sections {
+			fmt.Fprintf(ctx.Stdout, "✓ %s\n", line)
+		}
+	} else if started.Result.BodyAppended {
 		fmt.Fprintln(ctx.Stdout, "✓ Workflow content appended to issue body")
 	}
 	// When advanced, the banner already states the approval was consumed.
@@ -161,14 +169,7 @@ func printWorkflowNextSteps(w io.Writer, wf *tracker.WorkflowConfig, issue *trac
 		}
 	}
 
-	required, optionals := wf.DefaultNextStatus(issue.Status)
-	next := required
-	allOptional := false
-	if next == "" && len(optionals) > 0 {
-		next = optionals[0]
-		optionals = optionals[1:]
-		allOptional = true
-	}
+	next, allOptional, optionals := defaultNextStep(wf, issue.Status)
 	if next != "" {
 		fmt.Fprintln(w, "== Next ==")
 		suffix := ""

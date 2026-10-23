@@ -123,6 +123,9 @@ func canonicalPath(p string) string {
 // An empty slug triggers the fail-loud / silent-fallback decision based on
 // project count.
 func resolveFromConfig(configPath, projectSlug string) (*tracker.Project, []tracker.Project, error) {
+	if configPath == "" {
+		return nil, nil, errNoConfig
+	}
 	projects, err := tracker.LoadProjects(configPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot load config %s: %w\n\nEither run from a project root with an issues/ directory, or use --config <path>", configPath, err)
@@ -311,7 +314,7 @@ func printCheckboxes(w io.Writer, body string) {
 			mark = "x"
 		}
 		if it.ID != "" {
-			fmt.Fprintf(w, "  %s [%s] %s\n", it.ID, mark, it.Text)
+			fmt.Fprintf(w, "  %s [%s] %s\n", it.ID, mark, it.Label())
 		} else {
 			fmt.Fprintf(w, "  %d. [%s] %s\n", it.Index, mark, it.Text)
 		}
@@ -325,6 +328,7 @@ func printTickHint(w io.Writer, slug, body string) {
 	for _, it := range tracker.ListCheckboxes(body) {
 		if !it.Checked && it.ID != "" {
 			fmt.Fprintf(w, "Tick done boxes by id, several at once: issue-cli check %s <id> [<id>...]\n", slug)
+			fmt.Fprintf(w, "Box text wrong? issue-cli check-edit %s <id> --text \"...\"\n", slug)
 			return
 		}
 	}

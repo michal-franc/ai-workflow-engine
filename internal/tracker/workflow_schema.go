@@ -33,7 +33,7 @@ type SchemaNamedDoc struct {
 var WorkflowActionTypes = []SchemaNamedDoc{
 	{Name: "validate", Description: "Run a validation rule (see 'Validation rules'); blocks the transition on failure"},
 	{Name: "require_human_approval", Description: "Require the issue to be human-approved for the target status before transitioning"},
-	{Name: "append_section", Description: "Append a '## <title>' section with the given body if it does not already exist"},
+	{Name: "append_section", Description: "Append a '## <title>' section with the given body; when a '## <title>' section already exists, add only the body's checkboxes it lacks (ticked boxes keep their ticks)"},
 	{Name: "inject_prompt", Description: "Inject prompt text into the agent's entry guidance on this transition"},
 	{Name: "set_fields", Description: "Set or clear a frontmatter field (field=assignee|priority|status|human_approval, value=\"\" to clear)"},
 }
@@ -98,6 +98,8 @@ func WorkflowSchemaSections() []SchemaSection {
 		{Path: "workbench.metrics", Title: "WorkbenchMetrics", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchMetrics{}))},
 		{Path: "workbench.balance", Title: "WorkbenchBalance", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchBalance{}))},
 		{Path: "workbench.pages[]", Title: "WorkbenchPage", Fields: schemaFieldsOf(reflect.TypeOf(WorkbenchPage{}))},
+		{Path: "ci", Title: "CIConfig", Fields: schemaFieldsOf(reflect.TypeOf(CIConfig{}))},
+		{Path: "ci.run[]", Title: "CICommand", Fields: schemaFieldsOf(reflect.TypeOf(CICommand{}))},
 	}
 }
 

@@ -1,0 +1,31 @@
+session: status-scale-phone
+issue: ui/status-page-at-scale-now-column-and-epics-by-area
+title: Status page at scale on a phone - one column, in reading order
+scenario: status-scale
+
+session_checks:
+  viewports: [390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP10
+    title: On a phone the cards stack in order - the three tiles, milestone, Epics, Waiting for release, Recently shipped, Versions, Recently released
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - below: [status.waiting.pop, status.working.pop]
+      - below: [status.working.pop, status.next.pop]
+      - below: [status.strip, status.milestone]
+      - below: [status.milestone, status.epics]
+      - below: [status.epics, status.release_wait]
+      - below: [status.release_wait, status.shipped]
+      - below: [status.shipped, status.versions]
+      - below: [status.versions, status.released]
+      - visible: [status.epics.filter, status.epics.version]
+    do: Scroll the page on the phone width and open the data area's "+K more".
+    expect: |
+      Every card is full width. Epic and shipped rows keep their names
+      readable (no letter-per-line wrapping), with the bar, count and epic
+      count in narrow columns on the right.
+    why: whether narrow rows still read well is a judgement call.

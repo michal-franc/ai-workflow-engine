@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,6 +38,9 @@ type Context struct {
 	// system-scoped workflow).
 	ConfigPath  string
 	ProjectSlug string
+	// Config is where ConfigPath came from (findConfig), for `projects` and
+	// report-bug's "why".
+	Config configSource
 
 	Now func() time.Time
 
@@ -98,6 +103,12 @@ func requireSlug(args []string, cmd string) (string, []string, error) {
 	if len(args) == 0 {
 		return "", nil, fmt.Errorf("%s requires <slug>\n\nExample:\n  issue-cli %s <slug>", cmd, cmd)
 	}
+	// A flag where the slug belongs would otherwise be looked up as an issue
+	// ("issue not found: --text").
+	if isFlagToken(args[0]) {
+		top, _, _ := strings.Cut(cmd, " ")
+		return "", nil, &usageError{msg: fmt.Sprintf("%s takes <slug> first, then flags: issue-cli %s <slug> %s ...\n\nRun: issue-cli %s --help", cmd, cmd, args[0], top)}
+	}
 	return args[0], args[1:], nil
 }
 
@@ -110,30 +121,169 @@ func newFlagSet(name string, ctx *Context) *flag.FlagSet {
 	return fs
 }
 
-// parseFlags is the one place every command parses its FlagSet. It records
-// the FlagSet for telemetry (flag names only) and, in introspection mode,
-// aborts the command before any work by panicking with the fully defined
-// FlagSet — see introspectFlags.
+// parseFlags is the one place every command parses its FlagSet. Flags may
+// come anywhere in args (before or after positionals; "--" ends them), and
+// any positional left over is an error: use parseFlagsArgs for commands that
+// take positionals. It records the FlagSet for telemetry (flag names only)
+// and, in introspection mode, aborts the command before any work by
+// panicking with the fully defined FlagSet — see introspectFlags.
 func parseFlags(ctx *Context, fs *flag.FlagSet, args []string) error {
-	if ctx.introspect {
-		panic(introspectedFlags{fs})
+	if err := parseFlagsArgs(ctx, fs, args); err != nil {
+		return err
 	}
-	ctx.flagSets = append(ctx.flagSets, fs)
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return err
-		}
-		return &flagParseError{err: err}
+	if fs.NArg() > 0 {
+		return unexpectedArgError(fs, fs.Arg(0))
 	}
 	return nil
 }
 
-// flagParseError marks a FlagSet parse failure for telemetry while keeping
-// the stdlib message byte-identical.
-type flagParseError struct{ err error }
+func unexpectedArgError(fs *flag.FlagSet, arg string) *usageError {
+	return &usageError{msg: fmt.Sprintf("unexpected argument %q for '%s'%s", arg, fs.Name(), helpHint(fs))}
+}
 
-func (e *flagParseError) Error() string { return e.err.Error() }
-func (e *flagParseError) Unwrap() error { return e.err }
+// parseFlagsArgs is parseFlags for commands that read positionals from
+// fs.Args(): flags still parse anywhere, positionals are left to the caller.
+func parseFlagsArgs(ctx *Context, fs *flag.FlagSet, args []string) error {
+	if ctx.introspect {
+		panic(introspectedFlags{fs})
+	}
+	ctx.flagSets = append(ctx.flagSets, fs)
+	// The global --json also works after the command (`list --all --json`),
+	// unless the command defines its own.
+	if fs.Lookup("json") == nil {
+		fs.BoolVar(&ctx.JSONOutput, "json", ctx.JSONOutput, "output as JSON")
+	}
+	// The stdlib's message and full usage dump are replaced by usageError.
+	fs.SetOutput(io.Discard)
+	if err := fs.Parse(flagsFirst(fs, args)); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return err
+		}
+		return newFlagUsageError(fs, err)
+	}
+	return nil
+}
+
+// parsePositionals parses args for a command that defines no flags, so any
+// flag is unknown, and returns the positionals; more than max of them is an
+// error (max < 0: no limit).
+func parsePositionals(ctx *Context, name string, args []string, max int) ([]string, error) {
+	fs := newFlagSet(name, ctx)
+	if err := parseFlagsArgs(ctx, fs, args); err != nil {
+		return nil, err
+	}
+	if max >= 0 && fs.NArg() > max {
+		return nil, unexpectedArgError(fs, fs.Arg(max))
+	}
+	return fs.Args(), nil
+}
+
+// flagsFirst reorders args so every flag (with its value) comes before the
+// positionals, which follow a "--" in their original order. The stdlib
+// FlagSet stops at the first positional, so without this a flag after one
+// (`list done --all`) was silently dropped. A token is a flag when it starts
+// with "-" and is not a bare "-" or a negative number; a flag the FlagSet
+// knows as non-boolean takes the next token as its value unless written as
+// --name=value. Unknown flags stay in the flag part so Parse rejects them.
+func flagsFirst(fs *flag.FlagSet, args []string) []string {
+	var flags, positionals []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			positionals = append(positionals, args[i+1:]...)
+			break
+		}
+		if !isFlagToken(a) {
+			positionals = append(positionals, a)
+			continue
+		}
+		flags = append(flags, a)
+		name, _, hasValue := strings.Cut(strings.TrimLeft(a, "-"), "=")
+		f := fs.Lookup(name)
+		if f == nil || hasValue || isBoolFlag(f) {
+			continue
+		}
+		if i+1 < len(args) {
+			flags = append(flags, args[i+1])
+			i++
+		}
+	}
+	return append(append(flags, "--"), positionals...)
+}
+
+// flagTokenRe matches "-name", "--name" and "--name=value": a word that is
+// meant as a flag. Text that merely starts with a dash ("- [ ] item",
+// "--force is bad", "-5") is a positional.
+var flagTokenRe = regexp.MustCompile(`^--?[A-Za-z][A-Za-z0-9_-]*(=|$)`)
+
+// isFlagToken reports whether a looks like a flag rather than a value.
+func isFlagToken(a string) bool {
+	return flagTokenRe.MatchString(a)
+}
+
+func isBoolFlag(f *flag.Flag) bool {
+	b, ok := f.Value.(interface{ IsBoolFlag() bool })
+	return ok && b.IsBoolFlag()
+}
+
+// usageError is a malformed invocation: an unknown flag, a bad flag value,
+// a stray positional, or a flag where the slug belongs. main exits 2 on it
+// and telemetry classifies it; flag is set for an unknown flag ("--all").
+type usageError struct {
+	msg  string
+	flag string
+	err  error
+}
+
+func (e *usageError) Error() string { return e.msg }
+func (e *usageError) Unwrap() error { return e.err }
+
+// newFlagUsageError turns a FlagSet parse error into a short usageError that
+// names the flag the way agents type it and lists the valid ones.
+func newFlagUsageError(fs *flag.FlagSet, err error) *usageError {
+	const undefined = "flag provided but not defined: -"
+	msg := err.Error()
+	if name, ok := strings.CutPrefix(msg, undefined); ok {
+		flagName := "--" + name
+		hint := helpHint(fs)
+		switch name {
+		case "project", "config":
+			hint = fmt.Sprintf("\n\n%s is a global flag: put it before the command (issue-cli %s <value> %s ...)", flagName, flagName, fs.Name())
+		case "debug":
+			hint = fmt.Sprintf("\n\n--debug is a global flag: put it before the command (issue-cli --debug %s ...)", fs.Name())
+		}
+		return &usageError{
+			msg:  fmt.Sprintf("unknown flag %s for '%s'\nValid flags: %s%s", flagName, fs.Name(), validFlags(fs), hint),
+			flag: flagName,
+			err:  err,
+		}
+	}
+	// "invalid value ... for flag -x", "flag needs an argument: -x": keep the
+	// stdlib wording but name the flag with two dashes.
+	msg = strings.Replace(msg, "flag -", "flag --", 1)
+	msg = strings.Replace(msg, "argument: -", "argument: --", 1)
+	return &usageError{msg: msg + helpHint(fs), err: err}
+}
+
+// validFlags lists fs's flags as "--a --b", or "(none)".
+func validFlags(fs *flag.FlagSet) string {
+	var names []string
+	fs.VisitAll(func(f *flag.Flag) {
+		if f.Name != "json" || f.Usage != "output as JSON" {
+			names = append(names, "--"+f.Name)
+		}
+	})
+	if len(names) == 0 {
+		return "(none)"
+	}
+	return strings.Join(names, " ")
+}
+
+// helpHint points at the per-command help for fs's top-level command.
+func helpHint(fs *flag.FlagSet) string {
+	cmd, _, _ := strings.Cut(fs.Name(), " ")
+	return fmt.Sprintf("\n\nRun: issue-cli %s --help", cmd)
+}
 
 // flagWasSet reports whether a flag was explicitly set on the command line.
 // Replaces the old "empty value means absent" pattern in flagValue.
@@ -148,9 +298,11 @@ func flagWasSet(fs *flag.FlagSet, name string) bool {
 }
 
 // findIssueOrErr is the error-returning replacement for findIssue. It searches
-// the active project's issue directory by exact slug (case-insensitive),
-// falling back to suffix/contains matching, and returns a not-found error
-// when nothing matches.
+// the active project's issue directory by exact slug (case-insensitive), then
+// by a unique "/<slug>" suffix, then by a unique substring. A substring match
+// is noted on stderr so a write never lands on a guessed issue silently. When
+// a tier matches several issues it fails with the candidates listed instead of
+// picking one, and when nothing matches it returns a not-found error.
 //
 // In multi-project setups the not-found error additionally enumerates the
 // configured project slugs and points at --project, so a bot that ran the
@@ -175,14 +327,53 @@ func findIssueOrErr(ctx *Context, slug string) (*tracker.Issue, []*tracker.Issue
 			return issue, issues, nil
 		}
 	}
+	var suffix, contains []*tracker.Issue
 	for _, issue := range issues {
 		slugLower := strings.ToLower(issue.Slug)
-		if strings.HasSuffix(slugLower, "/"+normalizedLower) || strings.Contains(slugLower, normalizedLower) {
-			ctx.issue = issue
-			return issue, issues, nil
+		if strings.HasSuffix(slugLower, "/"+normalizedLower) {
+			suffix = append(suffix, issue)
+		}
+		if strings.Contains(slugLower, normalizedLower) {
+			contains = append(contains, issue)
 		}
 	}
-	return nil, issues, notFoundError(ctx, slug)
+	matches := suffix
+	if len(matches) == 0 {
+		matches = contains
+	}
+	switch {
+	case len(matches) == 0:
+		return nil, issues, notFoundError(ctx, slug)
+	case len(matches) > 1:
+		return nil, issues, ambiguousSlugError(slug, matches)
+	}
+	issue := matches[0]
+	if len(suffix) == 0 {
+		fmt.Fprintf(ctx.Stderr, "note: resolved %q to %s (partial match)\n", slug, issue.Slug)
+	}
+	ctx.issue = issue
+	return issue, issues, nil
+}
+
+// ambiguousSlugListMax caps the candidates an ambiguity error lists; a system
+// name can match dozens of issues.
+const ambiguousSlugListMax = 10
+
+// ambiguousSlugError lists the issues a partial slug matched, so the caller
+// can retry with the full slug instead of acting on whichever loaded first.
+func ambiguousSlugError(slug string, matches []*tracker.Issue) error {
+	slugs := make([]string, len(matches))
+	for i, m := range matches {
+		slugs[i] = m.Slug
+	}
+	sort.Strings(slugs)
+	shown := slugs
+	more := ""
+	if len(shown) > ambiguousSlugListMax {
+		shown = shown[:ambiguousSlugListMax]
+		more = fmt.Sprintf("\n  … and %d more (issue-cli list)", len(slugs)-ambiguousSlugListMax)
+	}
+	return fmt.Errorf("ambiguous slug %q: %d issues match:\n  %s%s\n\nRetry with the full slug.", slug, len(slugs), strings.Join(shown, "\n  "), more)
 }
 
 // issueNotFoundError is the "issue not found" error; typed so telemetry can

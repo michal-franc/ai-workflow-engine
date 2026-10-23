@@ -97,8 +97,8 @@ steps:
     setup:
       - open: /p/{project}/workboard
     checks:
-      - cli: { args: [transition, ui/shop-screen, --to, backlog, --wait], exit: 1, contains: "--wait was removed" }
-      - cli: { args: [start, ui/lineup-panel, --wait], exit: 1, contains: "stop and end your turn" }
+      - cli: { args: [transition, ui/shop-screen, --to, backlog, --wait], exit: 2, contains: "--wait was removed" }
+      - cli: { args: [start, ui/lineup-panel, --wait], exit: 2, contains: "stop and end your turn" }
       - issue: { slug: ui/shop-screen, field: status, equals: in design }
 
   - id: TP10

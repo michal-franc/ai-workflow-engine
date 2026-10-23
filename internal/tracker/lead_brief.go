@@ -63,6 +63,9 @@ func LeadBrief(wf *WorkflowConfig, in LeadBriefInput) string {
 	b.WriteString("- Authority: you may tick a gate only when the human approved it in your chat: issue-cli approve <slug> --to <status> --quote \"<the human's words>\". Never Human Testing; workers never tick.\n")
 	fmt.Fprintf(&b, "- Messaging: in Claude Code, agents on this project message each other with ListAgents / SendMessage, addressed by tmux name (yours is %s; workers are agent-<slug>). Workers may message you directly. issue-cli lead message is the tmux-paste fallback, e.g. for Codex.\n", lead)
 	b.WriteString("- Decisions: record each owner decision under ## Decisions with the human's words (issue-cli append <slug> --section Decisions --body \"- **D-n** · <date> · lead chat: ...\").\n")
+	if wf != nil && wf.CI.Enabled() {
+		b.WriteString("- Local CI: the ci: commands run on the integration branch after every move, without you (issue-cli ci status; the Status page). When it goes red you get a [from ci] message: bring it to the human and decide whether to revert, fix forward or dispatch a fix. Run issue-cli ci status before any push, and never push a release while it is red.\n")
+	}
 	notesDir := filepath.Join(in.Root, "sessions")
 	if note := NewestHandoffNote(notesDir, lead); note != "" {
 		fmt.Fprintf(&b, "- Handoff: read %s first; it is your previous handoff note.\n", note)
@@ -74,7 +77,7 @@ func LeadBrief(wf *WorkflowConfig, in LeadBriefInput) string {
 		now = time.Now()
 	}
 	fmt.Fprintf(&b, "- Before you exit, or before the human takes a long break, write %s: what is live, what waits on whom, the decisions made, and a ## Next section with the ordered next steps.", filepath.Join(notesDir, HandoffNoteName(now, lead)))
-	b.WriteString(" The viewer's Status page shows that ## Next list; its text form, /p/<project>/status.md, is a ready-made stand-up.")
+	b.WriteString(" The viewer's Status page shows that ## Next list; its text form, /p/<project>/status.md, is a ready-made stand-up. Its Waiting for release block says what is merged and not released, what is not pushed, and when the current milestone is ready to cut (and what blocks it). Its lists are capped: a \"+K more\" line names the issue-cli list command that shows the rest.")
 	b.WriteString("\n- issue-cli lead whoami shows this role again; issue-cli lead list shows the lead and its epics.\n")
 	return InjectProject(proj, b.String())
 }

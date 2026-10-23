@@ -33,7 +33,9 @@ is ticked. A box that is already checked is reported, not an error.
 
 A text query matches a box whose label contains it (case-insensitive). If it
 matches more than one unchecked box, check errors and lists the candidates
-with their ids. Flags go before ids or text.`,
+with their ids. Flags may come before or after the ids or text.
+
+To change a box's text instead of ticking it: issue-cli check-edit <slug> <id> --text "..."`,
 	Run: runCheck,
 }
 
@@ -50,7 +52,7 @@ func runCheck(ctx *Context, args []string) error {
 	sectionFlag := fs.String("section", "", "section to scope the match to (\"## <name>\")")
 	indexFlag := fs.Int("index", 0, "1-based stable index of the checkbox within the section (or whole body)")
 	allFlag := fs.Bool("all", false, "check every open box in --section")
-	if err := parseFlags(ctx, fs, rest); err != nil {
+	if err := parseFlagsArgs(ctx, fs, rest); err != nil {
 		return err
 	}
 	section := strings.TrimSpace(*sectionFlag)
@@ -113,9 +115,9 @@ func looksLikeRefs(body string, args []string) bool {
 // "[#index] text" when the box sits before any section heading).
 func checkboxLabel(it tracker.CheckboxItem) string {
 	if it.Section == "" {
-		return fmt.Sprintf("[#%d] %s", it.Index, it.Text)
+		return fmt.Sprintf("[#%d] %s", it.Index, it.Label())
 	}
-	label := fmt.Sprintf("[%s #%d] %s", it.Section, it.Index, it.Text)
+	label := fmt.Sprintf("[%s #%d] %s", it.Section, it.Index, it.Label())
 	if it.ID != "" {
 		label = it.ID + " " + label
 	}

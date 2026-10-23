@@ -29,8 +29,8 @@
             <div>
                 <h1 class="detail-title" id="issue-title" data-testid="detail.title" onclick="editTitle()">{{.Issue.Title}} <span class="title-edit-icon">&#9998;</span></h1>
                 <div class="title-editor" id="title-editor" style="display:none">
-                    <input type="text" class="title-input" id="title-input" value="{{.Issue.Title}}">
-                    <button class="body-save-btn" onclick="saveTitle()">Save</button>
+                    <input type="text" class="title-input" id="title-input" data-testid="detail.title.input" value="{{.Issue.Title}}">
+                    <button class="body-save-btn" data-testid="detail.title.save" onclick="saveTitle()">Save</button>
                     <button class="body-tab" onclick="cancelTitleEdit()">Cancel</button>
                 </div>
                 <div class="body-toolbar">
@@ -47,7 +47,7 @@
                     {{end}}
                 </div>
                 <div class="body-editor-wrap" id="body-editor" style="display:none">
-                    <textarea class="body-textarea" id="body-textarea" data-testid="detail.body.textarea">{{.Issue.BodyRaw}}</textarea>
+                    <textarea class="body-textarea" id="body-textarea" data-testid="detail.body.textarea" data-body-hash="{{bodyHash .Issue.BodyRaw}}">{{.Issue.BodyRaw}}</textarea>
                     <button class="body-save-btn" data-testid="detail.body.save" onclick="saveBody()">Save</button>
                 </div>
 
@@ -476,17 +476,37 @@
 
     function saveBody() {
         const text = document.getElementById('body-textarea').value;
-        saveUpdate({ body: text }, function() {
+        // On a stale page the text stays in the editor so it can be copied.
+        saveBodyUpdate(text, function() {
             location.reload();
         });
     }
 
-    function saveUpdate(body, onSuccess) {
+    // saveBodyUpdate posts a whole body with the hash of the body this page
+    // started from. The server refuses it (409) when the file changed since,
+    // so a stale page never overwrites what an agent or the CLI wrote.
+    function saveBodyUpdate(text, onSuccess, onConflict) {
+        const textarea = document.getElementById('body-textarea');
+        saveUpdate({ body: text, base_body_hash: textarea.dataset.bodyHash }, function(data) {
+            if (data && data.body_hash) textarea.dataset.bodyHash = data.body_hash;
+            if (onSuccess) onSuccess(data);
+        }, function(message) {
+            showToast(message, true);
+            if (onConflict) onConflict();
+        });
+    }
+
+    function saveUpdate(body, onSuccess, onConflict) {
         fetch(issueURL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body)
         }).then(res => {
+            if (res.status === 409 && onConflict) {
+                res.json().then(data => onConflict(data.error || 'Conflict'))
+                    .catch(() => onConflict('This issue changed since the page loaded. Reload it.'));
+                return;
+            }
             const toast = document.getElementById('save-toast');
             toast.textContent = res.ok ? 'Saved' : 'Error';
             toast.className = 'save-toast ' + (res.ok ? 'show' : 'show error');
@@ -875,7 +895,12 @@
         });
 
         textarea.value = result;
-        saveUpdate({ body: result });
+        saveBodyUpdate(result, null, function() {
+            // Stale page: undo the click and reload to the current body.
+            cb.checked = !cb.checked;
+            textarea.value = body;
+            setTimeout(function() { location.reload(); }, 2500);
+        });
     }
 
     // Human type change. A 409 means the current status is not on the new

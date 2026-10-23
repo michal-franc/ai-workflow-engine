@@ -3390,6 +3390,57 @@ body.canvas-page { overflow: hidden; }
 .canvas-world.has-highlight .canvas-card:not(.lit) { opacity: 0.3; }
 .canvas-world.has-highlight .canvas-lane-head:not(.lit) { opacity: 0.45; }
 
+/* Folding: a lane's head and cells sit in .canvas-lane (no box of its own).
+   A folded lane shows each cell's status counts instead of its cards. */
+.canvas-fold-all { display: flex; gap: 6px; }
+.canvas-lane { display: contents; }
+.canvas-lane-head { cursor: pointer; }
+.canvas-fold-btn {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 10px;
+    cursor: pointer;
+}
+.canvas-fold-btn::before { content: "▾"; }
+.canvas-lane.folded .canvas-fold-btn::before { content: "▸"; }
+/* A folded head is three short rows: kind and status, the title on one
+   line, then the summary with Highlight beside it. */
+.canvas-lane.folded .canvas-lane-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 8px;
+    padding: 8px 14px;
+}
+.canvas-lane.folded .canvas-lane-head > * { grid-column: 1 / -1; }
+.canvas-lane.folded .canvas-lane-summary { grid-column: 1; }
+.canvas-lane.folded .canvas-lane-head > .canvas-hl-btn { grid-column: 2; }
+.canvas-lane.folded .canvas-lane-head > .canvas-bar { display: none; }
+.canvas-lane.folded .canvas-lane-title,
+.canvas-lane.folded .canvas-lane-head > .canvas-muted {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.canvas-toolbar select[name=epic] { max-width: 200px; }
+.canvas-lane.folded .canvas-cell { min-height: 0; justify-content: center; }
+.canvas-lane.folded .canvas-cards,
+.canvas-lane.folded .canvas-closed-chip,
+.canvas-lane:not(.folded) .canvas-fold { display: none; }
+.canvas-fold {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text);
+}
+.canvas-fold > span { display: flex; align-items: center; gap: 5px; }
+
 /* Workboard (/workboard): board cards with markers, epic progress and the
    agent footer. Chips come from .chip; tones from the workbench tokens. */
 .workboard-head { justify-content: space-between; align-items: flex-end; }
@@ -3635,15 +3686,145 @@ a.chip { text-decoration: none; }
 .status-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .status-actions .mono { font-size: 12px; }
 .btn.copied { color: var(--green); border-color: var(--green-border); background: var(--green-bg); }
-.status-cols { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
-.status-col { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
-.status-col-main { flex: 2 1 560px; }
-.status-col-side { flex: 1 1 340px; }
+/* Every row shares one grid, so the side column keeps the same width and
+   edges down the page; one column under 900px (DOM order = phone order). */
+.status-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; margin-bottom: 20px; }
+.status-grid-top > .status-card { align-self: stretch; }
+.status-grid > :only-child { grid-column: 1 / -1; }
+
+/* Rows below the milestone: the side column fills the row's height and adds
+   none (height 0, min-height 100%), so the main card sets the row and there
+   are no gaps. The last side card fills what is left; when space is short
+   the cards above it shrink too (to 120px at least). A card whose content
+   doesn't fit is cut off (overflow: clip, so focus can't scroll it) with
+   "Show all", which opens it over the page. */
+@media (min-width: 901px) {
+    .status-grid-fit { grid-auto-rows: minmax(240px, auto); }
+    .status-grid-fit > .status-card { align-self: stretch; }
+    .status-grid-fit > .status-side { height: 0; min-height: 100%; position: relative; }
+    .status-grid-fit > .status-side > .status-card { flex: 0 1 auto; min-height: 120px; overflow: clip; position: relative; }
+    .status-grid-fit > .status-side > .status-card:last-child { flex: 1 1 0; }
+}
+.status-fit-more { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 20px 12px; border: 0; border-radius: 0 0 var(--radius) var(--radius); background: var(--bg-secondary); color: var(--blue); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.status-fit-more::before { content: ""; position: absolute; left: 0; right: 0; top: -32px; height: 32px; background: linear-gradient(to bottom, transparent, var(--bg-secondary)); pointer-events: none; }
+.status-card.is-open .status-fit-more::before { display: none; }
+.status-fit-more:hover { text-decoration: underline; }
+.status-fit-more[hidden] { display: none; }
+.status-grid-fit > .status-side > .status-card.is-open { position: absolute; left: 0; right: 0; z-index: 40; max-height: 80vh; overflow: auto; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); }
+.status-card.is-open .status-fit-more { position: static; padding: 4px 0 0; background: none; }
+
+/* The top row: one tile per list that waits on someone (Needs you, Working
+   on, What's next). A tile shows a count and a line; its card opens over
+   the page, so nothing below moves, and folds back on a click outside,
+   focus leaving it or Escape. */
+.status-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-bottom: 20px; }
+.status-pop { position: relative; min-width: 0; }
+.status-pop > summary { list-style: none; cursor: pointer; }
+.status-pop > summary::-webkit-details-marker { display: none; }
+.status-pop-tile { display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; min-height: 44px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-secondary); }
+.status-pop-tile:hover { border-color: var(--text-secondary); }
+.status-pop[open] > .status-pop-tile { border-color: var(--blue-border); }
+.status-pop.has-items > .status-pop-tile { border-color: var(--amber-border); background: var(--amber-bg); }
+.status-pop-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.status-pop-head::after { content: "▾"; font-size: 11px; color: var(--text-secondary); margin-left: auto; }
+.status-pop[open] .status-pop-head::after { content: "▴"; }
+.status-pop-title { font-size: 16px; font-weight: 800; font-stretch: 80%; }
+.status-pop-sum { font-size: 13px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-pop-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: max(100%, 400px); max-width: calc(100vw - 32px); max-height: 70vh; overflow: auto; border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45); }
+.status-pop:last-child .status-pop-panel { left: auto; right: 0; }
+.status-pop-panel > .status-card { margin: 0; }
+@media (max-width: 900px) {
+    .status-strip { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .status-pop-panel, .status-pop:last-child .status-pop-panel { left: 0; right: auto; width: 100%; }
+}
+.status-grid [hidden] { display: none !important; }
+.status-side { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+@media (max-width: 900px) {
+    .status-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.status-num { color: var(--text); }
+.status-bar.status-split { display: flex; height: 10px; }
+.status-split > span { flex-shrink: 0; }
+.status-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-secondary); }
+.status-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-dot-track { box-shadow: inset 0 0 0 1px var(--border); }
+.status-areas { align-items: center; }
+.status-areas .label { margin-right: 4px; }
+.status-waiting.has-items { background: var(--amber-bg); }
+.btn-amber { background: var(--amber); color: #000; border-color: var(--amber); font-weight: 600; }
+.btn-amber:hover { text-decoration: none; filter: brightness(1.08); }
+
+/* Epics and Recently shipped share the column grid, so bars and counts line
+   up between the two cards. */
+.status-grid-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(80px, 160px) 64px 52px; gap: 12px; align-items: center; }
+.status-grid-cols .num { text-align: right; }
+@media (max-width: 600px) {
+    .status-grid-cols { grid-template-columns: minmax(0, 1fr) 56px 52px 28px; gap: 8px; }
+    .status-epics-filter { width: 100%; }
+}
+.status-cols-head { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); padding: 0 0 6px; border-bottom: 1px solid var(--border-subtle, var(--border)); }
+.status-epics { gap: 10px; }
+.status-epics-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.status-seg { display: inline-flex; gap: 4px; }
+.status-seg-btn { font: inherit; font-size: 13px; padding: 4px 10px; min-height: 30px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; }
+.status-seg-btn[aria-pressed="true"] { color: var(--text); border-color: var(--blue-border); background: var(--blue-bg); }
+.status-seg-btn .mono { font-size: 12px; margin-left: 2px; }
+.status-epics-version { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-secondary); }
+.status-epics-version select, .status-epics-filter { font: inherit; font-size: 13px; min-height: 30px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-secondary, var(--bg)); color: var(--text); }
+.status-epics-filter { width: 150px; }
+.status-epics-panel { display: flex; flex-direction: column; }
+.status-area { border-bottom: 1px solid var(--border-subtle, var(--border)); }
+.status-area:last-child { border-bottom: 0; }
+.status-area > summary { list-style: none; cursor: pointer; padding: 9px 0; font-size: 13px; }
+.status-area > summary::-webkit-details-marker { display: none; }
+.status-area-name { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; min-width: 0; }
+.status-chevron::before { content: "▸"; display: inline-block; width: 12px; color: var(--text-secondary); font-size: 11px; }
+.status-area[open] > summary .status-chevron::before { content: "▾"; }
+.status-epic-row { padding: 4px 0 4px 20px; font-size: 13px; }
+.status-epic-row:last-child { padding-bottom: 10px; }
+.status-epic-row .chip { font-size: 11px; padding: 0 6px; }
+.status-bar-idle { background: var(--bg-tertiary); opacity: 0.6; }
+.status-bar.status-bar-blue > span { background: var(--blue); }
+
+/* "+K more": the rest of a list, opened in place. */
+.status-more > summary { cursor: pointer; font-size: 12px; color: var(--blue); padding: 6px 0; list-style: none; }
+.status-more > summary::-webkit-details-marker { display: none; }
+.status-more > summary:hover { text-decoration: underline; }
+.status-more[open] > summary { color: var(--text-secondary); }
+.status-more-epics > summary { padding-left: 20px; }
+.status-fold > summary::before { content: "▸ "; }
+.status-fold[open] > summary::before { content: "▾ "; }
+.status-row-stack > .status-ellipsis { max-width: 100%; }
+.status-work-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.status-version-row { display: grid; grid-template-columns: 72px minmax(0, 1fr) 64px; gap: 10px; align-items: center; padding: 5px 0; font-size: 13px; color: var(--text-secondary); }
+.status-version-row.is-current { color: var(--text); font-weight: 600; }
+.status-version-row .num { text-align: right; }
+.status-card-head-stack { flex-direction: column; align-items: flex-start; gap: 2px; }
+.status-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.status-clamp code { font-size: 12px; }
 .status-card { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
 .status-card h2 { margin: 0; font-size: 20px; font-weight: 800; font-stretch: 80%; }
 .status-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .status-card-head > a, .status-card > a { font-size: 13px; }
 .status-waiting.has-items { border-color: var(--amber-border); }
+.status-waiting { border-color: var(--border); }
+.status-ci { gap: 12px; }
+.status-ci-green { border-color: var(--green-border); }
+.status-ci-none { border-style: dashed; }
+.status-ci-red { border-color: var(--red-border); }
+.status-ci-cmd { font-size: 13px; overflow-wrap: anywhere; }
+.status-ci-runs-wrap { display: flex; flex-direction: column; gap: 6px; }
+.status-ci-runs { display: flex; flex-wrap: wrap; gap: 4px; }
+.ci-run { width: 14px; height: 14px; border-radius: 3px; border: 1px solid transparent; }
+.ci-run-green { background: var(--green); }
+.ci-run-red { background: var(--red); }
+.ci-run-error { background: var(--amber); }
+.ci-run-running { background: transparent; border: 1px dashed var(--amber); }
+.status-ci-error { border-color: var(--amber-border); }
+.status-ci-line { font-size: 12px; overflow-wrap: anywhere; }
+.status-ci-log summary { cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+.status-ci-log pre { margin: 8px 0 0; max-height: 320px; overflow: auto; font-size: 11px; line-height: 1.45; background: var(--bg-tertiary); padding: 8px 10px; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .status-progress { display: flex; flex-direction: column; gap: 8px; }
 .status-progress-row { display: flex; justify-content: space-between; font-size: 14px; }
 .status-strong { font-weight: 600; }
@@ -3686,6 +3867,22 @@ a.chip { text-decoration: none; }
 .status-release { display: flex; flex-direction: column; gap: 3px; }
 .status-version { font-weight: 600; font-size: 13px; color: var(--green); }
 .status-summary { font-size: 13px; color: var(--text-nav); line-height: 1.45; }
+/* Waiting for release: readiness checks, the ready box, Unreleased entries. */
+.status-ready-card { border-color: var(--green-border); }
+.status-check { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; font-size: 13px; }
+.status-check + .status-check { border-top: 1px solid var(--border-subtle, var(--border)); }
+.status-check > svg { flex-shrink: 0; margin-top: 2px; }
+.status-check > .status-row-stack { flex-grow: 1; }
+.status-check > a, .status-check-meta { font-size: 12px; white-space: nowrap; }
+.status-check-ok > svg { color: var(--green); }
+.status-check-no > svg, .status-check-no .status-check-meta, .status-check-detail { color: var(--red); }
+.status-check-meta { color: var(--text-secondary); }
+.status-check-detail { font-size: 11px; overflow-wrap: anywhere; }
+.status-ready { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 6px; background: var(--green-bg); border: 1px solid var(--green-border); }
+.status-ready-title { font-size: 15px; font-weight: 700; color: var(--green); }
+.status-ready ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.5; color: var(--text-nav); }
+.status-entry { padding: 4px 0; overflow-wrap: anywhere; }
+.status-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-count { font-size: 11px; }
 .btn-small { white-space: nowrap; }
 @media (max-width: 600px) {

@@ -20,7 +20,7 @@ When you dispatch an issue from the app, the server builds a prompt with:
 - bug-report guidance via `issue-cli report-bug "..."`
 - retrospective guidance via `issue-cli retrospective <slug> --body "..."`
 
-The dispatch flow also exports these environment variables into the agent session:
+The agent starts with these environment variables set, among others (see [Agent Dispatch](agent-dispatch.md#environment-variables)):
 
 - `ISSUE_CLI_LOG`
 - `ISSUE_VIEWER_SERVER_PWD`
@@ -127,16 +127,13 @@ This writes a markdown file under `retros/` in the project root.
 
 ## 8. Bug Reporting
 
-If the agent finds a bug in `issue-cli`, it should run:
+If the agent finds a bug in `issue-cli` or the workflow engine (not in its own project), it should run:
 
 ```bash
 issue-cli report-bug "description"
 ```
 
-Bug reports are written to:
-
-- `{server_pwd}/bugs/` for sessions launched by the app
-- `./bugs/` under the current shell working directory for manual CLI use
+The report becomes a `cli-bug` issue on the engine project's board (issue-viewer), or a `report:` comment on the open issue with the same title. The output names the issue. On a machine without the engine project, the report is queued in `~/.local/share/issue-cli/bug-reports/` and sent later. See [`report-bug`](CLI/overview.md#report-bug).
 
 ## 9. Persistence
 

@@ -1,0 +1,133 @@
+session: canvas-fold
+issue: ui/canvas-epics-folded-by-default-click-to-open-filter-by-epic
+title: Issues canvas - lanes folded by default, click to open, filter by epic
+scenario: canvas
+
+# Desktop only, like canvas-basics: the canvas is a pan surface.
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+  layout_ignore: [canvas.world]
+
+steps:
+  - id: TP3
+    title: Epic rows open folded - status, progress and per-version counts, no cards
+    setup:
+      - open: /p/{project}/canvas
+    checks:
+      - count: { pattern: canvas.lane.*, equals: 5 }
+      - count: { pattern: canvas.card.*, equals: 0 }
+      - text_equals: { target: canvas.lane.core/search-everywhere.status, text: in progress }
+      - text_equals: { target: canvas.lane.core/search-everywhere.summary, text: 3 children · 1/3 done · 1 without a version }
+      # One count per open status, closed cards as one ✓ count.
+      - text_equals: { target: canvas.cell.core/search-everywhere.0_1.fold, text: ✓ 1 }
+      - text_equals: { target: canvas.cell.core/search-everywhere.0_2.fold, text: "1" }
+      - text_equals: { target: canvas.cell.core/saved-searches.0_2.fold, text: "1" }
+      - text_equals: { target: canvas.cell.no_epic.0_1.fold, text: ✓ 2 }
+      - text_equals: { target: canvas.cell.no_epic.0_2.fold, text: "2" }
+      - visible: canvas.cell.no_epic.0_10.empty
+      - beside: [canvas.lane.core/search-everywhere, canvas.cell.core/search-everywhere.0_1]
+      - below: [canvas.lane.core/search-everywhere, canvas.lane.no_epic]
+      # A folded lane is a compact row.
+      - size: { target: canvas.lane.core/search-everywhere, max_height: 110 }
+
+  - id: TP4
+    title: A lane head click unfolds it into ?open=, survives a reload, and a second click folds it
+    setup:
+      - open: /p/{project}/canvas
+    act:
+      # A drag that starts on a lane head pans the map and leaves it folded.
+      - drag: { target: canvas.lane.core/faster-startup.summary, to: canvas.cell.no_epic.0_10 }
+      - check: { css: { target: canvas.world, property: transform, not: "matrix(1, 0, 0, 1, 0, 0)" } }
+      - check: { hidden: canvas.card.core/cache-the-workflow-file }
+      - check: { url: { matches: "^/p/[^/]+/canvas$" } }
+      - click: canvas.lane.core/search-everywhere.summary
+      - wait_for: canvas.card.ui/search-box-in-the-header
+      - check: { url: { contains: open=core%2Fsearch-everywhere } }
+      - check: { hidden: canvas.card.ui/name-a-saved-search }
+      - reload: true
+      - check: { visible: [canvas.card.ui/search-box-in-the-header, canvas.card.core/index-issue-bodies] }
+      - check: { hidden: canvas.cell.core/search-everywhere.0_2.fold }
+      - click: canvas.lane.core/search-everywhere.summary
+    checks:
+      - hidden: canvas.card.ui/search-box-in-the-header
+      - visible: canvas.cell.core/search-everywhere.0_2.fold
+      - url: { matches: "^/p/[^/]+/canvas$" }
+
+  - id: TP5
+    title: Expand all and Fold all; the title link and Highlight still work on a folded lane
+    setup:
+      - open: /p/{project}/canvas
+    act:
+      - click: canvas.expand_all
+      - check: { count: { pattern: canvas.card.*, equals: 8 } }
+      - check: { url: { contains: "open=" } }
+      - click: canvas.fold_all
+      - check: { count: { pattern: canvas.card.*, equals: 0 } }
+      - check: { url: { matches: "^/p/[^/]+/canvas$" } }
+      - click: canvas.lane.core/search-everywhere.highlight
+      - wait_for: canvas.highlight
+      - check: { selected: canvas.lane.core/search-everywhere.highlight }
+      - check: { hidden: canvas.card.ui/search-box-in-the-header }
+      - click: canvas.lane.core/search-everywhere.title
+      - wait_for: { url: { contains: /issue/core/search-everywhere } }
+    checks:
+      - url: { contains: /issue/core/search-everywhere }
+
+  - id: TP6
+    title: The Epic select shows one epic and its sub-epic unfolded, with Collapse done; All folds every lane back
+    setup:
+      - open: /p/{project}/canvas
+    act:
+      - click: canvas.collapse_done
+      - wait_for: { url: { contains: done=collapse } }
+      - select: { target: canvas.epic, value: core/search-everywhere }
+      - wait_for: { url: { contains: epic=core%2Fsearch-everywhere } }
+      - check: { count: { pattern: canvas.lane.*, equals: 2 } }
+      - check: { visible: [canvas.lane.core/search-everywhere, canvas.lane.core/saved-searches] }
+      - check: { absent: [canvas.lane.no_epic, canvas.lane.core/faster-startup] }
+      - check: { visible: [canvas.card.ui/search-box-in-the-header, canvas.card.ui/name-a-saved-search] }
+      - check: { text_equals: { target: canvas.cell.core/search-everywhere.0_1.closed, text: ✓ 1 done } }
+      - select: { target: canvas.epic, value: "" }
+      - wait_for: canvas.lane.no_epic
+    checks:
+      - count: { pattern: canvas.lane.*, equals: 5 }
+      - count: { pattern: canvas.card.*, equals: 0 }
+      - url: { matches: "^/p/[^/]+/canvas\\?rows=epic&done=collapse$" }
+
+  - id: TP7
+    title: Rows = System starts folded and the lane's fold button unfolds it
+    setup:
+      - open: /p/{project}/canvas?rows=system
+    act:
+      - check: { count: { pattern: canvas.card.*, equals: 0 } }
+      - check: { absent: canvas.epic }
+      - click: canvas.lane.ui.fold
+      - wait_for: canvas.card.ui/keyboard-shortcuts
+    checks:
+      - visible: canvas.card.ui/search-box-in-the-header
+      - hidden: canvas.card.core/index-issue-bodies
+      - url: { contains: open=UI }
+
+  - id: TP8
+    title: The folded map reads at a glance
+    setup:
+      - open: /p/{project}/canvas
+    targets:
+      - { id: canvas.lane.core/search-everywhere, note: Click this lane head to unfold it }
+      - { id: canvas.epic, note: Pick one epic }
+      - { id: canvas.expand_all, note: Expand all / Fold all }
+    do: |
+      1. Look at the folded map: every lane is one short row with its
+         status, progress and a count per version.
+      2. Click a lane head (not its title) to unfold it, then again to fold.
+         Drag on a lane head and check it pans instead of folding.
+      3. Pick an epic in the Epic select, then All again.
+      4. Run `./issue-viewer` on this repo's issues and open its canvas.
+    expect: |
+      The folded counts read at a glance: coloured dots match the status
+      colours, and ✓ marks closed work. All of this repo's epics fit on
+      roughly one screen. Unfolding feels instant, and a drag never folds or
+      unfolds a lane. The ▸/▾ marker makes it clear a head can be clicked.
+    why: ux-test checks counts, URLs and fold state; only you can say whether the folded map is easy to scan.

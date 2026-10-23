@@ -74,6 +74,8 @@ Behavior:
 
 `WorkflowConfig.DefaultNextStatus(current)` returns `(required, optionals)` — the first non-optional status after `current`, plus the optional statuses skipped to get there. If every remaining status is optional, `required` is empty and `optionals` holds all of them so callers render alternatives rather than silently picking one. The JSON shape from `issue-cli transition --json` carries these as `next_status` (required) and `optional_next_statuses` (skipped optionals).
 
+Side statuses are never suggested as the next step. `WorkflowConfig.IsSideStatus(name)` is true for an optional status that is `global` or reached only by a `from: "*"` edge, such as `parked`. When no required status is left, `issue-cli transition` and `start` drop side statuses from the remaining optionals. An optional status with its own lifecycle edge (say `done → archived`) is still offered. If nothing is left and the status is not optional, `transition` prints `== Done ==` instead of `== Next ==`. `--json` sets `done: true`, and the next status's entry guidance (parked's "Don't work on it") is never printed. Parking an issue is not done: a move to `parked` prints parked's guidance.
+
 ### Approvals on Optional Side-Paths
 
 When a transition targets an `optional: true` status **and** has a `require_human_approval` action, the detail view does not render the approval checkbox inline alongside the required-path approval — that would put two pending approvals side-by-side and obscure the default next step. Instead:
@@ -103,9 +105,20 @@ Each transition can have ordered actions:
 |:---------------------------|:---------------------------------------------------------|
 | `validate`                 | Check a rule (body not empty, checkboxes checked, etc.)  |
 | `require_human_approval`   | Block until human approves in the web UI                 |
-| `append_section`           | Add a titled section with checklist to the issue body. Fence-aware: section headings inside fenced code blocks (``` or `~~~`) are not treated as existing sections, so quoting workflow YAML in the body does not block appends. |
+| `append_section`           | Add a `## <title>` section with its checklist to the issue body. See [Gate sections](#gate-sections-append_section) for when it creates the section and when it tops up an existing one. |
 | `inject_prompt`            | Add extra guidance for this specific transition          |
 | `set_fields`               | Update a frontmatter field. Supported `field` values: `assignee`, `priority`, `status`, `human_approval` (alias `approved_for`). An empty `value` clears the field. |
+
+### Gate sections (`append_section`)
+
+A gate such as `section_checkboxes_checked: Testing` reads the boxes under a level-2 `## Testing` heading, so `append_section` uses the same heading to decide whether the section is there:
+
+- **Only `## <title>` counts.** A `### Testing` inside `## Design`, the text `## Testing` in a paragraph, or a heading inside a fenced code block (``` or `~~~`) is not the section. The title compares case- and spacing-insensitively.
+- **Missing:** `## <title>` and the action's body are appended at the end of the issue.
+- **Present:** each checkbox of the action's body that no `## <title>` section holds yet (same text, ticked or not, case- and spacing-insensitive) is added to the first one. Boxes already there keep their ticks, so a section written by hand, or left from an earlier round after a backward move, still gets the gate's boxes, and a second pass adds nothing. Prose lines of the body are not re-added.
+- **Sub-headings:** boxes under a `### X` in the action's body go under the section's own `### X` (appended at the section's end when it has none). Boxes before the body's first sub-heading go before the section's first sub-heading. This keeps the bundled `## Test Plan` (`### Automated` / `### Manual`) intact.
+
+`transition` and `start` name each section: `## Testing appended`, or `## Testing existed — added 2 missing boxes` (`sections` in `--json`). `transition --dry-run` replaces `appends ## Testing section` with `## Testing exists — adds 2 missing boxes` or `exists with all its boxes — left as is` when the issue already has the section. A legacy status `template:` that opens with a heading follows the same rules.
 
 ## Declarative Fields (v0.5.0+)
 
@@ -248,6 +261,12 @@ Behavior when enabled:
 If `git worktree add` fails (dirty tree, branch already exists outside the worktrees dir, etc.), the dispatch surfaces an error step and aborts rather than silently falling back to the primary checkout.
 
 Dispatches without an issue slug (retros review, project-wide commands) never create a worktree regardless of the toggle.
+
+## Local CI (`ci:`)
+
+The optional `ci:` block (`tracker.CIConfig` in `internal/tracker/ci.go`) turns on local CI: its commands run on the integration branch after every move. It is project-wide like `workbench:`, so system and type overlays can't change it, and `Clone` copies it into scoped workflows. `Lint` checks it. A `ci:` entry is a plain string or `{cmd, tier, failures}`.
+
+Nothing about statuses, transitions or overlays changes. Without the block nothing runs and nothing shows. The runner is `internal/ci/` (run records, lock, persistent worktree, blame, watcher, one-liner); the viewer's watcher is `ci_watch.go` and the page model is `ci_view.go`. `tracker.CIStatusLine` is a hook `internal/ci` sets at init, so the dispatch prompt (built in `tracker`) can carry the CI line while the server and the CLI build the same prompt. User guide: [Workflow: Local CI](../workflow.md#local-ci).
 
 ## System Overlays
 

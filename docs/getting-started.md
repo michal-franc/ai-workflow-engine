@@ -103,7 +103,21 @@ issue-viewer -config projects.yaml
 - `terminal:`, e.g. `none`
 - `tmux_session_per_project: true`, which gives each project its own tmux session for its lead and workers
 
+`engine_project: <slug>` names the project that `issue-cli report-bug` files issue-cli bugs into. Without it, report-bug uses the project whose `repo:` is `michal-franc/ai-workflow-engine`; see [`report-bug`](CLI/overview.md#report-bug).
+
 With one terminal and tmux, as on a Mac, see [One terminal, a session per project](agent-dispatch.md#one-terminal-a-session-per-project).
+
+#### How issue-cli finds the config
+
+issue-cli needs the same `projects.yaml` as the viewer, from whatever folder it runs in. Without `--config` it looks, in order:
+
+1. `--config <path>`
+2. `$ISSUE_VIEWER_CONFIG` (the viewer sets it for the agents it dispatches)
+3. `./projects.yaml`, only if it exists
+4. the running viewer's config: at start, `issue-viewer -config …` writes `~/.local/state/ai-workflow-engine/viewer.json` (`$XDG_STATE_HOME`) with the absolute config path, URL, pid and start time. The entry is used while that config file exists, even after the viewer stops
+5. `~/.config/ai-workflow-engine/projects.yaml` (`$XDG_CONFIG_HOME`)
+
+So once the viewer has started with `-config` on this machine, `issue-cli --project <slug> …` and `issue-cli report-bug` work from any folder with no env var. `issue-cli projects` prints the chosen config and why on its first line, and `issue-cli --debug <command>` prints it on stderr. When nothing is found, the error lists every place checked and the fix: `export ISSUE_VIEWER_CONFIG=/path/to/projects.yaml`, or start the viewer.
 
 For a quick look at a single folder without a config file:
 
@@ -115,13 +129,22 @@ This mode can't set dispatch options such as `terminal`, so use a `projects.yaml
 
 ### Server flags
 
-| Flag       | Default    | Description                               |
-|:-----------|:-----------|:------------------------------------------|
-| `-config`  | none       | Path to `projects.yaml` (multi-project)   |
-| `-dir`     | `./issues` | Issues directory (single-project mode)    |
-| `-docs`    | `./docs`   | Docs directory (single-project mode)      |
-| `-port`    | `8080`     | HTTP port                                 |
-| `-version` | `false`    | Print the version and exit                |
+| Flag       | Default     | Description                               |
+|:-----------|:------------|:------------------------------------------|
+| `-config`  | none        | Path to `projects.yaml` (multi-project); recorded in `viewer.json` for issue-cli |
+| `-dir`     | `./issues`  | Issues directory (single-project mode)    |
+| `-docs`    | `./docs`    | Docs directory (single-project mode)      |
+| `-host`    | `127.0.0.1` | Interface to listen on                    |
+| `-port`    | `8080`      | HTTP port                                 |
+| `-version` | `false`     | Print the version and exit                |
+
+The server listens on loopback only. Its POST endpoints start agents, tmux sessions and editors on your machine, so binding to another interface (`-host 0.0.0.0`) lets anyone who can reach the port drive them; it is an explicit opt-in and the server prints a warning at startup. Writes from another site in your browser are refused either way (see [API: Design Considerations](API/overview.md#design-considerations)).
+
+### Stopping the server
+
+Ctrl-C (or SIGTERM) stops the server gracefully. It stops accepting connections, waits up to 10 seconds for requests and background work to finish (a GitHub close, an open edit-in-nvim, the CI watcher), and exits with status 0. If anything is still running after 10 seconds, it prints `shutdown: still running after 10s: …` and exits anyway. Press Ctrl-C a second time to exit immediately.
+
+An edit-in-nvim session that is still open when the server stops is closed. Its changes are discarded, and the issue gets a comment saying so. Agent tmux sessions and local CI runs keep running; they don't belong to the server process.
 
 Open `http://localhost:8080` and pick a project. The sidebar on the left leads to the board, the list, decisions and the docs; **More** holds the workflow graph, the canvas, agents, retros and stats. The swatches at the bottom switch between the dark, Dracula and light themes.
 

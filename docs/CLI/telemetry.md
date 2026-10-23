@@ -101,7 +101,7 @@ The text output is agent-facing, with stable section headings:
 
 ### How "never used" knows every flag
 
-Commands define their flags inside `Run`, so there's no static flag list. Every command parses through **`parseFlags(ctx, fs, args)`** (in `context.go`). In introspection mode it panics with the fully defined FlagSet before any command logic runs. `buildManifest` uses this for every command and subcommand, with an empty temp issues dir, discarded output and empty stdin. Hand-parsed flags are declared on the command as `ExtraFlags`: transition's `--field`, and process's `--system` and `--workflow`. `TestIntrospectFlagsEveryCommandWithoutSideEffects` fails if a command can't be introspected or creates files.
+Commands define their flags inside `Run`, so there's no static flag list. Every command parses through **`parseFlags`**, `parseFlagsArgs` or `parsePositionals` (in `context.go`). In introspection mode it panics with the fully defined FlagSet before any command logic runs. `buildManifest` uses this for every command and subcommand, with an empty temp issues dir, discarded output and empty stdin. Hand-parsed flags are declared on the command as `ExtraFlags`: transition's `--field`. The same introspection builds the **Flags** section of `<command> --help`. `TestIntrospectFlagsEveryCommandWithoutSideEffects` fails if a command can't be introspected or creates files.
 
 ### `--json` contract (report v1)
 
@@ -124,7 +124,7 @@ Lists are always arrays, never `null`. `enabled: false` with a `disabled` reason
 
 ## Adding a command
 
-New commands must call `parseFlags(ctx, fs, args)` instead of `fs.Parse`. Group commands declare `Subcommands` (and `SubAliases`), and anything parsed by hand goes in `ExtraFlags`. Otherwise the flags and subcommands don't show up in events or in the never-used report.
+New commands must call `parseFlags(ctx, fs, args)` (or `parseFlagsArgs` / `parsePositionals`, see [Adding a new subcommand](overview.md#adding-a-new-subcommand)) instead of `fs.Parse`. Group commands declare `Subcommands` (and `SubAliases`), and anything parsed by hand goes in `ExtraFlags`. Otherwise the flags and subcommands don't show up in events or in the never-used report.
 
 ## Key files
 

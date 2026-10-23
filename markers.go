@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/ci"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -14,8 +16,8 @@ import (
 
 // Marker is one chip.
 type Marker struct {
-	// Kind is gate, question, playtest, blocked-on, unblocked, needs-revision
-	// or parked; it is also the chip's test id suffix.
+	// Kind is gate, question, playtest, blocked-on, unblocked, needs-revision,
+	// ci-red or parked; it is also the chip's test id suffix.
 	Kind  string
 	Label string
 	// Tone is amber (waiting on you), red (can't move on), grey or green.
@@ -34,6 +36,10 @@ type markerCtx struct {
 	now       time.Time
 	bySlug    map[string]*tracker.Issue
 	attention map[string]Attention
+	// ciRed holds, while local CI is red, the issues merged since the last
+	// green run (.ci/state.json "blamed").
+	ciRed   map[string]bool
+	ciState *ci.State
 }
 
 // newMarkerCtx reads ownerAttention for every issue once.
@@ -51,6 +57,12 @@ func newMarkerCtxFor(proj *tracker.Project, prefix string, all, shown []*tracker
 	for _, issue := range shown {
 		if issue.Status != "done" {
 			ctx.attention[issue.Slug] = ownerAttention(proj, issue)
+		}
+	}
+	if st := ciRedState(proj); st != nil {
+		ctx.ciState, ctx.ciRed = st, map[string]bool{}
+		for _, slug := range st.Blamed {
+			ctx.ciRed[strings.ToLower(slug)] = true
 		}
 	}
 	return ctx
@@ -100,6 +112,7 @@ func cardMarkers(ctx *markerCtx, issue *tracker.Issue) []Marker {
 		out = append(out, Marker{Kind: "needs-revision", Tone: "red", Label: label,
 			Title: "Revise the issue before it moves on (needs-revision label or needs_revision field)"})
 	}
+	out = append(out, ciMarkers(ctx, issue)...)
 	if att.Parked {
 		label := "parked"
 		if att.ParkReason != "" {
@@ -108,6 +121,18 @@ func cardMarkers(ctx *markerCtx, issue *tracker.Issue) []Marker {
 		out = append(out, Marker{Kind: "parked", Tone: "grey", Label: label, Title: att.ParkReason})
 	}
 	return out
+}
+
+// ciMarkers is the ci-red chip, while local CI is red and the issue landed
+// since the last green run. Done cards get it too: that is where merged
+// issues are.
+func ciMarkers(ctx *markerCtx, issue *tracker.Issue) []Marker {
+	if !ctx.ciRed[strings.ToLower(issue.Slug)] {
+		return nil
+	}
+	st := ctx.ciState
+	return []Marker{{Kind: "ci-red", Tone: "red", Label: "CI red · " + clip(st.Failed, 28),
+		Title: fmt.Sprintf("Local CI went red on %s at %s; this issue landed since the last green run (%s). issue-cli ci status", st.Branch, ci.Short(st.RedSince), ci.Short(st.GreenSha))}}
 }
 
 // blockedOn is the issue's blocked_on frontmatter: one slug or a list.

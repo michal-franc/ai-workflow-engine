@@ -15,17 +15,29 @@
     <form class="canvas-toolbar" id="canvas-toolbar" data-testid="canvas.toolbar" method="GET" action="{{.Prefix}}/canvas">
         <span class="canvas-count" data-testid="canvas.count"><b>{{.ShownIssues}}</b> of {{.TotalIssues}} issues</span>
         <label>Rows
-            <select name="rows" data-testid="canvas.rows" onchange="this.form.submit()">
+            <select name="rows" data-testid="canvas.rows">
                 <option value="epic" {{if .EpicRows}}selected{{end}}>Epic</option>
                 <option value="system" {{if not .EpicRows}}selected{{end}}>System</option>
             </select>
         </label>
+        {{if .EpicRows}}<label>Epic
+            <select name="epic" data-testid="canvas.epic">
+                <option value="">All</option>
+                {{range .EpicChoices}}<option value="{{.Slug}}" {{if eq .Slug $.Options.Epic}}selected{{end}}>{{.Label}}</option>
+                {{end}}
+            </select>
+        </label>{{end}}
         <span>Columns <b class="canvas-fixed">Version</b></span>
         <span class="canvas-sep"></span>
-        <label><input type="checkbox" name="done" value="collapse" id="canvas-collapse" data-testid="canvas.collapse_done" {{if .Options.CollapseDone}}checked{{end}} onchange="this.form.submit()"> Collapse done</label>
-        <label {{if .NoVersionForced}}class="disabled"{{end}}><input type="checkbox" name="nover" value="1" id="canvas-nover" data-testid="canvas.show_no_version" {{if or .Options.ShowNoVersion .NoVersionForced}}checked{{end}} {{if .NoVersionForced}}disabled{{end}} onchange="this.form.submit()"> Show no version</label>
+        <label><input type="checkbox" name="done" value="collapse" id="canvas-collapse" data-testid="canvas.collapse_done" {{if .Options.CollapseDone}}checked{{end}}> Collapse done</label>
+        <label {{if .NoVersionForced}}class="disabled"{{end}}><input type="checkbox" name="nover" value="1" id="canvas-nover" data-testid="canvas.show_no_version" {{if or .Options.ShowNoVersion .NoVersionForced}}checked{{end}} {{if .NoVersionForced}}disabled{{end}}> Show no version</label>
         {{if .NoVersionForced}}<span class="canvas-note" data-testid="canvas.no_version_note">no issue has a version yet</span>{{else if .HiddenNoVersion}}<span class="canvas-note" data-testid="canvas.no_version_note">{{.HiddenNoVersion}} issues without a version hidden</span>{{end}}
+        <span class="canvas-fold-all">
+            <button type="button" class="canvas-btn" id="canvas-expand-all" data-testid="canvas.expand_all">Expand all</button>
+            <button type="button" class="canvas-btn" id="canvas-fold-all" data-testid="canvas.fold_all">Fold all</button>
+        </span>
         <input type="hidden" name="hl" id="canvas-hl" value="{{.Options.Highlight}}">
+        <input type="hidden" name="open" id="canvas-open" value="{{.OpenKeys}}">
         <span class="canvas-hl" id="canvas-hl-chip" data-testid="canvas.highlight" {{if not .Options.Highlight}}hidden{{end}}>Highlight
             <span class="canvas-hl-chip">⧉ <span id="canvas-hl-name" data-testid="canvas.highlight.name">{{.HighlightName}}</span>
                 <button type="button" id="canvas-hl-clear" data-testid="canvas.highlight.clear" aria-label="Clear highlight">×</button>
@@ -51,11 +63,12 @@
             {{end}}
 
             {{range $lane := .Lanes}}
+            <div class="canvas-lane{{if not .Open}} folded{{end}}" data-lane="{{.Key}}">
             <div class="canvas-lane-head{{if .Lit}} lit{{end}}" data-testid="canvas.lane.{{tid .Key}}" data-epics="{{.Epics}}" style="--depth: {{.Depth}}">
-                <div class="canvas-lane-kind"><span data-testid="canvas.lane.{{tid .Key}}.kind">{{.Kind}}</span>{{if .Status}}<span class="canvas-status" data-testid="canvas.lane.{{tid .Key}}.status"><span class="canvas-dot" style="background: {{statusColor .Status}}"></span>{{.Status}}</span>{{end}}</div>
+                <div class="canvas-lane-kind"><button type="button" class="canvas-fold-btn" data-testid="canvas.lane.{{tid .Key}}.fold" aria-expanded="{{if .Open}}true{{else}}false{{end}}" aria-label="Fold or unfold {{.Title}}"></button><span data-testid="canvas.lane.{{tid .Key}}.kind">{{.Kind}}</span>{{if .Status}}<span class="canvas-status" data-testid="canvas.lane.{{tid .Key}}.status"><span class="canvas-dot" style="background: {{statusColor .Status}}"></span>{{.Status}}</span>{{end}}</div>
                 {{if .ParentTitle}}<div class="canvas-muted" data-testid="canvas.lane.{{tid .Key}}.parent">↳ in {{.ParentTitle}}</div>{{end}}
-                {{if .Slug}}<a class="canvas-lane-title" data-testid="canvas.lane.{{tid .Key}}.title" href="{{$.Prefix}}/issue/{{.Slug}}">{{.Title}}</a>{{else}}<b class="canvas-lane-title" data-testid="canvas.lane.{{tid .Key}}.title">{{.Title}}</b>{{end}}
-                <div class="canvas-muted" data-testid="canvas.lane.{{tid .Key}}.summary">{{.Summary}}</div>
+                {{if .Slug}}<a class="canvas-lane-title" data-testid="canvas.lane.{{tid .Key}}.title" href="{{$.Prefix}}/issue/{{.Slug}}" title="{{.Title}}">{{.Title}}</a>{{else}}<b class="canvas-lane-title" data-testid="canvas.lane.{{tid .Key}}.title">{{.Title}}</b>{{end}}
+                <div class="canvas-muted canvas-lane-summary" data-testid="canvas.lane.{{tid .Key}}.summary">{{.Summary}}</div>
                 {{template "canvas-bar" .Bar}}
                 {{if .Slug}}<button type="button" class="canvas-hl-btn" data-testid="canvas.lane.{{tid .Key}}.highlight" aria-pressed="{{if .Lit}}true{{else}}false{{end}}" data-highlight="{{.Slug}}" data-name="{{.ShortTitle}}">{{if .Lit}}Highlighted{{else}}Highlight{{end}}</button>{{end}}
             </div>
@@ -74,11 +87,13 @@
                     </div>
                     {{end}}
                 </div>
+                {{if not .Empty}}<div class="canvas-fold" data-testid="canvas.cell.{{tid $lane.Key}}.{{tid .Column}}.fold">{{range .Fold}}<span title="{{.Status}}: {{.Count}}"><span class="canvas-dot" style="background: {{statusColor .Status}}"></span>{{.Count}}</span> {{end}}{{if .FoldClosed}}<span title="closed: {{.FoldClosed}}">✓ {{.FoldClosed}}</span>{{end}}</div>{{end}}
                 {{if .Closed}}<button type="button" class="canvas-closed-chip" data-testid="canvas.cell.{{tid $lane.Key}}.{{tid .Column}}.closed" data-uncollapse>✓ {{.Closed}}</button>{{end}}
                 {{if .Empty}}<span class="canvas-empty" data-testid="canvas.cell.{{tid $lane.Key}}.{{tid .Column}}.empty">no issues</span>{{end}}
             </div>
             {{end}}
             {{end}}
+            </div>
             {{end}}
         </div>
     </div>
@@ -112,15 +127,22 @@
             apply();
         });
 
+        // The pointer is captured only once it has moved, so a plain click
+        // still reaches what it landed on (a lane head folds) and a drag's
+        // click lands on the viewport instead.
         var drag = null;
         viewport.addEventListener('pointerdown', function(e) {
             if (e.button !== 0 || e.target.closest('a, button, input, select, label')) return;
-            drag = { px: e.clientX, py: e.clientY, x: x, y: y };
-            viewport.setPointerCapture(e.pointerId);
-            viewport.classList.add('dragging');
+            drag = { px: e.clientX, py: e.clientY, x: x, y: y, moved: false };
         });
         viewport.addEventListener('pointermove', function(e) {
             if (!drag) return;
+            if (!drag.moved) {
+                if (Math.abs(e.clientX - drag.px) + Math.abs(e.clientY - drag.py) < 4) return;
+                drag.moved = true;
+                viewport.setPointerCapture(e.pointerId);
+                viewport.classList.add('dragging');
+            }
             x = drag.x + e.clientX - drag.px;
             y = drag.y + e.clientY - drag.py;
             apply();
@@ -155,6 +177,42 @@
             fit: document.getElementById('canvas-zoom-fit'),
             label: document.getElementById('canvas-zoom-label')
         });
+
+        // submit sends the toolbar without its empty fields, so the URL
+        // only carries what is set.
+        function submit() {
+            var params = new URLSearchParams(new FormData(form));
+            Array.from(params.keys()).forEach(function(k) {
+                if (!params.get(k)) params.delete(k);
+            });
+            var qs = params.toString();
+            window.location.href = form.getAttribute('action') + (qs ? '?' + qs : '');
+        }
+        form.addEventListener('change', function(e) {
+            if (e.target.matches('select, input[type=checkbox]')) submit();
+        });
+
+        // setOpen folds or unfolds lanes. Open lanes go in ?open= unless the
+        // Epic filter is on: it always opens its lanes, so folding there is
+        // just for now.
+        var openInput = document.getElementById('canvas-open');
+        var epicSelect = form.elements.epic;
+        function setOpen(lanes, open) {
+            lanes.forEach(function(l) {
+                l.classList.toggle('folded', !open);
+                l.querySelector('.canvas-fold-btn').setAttribute('aria-expanded', open ? 'true' : 'false');
+            });
+            if (epicSelect && epicSelect.value) return;
+            var keys = [];
+            world.querySelectorAll('.canvas-lane:not(.folded)').forEach(function(l) { keys.push(l.dataset.lane); });
+            openInput.value = keys.join(',');
+            var url = new URL(window.location.href);
+            if (keys.length) url.searchParams.set('open', openInput.value); else url.searchParams.delete('open');
+            history.replaceState(null, '', url);
+        }
+        function allLanes() { return Array.from(world.querySelectorAll('.canvas-lane')); }
+        document.getElementById('canvas-expand-all').addEventListener('click', function() { setOpen(allLanes(), true); });
+        document.getElementById('canvas-fold-all').addEventListener('click', function() { setOpen(allLanes(), false); });
 
         var hlInput = document.getElementById('canvas-hl');
         var chip = document.getElementById('canvas-hl-chip');
@@ -204,12 +262,18 @@
             }
             if (e.target.closest('[data-uncollapse]')) {
                 document.getElementById('canvas-collapse').checked = false;
-                form.submit();
+                submit();
                 return;
             }
             if (e.target.closest('[data-show-nover]')) {
                 document.getElementById('canvas-nover').checked = true;
-                form.submit();
+                submit();
+                return;
+            }
+            // A click anywhere on a lane head but its title link folds it.
+            if (e.target.closest('.canvas-lane-head') && !e.target.closest('a')) {
+                var lane = e.target.closest('.canvas-lane');
+                setOpen([lane], lane.classList.contains('folded'));
             }
         });
         document.getElementById('canvas-hl-clear').addEventListener('click', function() { setHighlight(''); });

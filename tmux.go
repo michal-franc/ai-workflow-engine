@@ -32,7 +32,7 @@ func agentDisplayName(proj *tracker.Project, name string) string {
 func agentAttachCmd(proj *tracker.Project, name string) string { return agentrun.AttachCmd(proj, name) }
 
 func createAgentTmux(proj *tracker.Project, name string, workDir string) (string, *exec.Cmd) {
-	return agentrun.CreateTmux(proj, name, workDir)
+	return agentrun.CreateTmux(proj, name, workDir, nil)
 }
 
 func killAgentTmux(proj *tracker.Project, name string) error { return agentrun.KillTmux(proj, name) }

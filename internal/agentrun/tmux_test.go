@@ -102,3 +102,43 @@ func TestParseSessions(t *testing.T) {
 		t.Errorf("ParseSessions = %+v", got)
 	}
 }
+
+// The agent is created detached as the window's own command, with its env and
+// working directory passed to tmux, never typed into a shell.
+func TestCreateTmuxRunsCommandDetached(t *testing.T) {
+	original := HasSession
+	t.Cleanup(func() { HasSession = original })
+	HasSession = func(string) bool { return true }
+	env := []string{"ISSUE_CLI_LOG=/l/a.clilog", "ISSUE_VIEWER_PROJECT=p"}
+	cases := []struct {
+		proj *tracker.Project
+		want string
+	}{
+		{&tracker.Project{}, "tmux new-session -d -s agent-a -c /w -e ISSUE_CLI_LOG=/l/a.clilog -e ISSUE_VIEWER_PROJECT=p sh -lic run"},
+		{&tracker.Project{TmuxSession: "work"}, "tmux new-window -d -t =work: -n agent-a -c /w -e ISSUE_CLI_LOG=/l/a.clilog -e ISSUE_VIEWER_PROJECT=p sh -lic run"},
+	}
+	for _, c := range cases {
+		_, cmd := CreateTmux(c.proj, "agent-a", "/w", env, "sh", "-lic", "run")
+		if got := strings.Join(cmd.Args, " "); got != c.want {
+			t.Errorf("CreateTmux = %q\n want %q", got, c.want)
+		}
+	}
+	HasSession = func(string) bool { return false }
+	_, cmd := CreateTmux(&tracker.Project{TmuxSession: "work"}, "agent-a", "/w", nil)
+	if got, want := strings.Join(cmd.Args, " "), "tmux new-session -d -s work -n agent-a -c /w"; got != want {
+		t.Errorf("CreateTmux without a shared session = %q, want %q", got, want)
+	}
+}
+
+func TestAgentCommandRunsInLoginShellAndKeepsAShell(t *testing.T) {
+	t.Setenv("SHELL", "/bin/zsh")
+	got := AgentCommand(`claude -n agent-a "$(cat "/p")"`)
+	want := []string{"/bin/zsh", "-lic", `trap : INT; claude -n agent-a "$(cat "/p")"; exec /bin/zsh -l`}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("AgentCommand = %q, want %q", got, want)
+	}
+	t.Setenv("SHELL", "")
+	if got := AgentCommand("x"); got[0] != "/bin/sh" {
+		t.Fatalf("without $SHELL the shell is %q, want /bin/sh", got[0])
+	}
+}

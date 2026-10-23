@@ -29,7 +29,6 @@ type Response struct {
 	Status    string `json:"status"`
 	Prompt    string `json:"prompt"`
 	Session   string `json:"session"`
-	LogFile   string `json:"log_file,omitempty"`
 	AttachCmd string `json:"attach_cmd,omitempty"`
 	// SwitchCmd reaches the agent from inside tmux; set with AttachCmd.
 	SwitchCmd string `json:"switch_cmd,omitempty"`
@@ -63,15 +62,15 @@ type Spec struct {
 	Headless bool
 }
 
-// validModelName limits --model values to characters that are safe to type
-// into a tmux shell unquoted.
+// validModelName limits --model values to characters that are safe in a
+// shell command unquoted.
 var validModelName = regexp.MustCompile(`^[A-Za-z0-9._:/\[\]-]+$`)
 
-// validSessionName limits the -n value to characters that are safe to type
-// into a tmux shell unquoted; agent-<slug> and lead-<project> names always are.
+// validSessionName limits the -n value to characters that are safe in a shell
+// command unquoted; agent-<slug> and lead-<project> names always are.
 var validSessionName = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
-// LaunchCommand builds the shell command typed into tmux. The prompt is
+// LaunchCommand builds the shell command the agent's window runs. The prompt is
 // passed as the agent's positional argument (both claude and codex accept
 // one and start interactive with it). Claude is named after its tmux session
 // (-n agent-<slug>, -n lead-<project>), so the tmux name is also its address
@@ -88,6 +87,20 @@ func LaunchCommand(proj *tracker.Project, agentType, session, promptPath string)
 		modelFlag = " --model " + m
 	}
 	return fmt.Sprintf("%s%s%s \"$(cat %q)\"", agentType, nameFlag, modelFlag, promptPath)
+}
+
+// AgentCommand wraps launch for running as a tmux window's own command: in
+// the user's login shell, interactive, so the agent is found on the same PATH
+// and with the same aliases as when it was typed into a fresh window. When
+// the agent exits the window keeps a shell, also after a Ctrl-C: the no-op INT
+// trap stops the wrapper shell from abandoning the rest of the command along
+// with the agent.
+func AgentCommand(launch string) []string {
+	shell := strings.TrimSpace(os.Getenv("SHELL"))
+	if shell == "" {
+		shell = "/bin/sh"
+	}
+	return []string{shell, "-lic", "trap : INT; " + launch + "; exec " + shellWord(shell) + " -l"}
 }
 
 // WritePrompt persists prompt as <sessionLogDir>/dispatch-prompt.txt and
@@ -130,7 +143,6 @@ func Start(proj *tracker.Project, spec Spec) Response {
 
 	steps := append([]Step{}, worktreeSteps...)
 	sessionLogDir := filepath.Join(workDir, ".agent-logs", session)
-	rawLog := filepath.Join(sessionLogDir, "rawlog")
 	cliLog := filepath.Join(sessionLogDir, session+".clilog")
 
 	// target is what every tmux command below addresses: the agent's own
@@ -141,12 +153,12 @@ func Start(proj *tracker.Project, spec Spec) Response {
 		Status:  "dispatched",
 		Prompt:  prompt,
 		Session: tracker.AgentDisplayName(proj, session),
-		LogFile: rawLog,
 		Steps:   steps,
 	}
-	// Headless (spec.Headless, or terminal: none) leaves the screen alone: no
-	// terminal opens and, in shared mode, the new window is not selected, so
-	// whoever is looking at the shared session (usually the lead) keeps it.
+	// Headless (spec.Headless, or terminal: none) opens no terminal; the
+	// response carries the attach hints instead. No launch selects the new
+	// window, so whoever is looking at the shared session (usually the lead)
+	// keeps it.
 	headless := spec.Headless || TerminalNone(proj)
 	setHints := func() {
 		response.AttachCmd = AttachCmd(proj, session)
@@ -155,8 +167,8 @@ func Start(proj *tracker.Project, spec Spec) Response {
 
 	if HasSession(target) {
 		// A session with this name already exists — most often the same agent is
-		// still running. Re-running new-session/send-keys would clobber whatever
-		// the agent is doing and re-paste the prompt, so skip all setup and just
+		// still running. Re-running new-session would start a second agent
+		// next to it with the prompt again, so skip all setup and just
 		// open a terminal attached to the existing session.
 		steps = append(steps, Step{Name: "Existing session — attaching", Status: "reattached"})
 		if spec.RepromptURL != "" {
@@ -173,8 +185,50 @@ func Start(proj *tracker.Project, spec Spec) Response {
 		return response
 	}
 
-	createName, createCmd := CreateTmux(proj, session, workDir)
-	if !RunStep(&steps, createName, createCmd) {
+	// Persist the exact prompt the bot is briefed with. The agent is launched
+	// with this file as its argument, and the timeline view replays it later
+	// instead of reconstructing an approximation.
+	promptPath, err := WritePrompt(sessionLogDir, prompt)
+	if err != nil {
+		steps = append(steps, Step{Name: "Write prompt file", Status: "error", Detail: err.Error()})
+		response.Status = "error"
+		response.Steps = steps
+		return response
+	}
+
+	serverRoot, _ := os.Getwd()
+	env := []string{
+		"ISSUE_CLI_LOG=" + cliLog,
+		"ISSUE_VIEWER_SERVER_PWD=" + serverRoot,
+	}
+	if spec.IssueSlug != "" {
+		env = append(env, "ISSUE_VIEWER_ISSUE_SLUG="+spec.IssueSlug)
+	}
+	if spec.LeadScope != "" {
+		env = append(env, "ISSUE_VIEWER_LEAD_SCOPE="+spec.LeadScope)
+	}
+	if spec.ViewerURL != "" {
+		env = append(env, "ISSUE_VIEWER_URL="+spec.ViewerURL)
+	}
+	if proj != nil && proj.Slug != "" {
+		env = append(env, "ISSUE_VIEWER_PROJECT="+proj.Slug)
+	}
+	// Propagate the config path the viewer was launched with so the CLI can
+	// resolve `--project <slug>` against it without the bot having to know
+	// the file name (e.g. projects-mfranc.yaml vs the default projects.yaml).
+	if cfg := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_CONFIG")); cfg != "" {
+		env = append(env, "ISSUE_VIEWER_CONFIG="+cfg)
+	}
+
+	// The agent is the window's own command, started with its environment and
+	// working directory already set. Nothing is typed into a shell, so keys
+	// pressed in an attached client while this runs can't reach the command.
+	// The prompt goes in as the agent's launch argument, never pasted: a
+	// paste sent before the agent's input is ready is silently dropped. Both
+	// agents start interactive, so a human stays in the loop.
+	createName, createCmd := CreateTmux(proj, session, workDir, env,
+		AgentCommand(LaunchCommand(proj, spec.AgentType, session, promptPath))...)
+	if !RunStep(&steps, fmt.Sprintf("%s, running %s (interactive, prompt as argument)", createName, spec.AgentType), createCmd) {
 		response.Status = "error"
 		response.Steps = steps
 		return response
@@ -190,65 +244,15 @@ func Start(proj *tracker.Project, spec Spec) Response {
 		exec.Command("tmux", "rename-window", "-t", session, windowName).Run()
 	}
 
-	// Persist the exact prompt the bot is briefed with. The agent is launched
-	// with this file as its argument, and the timeline view replays it later
-	// instead of reconstructing an approximation.
-	promptPath, err := WritePrompt(sessionLogDir, prompt)
-	if err != nil {
-		steps = append(steps, Step{Name: "Write prompt file", Status: "error", Detail: err.Error()})
-		response.Status = "error"
-		response.Steps = steps
-		return response
-	}
-
-	RunStep(&steps, fmt.Sprintf("Log to %s", rawLog),
-		exec.Command("tmux", "pipe-pane", "-t", target, "-o", fmt.Sprintf("cat >> %s", rawLog)))
-	exportEnv := func(label, key, value string) {
-		RunStep(&steps, fmt.Sprintf("%s %s", label, value),
-			exec.Command("tmux", "send-keys", "-t", target, fmt.Sprintf("export %s=%q", key, value), "Enter"))
-	}
-	exportEnv("CLI log to", "ISSUE_CLI_LOG", cliLog)
-
-	serverRoot, _ := os.Getwd()
-	exportEnv("Server root env", "ISSUE_VIEWER_SERVER_PWD", serverRoot)
-	if spec.IssueSlug != "" {
-		exportEnv("Issue slug env", "ISSUE_VIEWER_ISSUE_SLUG", spec.IssueSlug)
-	}
-	if spec.LeadScope != "" {
-		exportEnv("Lead scope env", "ISSUE_VIEWER_LEAD_SCOPE", spec.LeadScope)
-	}
-	if spec.ViewerURL != "" {
-		exportEnv("Viewer URL env", "ISSUE_VIEWER_URL", spec.ViewerURL)
-	}
-	if proj != nil && proj.Slug != "" {
-		exportEnv("Project env", "ISSUE_VIEWER_PROJECT", proj.Slug)
-	}
-	// Propagate the config path the viewer was launched with so the CLI can
-	// resolve `--project <slug>` against it without the bot having to know
-	// the file name (e.g. projects-mfranc.yaml vs the default projects.yaml).
-	if cfg := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_CONFIG")); cfg != "" {
-		exportEnv("Viewer config env", "ISSUE_VIEWER_CONFIG", cfg)
-	}
-
-	RunStep(&steps, fmt.Sprintf("cd %s", workDir),
-		exec.Command("tmux", "send-keys", "-t", target, fmt.Sprintf("cd %q", workDir), "Enter"))
-
 	if headless {
 		steps = append(steps, Step{Name: "Terminal: headless — attach manually", Status: "ok"})
 		setHints()
-	} else if !AttachStep(proj, session, &steps) {
+	} else if !ShowStep(proj, session, &steps) {
 		response.Status = "error"
 		response.Steps = steps
 		return response
 	}
 
-	time.Sleep(500 * time.Millisecond)
-
-	// The prompt goes in as the agent's launch argument, never pasted:
-	// a paste sent before the agent's input is ready is silently dropped.
-	// Both agents start interactive, so a human stays in the loop.
-	RunStep(&steps, fmt.Sprintf("Start %s (interactive, prompt as argument)", spec.AgentType),
-		exec.Command("tmux", "send-keys", "-t", target, LaunchCommand(proj, spec.AgentType, session, promptPath), "Enter"))
 	// Only Claude's pane rendering has been checked for the delivery marker.
 	if spec.AgentType != "codex" {
 		PromptDeliveryStep(&steps, target, prompt, spec.RepromptURL)

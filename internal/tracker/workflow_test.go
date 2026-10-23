@@ -238,6 +238,35 @@ func TestDefaultNextStatus(t *testing.T) {
 	}
 }
 
+func TestIsSideStatus(t *testing.T) {
+	wf := &WorkflowConfig{
+		Statuses: []WorkflowStatus{
+			{Name: "done"},
+			{Name: "parked", Optional: true, Global: true},
+			{Name: "blocked", Optional: true},
+			{Name: "archived", Optional: true},
+			{Name: "review", Optional: true},
+		},
+		Transitions: []WorkflowTransition{
+			{From: "*", To: "blocked"},
+			{From: "done", To: "archived"},
+			{From: "*", To: "archived"},
+		},
+	}
+	for name, want := range map[string]bool{
+		"done":     false, // not optional
+		"parked":   true,  // optional + global
+		"blocked":  true,  // optional, reached only by "*"
+		"archived": false, // has its own lifecycle edge
+		"review":   false, // optional, no edges: plain ordering
+		"unknown":  false,
+	} {
+		if got := wf.IsSideStatus(name); got != want {
+			t.Errorf("IsSideStatus(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
 func TestApplyTransitionToFile_ErrorPointsAtRequiredNext(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "1.md")
@@ -407,12 +436,33 @@ func TestAppendTemplate(t *testing.T) {
 	})
 
 	t.Run("duplicate guard", func(t *testing.T) {
-		body, appended := wf.AppendTemplate("## Test Plan\nAlready here", "testing")
+		body, appended := wf.AppendTemplate("## Test Plan\n- [x] Test 1", "testing")
 		if appended {
 			t.Fatal("should not append duplicate")
 		}
-		if body != "## Test Plan\nAlready here" {
+		if body != "## Test Plan\n- [x] Test 1" {
 			t.Errorf("body changed: %q", body)
+		}
+	})
+
+	t.Run("existing section gets the missing boxes", func(t *testing.T) {
+		body, appended := wf.AppendTemplate("## Test Plan\nAlready here", "testing")
+		if !appended {
+			t.Fatal("expected the missing box to be added")
+		}
+		if body != "## Test Plan\nAlready here\n\n- [ ] Test 1\n" {
+			t.Errorf("body = %q", body)
+		}
+	})
+
+	t.Run("heading text in prose or a fence is not the section", func(t *testing.T) {
+		in := "Mentions ## Test Plan inline.\n\n```\n## Test Plan\n```"
+		body, appended := wf.AppendTemplate(in, "testing")
+		if !appended {
+			t.Fatal("expected template to be appended")
+		}
+		if body != in+"\n\n## Test Plan\n- [ ] Test 1\n" {
+			t.Errorf("body = %q", body)
 		}
 	})
 
@@ -863,14 +913,37 @@ func TestApplyTransition_DoesNotDuplicateExistingSection(t *testing.T) {
 	issue := &Issue{BodyRaw: body}
 	result := wf.ApplyTransition(issue, "idea", "in design")
 
-	if result.Update.Body != nil {
-		t.Fatalf("expected no body update, got %#v", *result.Update.Body)
+	// ## Idea already holds its box; ## Design exists but lacks the gate's
+	// box, so only that box is added.
+	want := "## Idea\n- [ ] Problem described clearly\n\n## Design\n- [ ] Existing design checklist\n- [ ] Acceptance criteria defined as checkboxes\n"
+	if result.Update.Body == nil || *result.Update.Body != want {
+		t.Fatalf("body update = %v, want %q", result.Update.Body, want)
 	}
-	if result.BodyChanged {
-		t.Fatal("expected body to remain unchanged")
+	wantSections := []SectionAppend{
+		{Title: "Idea"},
+		{Title: "Design", BoxesAdded: 1},
 	}
-	if issue.BodyRaw != body {
-		t.Fatalf("issue body changed:\n%s", issue.BodyRaw)
+	if !reflect.DeepEqual(result.Sections, wantSections) {
+		t.Fatalf("sections = %+v, want %+v", result.Sections, wantSections)
+	}
+}
+
+func TestApplyTransition_DeeperSameNameHeadingDoesNotBlockAppend(t *testing.T) {
+	wf := &WorkflowConfig{
+		Statuses: []WorkflowStatus{{Name: "in progress"}, {Name: "testing"}},
+		Transitions: []WorkflowTransition{{
+			From: "in progress", To: "testing",
+			Actions: []WorkflowAction{{Type: "append_section", Title: "Testing", Body: "- [ ] Relevant tests passing"}},
+		}},
+	}
+	issue := &Issue{BodyRaw: "## Design\n### Testing\nUnit tests cover the parser."}
+	result := wf.ApplyTransition(issue, "in progress", "testing")
+
+	if total, _ := CountCheckboxesInSection(issue.BodyRaw, "Testing"); total != 1 {
+		t.Fatalf("## Testing boxes = %d, want 1; body:\n%s", total, issue.BodyRaw)
+	}
+	if want := []SectionAppend{{Title: "Testing", Created: true, BoxesAdded: 1}}; !reflect.DeepEqual(result.Sections, want) {
+		t.Fatalf("sections = %+v, want %+v", result.Sections, want)
 	}
 }
 
@@ -1406,7 +1479,7 @@ func TestPreviewTransition_SkipsExistingSection(t *testing.T) {
 		},
 	}
 
-	body := "## Idea\n- [ ] Existing content"
+	body := "## Idea\n- [x] Problem described clearly"
 	preview := wf.PreviewTransition(&Issue{Slug: "x", BodyRaw: body}, "idea", "in design", "", nil)
 
 	if !preview.Allowed {
@@ -1418,11 +1491,19 @@ func TestPreviewTransition_SkipsExistingSection(t *testing.T) {
 	if preview.Steps[0].Outcome != "skipped" {
 		t.Fatalf("step outcome = %q, want skipped", preview.Steps[0].Outcome)
 	}
+	if preview.Steps[0].Message != "Section exists with all its boxes" {
+		t.Fatalf("step message = %q", preview.Steps[0].Message)
+	}
 	if preview.Result.Update.Body != nil {
 		t.Fatalf("expected no body update, got %#v", *preview.Result.Update.Body)
 	}
 	if preview.Result.BodyChanged {
 		t.Fatalf("expected preview result to leave body unchanged, got %#v", preview.Result)
+	}
+
+	topUp := wf.PreviewTransition(&Issue{Slug: "x", BodyRaw: "## Idea\n- [ ] Existing content"}, "idea", "in design", "", nil)
+	if topUp.Steps[0].Outcome != "changed" || topUp.Steps[0].Message != "Section exists — would add 1 missing box" {
+		t.Fatalf("top-up step = %q / %q", topUp.Steps[0].Outcome, topUp.Steps[0].Message)
 	}
 }
 

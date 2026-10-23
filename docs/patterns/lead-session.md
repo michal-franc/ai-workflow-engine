@@ -22,7 +22,7 @@ human
 
 There is one lead per project, and it leads the epics itself (workbench epic D-13). You talk to the lead, and the lead talks to the workers. You can still attach to any session's tmux. The board stays the source of truth for status and approvals.
 
-![Who does what: the human, the lead session, the board, worker agents, issue-cli, workflow.yaml and the issue files, and where finished work lands](../images/lead-and-workers.png)
+![Who does what: the human, the lead session, the board, worker agents in their worktrees, issue-cli and workflow.yaml; finished work merges into local main, local CI re-tests it, and the lead pushes once per milestone release](../images/lead-and-workers.png)
 
 The name is the identity, the same rule as `agent-<slug>` for workers. Dots and spaces in the project slug become `-`. The lead's session also exports `ISSUE_VIEWER_LEAD_SCOPE=project`, so `issue-cli lead whoami` and the refusals below know who is asking.
 
@@ -104,6 +104,10 @@ These checks read the environment and the session name. They are guardrails for 
 
 While workers run, the lead checks in on a schedule (Raid League uses :07, :27 and :47 past the hour) and reports only what changed: questions waiting, a gate reached, red tests, an idle agent, two branches touching the same files. On request it gives a **stand-up**: one line per dispatched issue with status, last progress and blockers, then the approvals waiting for you.
 
+### Local CI
+
+With a `ci:` block ([Workflow: Local CI](../workflow.md#local-ci)) nobody re-runs the checks on main by hand: the viewer starts a run after every merge. When main goes red the lead gets a `[from ci] local CI red on main at <sha>: <command> … Merged since green: <issues>` message. It brings it to you and you decide together whether to revert, fix forward or dispatch a fix; CI never reverts. The lead hears again when main is green. Before any push, and always before a release, the lead runs `issue-cli ci status`, and it never pushes a release while main is red. The lead brief says so when `ci:` is set.
+
 ### Relaying questions
 
 Workers that need a decision ask in chat: they message the lead (Claude Code's SendMessage, addressed by tmux name) with the options and their recommendation, say they're waiting, and stop. The lead brings questions to you **one at a time**, with the worker's recommendation and its own. It records your answer in your words with `issue-cli decide <slug> --text "…" --how "lead chat" --quote "…"`, which writes the `D-n` line under `## Decisions`, then messages the asker.
@@ -125,7 +129,7 @@ The dispatch prompt and the status prompts in `workflow.yaml` already tell worke
 
 ### Handoff and restarts
 
-The lead writes a handoff note before it exits: `sessions/YYYY-MM-DD-lead-<project>.md`. The note ends with a `## Next` section: the ordered next steps. The viewer's Status page (`/p/<project>/status`) shows that `## Next` list, and its text form, `/p/<project>/status.md`, is a ready-made stand-up to paste. A new lead's brief names its newest note to read first, falling back to the older `sessions/*-lead-session.md`.
+The lead writes a handoff note before it exits: `sessions/YYYY-MM-DD-lead-<project>.md`. The note ends with a `## Next` section: the ordered next steps. The viewer's Status page (`/p/<project>/status`) shows that `## Next` list in its What's next tile, and its text form, `/p/<project>/status.md`, is a ready-made stand-up to paste. Its lists are capped: each "+K more" line names the `issue-cli list` command that shows the rest. Its **Waiting for release** block tells the lead when the current milestone is ready to cut (or what blocks it), what is merged and not released, and what is not pushed. A new lead's brief names its newest note to read first, falling back to the older `sessions/*-lead-session.md`.
 
 After a restart (tmux and the board gone, worktrees kept):
 

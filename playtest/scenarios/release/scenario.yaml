@@ -1,0 +1,22 @@
+# Waiting for release: v1.4.0 is the newest changelog heading, so the
+# milestone is 1.5. ui/dark-map-style is done, cli/export-routes-as-gpx sits
+# in shipping (the last open 1.5 issue), cli/voice-directions is parked (not
+# counted), ui/offline-map-tiles is 1.6 and ui/saved-places 1.4 (released).
+# root/CHANGELOG.md has two ## Unreleased entries. main is two commits ahead
+# of its upstream, the branch published. No ci: block, so no CI check.
+title: Waiting for release - unreleased entries, unpushed commits, ready to cut
+project:
+  name: Atlas
+  slug: atlas
+issues: tracker
+workflow: workflow.yaml
+root: root
+commits:
+  - files: commits/fold
+    message: "Map layers fold"
+  - files: commits/ci
+    message: "Offline region picker"
+branches:
+  - name: published
+    from: main~2
+upstream: published

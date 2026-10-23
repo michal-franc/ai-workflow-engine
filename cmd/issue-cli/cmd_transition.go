@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/michal-franc/issue-viewer/internal/ci"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -47,6 +48,7 @@ type transitionOutput struct {
 	To                   string                    `json:"to"`
 	Status               string                    `json:"status"`
 	StatusOptional       bool                      `json:"status_optional,omitempty"`
+	Done                 bool                      `json:"done,omitempty"`
 	Slug                 string                    `json:"slug"`
 	File                 string                    `json:"file"`
 	SideEffects          []string                  `json:"side_effects"`
@@ -85,7 +87,7 @@ func runTransition(ctx *Context, args []string) error {
 	if err := rejectRemovedWaitFlags(rest); err != nil {
 		return err
 	}
-	if err := parseFlags(ctx, fs, rest); err != nil {
+	if err := parseFlagsArgs(ctx, fs, rest); err != nil {
 		return err
 	}
 	to := *toFlag
@@ -123,7 +125,29 @@ func runTransition(ctx *Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	return printTransitionResult(ctx, buildTransitionOutput(wf, issue, from, to, result))
+	if err := printTransitionResult(ctx, buildTransitionOutput(wf, issue, from, to, result)); err != nil {
+		return err
+	}
+	if to == "done" && !ctx.JSONOutput {
+		printCIAfterDone(ctx, wf)
+	}
+	return nil
+}
+
+// printCIAfterDone tells the agent that just shipped that local CI tests
+// main without it, so it stops instead of waiting.
+func printCIAfterDone(ctx *Context, wf *tracker.WorkflowConfig) {
+	if !wf.CI.Enabled() {
+		return
+	}
+	root := ci.RepoRoot(projectRoot(ctx.Project))
+	branch, err := ci.ResolveBranch(root, wf.CI)
+	if err != nil {
+		return
+	}
+	head, _ := ci.Head(root, branch)
+	fmt.Fprintf(ctx.Stdout, "Local CI tests %s at %s by itself: don't wait for it, you are done. If it goes red on your merge, the lead may re-open this issue (%s).\n",
+		branch, ci.Short(head), tracker.InjectProject(ctx.Project, "issue-cli ci status"))
 }
 
 // runTransitionDryRun reports every unmet requirement for issue → to and
@@ -135,6 +159,7 @@ func runTransitionDryRun(ctx *Context, wf *tracker.WorkflowConfig, issue *tracke
 	out := dryRunOutput{DryRun: true, Ready: len(problems) == 0, From: from, To: to, Slug: slug, Problems: problems}
 	if out.Ready {
 		_, out.SideEffects = nextTransitionContract(wf, from, to)
+		out.SideEffects = sectionDryRunEffects(wf, issue, from, to, fields, out.SideEffects)
 	}
 	if out.Problems == nil {
 		out.Problems = []transitionProblem{}
@@ -175,21 +200,13 @@ func stripFieldFlags(args []string) []string {
 }
 
 func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, from, to string, result tracker.TransitionResult) transitionOutput {
-	required, optionals := wf.DefaultNextStatus(issue.Status)
-	next := required
-	nextOptional := false
-	if next == "" && len(optionals) > 0 {
-		next = optionals[0]
-		nextOptional = true
-		optionals = optionals[1:]
-	}
+	next, nextOptional, optionals := defaultNextStep(wf, issue.Status)
 
 	guidance := []string{}
 	if prompt := strings.TrimSpace(wf.StatusPrompt(issue.Status)); prompt != "" {
 		guidance = append(guidance, prompt)
 	}
 	guidance = append(guidance, result.InjectedPrompts...)
-	guidance = append(guidance, wf.EntryPrompts(issue.Status, next)...)
 
 	statusOptional := false
 	if s := wf.GetStatus(issue.Status); s != nil {
@@ -198,6 +215,7 @@ func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, fro
 	var nextRequires, nextSideEffects []string
 	var nextCommand, nextNote string
 	if next != "" {
+		guidance = append(guidance, wf.EntryPrompts(issue.Status, next)...)
 		nextRequires, nextSideEffects = nextTransitionContract(wf, issue.Status, next)
 		nextCommand, nextNote = nextStepCommand(wf, issue.Slug, issue.Status, next)
 	}
@@ -206,6 +224,7 @@ func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, fro
 		To:                   to,
 		Status:               issue.Status,
 		StatusOptional:       statusOptional,
+		Done:                 next == "" && !statusOptional,
 		Slug:                 issue.Slug,
 		File:                 issue.FilePath,
 		SideEffects:          transitionSideEffects(result),
@@ -225,6 +244,27 @@ func buildTransitionOutput(wf *tracker.WorkflowConfig, issue *tracker.Issue, fro
 	}
 }
 
+// defaultNextStep picks the status to suggest after status: the next required
+// one, else the first remaining optional one (allOptional), plus the optional
+// side-paths. Side statuses (parked) are dropped when nothing required is
+// left, so a finished issue gets no next step.
+func defaultNextStep(wf *tracker.WorkflowConfig, status string) (next string, allOptional bool, optionals []string) {
+	required, optionals := wf.DefaultNextStatus(status)
+	if required != "" {
+		return required, false, optionals
+	}
+	var onPath []string
+	for _, o := range optionals {
+		if !wf.IsSideStatus(o) {
+			onPath = append(onPath, o)
+		}
+	}
+	if len(onPath) == 0 {
+		return "", false, nil
+	}
+	return onPath[0], true, onPath[1:]
+}
+
 func transitionSideEffects(result tracker.TransitionResult) []string {
 	var effects []string
 	if result.Update.Assignee != nil {
@@ -240,15 +280,63 @@ func transitionSideEffects(result tracker.TransitionResult) []string {
 	if result.PromotedApproval != "" {
 		effects = append(effects, fmt.Sprintf("queued approval for %q is now active — run issue-cli start to continue", result.PromotedApproval))
 	}
-	if result.BodyAppended {
+	sections := sectionEffects(result)
+	effects = append(effects, sections...)
+	if result.BodyAppended && len(sections) == 0 {
 		effects = append(effects, "workflow content appended to issue body")
-	} else if result.BodyChanged {
+	} else if result.BodyChanged && !result.BodyAppended {
 		effects = append(effects, "issue body updated")
 	}
 	if len(result.InjectedPrompts) > 0 {
 		effects = append(effects, fmt.Sprintf("%d entry guidance prompt(s) injected", len(result.InjectedPrompts)))
 	}
 	return effects
+}
+
+// sectionEffects names each gate section a transition created or topped up
+// with missing boxes, so an agent sees which checklist it now has to work.
+func sectionEffects(result tracker.TransitionResult) []string {
+	var out []string
+	for _, sec := range result.Sections {
+		switch {
+		case sec.Created:
+			out = append(out, fmt.Sprintf("## %s appended", sec.Title))
+		case sec.BoxesAdded > 0:
+			out = append(out, fmt.Sprintf("## %s existed — added %s", sec.Title, missingBoxes(sec.BoxesAdded)))
+		}
+	}
+	return out
+}
+
+// sectionDryRunEffects rewrites the static "appends ## X section" side
+// effect for each section the issue already has: the transition adds only
+// the boxes it lacks, or leaves it as is.
+func sectionDryRunEffects(wf *tracker.WorkflowConfig, issue *tracker.Issue, from, to string, fields map[string]string, effects []string) []string {
+	probe := *issue
+	result := wf.ApplyTransitionWithFields(&probe, from, to, fields)
+	for _, sec := range result.Sections {
+		if sec.Created {
+			continue
+		}
+		line := fmt.Sprintf("Side-effect: ## %s exists with all its boxes — left as is", sec.Title)
+		if sec.BoxesAdded > 0 {
+			line = fmt.Sprintf("Side-effect: ## %s exists — adds %s", sec.Title, missingBoxes(sec.BoxesAdded))
+		}
+		static := fmt.Sprintf("Side-effect: appends ## %s section", sec.Title)
+		for i, e := range effects {
+			if e == static {
+				effects[i] = line
+			}
+		}
+	}
+	return effects
+}
+
+func missingBoxes(n int) string {
+	if n == 1 {
+		return "1 missing box"
+	}
+	return fmt.Sprintf("%d missing boxes", n)
 }
 
 func collectChecklist(body string) []transitionChecklistItem {
@@ -317,7 +405,7 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 				mark = "x"
 			}
 			if item.ID != "" {
-				fmt.Fprintf(w, "  %s [%s] %s\n", item.ID, mark, item.Text)
+				fmt.Fprintf(w, "  %s [%s] %s\n", item.ID, mark, tracker.StripCheckboxID(item.ID, item.Text))
 				hint = hint || !item.Checked
 			} else {
 				fmt.Fprintf(w, "  %d. [%s] %s\n", item.Index, mark, item.Text)
@@ -325,6 +413,7 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 		}
 		if hint {
 			fmt.Fprintf(w, "Tick done boxes by id, several at once: issue-cli check %s <id> [<id>...]\n", slug)
+			fmt.Fprintf(w, "Box text wrong? issue-cli check-edit %s <id> --text \"...\"\n", slug)
 		}
 		fmt.Fprintln(w)
 	}
@@ -334,6 +423,10 @@ func printWorkflowNextStepsFromData(w io.Writer, output transitionOutput) {
 			fmt.Fprintf(w, "- %s\n", prompt)
 		}
 		fmt.Fprintln(w)
+	}
+	if output.Done {
+		fmt.Fprintln(w, "== Done ==")
+		fmt.Fprintf(w, "  %s is the end of the workflow: nothing is left to do on this issue.\n", output.Status)
 	}
 	if nextStatus != "" {
 		fmt.Fprintln(w, "== Next ==")

@@ -22,7 +22,7 @@ steps:
       - selected: status.tab.project
       - text_contains: { target: page.source, text: docs/status/index.html }
       - visible: page.raw_link
-      - absent: status.where
+      - absent: status.milestone
       - below: [status.tabs, page.frame]
       - size: { target: page.frame, min_height: 500 }
       - http: { path: "/p/{project}/status", contains: "sandbox=\"allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation\"" }
@@ -35,7 +35,7 @@ steps:
       - click: status.tab.builtin
     checks:
       - url: { contains: "view=builtin" }
-      - visible: [status.where, status.tabs]
+      - visible: [status.milestone, status.tabs]
       - selected: status.tab.builtin
       - absent: page.frame
       - http: { path: "/p/{project}/status.md", contains: "# Atlas status" }
@@ -131,6 +131,6 @@ steps:
                     status: "backlog"
       - open: /p/{project}/status
     checks:
-      - visible: status.where
+      - visible: status.milestone
       - absent: [status.tabs, page.frame, nav.page.0]
       - http: { path: "/p/{project}/page-raw/docs/status/index.html", status: 404 }

@@ -23,24 +23,6 @@ statuses:
     prompt: |
       Implement the accepted design and keep the issue body, implementation checklist, and test plan accurate as work progresses.
 
-  - name: "waiting-for-team-input"
-    optional: true
-    description: "Parked — blocked on another team (optional, skip if not blocked)"
-    prompt: |
-      Do not run code changes while in this status.
-      When the blocking team responds, transition back to `in progress` or forward to `testing`.
-
-  - name: "deferred"
-    optional: true
-    global: true
-    description: "Parked with no owner — captured for later, may or may not be picked up"
-    prompt: |
-      Do not work this issue while it is deferred. Check the `deferred_to` frontmatter
-      field to see who or what it is waiting on, and the Deferred Record section for
-      the reason it was parked.
-      When the blocker clears, drag the card to any status — deferred is marked `global`
-      so there is no linear workflow constraint on the way out.
-
   - name: "testing"
     description: "Under verification"
     prompt: |
@@ -66,6 +48,24 @@ statuses:
   - name: "done"
     description: "Completed"
 
+  - name: "waiting-for-team-input"
+    optional: true
+    description: "Parked — blocked on another team (optional, skip if not blocked)"
+    prompt: |
+      Do not run code changes while in this status.
+      When the blocking team responds, transition back to `in progress` or forward to `testing`.
+
+  - name: "deferred"
+    optional: true
+    global: true
+    description: "Parked with no owner — captured for later, may or may not be picked up"
+    prompt: |
+      Do not work this issue while it is deferred. Check the `deferred_to` frontmatter
+      field to see who or what it is waiting on, and the Deferred Record section for
+      the reason it was parked.
+      When the blocker clears, drag the card to any status — deferred is marked `global`
+      so there is no linear workflow constraint on the way out.
+
 board:
   columns:
     - idea
@@ -85,6 +85,11 @@ board:
     - assignee
     - waiting
     - deferred_to
+
+workbench:
+  pages:                      # project pages, listed under Status in the sidebar
+    - title: "Weekly report"
+      path: reports/weekly.html
 
 transitions:
   - from: "idea"

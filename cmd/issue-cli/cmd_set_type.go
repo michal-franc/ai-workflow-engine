@@ -35,7 +35,7 @@ func runSetType(ctx *Context, args []string) error {
 		return err
 	}
 	fs := newFlagSet("set-type", ctx)
-	if err := parseFlags(ctx, fs, rest); err != nil {
+	if err := parseFlagsArgs(ctx, fs, rest); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {

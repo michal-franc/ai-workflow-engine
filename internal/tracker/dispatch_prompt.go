@@ -36,6 +36,7 @@ func BuildDispatchPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, workDi
 	route := LeadFor(proj, issue, issues, live)
 	prompt := BuildAgentPrompt(proj, issue, wf, wt.Path, wt.Branch)
 	prompt += InjectProject(proj, LeadPromptSection(issue, route))
+	prompt += InjectProject(proj, CIPromptSection(workDir, wf))
 	return DispatchPrompt{
 		Prompt:   prompt,
 		Slug:     issue.Slug,
@@ -45,6 +46,22 @@ func BuildDispatchPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, workDi
 		Session:  AgentDisplayName(proj, AgentSessionName(issue.Slug)),
 		Lead:     route.Lead,
 	}
+}
+
+// CIPromptSection is the "## Local CI" part of a worker's briefing: where
+// the integration branch stands now, and that CI runs after the merge
+// without the agent. Empty without a ci: block.
+func CIPromptSection(workDir string, wf *WorkflowConfig) string {
+	if CIStatusLine == nil {
+		return ""
+	}
+	line := CIStatusLine(workDir, wf)
+	if line == "" {
+		return ""
+	}
+	return "\n\n## Local CI\n\n" + line + "\n" +
+		"- When `make validate` or a test fails on your branch, compare with this line (`issue-cli ci status`): a failure main already has is not yours to fix.\n" +
+		"- After you fast-forward main, local CI tests it by itself. Never wait for it: close your issue and stop. If it goes red on your merge, the lead may re-open your issue.\n"
 }
 
 // LeadPromptSection is the "## Your lead" part of a worker's briefing. It
@@ -97,7 +114,7 @@ func ResolveWorktree(workdir, slug string, wf *WorkflowConfig) (path, branch str
 	return filepath.Join(workdir, ".worktrees", slug), "work/" + slug, true
 }
 
-// BuildAgentPrompt formats AgentDispatchPromptTemplate for issue, injects
+// BuildAgentPrompt fills AgentDispatchPromptTemplate's placeholders for issue, injects
 // --project into every issue-cli command, and appends the worktree section
 // when the agent runs in one.
 func BuildAgentPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, worktreePath, worktreeBranch string) string {
@@ -123,17 +140,7 @@ func BuildAgentPrompt(proj *Project, issue *Issue, wf *WorkflowConfig, worktreeP
 		statusField += fmt.Sprintf("\n  Type: %s (%s)", wf.ActiveType, wf.PathLine())
 	}
 
-	prompt := fmt.Sprintf(AgentDispatchPromptTemplate,
-		issue.Slug,
-		currentPrompt,
-		statusReminder,
-		issue.Slug,
-		issue.Slug,
-		issue.Slug,
-		issue.Slug,
-		issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.Slug, issue.System, issue.System, issue.Slug,
-		issue.Title, statusField, issue.Priority,
-		issue.BodyRaw)
+	prompt := renderPromptTemplate(AgentDispatchPromptTemplate, agentPromptFields(issue, currentPrompt, statusReminder, statusField))
 
 	// Inject --project so dispatched bots in a multi-project projects.yaml
 	// setup don't silently run against the default project. The web app
@@ -154,6 +161,32 @@ You are already in an isolated git worktree at %s on branch %s.
 `, worktreePath, worktreeBranch, worktreeBranch)
 	}
 	return prompt
+}
+
+// agentPromptFields is the value of each {{name}} placeholder in
+// AgentDispatchPromptTemplate.
+func agentPromptFields(issue *Issue, statusGuidance, statusReminder, statusField string) map[string]string {
+	return map[string]string{
+		"slug":            issue.Slug,
+		"system":          issue.System,
+		"status_guidance": statusGuidance,
+		"status_reminder": statusReminder,
+		"title":           issue.Title,
+		"status":          statusField,
+		"priority":        issue.Priority,
+		"body":            issue.BodyRaw,
+	}
+}
+
+// renderPromptTemplate replaces each {{name}} in tmpl with fields[name]. The
+// replacement is one pass over tmpl, so a value that itself contains {{...}}
+// (an issue body, a status prompt) is left as written.
+func renderPromptTemplate(tmpl string, fields map[string]string) string {
+	pairs := make([]string, 0, 2*len(fields))
+	for name, value := range fields {
+		pairs = append(pairs, "{{"+name+"}}", value)
+	}
+	return strings.NewReplacer(pairs...).Replace(tmpl)
 }
 
 // InjectProject adds --project <slug> to every issue-cli command in text, so

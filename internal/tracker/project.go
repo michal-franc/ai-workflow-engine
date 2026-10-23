@@ -146,11 +146,23 @@ type ProjectsConfig struct {
 	// TmuxSessionPerProject gives every project without its own tmux_session
 	// one named after its slug, so each project's lead and workers are
 	// windows of one session.
-	TmuxSessionPerProject bool      `yaml:"tmux_session_per_project"`
-	Projects              []Project `yaml:"projects"`
+	TmuxSessionPerProject bool `yaml:"tmux_session_per_project"`
+	// EngineProject is the slug of the project issue-cli bug reports go to
+	// (report-bug). Unset, the project with the engine's repo is used.
+	EngineProject string    `yaml:"engine_project"`
+	Projects      []Project `yaml:"projects"`
 }
 
 func LoadProjects(configPath string) ([]Project, error) {
+	cfg, err := LoadProjectsConfig(configPath)
+	if err != nil {
+		return nil, err
+	}
+	return cfg.Projects, nil
+}
+
+// LoadProjectsConfig reads projects.yaml with its machine-wide keys.
+func LoadProjectsConfig(configPath string) (*ProjectsConfig, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading config %s: %w", configPath, err)
@@ -179,5 +191,5 @@ func LoadProjects(configPath string) ([]Project, error) {
 		}
 	}
 
-	return cfg.Projects, nil
+	return &cfg, nil
 }

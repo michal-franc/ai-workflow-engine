@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -25,6 +27,10 @@ import (
 type updateIssuePayload struct {
 	tracker.IssueUpdate
 	Fields map[string]string `json:"fields,omitempty"`
+	// BaseBodyHash is tracker.BodyHash of the body the page started from.
+	// With a body, the write is refused (409) when the file's body has
+	// changed since, so a stale page never overwrites a CLI append.
+	BaseBodyHash string `json:"base_body_hash,omitempty"`
 }
 
 func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
@@ -59,6 +65,13 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 		return
 	}
 	update := payload.IssueUpdate
+	// A retitle keeps the slug, as `issue-cli update --title` does: the old
+	// slug is pinned with slug: and the file is not renamed. The pin is the
+	// server's call, never the client's.
+	update.Slug = nil
+	if update.Title != nil {
+		update.Slug = tracker.RetitleUpdate(found, *update.Title, false).Slug
+	}
 
 	// Status changes route through the workflow engine so the board path matches
 	// `issue-cli transition` — validation, actions, declarative fields.
@@ -78,7 +91,19 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 		update.ExtraFields = nil
 	}
 
-	if hasNonStatusUpdates(update) {
+	var bodyHash string
+	switch {
+	case update.Body != nil && payload.BaseBodyHash != "":
+		bodyHash, err = tracker.UpdateIssueFrontmatterIfBody(found.FilePath, payload.BaseBodyHash, update)
+		if errors.Is(err, tracker.ErrStaleBody) {
+			writeTransitionError(w, errors.New("This issue changed since the page loaded (an agent, the CLI or another tab wrote it). Your change was not saved: reload to see the current version."))
+			return
+		}
+		if err != nil {
+			http.Error(w, "update failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	case hasNonStatusUpdates(update):
 		if err := tracker.UpdateIssueFrontmatter(found.FilePath, update); err != nil {
 			http.Error(w, "update failed: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -86,25 +111,18 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 	}
 
 	if payload.Status != nil && *payload.Status == "done" && proj.SupportsGitHub && found.Repo != "" && found.Number > 0 {
-		go closeGithubIssue(found)
-	}
-
-	newSlug := found.Slug
-	if update.Title != nil {
-		newSlug = tracker.Slugify(*update.Title)
-		if newSlug != found.Slug {
-			dir := filepath.Dir(found.FilePath)
-			newPath := filepath.Join(dir, newSlug+".md")
-			if err := os.Rename(found.FilePath, newPath); err != nil {
-				http.Error(w, "rename failed: "+err.Error(), http.StatusInternalServerError)
-				return
-			}
-		}
+		s.bg.Go(fmt.Sprintf("github close %s#%d", found.Repo, found.Number), func() {
+			closeGithubIssue(s.bg.hard, found)
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok", "slug": newSlug})
+	resp := map[string]string{"status": "ok", "slug": found.Slug}
+	if bodyHash != "" {
+		resp["body_hash"] = bodyHash
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func hasNonStatusUpdates(u tracker.IssueUpdate) bool {
@@ -125,25 +143,35 @@ func writeTransitionError(w http.ResponseWriter, err error) {
 	})
 }
 
-func closeGithubIssue(issue *tracker.Issue) {
+// closeGithubIssue runs under ctx, which shutdown cancels once its grace
+// period is over; a close it kills is logged, never retried.
+func closeGithubIssue(ctx context.Context, issue *tracker.Issue) {
 	comment := fmt.Sprintf("Closed via issue-viewer.\n\nImplementation tracked in local issue: %s", issue.Title)
 	if issue.BodyRaw != "" {
 		comment += "\n\n---\n\n" + issue.BodyRaw
 	}
-	token, err := exec.Command(os.ExpandEnv("$HOME/Work/michal-franc-agent/gh-app-token")).Output()
+	token, err := exec.CommandContext(ctx, os.ExpandEnv("$HOME/Work/michal-franc-agent/gh-app-token")).Output()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "closeGithubIssue: get token: %v\n", err)
+		logGithubCloseFailure(ctx, issue, "get token", err, nil)
 		return
 	}
 	args := []string{"issue", "close", fmt.Sprintf("%d", issue.Number),
 		"--repo", issue.Repo,
 		"--comment", comment,
 	}
-	cmd := exec.Command("gh", args...)
+	cmd := exec.CommandContext(ctx, "gh", args...)
 	cmd.Env = append(os.Environ(), "GH_TOKEN="+strings.TrimSpace(string(token)))
 	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Fprintf(os.Stderr, "closeGithubIssue: gh issue close: %v\n%s\n", err, out)
+		logGithubCloseFailure(ctx, issue, "gh issue close", err, out)
 	}
+}
+
+func logGithubCloseFailure(ctx context.Context, issue *tracker.Issue, step string, err error, out []byte) {
+	if ctx.Err() != nil {
+		fmt.Fprintf(os.Stderr, "closeGithubIssue: %s#%d not closed: server shut down during %s\n", issue.Repo, issue.Number, step)
+		return
+	}
+	fmt.Fprintf(os.Stderr, "closeGithubIssue: %s#%d: %s: %v\n%s", issue.Repo, issue.Number, step, err, out)
 }
 
 // --- Delete Issue ---
@@ -326,7 +354,7 @@ func openEditorTerminal(proj *tracker.Project, session string) (string, error) {
 	return "", nil
 }
 
-func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEditResponse, error) {
+func startIssueBodyEditor(bg *background, proj *tracker.Project, issue *tracker.Issue) (BodyEditResponse, error) {
 	if issue == nil {
 		return BodyEditResponse{}, fmt.Errorf("issue is required")
 	}
@@ -428,45 +456,17 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 		return BodyEditResponse{}, fmt.Errorf("start nvim: %w", err)
 	}
 
-	issueFilePath := issue.FilePath
-	go func() {
-		defer cleanup()
-		if err := exec.Command("tmux", "wait-for", waitSignal).Run(); err != nil {
-			return
-		}
-		defer killAgentTmux(proj, session)
-
-		statusBytes, err := os.ReadFile(statusPath)
-		if err != nil {
-			return
-		}
-		if strings.TrimSpace(string(statusBytes)) != "0" {
-			return
-		}
-
-		updatedBytes, err := os.ReadFile(editPath)
-		if err != nil {
-			return
-		}
-
-		if _, err := tracker.ParseIssue(filepath.Base(issueFilePath), updatedBytes); err != nil {
-			recordEditFailure(issueFilePath, fmt.Sprintf("invalid issue file: %v", err))
-			return
-		}
-
-		currentContent, err := os.ReadFile(issueFilePath)
-		if err != nil {
-			return
-		}
-		if sha256.Sum256(currentContent) != baseHash {
-			recordEditFailure(issueFilePath, "issue file changed during nvim edit; nvim changes discarded")
-			return
-		}
-
-		if err := tracker.RewriteIssueFile(issueFilePath, updatedBytes); err != nil {
-			recordEditFailure(issueFilePath, fmt.Sprintf("write failed: %v", err))
-		}
-	}()
+	edit := bodyEdit{
+		proj:       proj,
+		session:    session,
+		waitSignal: waitSignal,
+		editPath:   editPath,
+		statusPath: statusPath,
+		issuePath:  issue.FilePath,
+		baseHash:   baseHash,
+		cleanup:    cleanup,
+	}
+	bg.Go("nvim edit "+issue.Slug, func() { awaitBodyEdit(bg, edit) })
 
 	sessionReady = true
 	return BodyEditResponse{
@@ -474,6 +474,63 @@ func startIssueBodyEditor(proj *tracker.Project, issue *tracker.Issue) (BodyEdit
 		Session: agentDisplayName(proj, session),
 		Message: "Opened in nvim. The issue file will sync back after the editor exits.",
 	}, nil
+}
+
+// bodyEdit is one nvim edit session waiting to be written back.
+type bodyEdit struct {
+	proj                 *tracker.Project
+	session, waitSignal  string
+	editPath, statusPath string
+	issuePath            string
+	baseHash             [sha256.Size]byte
+	cleanup              func()
+}
+
+// awaitBodyEdit blocks until nvim exits, then writes the edit back to the
+// issue. Shutdown does not wait for the human: it kills the edit session and
+// leaves a comment saying the changes were discarded. A write-back that has
+// started runs to the end.
+func awaitBodyEdit(bg *background, e bodyEdit) {
+	defer e.cleanup()
+	if err := exec.CommandContext(bg.ctx, "tmux", "wait-for", e.waitSignal).Run(); err != nil {
+		if bg.ctx.Err() != nil {
+			killAgentTmux(e.proj, e.session)
+			recordEditFailure(e.issuePath, "server shut down; nvim session closed, changes discarded")
+		}
+		return
+	}
+	defer killAgentTmux(e.proj, e.session)
+
+	statusBytes, err := os.ReadFile(e.statusPath)
+	if err != nil {
+		return
+	}
+	if strings.TrimSpace(string(statusBytes)) != "0" {
+		return
+	}
+
+	updatedBytes, err := os.ReadFile(e.editPath)
+	if err != nil {
+		return
+	}
+
+	if _, err := tracker.ParseIssue(filepath.Base(e.issuePath), updatedBytes); err != nil {
+		recordEditFailure(e.issuePath, fmt.Sprintf("invalid issue file: %v", err))
+		return
+	}
+
+	currentContent, err := os.ReadFile(e.issuePath)
+	if err != nil {
+		return
+	}
+	if sha256.Sum256(currentContent) != e.baseHash {
+		recordEditFailure(e.issuePath, "issue file changed during nvim edit; nvim changes discarded")
+		return
+	}
+
+	if err := tracker.RewriteIssueFile(e.issuePath, updatedBytes); err != nil {
+		recordEditFailure(e.issuePath, fmt.Sprintf("write failed: %v", err))
+	}
 }
 
 // recordEditFailure leaves a comment on the issue describing why a nvim edit
@@ -492,7 +549,7 @@ func (s *Server) handleEditIssueInNvim(w http.ResponseWriter, r *http.Request, p
 		return
 	}
 
-	resp, err := launchIssueBodyEditor(proj, issue)
+	resp, err := launchIssueBodyEditor(s.bg, proj, issue)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), http.StatusInternalServerError)

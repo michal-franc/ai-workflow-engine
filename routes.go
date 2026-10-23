@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"github.com/michal-franc/issue-viewer/internal/agentrun"
 	"html/template"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -22,6 +24,9 @@ var staticFS embed.FS
 type Server struct {
 	projects []tracker.Project
 	tmpl     *template.Template
+	// bg runs work that outlives a request; run swaps in one tied to the
+	// signal context so shutdown can wait for it.
+	bg *background
 }
 
 // AgentSession is one live tmux session (or shared-session window).
@@ -46,6 +51,7 @@ func NewServer(projects []tracker.Project) (*Server, error) {
 	s := &Server{
 		projects: projects,
 		tmpl:     tmpl,
+		bg:       newBackground(context.Background()),
 	}
 	tmpl.Funcs(template.FuncMap{"sidebar": s.sidebarNav})
 	return s, nil
@@ -66,7 +72,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/p/", s.handleProjectRoutes)
 	mux.HandleFunc("/project-for", s.handleProjectFor)
 	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
-	return mux
+	return sameOriginOnly(mux)
 }
 
 // handleProjectRoutes dispatches /p/<slug>/... to the right handler
@@ -87,12 +93,6 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	prefix := "/p/" + projectSlug
-
-	// A sandboxed project page has origin null; it may read, never write.
-	if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Header.Get("Origin") == "null" {
-		http.Error(w, "cross-origin request refused", http.StatusForbidden)
-		return
-	}
 
 	switch {
 	case rest == "" || rest == "/":
@@ -248,8 +248,14 @@ func (s *Server) handleProjectList(w http.ResponseWriter, r *http.Request) {
 		wg.Add(1)
 		go func(i int, p tracker.Project) {
 			defer wg.Done()
-			issues, _ := tracker.LoadIssues(p.IssueDir)
-			docs, _ := tracker.LoadDocs(p.DocsDir)
+			issues, err := tracker.LoadIssues(p.IssueDir)
+			if err != nil {
+				log.Printf("project list: %s: load issues: %v", p.Slug, err)
+			}
+			docs, err := tracker.LoadDocs(p.DocsDir)
+			if err != nil {
+				log.Printf("project list: %s: load docs: %v", p.Slug, err)
+			}
 			summaries[i] = ProjectSummary{
 				Name:       p.Name,
 				Slug:       p.Slug,

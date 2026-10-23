@@ -1,0 +1,75 @@
+session: status-release-wait
+issue: ui/status-page-shows-what-waits-to-be-released
+title: Status page - Waiting for release (unreleased, not pushed, ready to cut)
+scenario: release
+
+session_checks:
+  viewports: [1440x900, 1280x800]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: Waiting for release shows milestone 1.5 not ready, its open issue, the Unreleased entries and the unpushed commits
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - visible: [status.release_wait, status.release_wait.milestone, status.release_wait.checks, status.release_wait.unreleased, status.release_wait.unpushed]
+      - text_equals: { target: status.release_wait.state, text: v1.5.0 not ready }
+      - text_contains: { target: status.release_wait.milestone, text: Milestone 1.5 }
+      - text_contains: { target: status.release_wait.milestone, text: 1/2 done }
+      - text_contains: { target: status.release_wait.check.issues, text: 1 open }
+      - text_contains: { target: status.release_wait.check.changelog, text: "2" }
+      # No ci: block: no CI check. Parked and released issues are not listed.
+      - absent: [status.release_wait.check.ci, status.release_wait.ready, status.release_wait.open.row.cli/voice-directions, status.release_wait.open.row.ui/saved-places]
+      - count: { pattern: status.release_wait.open.row.*, equals: 1 }
+      - text_contains: { target: status.release_wait.open.row.cli/export-routes-as-gpx, text: agent-export-routes-as-gpx }
+      - text_contains: { target: status.release_wait.open.row.cli/export-routes-as-gpx, text: shipping }
+      - text_contains: { target: status.release_wait.unreleased, text: "UNRELEASED · 2" }
+      - text_contains: { target: status.release_wait.unreleased, text: Dark map style follows the system theme, and the legend switches with it. }
+      - text_contains: { target: status.release_wait.unpushed, text: 2 commits on main not on published }
+      # Side column, beside Epics: under the top tiles, above Recently shipped.
+      - below: [status.strip, status.release_wait]
+      - beside: [status.epics, status.release_wait]
+      - below: [status.release_wait, status.shipped]
+
+  - id: TP5
+    title: Taking the last open 1.5 issue to done turns the card into Ready to cut v1.5.0 with the steps
+    setup:
+      - open: /p/{project}/status
+    act:
+      - check: { absent: status.release_wait.ready }
+      - cli: [transition, cli/export-routes-as-gpx, --to, done]
+      - reload: true
+      - wait_for: { visible: status.release_wait.ready }
+    checks:
+      - text_equals: { target: status.release_wait.state, text: ready to cut }
+      - text_contains: { target: status.release_wait.milestone, text: 2/2 done }
+      - text_contains: { target: status.release_wait.ready, text: Ready to cut v1.5.0 }
+      - text_contains: { target: status.release_wait.ready, text: "rename ## Unreleased to ## v1.5.0" }
+      - text_contains: { target: status.release_wait.ready, text: push main to published }
+      - absent: status.release_wait.open
+
+  - id: TP6
+    title: status.md carries the same Waiting for release block
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - http: { path: "/p/{project}/status.md", contains: "## Waiting for release\n- Milestone 1.5: 1/2 done; v1.5.0 not ready: 1 issue open\n  - cli/export-routes-as-gpx (shipping, agent-export-routes-as-gpx)\n" }
+      - http: { path: "/p/{project}/status.md", contains: "- Unreleased in CHANGELOG.md (2):\n  - Dark map style follows the system theme, and the legend switches with it.\n  - Export routes as GPX from the route panel.\n" }
+      - http: { path: "/p/{project}/status.md", contains: "- Not pushed: 2 commits on main not on published, newest " }
+
+  - id: TP7
+    title: The card reads like the approved mockup in every theme
+    setup:
+      - open: /p/{project}/status
+    do: Read the Waiting for release card, then switch to the Dracula and light themes.
+    expect: |
+      It looks like the approved mockup (issue Mockups, "Side column, not
+      ready"): an amber "v1.5.0 not ready" chip, the 1.5 bar half full, the
+      two-row check list with a red cross on "Every 1.5 issue done" and a
+      green check on "Entries under ## Unreleased", one open issue, two
+      Unreleased entries and the Not pushed line. In every theme the crosses,
+      checks and chip stay readable. At a glance you can say whether 1.5
+      can be cut and why not.
+    why: whether the card answers "can we cut" at a glance is the owner's call.

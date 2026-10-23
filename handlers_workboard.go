@@ -285,6 +285,8 @@ func buildWorkCard(proj *tracker.Project, prefix string, issue *tracker.Issue, i
 	card.AgeOld = now.Sub(since) >= staleAfter && !card.idle
 	if issue.Status != "done" {
 		card.Markers = cardMarkers(mctx, issue)
+	} else {
+		card.Markers = ciMarkers(mctx, issue)
 	}
 	for _, m := range card.Markers {
 		card.waiting = card.waiting || m.Waiting()

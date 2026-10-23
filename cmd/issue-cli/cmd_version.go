@@ -17,6 +17,9 @@ func init() {
 }
 
 func runVersion(ctx *Context, args []string) error {
+	if _, err := parsePositionals(ctx, "version", args, 0); err != nil {
+		return err
+	}
 	fmt.Fprintln(ctx.Stdout, "issue-cli", Version)
 	return nil
 }

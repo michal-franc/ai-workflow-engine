@@ -1,0 +1,219 @@
+session: status-scale
+issue: ui/status-page-at-scale-now-column-and-epics-by-area
+title: Status page at scale - one grid, epics by area, every list capped
+scenario: status-scale
+
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: Every list stops at its cap with "+K more"; the rows sit on one shared grid
+    setup:
+      - open: /p/{project}/status
+    act:
+      - check: { text_contains: { target: status.release_wait.open.fold, text: "20 open: 1 in progress, 2 in design, 17 idea" } }
+      - check: { count: { pattern: status.release_wait.open.row.*, equals: 0 } }
+      # Needs you: 7 ready gates, 5 shown.
+      - click: status.waiting.pop
+      - check: { count: { pattern: status.waiting.gate.*, equals: 5 } }
+      - check: { text_equals: { target: status.waiting.more.gate, text: "+2 more" } }
+      # Working on: 12 in progress, 8 shown.
+      - click: status.working.pop
+      - check: { count: { pattern: status.working.row.*, equals: 8 } }
+      - check: { text_equals: { target: status.working.more, text: "+4 more" } }
+      - click: status.next.pop
+      - check: { text_equals: { target: status.backlog.more, text: "+3 more" } }
+      - check: { text_equals: { target: status.parked.more, text: "+1 more" } }
+      - key: Escape
+      - click: status.release_wait.open.fold
+    checks:
+      - text_equals: { target: status.release_wait.unreleased.more, text: "+3 more" }
+      # The open list, once unfolded: 10 rows, started first, then "+10 more".
+      - count: { pattern: status.release_wait.open.row.*, equals: 10 }
+      - text_equals: { target: status.release_wait.open.more, text: "+10 more" }
+      # Three tiles in one line, then one grid: the side column has the
+      # same width and edges in each row.
+      - beside: [status.waiting.pop, status.working.pop]
+      - beside: [status.working.pop, status.next.pop]
+      - below: [status.strip, status.milestone]
+      - beside: [status.epics, status.release_wait]
+      - beside: [status.shipped, status.versions]
+      - below: [status.milestone, status.epics]
+      - below: [status.epics, status.shipped]
+      - size: { target: status.release_wait, min_width: 318, max_width: 322 }
+      - size: { target: status.versions, min_width: 318, max_width: 322 }
+    do: Load the page at 1440×900 without scrolling.
+    expect: |
+      The three tiles (Needs you, Working on, What's next), Current
+      milestone and the top of Epics and Waiting for release are on screen
+      without scrolling. No card lists more than about ten rows; each
+      longer list ends in a blue "+K more". The side cards share one left
+      and one right edge.
+    why: what fits above the fold on a real screen is the owner's call; ux-test only checks the shape.
+
+  - id: TP11
+    title: The tiles open their card over the page and fold back on a click outside, focus loss or Escape
+    setup:
+      - open: /p/{project}/status
+    act:
+      - check: { text_equals: { target: status.waiting.pop.summary, text: "7 to approve · 1 question" } }
+      - check: { text_equals: { target: status.working.pop.summary, text: "12 agents stopped · lead not running" } }
+      - check: { text_equals: { target: status.next.pop.summary, text: "8 backlog · 6 parked" } }
+      - check: { absent: [status.waiting, status.working, status.next] }
+      - snapshot: { name: milestone_before, target: status.milestone }
+      - click: status.waiting.pop
+      - check: { visible: status.waiting }
+      # Opening another tile folds the first.
+      - click: status.working.pop
+      - check: { visible: status.working }
+      - check: { absent: status.waiting }
+      # A click outside folds it (the milestone is under the open card).
+      - click: status.versions
+      - check: { absent: status.working }
+      - click: status.next.pop
+      - check: { visible: status.next }
+      - key: Escape
+    checks:
+      - absent: [status.waiting, status.working, status.next]
+      - unchanged: { target: status.milestone, since: milestone_before }
+      - below: [status.strip, status.milestone]
+    do: Click Needs you, then Working on, then somewhere on the page; Tab out of an open card.
+    expect: |
+      Each card opens just under its tile, over the milestone and Epics,
+      with a shadow; nothing below it moves. Opening another tile closes
+      the first; a click outside, Tab past its last link, or Escape folds
+      it back.
+    why: that the card floats over the page rather than pushing it is a visual judgement.
+
+  - id: TP12
+    title: Side cards are as tall as the card beside them; one that overflows shows "Show all" and opens over the page
+    setup:
+      - open: /p/{project}/status
+    act:
+      # Unfolding the 20 open issues makes Waiting for release taller than Epics.
+      - click: status.release_wait.open.fold
+      - wait_for: status.release_wait.fit
+      - snapshot: { name: shipped_before, target: status.shipped }
+      - click: status.release_wait.fit
+      - check: { text_equals: { target: status.release_wait.fit, text: Show less } }
+      - key: Escape
+    checks:
+      - text_equals: { target: status.release_wait.fit, text: Show all }
+      - unchanged: { target: status.shipped, since: shipped_before }
+      - beside: [status.epics, status.release_wait]
+      - below: [status.epics, status.shipped]
+      - below: [status.release_wait, status.shipped]
+    do: Unfold "20 open" in Waiting for release, click "Show all", then click anywhere else.
+    expect: |
+      Before: Waiting for release ends level with Epics, its bottom faded
+      under a blue "Show all". After the click the whole card opens over
+      Recently shipped with a shadow, nothing moves, and it ends in "Show
+      less". A click outside folds it back to Epics' height. Versions and
+      Recently released fill their row to Recently shipped's bottom, with
+      no gap.
+    why: whether the cut-off and the overlay read well is a visual call.
+
+  - id: TP5
+    title: Current milestone splits 0.1 by status and counts its open issues by area
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - text_contains: { target: status.milestone, text: "Current milestone · 0.1" }
+      - text_contains: { target: status.milestone, text: "13 / 33 done · 39%" }
+      - visible: [status.milestone.segment.done, status.milestone.segment.in_progress, status.milestone.segment.in_design]
+      # idea is the workflow's first status: the empty track, not a segment.
+      - absent: status.milestone.segment.idea
+      - text_contains: { target: status.milestone, text: "done 13 in progress 1 in design 2 idea 17" }
+      - text_equals: { target: status.milestone.area.campaign, text: campaign 6 }
+      - count: { pattern: status.milestone.area.*, equals: 5 }
+      - text_equals: { target: status.milestone.areas_more, text: "+2 areas" }
+      - text_contains: { target: status.release_wait.state, text: v0.1.0 not ready }
+      - size: { target: status.milestone.bar, min_width: 400, min_height: 8 }
+    do: Hover the bar's segments and the "+2 areas" chip.
+    expect: |
+      The bar is green for done, then the in progress and in design colours,
+      then the empty track for idea; each segment's tooltip names its
+      status and count. "+2 areas" lists map 2 and combat 1.
+    why: whether the colours read as one bar split by status needs an eye.
+
+  - id: TP6
+    title: Epics group by area for the current milestone; tabs, Version and the text filter narrow them
+    setup:
+      - open: /p/{project}/status
+    act:
+      - check: { selected: status.epics.tab.active }
+      - check: { value_equals: { target: status.epics.version, value: "0.1" } }
+      - check: { text_contains: { target: status.epics.tab.not_started, text: "Not started 3" } }
+      - check: { text_contains: { target: status.epic.data/data-epic-1, text: 6/9 } }
+      - check: { text_contains: { target: status.epics.area.data, text: 6/9 } }
+      - check: { absent: status.epic.mechs/mechs-epic-1 }
+      - click: status.epics.tab.not_started
+      - check: { absent: [status.epics.area.data, status.epic.data/data-epic-1] }
+      - check: { visible: status.epics.area.mechs }
+      - click: status.epics.tab.all
+      - select: { target: status.epics.version, value: "0.2" }
+      - check: { text_contains: { target: status.epics.tab.all, text: "All 10" } }
+      - click: status.epics.area.campaign
+      - check: { count: { pattern: status.epic.*, within: status.epics.panel.0_2, equals: 8 } }
+      - check: { text_equals: { target: status.epics.area.campaign.more, text: "+2 more in campaign" } }
+      - select: { target: status.epics.version, value: all }
+      - type: { target: status.epics.filter, text: economy }
+    checks:
+      - text_contains: { target: status.epics.tab.all, text: "All 29" }
+      - visible: status.epic.economy/economy-epic-1
+      - count: { pattern: status.epics.area.*, within: status.epics.panel.all, equals: 1 }
+      - absent: status.epics.empty
+
+  - id: TP7
+    title: The tab, version, filter and folds come back after a reload
+    setup:
+      - open: /p/{project}/status
+    act:
+      - click: status.epics.tab.not_started
+      - select: { target: status.epics.version, value: "0.2" }
+      - click: status.epics.area.campaign
+      - type: { target: status.epics.filter, text: campaign epic 0 }
+      - reload: true
+      - wait_for: status.epics
+    checks:
+      - selected: status.epics.tab.not_started
+      - value_equals: { target: status.epics.version, value: "0.2" }
+      - value_equals: { target: status.epics.filter, value: campaign epic 0 }
+      - count: { pattern: status.epic.*, within: status.epics.panel.0_2, equals: 8 }
+      - absent: status.epics.empty
+
+  - id: TP8
+    title: Recently shipped groups the last days by area; Versions and Recently released sit beside it
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - text_contains: { target: status.shipped, text: "Recently shipped · 20 in 7 days" }
+      - text_contains: { target: status.shipped.area.data, text: "Show 3 more" }
+      - text_contains: { target: status.shipped.more_areas, text: "4 more areas" }
+      - count: { pattern: status.shipped.area.*, equals: 5 }
+      - text_contains: { target: status.version.0_1, text: "0.1 · now" }
+      - text_contains: { target: status.version.0_1, text: 13/33 }
+      - text_contains: { target: status.released, text: CHANGELOG.md }
+      # Bold and code render as markup, not literal asterisks.
+      - text_contains: { target: status.release.v0_0_9, text: "Salvage after battle: pick two parts from the wreck, or sell the lot." }
+      - http: { path: "/p/{project}/status", contains: "<strong>Salvage after battle:</strong>" }
+
+  - id: TP9
+    title: status.md follows the page - counts and groups first, capped lists with the command for the rest
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - http: { path: "/p/{project}/status.md", contains: "29 epics in 9 areas" }
+      - http: { path: "/p/{project}/status.md", contains: "## Waiting on you (8)" }
+      - http: { path: "/p/{project}/status.md", contains: "- +2 more on the Status page" }
+      - http: { path: "/p/{project}/status.md", contains: "## Current milestone 0.1: 13/33 done\n- By status: 13 done, 1 in progress, 2 in design, 17 idea\n- Open by area: campaign 6, data 3, mechs 3, ui 3, economy 2, +2 areas\n" }
+      - http: { path: "/p/{project}/status.md", contains: "  - +10 more: issue-cli list --version 0.1 --status open" }
+      - http: { path: "/p/{project}/status.md", contains: "## Epics (0.1): 5 active, 3 not started, in 7 areas" }
+      - http: { path: "/p/{project}/status.md", contains: "- Not started: mechs 0/3 (1), economy 0/2 (1), map 0/2 (1)" }
+      - http: { path: "/p/{project}/status.md", contains: "- +3 more: issue-cli list --status backlog" }
+      - http: { path: "/p/{project}/status.md", contains: "## Recently shipped: 20 in 7 days" }
+      - http: { path: "/p/{project}/status.md", contains: "- 4 more areas 4: " }
+      - http: { path: "/p/{project}/status.md", contains: "- v0.0.9 (2026-10-15): Salvage after battle: pick two parts from the wreck, or sell the lot." }

@@ -14,16 +14,16 @@ steps:
     setup:
       - open: /p/{project}/status
     checks:
-      - beside: [status.where, status.waiting]
-      - below: [status.where, status.working]
+      - beside: [status.waiting.pop, status.working.pop]
+      - below: [status.milestone, status.epics]
       - size: { target: status.all_progress.bar, min_width: 30, min_height: 4 }
       - css: { target: status.page, property: display, not: none }
     targets:
-      - { id: status.where, note: Left column }
-      - { id: status.waiting, note: Right column, beside it }
-    do: Look at the four checks in the dock, then hover the mark next to "beside [status.where, status.waiting]".
+      - { id: status.waiting.pop, note: First tile }
+      - { id: status.working.pop, note: Second tile, beside it }
+    do: Look at the four checks in the dock, then hover the mark next to "beside [status.waiting.pop, status.working.pop]".
     expect: |
-      All four checks show ✓. The tooltip reads "actual: status.where x … y …,
-      status.waiting x … y …" with the right column's x starting after the
-      left column's.
+      All four checks show ✓. The tooltip reads "actual: status.waiting.pop x … y …,
+      status.working.pop x … y …" with the second tile's x starting after the
+      first one's.
     why: ux-test runs the same checks headless; only you see the overlay's dock and tooltips.

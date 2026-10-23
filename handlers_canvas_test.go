@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -314,6 +315,20 @@ func TestHandleCanvas_Renders(t *testing.T) {
 		}
 	}
 
+	_, html = getBody(t, ts.URL+"/p/test-project/canvas?open=big-umbrella-the-plan")
+	for _, want := range []string{
+		`<div class="canvas-lane" data-lane="big-umbrella-the-plan">`,
+		`<div class="canvas-lane folded" data-lane="no epic">`,
+		`name="open" id="canvas-open" value="big-umbrella-the-plan"`,
+		`data-testid="canvas.lane.big-umbrella-the-plan.fold" aria-expanded="true"`,
+		`<option value="big-umbrella-the-plan" >Big umbrella</option>`,
+		`data-testid="canvas.cell.big-umbrella-the-plan.1_0.fold"><span title="idea: 1">`,
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("open lane page missing %q", want)
+		}
+	}
+
 	if code, _ := getBody(t, ts.URL+"/p/nope/canvas"); code != http.StatusNotFound {
 		t.Errorf("unknown project status = %d, want 404", code)
 	}
@@ -353,5 +368,97 @@ func TestStatusColor_MultiWordStatuses(t *testing.T) {
 	}
 	if got := text("in progress"); got != "#000000" {
 		t.Errorf("statusTextColor(in progress) = %s, want #000000", got)
+	}
+}
+
+func TestBuildCanvas_LanesFoldedUnlessOpen(t *testing.T) {
+	data := buildCanvas(canvasFixture(t), canvasWorkflow(), CanvasOptions{})
+	for _, l := range data.Lanes {
+		if l.Open {
+			t.Errorf("lane %q open by default", l.Key)
+		}
+	}
+	if data.OpenKeys != "" {
+		t.Errorf("OpenKeys = %q, want none", data.OpenKeys)
+	}
+
+	data = buildCanvas(canvasFixture(t), canvasWorkflow(), CanvasOptions{Open: []string{"no epic", "e", "gone"}})
+	if !laneByTitle(t, data, "e").Open || !laneByTitle(t, data, "No epic").Open || laneByTitle(t, data, "u").Open {
+		t.Errorf("open lanes wrong: %+v", data.Lanes)
+	}
+	// Keys that match no lane are dropped; lane order is kept.
+	if data.OpenKeys != "e,no epic" {
+		t.Errorf("OpenKeys = %q, want e,no epic", data.OpenKeys)
+	}
+
+	// System rows fold the same way, keyed by system.
+	data = buildCanvas(canvasFixture(t), canvasWorkflow(), CanvasOptions{Rows: "system", Open: []string{"UI", "e"}})
+	if !laneByTitle(t, data, "UI").Open || laneByTitle(t, data, "Core").Open || data.OpenKeys != "UI" {
+		t.Errorf("system lanes: OpenKeys=%q", data.OpenKeys)
+	}
+}
+
+func TestBuildCanvas_FoldCounts(t *testing.T) {
+	issues := append(canvasFixture(t),
+		canvasIssue(t, "l5", `version: "0.1"`, `status: "done"`),
+		canvasIssue(t, "l6", `version: "0.1"`, `status: "in progress"`),
+		canvasIssue(t, "l7", `version: "0.1"`, `status: "blocked"`),
+	)
+	// Collapse done doesn't change the counts.
+	data := buildCanvas(issues, canvasWorkflow(), CanvasOptions{CollapseDone: true})
+	cell := laneByTitle(t, data, "No epic").Cells[0]
+	var got []string
+	for _, s := range cell.Fold {
+		got = append(got, fmt.Sprintf("%s=%d", s.Status, s.Count))
+	}
+	// Workflow order, statuses outside the workflow last; done and obsolete
+	// fold into one closed count.
+	if strings.Join(got, ",") != "idea=1,in progress=1,blocked=1" || cell.FoldClosed != 2 {
+		t.Errorf("fold = %v closed=%d", got, cell.FoldClosed)
+	}
+	if e := laneByTitle(t, data, "e").Cells[2]; !e.Empty || e.Fold != nil || e.FoldClosed != 0 {
+		t.Errorf("empty cell fold = %+v", e)
+	}
+}
+
+func TestBuildCanvas_EpicFilter(t *testing.T) {
+	issues := append(canvasFixture(t),
+		canvasIssue(t, "s2", `type: "epic"`, `parent: "s"`),
+	)
+	data := buildCanvas(issues, canvasWorkflow(), CanvasOptions{Epic: "E", Open: []string{"u"}})
+	var lanes []string
+	for _, l := range data.Lanes {
+		lanes = append(lanes, fmt.Sprintf("%s:%d:%v", l.Key, l.Depth, l.Open))
+	}
+	if got := strings.Join(lanes, ","); got != "e:0:true,s:1:true,s2:2:true" {
+		t.Errorf("lanes = %s", got)
+	}
+	if data.Options.Epic != "e" || data.OpenKeys != "" {
+		t.Errorf("epic=%q OpenKeys=%q", data.Options.Epic, data.OpenKeys)
+	}
+
+	var choices []string
+	for _, c := range data.EpicChoices {
+		choices = append(choices, c.Slug+"="+c.Label)
+	}
+	if got := strings.Join(choices, ","); got != "e=e,s=  s,s2=    s2,u=u" {
+		t.Errorf("choices = %q", got)
+	}
+
+	// A sub-epic shows itself and its own sub-epics, from depth 0.
+	data = buildCanvas(issues, canvasWorkflow(), CanvasOptions{Epic: "s"})
+	if len(data.Lanes) != 2 || data.Lanes[0].Key != "s" || data.Lanes[0].Depth != 0 || data.Lanes[1].Depth != 1 {
+		t.Errorf("sub-epic filter lanes = %+v", data.Lanes)
+	}
+
+	// Unknown epics, non-epics and system rows ignore the filter.
+	for _, opts := range []CanvasOptions{{Epic: "nope"}, {Epic: "l2"}, {Rows: "system", Epic: "e"}} {
+		data = buildCanvas(issues, canvasWorkflow(), opts)
+		if data.Options.Epic != "" || len(data.Lanes) < 2 {
+			t.Errorf("%+v: epic=%q lanes=%d", opts, data.Options.Epic, len(data.Lanes))
+		}
+	}
+	if data.EpicChoices != nil {
+		t.Errorf("system rows have epic choices: %+v", data.EpicChoices)
 	}
 }

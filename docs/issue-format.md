@@ -19,13 +19,14 @@ Every issue is a markdown file with YAML frontmatter.
 | `number`   | No       | GitHub issue number (links to GitHub with `repo`)  |
 | `repo`     | No       | GitHub repo in `owner/repo` format                 |
 | `assignee` | No       | Free text; dispatched agents use `agent-<slug>`    |
+| `slug`     | No       | Pins the issue's slug. Normally the slug comes from the title (slugified, with the system folder lower-cased in front), not from the file name. `issue-cli update --title` and the web title editor write the old slug here, so a retitle keeps links and references valid. `update --rename` removes it. |
 | `type`     | No       | Type of work (`feature`, `tweak`, …) when `workflow.yaml` defines `types:`; picks the issue's path. Unset = `default_type`. Change with `issue-cli set-type` (see [Types of Work](Workflow/types.md)). In projects without types it is a plain custom field. |
 
 Epic links are custom fields that the [issues canvas](UI/overview.md#issues-canvas) reads:
 
 | Field      | Description |
 |:-----------|:------------|
-| `parent`   | Slug of the epic or umbrella this issue belongs to, e.g. `core/search-everywhere`. Slugs come from the title, with the system folder lower-cased, not from the file name. |
+| `parent`   | Slug of the epic or umbrella this issue belongs to, e.g. `core/search-everywhere`. Slugs come from the title (or a `slug:` pin), with the system folder lower-cased, not from the file name. |
 | `umbrella` | Legacy spelling of `parent`; read when `parent` is unset. |
 | `base`     | An epic's staging branch (children branch from it and ship into it). Shown on the epic's canvas row. |
 
@@ -107,6 +108,8 @@ issue-cli set-meta <slug> --key waiting --clear
 ```
 
 Workflow-managed fields (`title`, `status`, `human_approval`, `queued_approval`, `approved_for`, `started_at`, `done_at`, `number`, `repo`, `created`, `labels`) are refused — use the dedicated commands (`transition`, `update --title`, etc.) for those.
+
+Every single-value write (`set-meta`, `update --title`, the detail page edits, transition fields) stores the value as one double-quoted YAML line, escaping `\`, `"`, newlines, carriage returns and tabs. Any value reads back exactly as written, including `$1`, `${x}`, `: #` or a leading `-`.
 
 `queued_approval` is written by the detail page's **Approved for backlog and in progress** button next to `human_approval: backlog`. When the `backlog` approval is consumed by its transition, the queued approval becomes the new `human_approval`, so the agent's next `start` continues into `in progress` without a second wait. Any other transition drops it.
 

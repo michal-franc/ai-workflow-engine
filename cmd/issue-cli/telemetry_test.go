@@ -279,8 +279,8 @@ func TestClassifyError(t *testing.T) {
 		{"approval", invocation{}, fmt.Errorf("wrapped: %w", approval), telemetry.ErrApprovalMissing, ""},
 		{"approval sentinel", invocation{}, tracker.ErrApprovalMissing, telemetry.ErrApprovalMissing, ""},
 		{"not found", invocation{}, &issueNotFoundError{msg: "issue not found: x"}, telemetry.ErrIssueNotFound, ""},
-		{"unknown flag", invocation{}, &flagParseError{err: errors.New("flag provided but not defined: -nope")}, telemetry.ErrUnknownFlag, "--nope"},
-		{"flag parse", invocation{}, &flagParseError{err: errors.New("invalid value \"x\" for flag -index")}, telemetry.ErrFlagParse, ""},
+		{"unknown flag", invocation{}, &usageError{msg: "unknown flag --nope for 'x'", flag: "--nope"}, telemetry.ErrUnknownFlag, "--nope"},
+		{"flag parse", invocation{}, &usageError{msg: "invalid value \"x\" for flag --index"}, telemetry.ErrFlagParse, ""},
 		{"topic", invocation{}, errors.New("unknown topic: foo\n\nAvailable"), telemetry.ErrUnknownTopic, "foo"},
 		{"subcommand", invocation{}, errors.New("unknown data subcommand: zap\n\nValid"), telemetry.ErrUnknownSubcommand, "zap"},
 		{"usage", invocation{}, errors.New("transition requires <slug>\n\nExample"), telemetry.ErrUsage, ""},
@@ -535,9 +535,9 @@ func TestParseFlagsMarksErrorsButNotHelp(t *testing.T) {
 	}
 	fs = newFlagSet("x", ctx)
 	err := parseFlags(ctx, fs, []string{"--nope"})
-	var fpe *flagParseError
-	if !errors.As(err, &fpe) || err.Error() != "flag provided but not defined: -nope" {
-		t.Fatalf("parse error should be marked with the stdlib message intact, got %v", err)
+	var ue *usageError
+	if !errors.As(err, &ue) || ue.flag != "--nope" || !strings.HasPrefix(err.Error(), "unknown flag --nope for 'x'") {
+		t.Fatalf("unknown flag should be a usageError naming --nope, got %v", err)
 	}
 	if len(ctx.flagSets) != 2 {
 		t.Fatalf("parsed FlagSets should be recorded, got %d", len(ctx.flagSets))

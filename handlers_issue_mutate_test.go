@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -268,6 +270,35 @@ func TestHandleUpdateIssue_UpdatesPriority(t *testing.T) {
 	t.Fatal("issue not found after update")
 }
 
+func TestHandleUpdateIssue_RetitleKeepsSlug(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	// A client-sent slug is ignored: the pin is the server's call.
+	body := `{"title":"Login fails on Safari","slug":"something-else"}`
+	resp, err := http.Post(ts.URL+"/p/test-project/issue/bug-in-login", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var out map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil || resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d, decode %v", resp.StatusCode, err)
+	}
+	if out["slug"] != "bug-in-login" {
+		t.Fatalf("response slug = %q, want bug-in-login", out["slug"])
+	}
+	issues, _ := tracker.LoadIssues(proj.IssueDir)
+	got := tracker.FindIssue(issues, "bug-in-login")
+	if got == nil || got.Title != "Login fails on Safari" || got.SlugPin != "bug-in-login" {
+		t.Fatalf("after retitle: %+v", got)
+	}
+	if filepath.Base(got.FilePath) == "login-fails-on-safari.md" {
+		t.Fatal("retitle renamed the file")
+	}
+}
+
 func TestHandleUpdateIssue_UpdatesAssignee(t *testing.T) {
 	proj, _ := setupTestProject(t)
 	ts := newTestServer(t, []tracker.Project{proj})
@@ -323,7 +354,7 @@ func TestHandleEditIssueInNvim_UsesLauncherAndPreservesComments(t *testing.T) {
 
 	origLauncher := launchIssueBodyEditor
 	t.Cleanup(func() { launchIssueBodyEditor = origLauncher })
-	launchIssueBodyEditor = func(proj *tracker.Project, issue *tracker.Issue) (BodyEditResponse, error) {
+	launchIssueBodyEditor = func(_ *background, proj *tracker.Project, issue *tracker.Issue) (BodyEditResponse, error) {
 		updated := "Edited in nvim"
 		if err := tracker.UpdateIssueFrontmatter(issue.FilePath, tracker.IssueUpdate{Body: &updated}); err != nil {
 			return BodyEditResponse{}, err
@@ -405,7 +436,7 @@ func TestStartIssueBodyEditor_ReattachWhenSessionExists(t *testing.T) {
 		return true
 	})
 
-	resp, err := startIssueBodyEditor(&proj, target)
+	resp, err := startIssueBodyEditor(newBackground(context.Background()), &proj, target)
 	if err != nil {
 		t.Fatalf("startIssueBodyEditor returned error on reattach: %v", err)
 	}
@@ -642,4 +673,94 @@ func TestHandleApproveIssue_RecordsApprovalTimestamp(t *testing.T) {
 	if store, _ := tracker.LoadStats(issuePath); store.LastApproval != nil {
 		t.Fatalf("LastApproval = %+v after toggle-off, want nil", store.LastApproval)
 	}
+}
+
+// A body write from a page loaded before the file changed (the CLI appended
+// a gate section meanwhile) is refused instead of overwriting the append.
+func TestHandleUpdateIssue_StaleBodyRefused(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	issue := loadTestIssue(t, proj, "bug-in-login")
+	pageHash := tracker.BodyHash(issue.BodyRaw)
+
+	page, err := http.Get(ts.URL + "/p/test-project/issue/bug-in-login")
+	if err != nil {
+		t.Fatal(err)
+	}
+	html, _ := io.ReadAll(page.Body)
+	page.Body.Close()
+	if !strings.Contains(string(html), `data-body-hash="`+pageHash+`"`) {
+		t.Fatalf("detail page does not carry data-body-hash=%q", pageHash)
+	}
+
+	if _, _, err := tracker.UpdateIssueBody(issue.FilePath, func(body string) (string, bool, error) {
+		return body + "\n\n## Documentation\n- [ ] Docs updated\n", true, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, _ := json.Marshal(map[string]string{"body": issue.BodyRaw + "\n- [x] ticked", "base_body_hash": pageHash})
+	resp, err := http.Post(ts.URL+"/p/test-project/issue/bug-in-login", "application/json", bytes.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("expected 409, got %d", resp.StatusCode)
+	}
+	var data map[string]string
+	_ = json.NewDecoder(resp.Body).Decode(&data)
+	if !strings.Contains(data["error"], "changed since the page loaded") {
+		t.Fatalf("error = %q", data["error"])
+	}
+	if after := loadTestIssue(t, proj, "bug-in-login"); !strings.Contains(after.BodyRaw, "## Documentation") {
+		t.Fatalf("stale write overwrote the append:\n%s", after.BodyRaw)
+	}
+}
+
+// A fresh page saves, and the returned hash lets the next toggle on the same
+// page save too.
+func TestHandleUpdateIssue_BodyHashChainsConsecutiveSaves(t *testing.T) {
+	proj, _ := setupTestProject(t)
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	hash := tracker.BodyHash(loadTestIssue(t, proj, "bug-in-login").BodyRaw)
+	for i, body := range []string{"First save\n- [ ] box", "First save\n- [x] box"} {
+		payload, _ := json.Marshal(map[string]string{"body": body, "base_body_hash": hash})
+		resp, err := http.Post(ts.URL+"/p/test-project/issue/bug-in-login", "application/json", bytes.NewReader(payload))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var data map[string]string
+		_ = json.NewDecoder(resp.Body).Decode(&data)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("save %d: expected 200, got %d (%v)", i, resp.StatusCode, data)
+		}
+		if want := tracker.BodyHash(body); data["body_hash"] != want {
+			t.Fatalf("save %d: body_hash = %q, want %q", i, data["body_hash"], want)
+		}
+		hash = data["body_hash"]
+	}
+	if got := loadTestIssue(t, proj, "bug-in-login").BodyRaw; got != "First save\n- [x] box" {
+		t.Fatalf("body = %q", got)
+	}
+}
+
+func loadTestIssue(t *testing.T, proj tracker.Project, slug string) *tracker.Issue {
+	t.Helper()
+	issues, err := tracker.LoadIssues(proj.IssueDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, issue := range issues {
+		if issue.Slug == slug {
+			return issue
+		}
+	}
+	t.Fatalf("issue %s not found", slug)
+	return nil
 }

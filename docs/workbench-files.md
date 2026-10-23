@@ -183,7 +183,7 @@ It is sent when the iframe loads, again whenever the issues change (`/hash`'s `h
 }
 ```
 
-`kind` is `gate`, `playtest` or `question`, and `to` is a gate's target status. Lists are empty, never missing.
+`kind` is `gate`, `playtest` or `question`, and `to` is a gate's target status. `text` is the release summary as plain text (markdown stripped, clipped at 140 characters). Lists are empty, never missing.
 
 ### Minimal page
 

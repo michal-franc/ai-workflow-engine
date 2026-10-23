@@ -104,14 +104,22 @@ func (w *WorkflowConfig) previewTransition(issue *Issue, fromStatus, toStatus, s
 			step.Message = fmt.Sprintf("Issue human-approved for %q", status)
 		case "append_section":
 			step.Summary = fmt.Sprintf("Append section %s", action.Title)
-			newBody, changed := appendToSection(working.BodyRaw, action.Title, action.Body)
-			if changed {
+			newBody, sec := appendGateSection(working.BodyRaw, action.Title, action.Body)
+			switch {
+			case sec.Created:
 				working.BodyRaw = newBody
 				step.Outcome = "changed"
 				step.Message = "Section would be created"
-			} else {
+			case sec.BoxesAdded > 0:
+				working.BodyRaw = newBody
+				step.Outcome = "changed"
+				step.Message = "Section exists — would add " + pluralBoxes(sec.BoxesAdded)
+			case sec.Title != "":
 				step.Outcome = "skipped"
-				step.Message = "Section already exists or action is empty"
+				step.Message = "Section exists with all its boxes"
+			default:
+				step.Outcome = "skipped"
+				step.Message = "Action is empty"
 			}
 		case "inject_prompt":
 			step.Summary = "Inject prompt"

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -44,6 +45,9 @@ var funcMap = template.FuncMap{
 	// statusTabs is the data of the Status page's Project status / Built-in
 	// tabs (_status_tabs.html), shown when workbench.status_page is set.
 	"statusTabs": func(prefix string, builtin bool) StatusTabs { return StatusTabs{Prefix: prefix, Builtin: builtin} },
+	// bodyHash is the fingerprint the detail page sends back with a body
+	// save, so a save from a stale page is refused (409).
+	"bodyHash": tracker.BodyHash,
 	"statusColor": func(s string) string {
 		// Keys are canonicalStatusKey form: lower case, spaces as hyphens.
 		colors := map[string]string{
@@ -105,8 +109,14 @@ var funcMap = template.FuncMap{
 	},
 	// tid turns a status or slug into one data-testid segment (see
 	// internal/testids).
-	"tid": testids.Segment,
+	"tid":    testids.Segment,
 	"plural": plural,
+	// head and rest split a list at n for "+K more" folds: range head 5 .X
+	// shows the first five, with rest 5 .X the others go in the fold.
+	// inlineMarkdown renders a changelog line's bold and code.
+	"inlineMarkdown": inlineMarkdown,
+	"head":           func(n int, list any) any { return sliceAt(list, n, true) },
+	"rest":           func(n int, list any) any { return sliceAt(list, n, false) },
 	// agentTone is the chip class for a Status page agent state.
 	"agentTone": func(state string) string {
 		switch state {
@@ -240,4 +250,23 @@ func linkIssueRefs(html, prefix string, slugMap map[string]string) string {
 		}
 		return match
 	})
+}
+
+// sliceAt is list[:n] (head) or list[n:] (rest), clamped; nil for a list
+// that is not a slice or an empty rest, so {{with rest …}} skips it.
+func sliceAt(list any, n int, head bool) any {
+	v := reflect.ValueOf(list)
+	if v.Kind() != reflect.Slice {
+		return nil
+	}
+	if n > v.Len() {
+		n = v.Len()
+	}
+	if head {
+		return v.Slice(0, n).Interface()
+	}
+	if n == v.Len() {
+		return nil
+	}
+	return v.Slice(n, v.Len()).Interface()
 }

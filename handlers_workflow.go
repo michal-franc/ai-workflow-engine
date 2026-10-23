@@ -237,6 +237,10 @@ func loadRelatedToolBugs(issues []*tracker.Issue) ([]*ToolBugReportView, error) 
 			return err
 		}
 		if d.IsDir() {
+			// report-bug --import moves the reports it filed into imported/.
+			if d.Name() == "imported" {
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !strings.HasSuffix(strings.ToLower(d.Name()), ".json") {

@@ -282,6 +282,71 @@ With scoring enabled:
 
 Existing URL filters (`?status=`, `?system=`, `?label=`, etc.) compose with `?sort=`.
 
+## Local CI
+
+Agents run `make validate` on their own branch before they fast-forward main. Two branches that are green on their own can still break main together, and nobody runs the slow checks. Local CI re-checks the integration branch after every move and tells the system when it goes red. It is opt-in per project: without a `ci:` block nothing runs and nothing shows.
+
+### Config
+
+```yaml
+ci:
+  branch: main          # default: the branch checked out in the main checkout
+  timeout: 20m          # for the whole run; default 10m
+  nice: 10              # default 10, so CI doesn't slow the agents; 0 = off
+  on_red: mark          # mark (default) or file_issue
+  run:                  # in order; the first failure stops the run
+    - make validate                    # a plain string = a default-tier command
+    - cmd: make ux-test
+      tier: slow                       # never on merge: issue-cli ci run --tier slow
+      failures: '--- FAIL: (\S+)'      # optional: group 1 names a failing test
+```
+
+- `ci:` is project-wide: system and type overlays can't change it.
+- `issue-cli process schema` documents every key, and `process workflow` lints the block. It flags an empty `run`, a bad timeout, an unknown `on_red`, a `failures` regex without a group, and a block with only slow commands.
+- Commands run with `sh -c` in their own process group, so a timeout kills everything they started. They get `CI=true`. `ISSUE_VIEWER_*`, `AGENT_NAME` and `TMUX` are removed, so issue-cli inside a test never thinks it is an agent and never reaches the real tmux server.
+- The block does not need `allow_shell`: it is its own opt-in, and its commands are the project's own.
+- This repo runs `make validate` on every move of main, with `make ux-test` as the slow tier.
+
+### How a run happens
+
+1. The viewer polls each configured project's branch head every 5 s. When the head was not tested yet and no run is live, it starts `issue-cli ci run --detach --if-untested`. A commit from a fast-forward, a `--no-ff` merge, a `git pull` or a hotfix on main counts the same, because the viewer watches the ref, not the merge command.
+2. The run lives in tmux session `ci-<project>`, or window `ci-<project>` in the project's shared session. The owner can watch it live, and it stays open with the result until the next run. Restarting the viewer never kills a run, and on startup the viewer catches up on any untested head. Without tmux the run is a background process logging to `.ci/runner.log`.
+3. The run takes `.ci/lock`, so there is one run per repository at a time. A lock whose process died is replaced.
+4. The run checks out the head in the CI worktree `.worktrees/.ci`. The worktree is created once and reused (`checkout --force` plus `clean -fd`), so ignored build output survives and builds stay incremental. `issue-cli ci reset` rebuilds it from scratch.
+5. When the run ends it re-reads the branch. If merges landed meanwhile it tests the newest head, so three merges during a run give one more run, not three.
+
+Without the viewer, `issue-cli ci watch` does the polling; `--once` checks once.
+
+### Files (`.ci/` in the main checkout)
+
+`.ci/` writes its own `.gitignore`, so no repo has to ignore it.
+
+| File | What |
+|:--|:--|
+| `.ci/state.json` | Where the branch stands: last tested sha, `green`/`red`/`error`, last green sha, red since, failing command and tests, what landed since green, the issues among it, the log tail. The viewer reads only this file and the lock |
+| `.ci/runs/<sha>.json` | One run: each command's exit code and duration, the failing command and tests, the commit range from the last green run, the merged branches and issues, the log tail. A non-default tier writes `<sha>.<tier>.json`. The newest 50 runs are kept |
+| `.ci/runs/<sha>.log` | The full output of the run |
+| `.ci/lock` | The run in progress: pid, sha, tier, start |
+
+### When it goes red
+
+- **Blame:** the run lists what landed between the last green commit and this one. That covers local branches whose tip is in the range (matched to issues by `work/<slug>`), branches named by merge commits, and commits made straight on the branch. A rewound branch counts from the merge-base, and the first run ever blames nothing.
+- **Status page:** the Local CI card shows the state chip, the one-line state and a Last runs row (the last 12 runs as green/red/amber boxes, oldest first, with a dashed box for a live run; each box's tooltip has the commit, result, age, duration and what failed). While red it also shows the failing command and tests, the issues that landed since green and the log tail. Red CI is the first item in the Needs you tile (Waiting on you in `status.md`) and counts in the sidebar's Status number. `status.md` carries the same line.
+- **Card markers:** each issue merged since the last green run carries a red `CI red · <command>` chip while main is red, on the workboard (done cards too) and the system pages.
+- **`ci:` comments:** each of those issues gets a comment with the failing command, its tests, what else landed and the log path.
+- **The lead:** a live lead gets a `[from ci]` message, and decides with the owner whether to revert, fix forward or dispatch a fix. CI never reverts anything.
+- **`on_red: file_issue`:** the first red run after green also files one `bugfix` issue (`Fix red CI on <branch> at <sha>: <command>`) with the range, the merged issues and the log tail in a `ci:` comment. Later red runs comment on that same issue, and the `ci:` comments link it. When main is green again the issue gets a comment and stays open for whoever ships the fix.
+- **Quiet while still red:** later red runs comment and message again only if the failing command changes. The lead hears once more when main is green again, and the chips go.
+- **CI can't run** (git or the worktree failed): the state is `error`, not red. Nobody is blamed, the card says why, and the lead hears once.
+- **Slow tiers:** `issue-cli ci run --tier slow` runs the default commands, then the slow ones, once. Its result is shown separately (`ci status --tier slow`) and never turns main red, blames issues or messages anyone.
+
+### What agents and the lead see
+
+- `issue-cli start` and the dispatch prompt print the one-line state, for example `Local CI: main red since def5678: make validate: TestFoo — inherited from main, not caused by your branch`. An agent can tell a failure it inherited from one it caused.
+- After `issue-cli transition <slug> --to done`, the agent reads that CI tests main by itself and that it must not wait.
+- The lead brief adds a line when `ci:` is set: check `issue-cli ci status` before any push, and never push a release while main is red.
+- `issue-cli ci status` prints the one-liner first, then what landed and the recent runs; `--json` dumps the state and runs. See [CLI Overview](CLI/overview#ci).
+
 ## System Overlays
 
 Each system (API, CLI, UI, Workflow) can override status prompts and add transition actions. Overlays are defined under `systems:` in `workflow.yaml` and merge with the base workflow:

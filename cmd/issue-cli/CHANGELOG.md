@@ -24,6 +24,7 @@ release nothing.
 
 ## Unreleased
 
+- **Licence: PolyForm Noncommercial 1.0.0.** Free for noncommercial use; commercial use is reserved to the author.
 - **A stats dashboard per project, and one page that compares them all.**
   - **`/p/<project>/stats`** opens on:
     - gauges (share of time waiting on you against `health.limits.waiting_share`, the current milestone, big files)

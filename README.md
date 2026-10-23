@@ -259,4 +259,6 @@ The author tracks this tool's own work with the tool (its `issues/` folder is ke
 
 ## Licence
 
-[FSL-1.1-MIT](LICENSE.md): free to use, modify and contribute; no competing product or service; each release becomes MIT two years after it ships. See [LICENSE.md](LICENSE.md).
+[PolyForm Noncommercial 1.0.0](LICENSE.md): free for any noncommercial use (personal projects, research, study, hobby, charities, schools, public bodies), including changing and sharing it. Commercial use is reserved to the author; anyone else needs a separate commercial license. The terms have no expiry or change date.
+
+The bundled fonts in `static/fonts/` keep their own SIL Open Font License.

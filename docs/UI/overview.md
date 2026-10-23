@@ -81,6 +81,8 @@ Use the shared classes rather than new colours:
 
 Status colours stay per status (`statusColor`). A status chip tints its colour with `.status-chip` and `--c`.
 
+Charts are inline SVG from `internal/chart`, drawn on the server: marks use `currentColor`, and a series class (`s-agent`, `s-waiting`, `s-idle`, `s-feature`, `s-bugfix`, `s-tweak`, `s-none`, …) maps to the theme's `--chart-*` token. Each chart has `role="img"`, an `aria-label`, a `<title>` per mark and a table view. The stats page is the first user; see [Workflow Stats: Stats page](../workflow-stats.md#stats-page).
+
 ## Views
 
 | Route             | Template      | Description                                     |
@@ -93,7 +95,8 @@ Status colours stay per status (`statusColor`). A status chip tints its colour w
 | `/canvas`         | `canvas.html` | Issues canvas: versions × epics (or systems), see [Issues canvas](#issues-canvas) |
 | `/docs`           | `docs.html`   | Docs with collapsible sidebar sections           |
 | `/issue/<slug>`   | `detail.html` | Issue page with tabs: Issue (edit, approve, dispatch, comments), Timeline (`?tab=timeline`, `&show=`), Evidence (`?tab=evidence`, coming). See [Issue page tabs](#issue-page-tabs) |
-| `/stats`          | `stats.html`  | Where the time goes over the issues done in the last 30 days (`?days=N`, 1–3650), then workflow token-cost estimates and CLI usage (see [Workflow Stats](../workflow-stats.md)) |
+| `/stats`          | `stats.html`  | The stats dashboard: gauges (waiting on you, milestone, big files), trend lines from the health snapshots, where the time goes by status and group, issues done per week, drill-downs to the issues; options `range`, `group` (remembered per project by `static/stats.js`). The time tables, token-cost estimates and CLI usage are folded below. See [Workflow Stats: Stats page](../workflow-stats.md#stats-page) |
+| `/stats` (top level, no `/p/<project>`) | `stats_overview.html` | Every project compared from its health snapshots: one row each with waiting on you, cycle p50, rework share, issues done, lines of code, test ratio and big files, with sparklines; `range` (7/30/90 days) and `sort` links |
 | `/balance`        | `balance.html` | `?system=` scopes it to one system's issues (the system pages link here). Typed balance notes grouped by metric (state chip, hypothesis / change / evidence / verdict, earlier notes), joint passes from `balance_pass:` issues with **Start pass** (the existing dispatch endpoint), free-text notes under Unsorted. Shown only with `workbench.balance`; otherwise its sidebar entry is hidden and the page explains how to turn it on. Reloads when `/hash` changes, like `/decisions` |
 | `/systems`        | `systems.html` | One card per system, most open first: summary and design doc (from `workbench.systems`), open / done counts, status bar, waiting-on-you count and family chips, plus a "No system" line. See [System pages](#system-pages) |
 | `/systems/<System>[/<Family>]` | `system.html` | One page per system or configured family. Unknown names get a 404 listing the systems. See [System pages](#system-pages) |

@@ -17,7 +17,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 - `cmd/issue-cli/workflow_init.go` — testable `doWorkflowInit` core (the `workflow init` subcommand wraps it from `cmd_workflow.go`)
 - `cmd/issue-cli/workflow_upgrade.go` / `cmd_upgrade.go` — `buildUpgradePlan` and the `workflow upgrade` / `upgrade` command; `workflowUpgradeHint` for `start` and `process workflow`
 - `cmd/issue-cli/workflow_features.go` / `cmd_scan.go` — feature catalog, structural probes, `features:` record writer, and the `workflow scan` command
-- `cmd/issue-cli/cmd_health.go` — the `health` command (print the latest snapshot, take one, the snapshot after `ci run`); snapshots and families are `internal/health/`
+- `cmd/issue-cli/cmd_health.go` — the `health` command (print the latest snapshot, take one, backfill past days, the snapshot after `ci run`); snapshots and families are `internal/health/` (plus `internal/timeline` and `internal/milestone`, imported for their families)
 - `cmd/issue-cli/cmd_ci.go` / `ci_report.go` — the `ci` command (detached runs in tmux) and what a run reports (`ci:` comments, the `[from ci]` lead message, `on_red: file_issue`); the runner itself is `internal/ci/`
 
 ### Adding a new subcommand
@@ -48,7 +48,7 @@ The CLI system covers `issue-cli`, the command-line tool agents use to interact 
 | `issue-cli decisions`            | List the project's decisions (active, deferred, replaced, stale) with `--system`, `--state`, `--issue`, `--json` |
 | `issue-cli lead <sub>`           | The project lead: `spawn`, `whoami`, `list`, `message <target> "text"`. See [`lead`](#lead) |
 | `issue-cli ci <sub>`             | Local CI on the integration branch: `status`, `run`, `reset`, `watch`. See [`ci`](#ci) |
-| `issue-cli health [snapshot]`    | Project health snapshots: print the latest, or take one. See [`health`](#health) |
+| `issue-cli health [snapshot\|backfill]` | Project health snapshots: print the latest, take one, or compute past days. See [`health`](#health) |
 | `issue-cli approve <slug>`       | Record a human approval with the human's words (leads only). See [`approve`](#approve) |
 | `issue-cli check <slug> <id>...` | Tick checkboxes by id (several at once), whole section (`--section X --all`), text, or `--section` + `--index` |
 | `issue-cli check-edit <slug> <id> --text "…"` | Change one box's text; it keeps its tick and id. See [`check-edit`](#check-edit) |
@@ -426,8 +426,9 @@ Project health snapshots: dated JSON files in `.health/snapshots/` of the main c
 
 | Subcommand | Does |
 |:--|:--|
-| `health` | Prints the latest snapshot. First the header: `Health snapshot <date> · <branch> at <sha> · <trigger> · <ms> ms` and the file path. Then the codebase: files and lines per kind with 7d and 30d growth (`n/a` without a base), source lines, test ratio and binary files; the top 10 areas and languages by lines; the big files. Last, `Families:` gives each family `ok, N metrics` (plus ` · <hint>` when the family set one) or `error: <why>`. Without a snapshot it prints `No health snapshot yet: run issue-cli health snapshot (the viewer takes one daily)` and exits 0. `--json` prints the snapshot file (`{"snapshot": null, "hint": ...}` without one) |
+| `health` | Prints the latest snapshot. First the header: `Health snapshot <date> · <branch> at <sha> · <trigger> · <ms> ms` and the file path. Then the codebase: files and lines per kind with 7d and 30d growth (`n/a` without a base), source lines, test ratio and binary files; the top 10 areas and languages by lines; the big files. Last, `Families:` gives each family `ok, N metrics` (plus ` · <hint>` when the family set one) or `error: <why>`. It ends with `Charts: <viewer>/p/<slug>/stats`, and with fewer than two snapshots, `Trends need history (N snapshot so far): issue-cli health backfill`. Without a snapshot it prints `No health snapshot yet: run issue-cli health snapshot (the viewer takes one daily)` and exits 0. `--json` prints the snapshot file (`{"snapshot": null, "hint": ...}` without one) |
 | `health snapshot` | Takes a snapshot now (trigger `manual`), prints `✓ Snapshot written: <path>`, then the same summary. Fails with `health snapshots are off for this project (health.off: true in workflow.yaml)` or `<dir>: not in a git repository`. `--json` prints the snapshot |
+| `health backfill [--days 90]` | Computes one snapshot (trigger `backfill`) for each of the last N days that has none, as it stood at 23:59 that day: the codebase at the commit the branch had then, the workflow over the issues done by then. Prints one line per day (the path, `skipped: has a snapshot`, or `(before the first commit: no codebase)`), then `✓ Backfilled W of N days (S skipped, F failed) · charts: <url>`. The milestone family is left out (it knows only the present). `--days` outside 1–3650 is a usage error (exit 2). `--json` prints `{written, skipped, failed, days: [{day, path, skipped, error, no_commit}], charts}` |
 
 ### `approve`
 

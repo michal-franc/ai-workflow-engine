@@ -59,7 +59,10 @@ handlers_comments.go        — comment add/get/toggle/delete
 handlers_workflow.go        — retros, bug status, docs handlers
 handlers_dispatch.go        — agent dispatch + prompt builders
 handlers_github.go          — github page, fetch, import
-handlers_stats.go           — /stats: where the time goes (timeline.Aggregate), workflow token cost, CLI usage
+handlers_stats.go           — /stats: the dashboard over the tables (time tables, workflow token cost, CLI usage)
+stats_dashboard.go          — the stats dashboard model: options, gauges, trends from snapshots, time bars, drill-downs
+stats_cache.go              — per-project cache of the aggregate and CLI usage report, warmed at start
+stats_overview.go           — /stats without a project: every project compared from its snapshots
 handlers_agents.go          — /agents canvas, agents.json, agent detail, open-in-tmux and lead spawn endpoints
 handlers_systems.go         — /systems index and system / family pages (model in systems.go, design-doc panel in docsections.go)
 handlers_metrics.go         — /metrics view (guard metrics, knobs, branches), metrics.json; handlers_metrics_panels.go feeds the system-page partials
@@ -73,7 +76,9 @@ attention.go                — what waits on the owner (ownerAttention, waiting
 issue.go                    — Issue struct, ParseIssue, LoadIssues (walks subdirs)
 docs.go                     — DocPage struct, ParseDocPage, LoadDocs
 internal/timeline/          — the Timeline's derivation (Load, Split: agent / waiting on you / idle / rework per status), the project Aggregate, the `workflow` health family
-internal/health/            — project health snapshots: family registry (Register), .health/snapshots/ files, retention, the codebase family (git objects at the main head)
+internal/health/            — project health snapshots: family registry (Register), .health/snapshots/ files, retention, Range, Backfill, the codebase family (git objects at the main head)
+internal/milestone/         — the current milestone (Pick, Released), shared by the Status page and the `milestone` health family
+internal/chart/             — server-rendered SVG charts (line, stacked bars, columns, gauge, sparkline) with table views
 internal/ci/                — local CI runner: .ci/ state and run records, lock, persistent .worktrees/.ci, blame, watcher, one-liner
 internal/agentrun/          — shared tmux/worktree launcher used by the server and issue-cli (leads, dispatch)
 internal/clilog/            — the clilog: one record per issue-cli call (result, no free text), paths, Redact, Scrub (tools/clilog-scrub)
@@ -176,9 +181,9 @@ Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI
 - [Agent Dispatch](docs/agent-dispatch.md) — terminal config, approval notifications, the lead session, worktrees
 - [GitHub Integration](docs/github-integration.md) — sync, issue reference, auto-close
 - [Per-issue Data Store](docs/data-store.md) — sidecar JSON, `<!-- data -->` marker, `issue-cli data` commands
-- [Workbench Files](docs/workbench-files.md) — metric runs, targets and knob exports the Metrics view reads, branch matching, hot files, `depends_on`; project pages (`status_page`, `pages`: sandboxed HTML, postMessage status); health snapshots (`.health/snapshots/`, `health:` config, metric names, adding a family)
+- [Workbench Files](docs/workbench-files.md) — metric runs, targets and knob exports the Metrics view reads, branch matching, hot files, `depends_on`; project pages (`status_page`, `pages`: sandboxed HTML, postMessage status); health snapshots (`.health/snapshots/`, `health:` config and `limits`, metric names, `issue-cli health backfill`, adding a family)
 - [Local CI](docs/workflow.md#local-ci) — opt-in `ci:` block: commands run on local main after every merge in `.worktrees/.ci`, results in `.ci/`, red reported to Status, markers, `ci:` comments and the lead; `issue-cli ci status|run|reset|watch`
-- [Workflow Stats](docs/workflow-stats.md) — `/stats` tab, per-issue stats sidecar, token-cost estimation; the issue page's Timeline tab (`?tab=timeline`), its time rules and the project aggregate
+- [Workflow Stats](docs/workflow-stats.md) — the Stats page (`/p/<project>/stats`: gauges, trends from health snapshots, where the time goes, options, drill-downs; `/stats` across projects), per-issue stats sidecar, token-cost estimation; the issue page's Timeline tab (`?tab=timeline`), its time rules and the project aggregate
 - [The Lead Session](docs/patterns/lead-session.md) — the project lead, one per project (`issue-cli lead`, `approve`), routing, authority, handoff, epics, agents canvas
 - [Playtest Sessions](docs/patterns/playtest/README.md) — an issue's manual checks as YAML sessions: shared contract, [web app example](docs/patterns/playtest/web-app.md) (this repo, chromedp), [game example](docs/patterns/playtest/game.md); `issue-cli process playtest`
 

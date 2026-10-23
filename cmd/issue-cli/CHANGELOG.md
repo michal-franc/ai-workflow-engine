@@ -24,6 +24,21 @@ release nothing.
 
 ## Unreleased
 
+- **A stats dashboard per project, and one page that compares them all.**
+  - **`/p/<project>/stats`** opens on:
+    - gauges (share of time waiting on you against `health.limits.waiting_share`, the current milestone, big files)
+    - trend lines from the health snapshots (cycle time by type, waiting on you, agent time per issue, rework and gate failures, lines of code)
+    - where the time goes, by status and by type, system, epic or version
+    - issues done per week
+  - **Options:** range (7 / 30 / 90 days / all) and group-by are links, remembered per project. Every bar and point opens the issues behind it, linked to their Timeline tab, and every chart has a table view. Today's tables stay below, folded.
+  - **`/stats`** compares every project from its snapshots, with sparklines.
+  - **Charts:** SVG drawn on the server in the theme's colours: no chart library, no inline script.
+  - **Not here yet:** CI, context-cost and check-speed charts say "No data yet" until their health families ship.
+- **`issue-cli health backfill [--days 90]` fills in the trend lines' past.** It computes a snapshot for each past day without one, as it stood that evening: the codebase at that day's commit, the workflow over the issues done by then. `issue-cli health` now names the stats page, and suggests the backfill while there is under two days of history.
+- **New snapshot rows:**
+  - `workflow.working.p50|p90`, `workflow.time.working|waiting|idle` and `workflow.time.share{kind=waiting}`
+  - a `milestone` family (`milestone.done|total{version}`)
+  - `health.limits` in workflow.yaml (`waiting_share`, `big_files`)
 - **/stats shows where the project's time goes, and snapshots carry it as the `workflow` family.**
   - **What it counts:** every issue done in the last 30 days goes through the Timeline tab's own code, now in `internal/timeline`. It is split into agent working, waiting on you and idle per status and type of work, each as p50 / p90.
   - **The tables:** cycle time per type, approval waits per gated transition, rework (loops and issues sent back) and dispatches. Refused `transition` calls are listed by error class, with dry runs apart.

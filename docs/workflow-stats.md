@@ -70,17 +70,75 @@ Sidecars written before v0.49.0 may also hold `pending_wait` and per-row `wait_s
 
 Issues that transitioned before the feature shipped have no sidecar. The Stats tab treats a missing sidecar as "no records", never an error.
 
+## Stats page
+
+`/p/<project>/stats` (sidebar: More → Stats) opens on a dashboard; the tables below it are the ones this page always had, folded. `/stats` without a project compares every project.
+
+**Options** are query parameters, so every view is a link:
+
+- `range`: `7d`, `30d` (default), `90d` or `all` (since the oldest snapshot or done issue). The old `?days=N` still works as a custom range and opens the time tables.
+- `group`: `type` (default), `system`, `epic` (the `parent:` slug) or `version`, for the "By <group>" bars and their drill-downs.
+- `p=90` switches the cycle chart to p90, `scale=share` the by-status bars to shares, `hide=<type,…>` hides series (click a legend entry), and `drill=…` opens the issues behind a bar or point.
+- `static/stats.js` remembers the last options per project (`stats:<slug>` in localStorage, read and written in try/catch). A visit without options restores them. Everything works without the script.
+
+**Now: gauges.**
+
+| Gauge | From | Limit |
+|:--|:--|:--|
+| Waiting on you | the range's aggregate: waiting / (agent + waiting + idle) over the issues with CLI calls | `health.limits.waiting_share`, default 25% |
+| Current milestone | `internal/milestone`, as the Status page's release card: done / total | none |
+| Big files | the latest snapshot's `codebase.big_files` | `health.limits.big_files`, default 10 |
+| CI green rate, static context tokens | "No data yet", naming the issue that adds the family | |
+
+A gauge over its limit says "Over limit" with an icon, never colour alone.
+
+**Trends** are lines from the [health snapshots](workbench-files.md#health-snapshots), one point per day: the day's last snapshot.
+
+- **Cycle time by type:** `workflow.cycle.p50|p90{type}`; a type's point is left out on days it had no issues in its window.
+- **Waiting on you:** `workflow.time.share{kind=waiting}` with the limit as a dashed line.
+- **Agent working time per issue:** `workflow.working.p50|p90{type=all}`.
+- **Rework and gate failures:** `workflow.rework.loops{type=all}`, and the `workflow.gate_failures` rows with `dry_run=false` summed; the dry runs are in each point's tooltip.
+- **Lines of code:** `codebase.source_lines`, with the test ratio and its sparkline in the subtitle.
+
+Each workflow point covers the issues done in the 30 days before its snapshot, so a point's issues (click it) come from that window. A line breaks across a missing day, and a vertical "data starts" marker shows where history begins. Charts whose family no snapshot has yet (CI and `make validate` duration, ux-test duration and flaky steps, tokens per issue) are dashed "No data yet" cards naming the issue that brings them. With fewer than two snapshots in the range, a hint names `issue-cli --project <slug> health backfill`. A family that failed in the latest snapshot shows its error on its charts.
+
+**Where the time goes** is live: the range's [project aggregate](#project-aggregate), split exactly as each issue's Timeline tab splits it.
+
+- **By status:** hours of agent working, waiting on you and idle summed per status (Hours / Share toggle). A few long waits dominate the sums, so the time tables keep the p50 / p90.
+- **By <group>:** the same split per group-by value; the 12 largest are drawn, the rest summed into one bar.
+- **Issues done per week by type:** stacked columns (per month for ranges over half a year).
+- **Drill-downs:** a bar, segment or point lists its issues (12, then "N more"), each linking to its Timeline tab, with cycle, agent time and loops.
+
+**Charts** are SVG drawn on the server (`internal/chart`): no chart library, no inline script, so they work under a strict CSP.
+
+- **Accessible:** `role="img"` and an `aria-label` on each chart, a `<title>` on every mark (the hover tooltip), and a Table button per chart that swaps it for the same numbers as rows (a plain `<details>` without JavaScript).
+- **Colours:** classes (`s-agent`, `s-waiting`, `s-idle`, `s-feature`, `s-bugfix`, `s-tweak`, `s-none`, …) mapped to the theme's `--chart-*` tokens in `static/style.css`, in dark, Dracula and light. A type of work keeps its colour on every chart. The dark palette passes the colour-vision checks (worst adjacent ΔE 9.4); the light one is below 3:1 contrast for aqua and amber, which the table view covers.
+
+**Speed.** The aggregate is cached per project, keyed by the done issues (slug and file time):
+
+- It is built once for the widest window asked for, and narrower ranges filter it (`Report.Filter`).
+- It is warmed when the server starts and rebuilt in the background after 15 minutes, while the old one is served.
+- The CLI usage report is cached the same way and never blocks the page; until the first one lands, its section says so.
+- An 800-issue project renders in about 85 ms warm. On big projects the shared sidebar costs more than the page (see `ui/sidebar-waiting-on-owner-count-is-slow-on-big-projects-1-s-per-page-on-roguetech`).
+
+**/stats (all projects)** reads only snapshots, never the live aggregate:
+
+- **Rows:** one per repository, with waiting on you (a meter with the limit tick and an "over" chip), cycle p50, rework share, issues done in 30 days, lines of code, test ratio, big files and the latest snapshot. Each value has a sparkline over 7, 30 or 90 days.
+- **Order:** sorted by issues done, waiting on you, cycle p50 or lines of code.
+- **No snapshots yet:** projects without snapshots, with health off, or sharing another project's repository are named on one line at the end.
+
 ## What the Stats tab shows
 
-Six blocks, in order:
+Below the dashboard, under Tables, three folded sections hold six blocks, in order:
 
-1. **Where the time goes (done in the last 30 days)**: the [project aggregate](#project-aggregate) of the Timeline tab's split. Tables per type of work (cycle p50/p90, rework loops, issues sent back, rework share, dispatches), time per status by type (in status, agent, waiting on you, idle, each p50 / p90; `all` open, the types folded), approval waits per gated transition, and refused transitions by error class, dry runs apart. It names the issues with no CLI calls (status time only) and counts done issues it could not read. Built on each request.
+1. **Where the time goes (done in the last 30 days)**: the [project aggregate](#project-aggregate) of the Timeline tab's split. Tables per type of work (cycle p50/p90, rework loops, issues sent back, rework share, dispatches), time per status by type (in status, agent, waiting on you, idle, each p50 / p90; `all` open, the types folded), approval waits per gated transition, and refused transitions by error class, dry runs apart. It names the issues with no CLI calls (status time only) and counts done issues it could not read. From the dashboard's cached aggregate, over its range; `?days=N` opens it.
 2. **Dispatch base prompt** — single-row table showing `tracker.AgentDispatchPromptStaticCost()`: the `len(s) / 4` cost of the constant scaffolding text in `tracker.AgentDispatchPromptTemplate` that the issue viewer writes into every fresh agent dispatch. Per-dispatch, not per-transition — kept as a separate metric so it does not over-count when a transition happens without a fresh dispatch.
 3. **Static reference — by transition** — every `(from → to)` pair declared in the project's `workflow.yaml`, with its pure static cost. Wildcard `from: "*"` edges are expanded into one row per source status. Sorted by token count descending so the heaviest transitions surface first. Independent of recorded data, so this block is always populated.
 4. **Recorded transitions — average cost** — averages of `static_tokens` and `dynamic_tokens` per `(from → to)` across every issue with recorded transitions, plus a count. Sorted by avg dynamic descending.
 5. **Per-issue totals** — sum of `dynamic_tokens` across each issue's recorded transitions, sorted descending. Issue title links to the detail view.
 6. **CLI usage (last 30 days)**: how `issue-cli` is used in this project, from the local names-only [usage telemetry](CLI/telemetry.md). It has tables for commands (calls, failures, error %, p50 ms), never-used commands, aliases, subcommands, topics and flags, errors, unknown commands and flags tried, and retry sequences.
    - The handler runs `issue-cli [--config $ISSUE_VIEWER_CONFIG --project <slug>] --json telemetry report --since 30d` with a 5 s timeout and `ISSUE_CLI_TELEMETRY_SKIP=1`, so page loads aren't counted as usage. It shells out because only the CLI binary knows its own command registry.
+   - The report is cached per project for 5 minutes and refreshed in the background; the page never waits for it.
    - Every failure becomes an inline notice, never a 500: `issue-cli` not on PATH, an exec error, bad JSON, a newer report version, telemetry disabled for the project, or no calls in the window.
 
 ## Timeline tab
@@ -162,7 +220,13 @@ The tab label on every tab ("5h 0m", "1h 50m so far") reads only the stats sidec
 - `internal/tracker/workflow_transition.go` — `ApplyTransitionToFileWithFields` snapshots a `TransitionStat` after a successful transition, capturing the pre-transition body and comments for the dynamic cost, and `branchShas` adds `branch_head` / `merge_sha` (`WorkflowConfig.RepoRoot`, set from the project).
 - `internal/timeline/` — the Timeline tab's derivation: `Load` (stats sidecar, clilogs, work branch, playtest runs), `Split` (bands, gaps, owner waits, rework), `Aggregate` and the `workflow` health family. `timeline.go` and `timeline_sources.go` at the root build the tab's view on top.
 - `handlers_stats.go` — the `/stats` route handler. Walks the project's issues and aggregates per-(from→to) and per-issue, and builds the time section with `timeline.Aggregate`. `runTelemetryReport` (package var, stubbed in tests) and `loadCLIUsage` produce the CLI usage block.
-- `templates/stats.html` — page template. Reuses the existing `data-table` styling.
+- `templates/stats.html` — page template: the dashboard (`statsChart` renders a chart card with its table and drill-down), then the tables. Reuses the existing `data-table` styling.
+- `stats_dashboard.go` — the dashboard model: options, gauges, trends from the snapshots, time bars, weekly columns, drill-downs. `buildDashboard` reads nothing from disk.
+- `stats_cache.go` — the per-project aggregate and CLI usage cache, and `warmStats` at server start.
+- `stats_overview.go`, `templates/stats_overview.html` — `/stats` across projects.
+- `internal/chart/` — line, stacked bars, columns, gauge and sparkline as SVG, each with `Table()`.
+- `internal/milestone/` — the current milestone (`Pick`, `Released`) and the `milestone` health family.
+- `static/stats.js` — table toggles, the group-by select, remembered options.
 
 ## Out of scope (today)
 

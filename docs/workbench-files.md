@@ -130,13 +130,14 @@ rust-manager writes `docs/balance/snapshot.json` with `make balance` (Tests/Bala
 
 ## Health snapshots
 
-A project health snapshot is a dated JSON file that records how big the project is and, through other metric families, how its workflow is going. Snapshots build up into a history the stats dashboard and the "getting worse" alerts read. The viewer doesn't show them yet. `issue-cli health` prints the latest one.
+A project health snapshot is a dated JSON file that records how big the project is and, through other metric families, how its workflow is going. Snapshots build up into a history: the Stats page (`/p/<project>/stats`) draws its trend lines from them, `/stats` compares the projects with them, and the "getting worse" alerts will read them. `issue-cli health` prints the latest one.
 
 - **Where:** `.health/snapshots/<YYYY-MM-DD>T<HHMM>.json` (local time) in the main checkout. `.health/` writes its own `.gitignore`, so the snapshots stay on this machine and no repo has to ignore them.
 - **When:**
   - **Daily:** the viewer looks every 10 minutes and takes one for each project (once per repository) that has none from today.
   - **After CI:** `issue-cli ci run` takes one after each default-tier run, red or green, at the commit it tested. A failed snapshot prints `health: no snapshot: <why>` and never changes the CI result.
   - **By hand:** `issue-cli health snapshot`.
+  - **The past:** `issue-cli health backfill [--days 90]` computes one snapshot for each past day that has none, as it stood at 23:59 that day: the codebase at the commit the branch had then, the workflow over the issues done by then. Days before the branch's first commit get the workflow rows only; the milestone family only knows the present and is left out. A new project gets its trend lines on day one this way.
 - **Who:** every project in a git repository. `health.off: true` turns snapshots off, and a project outside git is skipped.
 - **Kept:** every snapshot from the last 35 days, and after that the last snapshot of each day. A snapshot in the same minute replaces the earlier one.
 
@@ -152,7 +153,7 @@ A project health snapshot is a dated JSON file that records how big the project 
 }
 ```
 
-- **`run.trigger`:** `daily`, `ci` or `manual`.
+- **`run.trigger`:** `daily`, `ci`, `manual` or `backfill`.
 - **`families`:** one entry per registered family, with its time, row count and `hint` (see [Adding a family](#adding-a-family)). A family that fails, panics or runs past its timeout gets `error`, and its rows are missing. The other families are still written.
 - **Rows:**
   - `metric` and `labels` are the series key.
@@ -171,9 +172,13 @@ health:
   exclude: ["vendor/**", "**/*.min.js"] # left out of the codebase counts
   timeout: 20s                          # per family
   off: false                            # true: no snapshots
+  limits:                               # the Stats page gauges' thresholds
+    waiting_share: 0.25                 # share of issue time waiting on you
+    big_files: 10                       # files over big_file_lines
 ```
 
 - **Globs:** `**` matches any number of folders. A glob without a `/` matches the file name in any folder, as in `.gitignore`.
+- **Limits:** a key left out takes its default (above); `0` turns that limit off, and a negative value fails validation. The "getting worse" alerts are meant to share this block.
 - **Default test globs:** `**/*_test.go`, `**/*Tests.cs`, `**/*Test.cs`, `**/*.test.js`, `**/*.test.ts`, `**/test_*.py` and `**/*_test.py`.
 
 ### The codebase family
@@ -212,7 +217,7 @@ A repository younger than the window has no growth rows for that window.
 
 ### The workflow family
 
-Where the time goes, from `internal/timeline`: every issue done in the last 30 days goes through the same `Load` and `Split` as its Timeline tab (`?tab=timeline`), so a project number and the tab never disagree. An issue counts when its last transition to `done` in the stats sidecar falls in the window. The time rules (agent, waiting on you, idle, rework, the 15 min gap) are in [Workflow Stats](workflow-stats.md), "Timeline tab". /stats shows the same numbers as tables, built on each request.
+Where the time goes, from `internal/timeline`: every issue done in the last 30 days goes through the same `Load` and `Split` as its Timeline tab (`?tab=timeline`), so a project number and the tab never disagree. An issue counts when its last transition to `done` in the stats sidecar falls in the window. The time rules (agent, waiting on you, idle, rework, the 15 min gap) are in [Workflow Stats](workflow-stats.md), "Timeline tab". The Stats page shows the same numbers, as charts and tables, from the same aggregate (cached per project).
 
 - **Left out:** issues not done or done earlier, and done issues with no recorded transition to `done` (counted in `workflow.unread`).
 - **No CLI calls:** an issue without clilog records counts for `cycle` and `status.total` only, and in `workflow.issues_unsplit`.
@@ -235,9 +240,23 @@ Where the time goes, from `internal/timeline`: every issue done in the last 30 d
 | `workflow.rework.backward` | `type` | backward transitions |
 | `workflow.rework.share` | `type` | agent time inside rework loops / agent working time (`share`) |
 | `workflow.dispatches.p50`, `.p90` | `type` | agent dispatches per issue (recorded from v0.54 on) |
+| `workflow.working.p50`, `.p90` | `type` | agent working time per issue, over the issues with CLI calls, `seconds` |
+| `workflow.time.working`, `.waiting`, `.idle` | `type` | agent working, waiting on the owner and idle time summed over the issues with CLI calls, `seconds` |
+| `workflow.time.share` | `kind`: waiting | waiting on the owner / (working + waiting + idle) over all types (`share`); only when there is split time |
 | `workflow.gate_failures` | `transition`, `err_class`, `dry_run` | refused transition calls |
 
 On RogueTech (813 issues, 65 in the window) the family takes about half a second.
+
+### The milestone family
+
+The current milestone, from `internal/milestone` (the same `Pick` the Status page's release card uses): the lowest version after the newest release (the changelog's first version heading, else the newest git tag) that still has issues. Optional statuses such as parked are left out of the total.
+
+| Metric | Labels | Value |
+|:--|:--|:--|
+| `milestone.done` | `version` | its issues in the final status |
+| `milestone.total` | `version` | its issues, side statuses left out |
+
+No rows when no version has issues. It knows only the present, so `issue-cli health backfill` leaves it out.
 
 ### Adding a family
 
@@ -247,13 +266,14 @@ A family is a Go function registered from `init()` in a package both binaries im
 func init() { health.Register("workflow", workflowFamily) }
 
 func workflowFamily(ctx context.Context, env health.Env) ([]health.Metric, error) {
-	// env: Root (main checkout), Project, Workflow, Config, Branch, Commit, Now
+	// env: Root (main checkout), Project, Workflow, Config, Branch, Commit, Now, Backfill
 	return []health.Metric{{Name: "workflow.status.working.p50", Labels: map[string]string{"status": "all", "type": "all"}, Value: 840, Unit: health.UnitSeconds, Help: "Median agent working time per status"}}, nil
 }
 ```
 
 - **Pointer:** `health.Describe("workflow", "tables: /stats")` (also from `init()`) stores a one-line pointer with the family's result (`families.<name>.hint`). `issue-cli health` prints it after the family's `ok, N metrics`, so agents find where to read more.
 - **Errors:** return an error only when the whole family fails. Skip and count the bad parts instead.
+- **Backfill:** with `env.Backfill` set, `Now` is a past day and `Commit` where the branch stood then (`""` before the first commit). A family that can only measure the present returns `health.ErrNoPast`, and the day's snapshot leaves it out instead of recording an error.
 - **Context:** honour `ctx`, because it is cancelled at the family timeout.
 - **Docs:** document each name and its labels in a subsection here.
 

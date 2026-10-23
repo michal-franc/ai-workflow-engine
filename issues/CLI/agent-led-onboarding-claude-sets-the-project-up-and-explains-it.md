@@ -6,10 +6,9 @@ priority: "high"
 type: "feature"
 parent: "cli/adoption-make-ai-workflow-engine-easy-to-set-up-start-and-use"
 created: "2026-10-06"
-version: "0.59"
+version: "0.56"
 
 ---
-
 Most people who would use this tool already run Claude Code or Codex. The shortest route to adoption is to let
 them say one sentence to the agent they already have:
 
@@ -162,3 +161,25 @@ A scripted check, run on each release (and as `claude plugin eval` suites if tha
 
 - Agents editing an existing, customised `workflow.yaml` beyond what `--detect` proposes.
 - Hosting anything. The runbook is a file in this repo, fetched from GitHub.
+## Widened (owner, 2026-10-23): the first lead spawn gives a tour and interviews the owner
+
+Owner, while setting up gpu-runner as a new project: "when you spawn a lead on a new project it SHOULD GIVE YOU A TOUR AND ASK QUESTIONS about what kind of projects you will be running, to set up various things: features and types".
+
+- **Trigger:** the first `lead spawn` on a project that has no lead history (no `sessions/` note, no decisions). The lead's brief gets an **onboarding block** instead of the normal resume steps.
+- **A short tour,** in chat, with links: the board and Status page, how issues move through the workflow, gates and approvals, how agents are dispatched, local CI, releases per milestone, the stats page.
+- **The interview:** a few focused questions, multiple choice where possible:
+  - what the project is (web app, game, CLI or library, ops or review, writing)
+  - how work arrives (features, bugs, tweaks, experiments)
+  - how it's tested (unit, e2e or playtests, manual)
+  - whether it needs a GPU or screenshots
+  - how releases happen
+  - how strict the gates should be
+- **Then it sets the project up from the answers,** through the engine, showing the diff before writing:
+  - the workflow template and `types:` (feature, tweak, bugfix, poc, …)
+  - `ci:` commands, `health:` thresholds and test kinds
+  - playtest sessions scaffolding, Status page and `workbench:` options
+  - the release style (local merge plus milestone releases, or push and PRs)
+  - each answer is recorded with `issue-cli decide`
+- **Ends with a first handoff note and 3–5 starter issues** from the conversation.
+- **Dogfood case:** gpu-runner (set up by hand on 2026-10-23) is the first project whose lead should get this tour once it exists.
+

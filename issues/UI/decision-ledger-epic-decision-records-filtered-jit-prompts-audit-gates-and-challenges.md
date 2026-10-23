@@ -6,7 +6,7 @@ priority: "high"
 depends_on: "ui/workbench-decisions-index-generated-from-decisions"
 type: "epic"
 ideas: "https://claude.ai/artifact/1huMqWapzpffvve2nFPPnB"
-version: "0.60"
+version: "0.59"
 
 ---
 The owner, in the lead chat:
@@ -110,6 +110,7 @@ The bundled-template parts (citation step, prompts, validators) also ship as `is
 - **D-1** · 2026-10-08 · lead chat: Build the decision ledger from the ideas artifact, taking ideas 1-4 and 6-21 (not 5); idea 6 needs good filtering, "i like 1 2 3 4 6 (but we would need to create good filtering) 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21"
 - **D-2** · 2026-10-21 · lead chat: Remove issue-cli ask and answer (structured Q-n questions under ## Questions). Questions stay in Claude Code / Codex chat; only the outcome is recorded, with issue-cli decide. The ledger builds on decide and the D-n lines alone, "lets remove issue-cli ask we dont need this feature lets jus rely on claude codex we jsut want decision to be recorded"
 - **D-3** · 2026-10-23 · lead chat: The ledger is milestone 0.60, after onboarding and before the 1.0 freeze; its design (records model, who decided, proposed vs accepted) and decide --amend go first in 0.57, "Yeah 0.60"
+- **D-4** · 2026-10-23 · lead chat: Setup and onboarding merge into one milestone, 0.56; the ledger moves from 0.60 to 0.59, still after onboarding and before the 1.0 freeze, "We should merge setup is easy with onboarding" (replaces ui/decision-ledger-epic-decision-records-filtered-jit-prompts-audit-gates-and-challenges#D-3)
 
 ## Roadmap 2026-10-22
 
@@ -117,7 +118,7 @@ Detached from the workbench umbrella (it is its own epic now) and scheduled **La
 
 ## Roadmap 2026-10-23
 
-Scheduled as its own milestone, **0.60 Decision ledger**: after 0.59 (onboarding, lead check-ins) and before 1.0, because it changes the CLI, `workflow.yaml` and JSON contracts that 1.0 freezes. Until then `decide` stays an experiment that captures decisions.
+Scheduled as its own milestone, **0.59 Decision ledger** (0.60 until setup and onboarding merged into 0.56 the same day): after 0.58 and before 1.0, because it changes the CLI, `workflow.yaml` and JSON contracts that 1.0 freezes. Until then `decide` stays an experiment that captures decisions.
 
 A first slice goes in **0.57 Gates you can trust**:
 - `workflow/decision-ledger-design-one-records-model-who-decided-agents-propose-and-the-owner-accepts`: the records model, who decided, proposed vs accepted, and the rewrite and split of this epic

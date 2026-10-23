@@ -89,7 +89,7 @@ func TestCIRunTakesHealthSnapshot(t *testing.T) {
 func TestPrintHealthShowsFamilyErrors(t *testing.T) {
 	snap := &health.Snapshot{
 		Run:      health.RunInfo{Date: "2026-10-23T14:05", Branch: "main", Commit: "abc1234", Trigger: "daily", DurationMS: 5},
-		Families: map[string]health.FamilyResult{"workflow": {MS: 20000, Error: "timed out after 20s"}, "codebase": {MS: 3, Error: "git ls-tree: boom"}},
+		Families: map[string]health.FamilyResult{"workflow": {MS: 20000, Error: "timed out after 20s"}, "codebase": {MS: 3, Error: "git ls-tree: boom"}, "other": {MS: 1, Metrics: 4, Hint: "tables: /stats"}},
 	}
 	var buf bytes.Buffer
 	printHealth(&buf, snap, "/x.json")
@@ -97,6 +97,7 @@ func TestPrintHealthShowsFamilyErrors(t *testing.T) {
 	assertContains(t, out, "Health snapshot 2026-10-23T14:05 · main at abc1234 · daily · 5 ms")
 	assertContains(t, out, "  codebase   error: git ls-tree: boom (3 ms)")
 	assertContains(t, out, "  workflow   error: timed out after 20s (20000 ms)")
+	assertContains(t, out, "  other      ok, 4 metrics (1 ms) · tables: /stats")
 	if strings.Contains(out, "Codebase (") {
 		t.Fatal("printed a codebase summary for a failed family")
 	}

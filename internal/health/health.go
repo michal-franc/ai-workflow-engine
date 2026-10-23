@@ -85,6 +85,22 @@ func Register(name string, f Family) {
 	registry = append(registry, registered{name, f})
 }
 
+var hints = map[string]string{}
+
+// Describe sets a family's one-line pointer ("tables: /stats"), stored with
+// its result and printed after it by issue-cli health. Call it from init().
+func Describe(name, hint string) {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	hints[name] = hint
+}
+
+func hintFor(name string) string {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	return hints[name]
+}
+
 // Families lists the registered family names, sorted.
 func Families() []string {
 	var names []string
@@ -125,6 +141,7 @@ type FamilyResult struct {
 	MS      int64  `json:"ms"`
 	Metrics int    `json:"metrics"`
 	Error   string `json:"error,omitempty"`
+	Hint    string `json:"hint,omitempty"` // where to read more (Describe)
 }
 
 // Row is one metric in the file. ID is Metric plus its labels, sorted:
@@ -247,7 +264,7 @@ func take(ctx context.Context, env Env, trigger string, fams []registered) (*Sna
 	for _, f := range fams {
 		famStart := time.Now()
 		metrics, err := runFamily(ctx, env, f)
-		res := FamilyResult{MS: time.Since(famStart).Milliseconds()}
+		res := FamilyResult{MS: time.Since(famStart).Milliseconds(), Hint: hintFor(f.name)}
 		if err != nil {
 			res.Error = err.Error()
 			snap.Families[f.name] = res

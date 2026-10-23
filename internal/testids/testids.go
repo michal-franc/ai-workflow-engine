@@ -189,6 +189,7 @@ var IDs = []string{
 	"detail.tab.preview",
 	"detail.tab.edit",
 	"detail.body",
+	"detail.timeline",
 	"detail.body.checkbox.#",
 	"detail.body.textarea",
 	"detail.body.save",

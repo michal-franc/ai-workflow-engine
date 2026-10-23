@@ -52,7 +52,7 @@
                 </div>
 
                 {{if .Timeline}}
-                <div class="timeline-section">
+                <div class="timeline-section" data-testid="detail.timeline">
                     <h3 class="timeline-header">Agent Timeline <span class="timeline-count">{{len .Timeline}}</span></h3>
                     <ol class="timeline-list">
                         {{range .Timeline}}

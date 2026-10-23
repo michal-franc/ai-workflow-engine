@@ -24,6 +24,14 @@ release nothing.
 
 ## Unreleased
 
+- **/stats shows where the project's time goes, and snapshots carry it as the `workflow` family.**
+  - **What it counts:** every issue done in the last 30 days goes through the Timeline tab's own code, now in `internal/timeline`. It is split into agent working, waiting on you and idle per status and type of work, each as p50 / p90.
+  - **The tables:** cycle time per type, approval waits per gated transition, rework (loops and issues sent back) and dispatches. Refused `transition` calls are listed by error class, with dry runs apart.
+  - **Gaps:** issues without CLI calls count for status time only and are named. `?days=N` looks further back.
+  - **Snapshots:** the same numbers are in every health snapshot as `workflow.*` series (`workflow.status.waiting.p90{status=human-testing,type=all}` and so on). `issue-cli health` points at /stats for the tables.
+  - **Timeline tab:** each status band now shows its agent time.
+  - See docs/workflow-stats.md#project-aggregate and docs/workbench-files.md, "The workflow family". (workflow/health-workflow-timeline-where-agents-and-owners-spend-time)
+
 - **The issue page has tabs, and the Timeline tab replaces the Agent Timeline.**
   - **The tabs:** every issue page has Issue · Timeline · Evidence under the title, each a link (`?tab=timeline`, `?tab=evidence`). Issue is the page as before, minus the Agent Timeline list. Evidence says "coming".
   - **Where the time went:** from dispatch to done, split into agent working, waiting on you and idle (agent + waiting + idle = total), with rework and commits beside them.

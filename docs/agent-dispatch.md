@@ -233,7 +233,7 @@ Model names may contain only letters, digits and `._:/[]-`; anything else is ign
 
 ## Human Approval Notifications
 
-When a human approves a status transition in the web UI, the server sends a natural-language message to the active agent's tmux session. The message is randomized from a set of conversational templates so the agent receives a human-like prompt rather than a structured signal.
+When a human approves a status transition in the web UI, the server sends a natural-language message to the active agent's tmux session. The message is randomized from a set of conversational templates so the agent receives a human-like prompt rather than a structured signal. When the human typed words into the approve box, the message is `Approved for <status>: "<words>"` instead. An approve-then keeps its "run issue-cli start" line and adds `Owner's words: "<words>"`. The words are also saved as an `approval:` comment, which `issue-cli show` lists.
 
 This nudge is the hand-off: at a gate the agent asks in chat, then stops and ends its turn, and the approval message resumes it. Agents don't block or poll (`issue-cli transition|start --wait` was removed in v0.49.0, see [CLI overview](CLI/overview.md#at-a-human-approval-gate)). If an agent wasn't reachable (no matching tmux session), tell it yourself that the approval landed. The approve handler also timestamps the approval in the issue's stats sidecar (`last_approval`), and logs nudges that fail (`agent not nudged: …`) to the server log, so their failure rate can be measured.
 

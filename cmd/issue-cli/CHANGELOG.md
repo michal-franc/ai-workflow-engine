@@ -29,6 +29,7 @@ release nothing.
   - **When:** the viewer takes one a day per repository, `issue-cli ci run` takes one after each run, and `issue-cli health snapshot` takes one by hand. `issue-cli health` prints the latest (`--json` for the file).
   - **Families:** other metric families register with `health.Register` and land in the same file. A family that fails is recorded and the others are still written.
   - **Config:** an optional `health:` block in workflow.yaml (`big_file_lines`, `test_globs`, `exclude`, `timeout`, `off`). See docs/workbench-files.md, "Health snapshots".
+- **Approve buttons take your words.** The issue page's Human Approval section and the agents panel's Approve gate have an optional "Your words" box. Filled, the approval also saves an `approval:` comment and the agent's nudge quotes your words in place of a canned line; empty, approving works as before. `approval:` comments now name the status (`approval: "<words>" (<how>, <date>) → <status>`), from the viewer and `issue-cli approve` alike, and the Timeline shows each approval's words instead of "no words recorded".
 - **The issue page has tabs, and the Timeline tab replaces the Agent Timeline.**
   - **The tabs:** every issue page has Issue · Timeline · Evidence under the title, each a link (`?tab=timeline`, `?tab=evidence`). Issue is the page as before, minus the Agent Timeline list. Evidence says "coming".
   - **Where the time went:** from dispatch to done, split into agent working, waiting on you and idle (agent + waiting + idle = total), with rework and commits beside them.

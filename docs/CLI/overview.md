@@ -433,7 +433,7 @@ Project health snapshots: dated JSON files in `.health/snapshots/` of the main c
 
 `issue-cli approve <slug> --to <status> --quote "<the human's words>" [--how "<where>"]` is how a lead records a gate the human approved in chat:
 
-1. It writes an `approval: "<quote>" (<how>, <date>) — recorded by <session>` comment. `--how` defaults to `in the lead chat`.
+1. It writes an `approval: "<quote>" (<how>, <date>) → <status> — recorded by <session>` comment (`tracker.ApprovalComment`). `--how` defaults to `in the lead chat`. The viewer's words box writes the same comment with `viewer` as how, and the Timeline pairs these comments with their approvals.
 2. It sets `human_approval` to the status. It never toggles an existing approval off, unlike the viewer's button.
 
 `--to` and `--quote` are required. It is refused:

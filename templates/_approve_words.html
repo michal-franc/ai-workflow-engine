@@ -1,0 +1,12 @@
+{{/*
+The words box under approve buttons (ui/approve-button-takes-your-words):
+the owner's optional words, saved with the approval as an approval: comment
+and quoted to the agent. Takes the place it sits in, used for the textarea
+id and test id; static/approve-words.js reads it and builds the same box for
+pages that render in JS.
+  {{template "approve-words" "detail"}}
+*/}}
+{{define "approve-words"}}<div class="approve-words">
+    <label for="approve-words-{{.}}">Your words (optional)</label>
+    <textarea id="approve-words-{{.}}" data-testid="approve_words.{{tid .}}" rows="2" placeholder="Why you approve. Saved with the approval and sent to the agent."></textarea>
+</div>{{end}}

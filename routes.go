@@ -40,6 +40,8 @@ type approvalResponse struct {
 	NotificationMessage string `json:"notification_message,omitempty"`
 	NotificationError   string `json:"notification_error,omitempty"`
 	Label               string `json:"label,omitempty"`
+	WordsSaved          bool   `json:"words_saved,omitempty"`
+	WordsError          string `json:"words_error,omitempty"`
 }
 
 func NewServer(projects []tracker.Project) (*Server, error) {

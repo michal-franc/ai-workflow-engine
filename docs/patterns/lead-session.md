@@ -88,7 +88,7 @@ Approvals are the `human_approval` field in the issue's frontmatter. The human s
 issue-cli approve <slug> --to <status> --quote "<the human's words>" [--how "on a call"]
 ```
 
-It writes an `approval:` comment with your words, then sets `human_approval`. It never toggles an existing approval off.
+It writes an `approval: "<words>" (<how>, <date>) → <status>` comment, then sets `human_approval`. It never toggles an existing approval off. When you approve in the viewer with words in the box under the approve buttons, the viewer writes the same comment itself, so there is nothing for the lead to record.
 
 | Who | May tick |
 |---|---|

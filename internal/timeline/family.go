@@ -53,6 +53,14 @@ func Metrics(rep Report) []health.Metric {
 		add("rework.loops", l, float64(t.Loops), health.UnitCount, "Rework loops: backward transitions and failed playtests from testing on")
 		add("rework.backward", l, float64(t.Backward), health.UnitCount, "Backward transitions")
 		add("rework.share", l, t.ReworkShare, health.UnitShare, "Agent time inside rework loops, share of agent working time")
+		add("working.p50", l, secs(t.WorkingPer.P50), health.UnitSeconds, "Agent working time per issue, p50")
+		add("working.p90", l, secs(t.WorkingPer.P90), health.UnitSeconds, "Agent working time per issue, p90")
+		add("time.working", l, secs(t.Working), health.UnitSeconds, "Agent working time, summed over the issues")
+		add("time.waiting", l, secs(t.Waiting), health.UnitSeconds, "Time waiting on the owner, summed over the issues")
+		add("time.idle", l, secs(t.Idle), health.UnitSeconds, "Idle time, summed over the issues")
+		if t.Type == All && t.Working+t.Waiting+t.Idle > 0 {
+			add("time.share", map[string]string{"kind": "waiting"}, t.WaitingShare(), health.UnitShare, "Share of issue time waiting on the owner")
+		}
 	}
 	for _, s := range rep.Statuses {
 		l := map[string]string{"status": s.Status, "type": s.Type}

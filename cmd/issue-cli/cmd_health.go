@@ -13,7 +13,7 @@ import (
 
 var healthCommand = &Command{
 	Name:      "health",
-	ShortHelp: "Project health snapshots: codebase size, big files, growth (sub: snapshot)",
+	ShortHelp: "Project health snapshots: codebase size, big files, growth (sub: snapshot, backfill)",
 	LongHelp: `Project health snapshots: dated JSON files in .health/snapshots/ of the main
 checkout (gitignored), one row per metric. The viewer takes one every day and
 issue-cli ci run takes one after each run, so nobody has to.
@@ -25,10 +25,15 @@ Usage:
       flag) prints the snapshot file.
   issue-cli health snapshot
       Take a snapshot now, then print it.
+  issue-cli health backfill [--days 90]
+      Compute one snapshot for each past day without one, as it stood at the
+      end of that day: the codebase at the branch's commit then, the workflow
+      over the issues done by then. The stats page's trend charts draw from
+      them. The milestone family only knows the present and is left out.
 
 Families: codebase (git objects at the main branch head: size by kind, area
 and language, tests, big files, growth), plus any other registered family
-(workflow, ...). A family that fails is recorded; the others are still written.
+(workflow, milestone, ...). A family that fails is recorded; the others are still written.
 
 Config (workflow.yaml, all optional):
   health:
@@ -37,9 +42,13 @@ Config (workflow.yaml, all optional):
     exclude: ["vendor/**", "**/*.min.js"]
     timeout: 20s                                  # per family
     off: true                                     # no snapshots
+    limits:                                       # stats page gauges
+      waiting_share: 0.25
+      big_files: 10
+Charts: the viewer's Stats page (/p/<project>/stats).
 See docs/workbench-files.md, "Health snapshots".`,
 	Run:         runHealth,
-	Subcommands: []string{"snapshot"},
+	Subcommands: []string{"snapshot", "backfill"},
 }
 
 func init() {
@@ -48,9 +57,21 @@ func init() {
 
 const healthNoSnapshot = "No health snapshot yet: run issue-cli health snapshot (the viewer takes one daily)"
 
+// healthBackfillDays is how far back issue-cli health backfill goes by
+// default.
+const healthBackfillDays = 90
+
+// statsURL is the viewer's stats page for the project.
+func statsURL(slug string) string {
+	return strings.TrimRight(viewerBaseURL(), "/") + "/p/" + slug + "/stats"
+}
+
 func runHealth(ctx *Context, args []string) error {
 	if len(args) > 0 && args[0] == "snapshot" {
 		return runHealthSnapshot(ctx, args[1:])
+	}
+	if len(args) > 0 && args[0] == "backfill" {
+		return runHealthBackfill(ctx, args[1:])
 	}
 	fs := newFlagSet("health", ctx)
 	if err := parseFlags(ctx, fs, args); err != nil {
@@ -75,6 +96,69 @@ func runHealth(ctx *Context, args []string) error {
 		return writeJSON(ctx.Stdout, snap)
 	}
 	printHealth(ctx.Stdout, snap, path)
+	fmt.Fprintf(ctx.Stdout, "\nCharts: %s\n", statsURL(ctx.Project.Slug))
+	if n := health.Count(env.Root); n < 2 {
+		fmt.Fprintf(ctx.Stdout, "Trends need history (%d snapshot so far): issue-cli health backfill\n", n)
+	}
+	return nil
+}
+
+// runHealthBackfill computes the past days' snapshots.
+func runHealthBackfill(ctx *Context, args []string) error {
+	fs := newFlagSet("health backfill", ctx)
+	days := fs.Int("days", healthBackfillDays, "how many past days to fill, 1 to 3650")
+	if err := parseFlags(ctx, fs, args); err != nil {
+		return err
+	}
+	if *days < 1 || *days > 3650 {
+		return &usageError{msg: fmt.Sprintf("--days %d: want 1 to 3650", *days)}
+	}
+	if !ctx.Project.LoadWorkflow().Health.Enabled() {
+		return errors.New("health snapshots are off for this project (health.off: true in workflow.yaml)")
+	}
+	env, err := health.NewEnv(ctx.Project, projectRoot(ctx.Project), ctx.now())
+	if err != nil {
+		return err
+	}
+	type dayResult struct {
+		Day     string `json:"day"`
+		Path    string `json:"path,omitempty"`
+		Skipped string `json:"skipped,omitempty"`
+		Error   string `json:"error,omitempty"`
+	}
+	var results []dayResult
+	written, skipped, failed := 0, 0, 0
+	err = health.Backfill(context.Background(), env, *days, func(d health.BackfillDay) {
+		r := dayResult{Day: d.Day.Format("2006-01-02"), Path: d.Path, Skipped: d.Skipped}
+		switch {
+		case d.Err != nil:
+			r.Error = d.Err.Error()
+			failed++
+		case d.Skipped != "":
+			skipped++
+		default:
+			written++
+		}
+		results = append(results, r)
+		if ctx.JSONOutput {
+			return
+		}
+		switch {
+		case r.Error != "":
+			fmt.Fprintf(ctx.Stdout, "  %s  error: %s\n", r.Day, r.Error)
+		case r.Skipped != "":
+			fmt.Fprintf(ctx.Stdout, "  %s  skipped: %s\n", r.Day, r.Skipped)
+		default:
+			fmt.Fprintf(ctx.Stdout, "  %s  %s\n", r.Day, r.Path)
+		}
+	})
+	if err != nil {
+		return err
+	}
+	if ctx.JSONOutput {
+		return writeJSON(ctx.Stdout, map[string]any{"written": written, "skipped": skipped, "failed": failed, "days": results, "charts": statsURL(ctx.Project.Slug)})
+	}
+	fmt.Fprintf(ctx.Stdout, "✓ Backfilled %d of %d days (%d skipped, %d failed) · charts: %s\n", written, *days, skipped, failed, statsURL(ctx.Project.Slug))
 	return nil
 }
 

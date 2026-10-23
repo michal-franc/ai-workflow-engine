@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -82,6 +83,70 @@ func Before(root string, t time.Time) *Snapshot {
 		}
 	}
 	return nil
+}
+
+// Count is how many snapshot files there are.
+func Count(root string) int { return len(list(root)) }
+
+// HasDay reports whether any snapshot was taken on day's local date.
+func HasDay(root string, day time.Time) bool {
+	for _, s := range list(root) {
+		if sameDay(s.at, day.Local()) {
+			return true
+		}
+	}
+	return false
+}
+
+// Range is the snapshots taken in [from, to], oldest first. A zero from
+// means all of them. Unreadable files are skipped. Files are parsed once
+// and kept while their size and time are unchanged, so a stats page reads
+// 90 days of snapshots without parsing 90 files on every request.
+func Range(root string, from, to time.Time) []*Snapshot {
+	var out []*Snapshot
+	for _, s := range list(root) {
+		if (!from.IsZero() && s.at.Before(from)) || s.at.After(to) {
+			continue
+		}
+		if snap := readCached(s.path); snap != nil {
+			out = append(out, snap)
+		}
+	}
+	return out
+}
+
+type cachedSnap struct {
+	size int64
+	mod  time.Time
+	snap *Snapshot
+}
+
+var (
+	snapCacheMu sync.Mutex
+	snapCache   = map[string]cachedSnap{}
+)
+
+// readCached is Read through the parse cache; nil when the file is gone or
+// does not parse. Callers must not change the snapshot.
+func readCached(path string) *Snapshot {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil
+	}
+	snapCacheMu.Lock()
+	c, ok := snapCache[path]
+	snapCacheMu.Unlock()
+	if ok && c.size == fi.Size() && c.mod.Equal(fi.ModTime()) {
+		return c.snap
+	}
+	snap, err := Read(path)
+	if err != nil {
+		return nil
+	}
+	snapCacheMu.Lock()
+	snapCache[path] = cachedSnap{fi.Size(), fi.ModTime(), snap}
+	snapCacheMu.Unlock()
+	return snap
 }
 
 // prune thins snapshots older than keepAll to the last one of each day.

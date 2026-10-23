@@ -33,3 +33,31 @@ func TestHealthConfigDefaultsAndValidate(t *testing.T) {
 		t.Fatal("clone shares the exclude slice")
 	}
 }
+
+func TestHealthLimits(t *testing.T) {
+	var nilCfg *HealthConfig
+	if v, ok := nilCfg.Limit("waiting_share"); !ok || v != 0.25 {
+		t.Fatalf("default waiting_share = %v, %v", v, ok)
+	}
+	if _, ok := nilCfg.Limit("nope"); ok {
+		t.Fatal("unknown limit reported as set")
+	}
+	var cfg HealthConfig
+	if err := yaml.Unmarshal([]byte("limits:\n  waiting_share: 0.4\n  big_files: 0\n  ci_red: -1\n"), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if v, ok := cfg.Limit("waiting_share"); !ok || v != 0.4 {
+		t.Fatalf("waiting_share = %v, %v", v, ok)
+	}
+	if _, ok := cfg.Limit("big_files"); ok {
+		t.Fatal("big_files: 0 should turn the limit off")
+	}
+	if got := strings.Join(cfg.Validate(), "\n"); !strings.Contains(got, "health.limits.ci_red -1") {
+		t.Fatalf("Validate() = %q", got)
+	}
+	clone := cloneHealth(&cfg)
+	clone.Limits["waiting_share"] = 1
+	if cfg.Limits["waiting_share"] != 0.4 {
+		t.Fatal("clone shares the limits map")
+	}
+}

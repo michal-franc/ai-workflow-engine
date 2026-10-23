@@ -35,7 +35,14 @@ const (
 	TriggerDaily  = "daily"
 	TriggerCI     = "ci"
 	TriggerManual = "manual"
+	// TriggerBackfill: issue-cli health backfill computed a past day.
+	TriggerBackfill = "backfill"
 )
+
+// ErrNoPast is a family's answer when env.Backfill asks it about a past day
+// it cannot measure (the current milestone, say). The family is left out of
+// that snapshot, not recorded as failed.
+var ErrNoPast = errors.New("cannot measure a past day")
 
 // Metric is one value a family measured. Name is the stable series name
 // (<family>.<snake_case path>); Labels split it (lang=go, status=all).
@@ -57,6 +64,10 @@ type Env struct {
 	Branch   string
 	Commit   string
 	Now      time.Time
+	// Backfill: Now is a past day and Commit where the branch stood then
+	// (issue-cli health backfill). A family that only knows the present
+	// returns ErrNoPast.
+	Backfill bool
 }
 
 // Family measures one group of metrics. A non-nil error means the whole
@@ -264,6 +275,9 @@ func take(ctx context.Context, env Env, trigger string, fams []registered) (*Sna
 	for _, f := range fams {
 		famStart := time.Now()
 		metrics, err := runFamily(ctx, env, f)
+		if errors.Is(err, ErrNoPast) {
+			continue
+		}
 		res := FamilyResult{MS: time.Since(famStart).Milliseconds(), Hint: hintFor(f.name)}
 		if err != nil {
 			res.Error = err.Error()

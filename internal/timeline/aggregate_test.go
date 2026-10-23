@@ -300,3 +300,70 @@ func mustWrite(t *testing.T, path string, data []byte) {
 }
 
 func ptrTime(t time.Time) *time.Time { return &t }
+
+// The time sums and working percentiles per type add up from the issues,
+// the family carries them, and Filter on a wide report gives the same
+// numbers as an Aggregate over the narrow window.
+func TestAggregateTimeSumsAndFilter(t *testing.T) {
+	proj, issues := testProject(t)
+	now := localCIDone.Add(24 * time.Hour)
+	wf := tracker.DefaultWorkflow()
+	rep := Aggregate(context.Background(), proj, wf, issues, now, 90*24*time.Hour)
+
+	var all TypeRow
+	for _, r := range rep.Types {
+		if r.Type == All {
+			all = r
+		}
+	}
+	var working, waiting, idle time.Duration
+	for _, s := range rep.Issues {
+		if !s.Known {
+			continue
+		}
+		working += s.Working
+		for _, st := range s.Statuses {
+			waiting += st.Waiting
+			idle += st.Idle
+		}
+	}
+	if all.Working != working || all.Waiting != waiting || all.Idle != idle || waiting == 0 {
+		t.Fatalf("all row working/waiting/idle = %v/%v/%v, issues sum to %v/%v/%v", all.Working, all.Waiting, all.Idle, working, waiting, idle)
+	}
+	if want := float64(waiting) / float64(working+waiting+idle); all.WaitingShare() != want {
+		t.Errorf("waiting share = %v, want %v", all.WaitingShare(), want)
+	}
+	if all.WorkingPer.P90 < all.WorkingPer.P50 || all.WorkingPer.P90 == 0 {
+		t.Errorf("working per issue = %+v", all.WorkingPer)
+	}
+
+	narrow := Aggregate(context.Background(), proj, wf, issues, now, Window)
+	got := rep.Filter(now.Add(-Window), now)
+	if len(got.Issues) != len(narrow.Issues) || len(got.Types) != len(narrow.Types) {
+		t.Fatalf("Filter: %d issues / %d types, Aggregate: %d / %d", len(got.Issues), len(got.Types), len(narrow.Issues), len(narrow.Types))
+	}
+	for i := range got.Types {
+		if got.Types[i].Type != narrow.Types[i].Type || got.Types[i].Cycle != narrow.Types[i].Cycle || got.Types[i].Waiting != narrow.Types[i].Waiting {
+			t.Errorf("type %d: Filter %+v, Aggregate %+v", i, got.Types[i], narrow.Types[i])
+		}
+	}
+	if len(got.Statuses) != len(narrow.Statuses) || len(got.Approvals) != len(narrow.Approvals) {
+		t.Errorf("Filter statuses/approvals = %d/%d, Aggregate %d/%d", len(got.Statuses), len(got.Approvals), len(narrow.Statuses), len(narrow.Approvals))
+	}
+
+	m := map[string]float64{}
+	for _, r := range Metrics(rep) {
+		m[health.RowID(r.Name, r.Labels)] = r.Value
+	}
+	for id, want := range map[string]float64{
+		"workflow.time.waiting{type=all}":   waiting.Seconds(),
+		"workflow.time.share{kind=waiting}": all.WaitingShare(),
+		"workflow.working.p50{type=all}":    all.WorkingPer.P50.Seconds(),
+		"workflow.working.p90{type=bugfix}": -1,
+	} {
+		got, ok := m[id]
+		if !ok || (want >= 0 && got != want) {
+			t.Errorf("%s = %v (found %v), want %v", id, got, ok, want)
+		}
+	}
+}

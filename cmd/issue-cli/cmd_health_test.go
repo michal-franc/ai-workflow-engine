@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/health"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
@@ -101,4 +103,68 @@ func TestPrintHealthShowsFamilyErrors(t *testing.T) {
 	if strings.Contains(out, "Codebase (") {
 		t.Fatal("printed a codebase summary for a failed family")
 	}
+}
+
+// Backfill fills each past day after the first commit, skips days that
+// have a snapshot, and names the stats page; health then points at it.
+func TestHealthBackfill(t *testing.T) {
+	proj, root := makeCIFixture(t, "")
+	later := time.Now().AddDate(0, 0, 3)
+
+	ctx, stdout, _ := newTestContext(proj, false)
+	ctx.Now = func() time.Time { return later }
+	if err := runHealth(ctx, []string{"backfill", "--days", "3"}); err != nil {
+		t.Fatal(err)
+	}
+	out := stdout.String()
+	assertContains(t, out, "✓ Backfilled 3 of 3 days (0 skipped, 0 failed) · charts: ")
+	assertContains(t, out, "/p/test/stats")
+	snaps := health.Range(root, time.Time{}, later)
+	if len(snaps) != 3 || snaps[0].Run.Trigger != health.TriggerBackfill || !strings.HasSuffix(snaps[0].Run.Date, "T23:59") {
+		t.Fatalf("snapshots = %d, first %+v", len(snaps), snaps[0].Run)
+	}
+	if _, ok := snaps[0].Families["milestone"]; ok {
+		t.Error("backfill recorded the milestone family")
+	}
+
+	ctx, stdout, _ = newTestContext(proj, true)
+	ctx.Now = func() time.Time { return later }
+	if err := runHealth(ctx, []string{"backfill", "--days", "3"}); err != nil {
+		t.Fatal(err)
+	}
+	var res struct {
+		Written, Skipped int
+		Charts           string
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &res); err != nil || res.Written != 0 || res.Skipped != 3 || !strings.HasSuffix(res.Charts, "/p/test/stats") {
+		t.Fatalf("second run --json = %+v, %v\n%s", res, err, stdout.String())
+	}
+
+	ctx, stdout, _ = newTestContext(proj, false)
+	if err := runHealth(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, stdout.String(), "Charts: ")
+	if strings.Contains(stdout.String(), "Trends need history") {
+		t.Error("history hint shown with 3 snapshots")
+	}
+
+	ctx, _, _ = newTestContext(proj, false)
+	var ue *usageError
+	if err := runHealth(ctx, []string{"backfill", "--days", "0"}); !errors.As(err, &ue) {
+		t.Fatalf("--days 0: %v, want a usage error", err)
+	}
+}
+
+func TestHealthHintsBackfillWithOneSnapshot(t *testing.T) {
+	proj, _ := makeCIFixture(t, "")
+	ctx, _, _ := newTestContext(proj, false)
+	if err := runHealth(ctx, []string{"snapshot"}); err != nil {
+		t.Fatal(err)
+	}
+	ctx, stdout, _ := newTestContext(proj, false)
+	if err := runHealth(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, stdout.String(), "Trends need history (1 snapshot so far): issue-cli health backfill")
 }

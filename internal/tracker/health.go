@@ -17,6 +17,17 @@ type HealthConfig struct {
 	TestGlobs    []string `yaml:"test_globs,omitempty" desc:"Globs (** allowed) for test files; a set list replaces the defaults (*_test.go, *Tests.cs, *Test.cs, *.test.js, *.test.ts, test_*.py, *_test.py)"`
 	Exclude      []string `yaml:"exclude,omitempty" desc:"Globs (** allowed) left out of the codebase counts, on top of the issues dir and .worktrees/"`
 	Timeout      string   `yaml:"timeout,omitempty" desc:"Limit for each metric family, a Go duration (default 20s)"`
+	// Limits are the thresholds the stats page's gauges draw (and that
+	// trend alerts may use): waiting_share 0.25 (share of issue time waiting
+	// on the owner), big_files 10. A key set to 0 turns that limit off.
+	Limits map[string]float64 `yaml:"limits,omitempty" desc:"Thresholds for the stats page gauges: waiting_share (default 0.25), big_files (default 10); 0 turns one off"`
+}
+
+// HealthLimitDefaults are the limits used when health.limits leaves a key
+// out.
+var HealthLimitDefaults = map[string]float64{
+	"waiting_share": 0.25,
+	"big_files":     10,
 }
 
 const (
@@ -74,6 +85,19 @@ func (h *HealthConfig) FamilyTimeout() time.Duration {
 	return healthDefaultTimeout
 }
 
+// Limit is the named threshold: the configured value, else the default.
+// ok is false when there is none or it is set to 0 (off).
+func (h *HealthConfig) Limit(name string) (float64, bool) {
+	v, set := 0.0, false
+	if h != nil {
+		v, set = h.Limits[name]
+	}
+	if !set {
+		v, set = HealthLimitDefaults[name]
+	}
+	return v, set && v > 0
+}
+
 // Validate returns one problem per invalid entry. A missing block is valid.
 func (h *HealthConfig) Validate() []string {
 	if h == nil {
@@ -86,6 +110,11 @@ func (h *HealthConfig) Validate() []string {
 	if t := strings.TrimSpace(h.Timeout); t != "" {
 		if d, err := time.ParseDuration(t); err != nil || d <= 0 {
 			problems = append(problems, fmt.Sprintf("health.timeout %q is not a positive duration like 30s (default 20s is used)", h.Timeout))
+		}
+	}
+	for k, v := range h.Limits {
+		if v < 0 {
+			problems = append(problems, fmt.Sprintf("health.limits.%s %v is negative (use 0 to turn it off)", k, v))
 		}
 	}
 	for _, list := range []struct {
@@ -110,5 +139,11 @@ func cloneHealth(h *HealthConfig) *HealthConfig {
 	out := *h
 	out.TestGlobs = append([]string(nil), h.TestGlobs...)
 	out.Exclude = append([]string(nil), h.Exclude...)
+	if h.Limits != nil {
+		out.Limits = make(map[string]float64, len(h.Limits))
+		for k, v := range h.Limits {
+			out.Limits[k] = v
+		}
+	}
 	return &out
 }

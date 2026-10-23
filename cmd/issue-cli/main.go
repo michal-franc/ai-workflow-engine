@@ -18,8 +18,9 @@ import (
 	"github.com/michal-franc/issue-viewer/internal/telemetry"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 
-	// Registers the workflow health family, so snapshots taken by the CLI
-	// include it.
+	// Register the milestone and workflow health families, so snapshots
+	// taken by the CLI include them.
+	_ "github.com/michal-franc/issue-viewer/internal/milestone"
 	_ "github.com/michal-franc/issue-viewer/internal/timeline"
 )
 

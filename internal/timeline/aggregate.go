@@ -77,8 +77,23 @@ type TypeRow struct {
 	Loops       int
 	Backward    int
 	ReworkShare float64 // rework agent time / working, over the split issues
-	Working     time.Duration
-	ReworkTime  time.Duration
+	// Working, Waiting and Idle are summed over the split issues;
+	// WorkingPer is the p50/p90 of each split issue's agent working time.
+	Working    time.Duration
+	Waiting    time.Duration
+	Idle       time.Duration
+	WorkingPer Pct
+	ReworkTime time.Duration
+}
+
+// WaitingShare is the share of the split issues' time spent waiting on the
+// owner; 0 without split time.
+func (t TypeRow) WaitingShare() float64 {
+	all := t.Working + t.Waiting + t.Idle
+	if all <= 0 {
+		return 0
+	}
+	return float64(t.Waiting) / float64(all)
 }
 
 // ApprovalRow is the owner's wait at one gated transition.
@@ -107,6 +122,22 @@ type Report struct {
 	Statuses  []StatusRow
 	Approvals []ApprovalRow
 	Failures  []FailureRow
+
+	wf *tracker.WorkflowConfig
+}
+
+// Filter is the report over the issues done in [from, to] only, summarized
+// again, so one Aggregate over a wide window serves narrower ones. Unread
+// is kept as it is.
+func (r Report) Filter(from, to time.Time) Report {
+	out := Report{From: from, To: to, Unread: r.Unread, wf: r.wf}
+	for _, s := range r.Issues {
+		if !s.DoneAt.Before(from) && !s.DoneAt.After(to) {
+			out.Issues = append(out.Issues, s)
+		}
+	}
+	out.summarize(r.wf)
+	return out
 }
 
 // Unsplit names the issues in the window without CLI calls.
@@ -128,7 +159,7 @@ func Aggregate(ctx context.Context, proj *tracker.Project, wf *tracker.WorkflowC
 	if wf == nil && proj != nil {
 		wf = proj.LoadWorkflow()
 	}
-	rep := Report{From: now.Add(-window), To: now}
+	rep := Report{From: now.Add(-window), To: now, wf: wf}
 	cache := NewCache()
 	for _, issue := range issues {
 		if ctx.Err() != nil {
@@ -244,7 +275,7 @@ func (rep *Report) summarize(wf *tracker.WorkflowConfig) {
 	for _, typ := range types {
 		group := of(typ)
 		row := TypeRow{Type: typ, N: len(group)}
-		var cycle, dispatches []float64
+		var cycle, dispatches, working []float64
 		for _, s := range group {
 			cycle = append(cycle, float64(s.Cycle))
 			dispatches = append(dispatches, float64(s.Dispatches))
@@ -256,8 +287,14 @@ func (rep *Report) summarize(wf *tracker.WorkflowConfig) {
 			}
 			row.Working += s.Working
 			row.ReworkTime += s.Rework
+			working = append(working, float64(s.Working))
+			for _, st := range s.Statuses {
+				row.Waiting += st.Waiting
+				row.Idle += st.Idle
+			}
 		}
 		row.Cycle = pct(cycle)
+		row.WorkingPer = pct(working)
 		row.Dispatches = [2]float64{percentile(dispatches, 0.5), percentile(dispatches, 0.9)}
 		if row.Working > 0 {
 			row.ReworkShare = float64(row.ReworkTime) / float64(row.Working)

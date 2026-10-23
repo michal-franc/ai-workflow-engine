@@ -143,7 +143,11 @@ func printHealth(w io.Writer, s *health.Snapshot, path string) {
 			fmt.Fprintf(w, "  %-10s error: %s (%d ms)\n", name, res.Error, res.MS)
 			continue
 		}
-		fmt.Fprintf(w, "  %-10s ok, %d metrics (%d ms)\n", name, res.Metrics, res.MS)
+		hint := ""
+		if res.Hint != "" {
+			hint = " · " + res.Hint
+		}
+		fmt.Fprintf(w, "  %-10s ok, %d metrics (%d ms)%s\n", name, res.Metrics, res.MS, hint)
 	}
 }
 

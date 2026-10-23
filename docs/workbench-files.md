@@ -153,7 +153,7 @@ A project health snapshot is a dated JSON file that records how big the project 
 ```
 
 - **`run.trigger`:** `daily`, `ci` or `manual`.
-- **`families`:** one entry per registered family, with its time and row count. A family that fails, panics or runs past its timeout gets `error`, and its rows are missing. The other families are still written.
+- **`families`:** one entry per registered family, with its time, row count and `hint` (see [Adding a family](#adding-a-family)). A family that fails, panics or runs past its timeout gets `error`, and its rows are missing. The other families are still written.
 - **Rows:**
   - `metric` and `labels` are the series key.
   - `id` is `metric{k=v,...}` with the labels sorted, or the bare name when there are no labels.
@@ -252,6 +252,7 @@ func workflowFamily(ctx context.Context, env health.Env) ([]health.Metric, error
 }
 ```
 
+- **Pointer:** `health.Describe("workflow", "tables: /stats")` (also from `init()`) stores a one-line pointer with the family's result (`families.<name>.hint`). `issue-cli health` prints it after the family's `ok, N metrics`, so agents find where to read more.
 - **Errors:** return an error only when the whole family fails. Skip and count the bad parts instead.
 - **Context:** honour `ctx`, because it is cancelled at the family timeout.
 - **Docs:** document each name and its labels in a subsection here.

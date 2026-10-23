@@ -56,6 +56,8 @@ func TestTakeKeepsGoingPastBrokenFamilies(t *testing.T) {
 		{"panics", func(context.Context, Env) ([]Metric, error) { panic("oops") }},
 		{"slow", func(ctx context.Context, _ Env) ([]Metric, error) { time.Sleep(time.Second); return nil, nil }},
 	}
+	Describe("good", "tables: /stats")
+	defer Describe("good", "")
 	snap, path, err := take(context.Background(), env, TriggerManual, fams)
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +73,7 @@ func TestTakeKeepsGoingPastBrokenFamilies(t *testing.T) {
 			t.Errorf("families[%s].error = %q, want %q", name, got, want)
 		}
 	}
-	if snap.Families["good"].Metrics != 2 || snap.Families["good"].Error != "" {
+	if snap.Families["good"].Metrics != 2 || snap.Families["good"].Error != "" || snap.Families["good"].Hint != "tables: /stats" {
 		t.Fatalf("good = %+v", snap.Families["good"])
 	}
 	if v, ok := snap.Value("good.lines", map[string]string{"lang": "go"}); !ok || v != 7 {

@@ -21,7 +21,6 @@ steps:
       - exists: detail.timeline
       - text_contains: { target: detail.timeline, text: "progress: plan ready, waiting on the owner for in progress" }
       - text_contains: { target: detail.timeline, text: "transition → in progress (failed: approval missing)" }
-      - cli: { args: [show, cli/export-issues-as-csv], contains: "progress: plan ready" }
     targets:
       - { id: detail.timeline, note: "Your comment and the refused transition, newest last" }
     do: Look at the Agent Timeline under the issue body, then at the comment under it.

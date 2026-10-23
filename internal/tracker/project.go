@@ -109,6 +109,7 @@ func (p *Project) attachRuntime(wf *WorkflowConfig) {
 		return
 	}
 	wf.IssuesRoot = p.IssueDir
+	wf.RepoRoot = p.TelemetryRoot()
 	if wf.LookupIssue == nil && p.IssueDir != "" {
 		dir := p.IssueDir
 		wf.LookupIssue = func(slug string) *Issue {

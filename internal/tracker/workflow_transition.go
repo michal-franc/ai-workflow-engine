@@ -135,7 +135,7 @@ func (w *WorkflowConfig) CheckTransitionOrder(fromStatus, toStatus string) error
 // recordTransitionStat appends the stats-sidecar row for a transition that has
 // just been written. Must be called with the issue lock held. approval is the
 // human_approval value the transition consumed ("" when none).
-func (w *WorkflowConfig) recordTransitionStat(filePath, fromStatus, toStatus, preBody string, comments []Comment, approval string) error {
+func (w *WorkflowConfig) recordTransitionStat(filePath, slug, fromStatus, toStatus, preBody string, comments []Comment, approval string) error {
 	stat := TransitionStat{
 		From:          fromStatus,
 		To:            toStatus,
@@ -143,10 +143,50 @@ func (w *WorkflowConfig) recordTransitionStat(filePath, fromStatus, toStatus, pr
 		StaticTokens:  StaticTransitionCost(w, fromStatus, toStatus),
 		DynamicTokens: DynamicTransitionCost(w, fromStatus, toStatus, preBody, comments),
 	}
+	stat.BranchHead, stat.MergeSHA = branchShas(w.RepoRoot, folderSlug(w.IssuesRoot, filePath, slug), toStatus)
 	if err := appendTransitionStatLocked(filePath, stat, approval); err != nil {
 		return fmt.Errorf("appending transition stat for %s: %w", filePath, err)
 	}
 	return nil
+}
+
+// folderSlug puts the issue's folder under issuesRoot in front of slug, as
+// LoadIssues does (ParseIssue alone gives the bare title slug).
+func folderSlug(issuesRoot, filePath, slug string) string {
+	if issuesRoot == "" || slug == "" {
+		return slug
+	}
+	rel, err := filepath.Rel(issuesRoot, filepath.Dir(filePath))
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
+		return slug
+	}
+	return strings.ToLower(filepath.ToSlash(rel)) + "/" + slug
+}
+
+// branchShas is the work/<slug> branch head in repo and, on the move to done,
+// the checkout's HEAD when it contains that head (the merge). Both are empty
+// when there is no repo or branch; git errors never fail a transition.
+func branchShas(repo, slug, toStatus string) (head, merge string) {
+	if repo == "" || slug == "" {
+		return "", ""
+	}
+	out, err := runGit(repo, "rev-parse", "--verify", "--quiet", "refs/heads/work/"+slug+"^{commit}")
+	if err != nil {
+		return "", ""
+	}
+	head = strings.TrimSpace(out)
+	if toStatus != "done" || head == "" {
+		return head, ""
+	}
+	out, err = runGit(repo, "rev-parse", "--verify", "HEAD^{commit}")
+	if err != nil {
+		return head, ""
+	}
+	tip := strings.TrimSpace(out)
+	if _, err := runGit(repo, "merge-base", "--is-ancestor", head, tip); err != nil {
+		return head, ""
+	}
+	return head, tip
 }
 
 func (w *WorkflowConfig) transitionActions(from, to string) []WorkflowAction {
@@ -403,7 +443,7 @@ func (w *WorkflowConfig) ApplyTransitionToFileWithFields(filePath, toStatus stri
 			return err
 		}
 
-		return w.recordTransitionStat(filePath, fromStatus, toStatus, preBody, comments, approval)
+		return w.recordTransitionStat(filePath, issue.Slug, fromStatus, toStatus, preBody, comments, approval)
 	})
 
 	return fromStatus, result, err
@@ -525,7 +565,7 @@ func (w *WorkflowConfig) StartIssueOnce(filePath, slug, assignee string) (*Start
 			}
 		}
 		if transitioned {
-			if err := w.recordTransitionStat(filePath, fromStatus, toStatus, preBody, comments, approval); err != nil {
+			if err := w.recordTransitionStat(filePath, issue.Slug, fromStatus, toStatus, preBody, comments, approval); err != nil {
 				return err
 			}
 		}

@@ -303,7 +303,7 @@
             out += '<h3>Recent activity</h3>';
             if (d.comments && d.comments.length) {
                 out += '<ul class="agents-activity" data-testid="agents.panel.activity">';
-                d.comments.slice().reverse().forEach(function(c) { out += '<li><span class="agents-sub">' + esc(c.date) + '</span> ' + esc(c.text) + '</li>'; });
+                d.comments.slice().reverse().forEach(function(c) { out += '<li><span class="agents-sub">' + esc((c.date || '').slice(0, 10)) + '</span> ' + esc(c.text) + '</li>'; });
                 out += '</ul>';
             } else {
                 out += '<p class="agents-none">No comments.</p>';

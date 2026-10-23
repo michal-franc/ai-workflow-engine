@@ -200,6 +200,9 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 
 	workDir := resolveProjectWorkDir(proj)
 	timeline := LoadAgentTimeline(workDir, found.Assignee, proj.Slug, found.Slug)
+	if comments, err := tracker.LoadComments(found.FilePath); err == nil {
+		timeline = FillRedactedComments(timeline, comments)
+	}
 	timeline = EnrichTimelineWithWorkflow(timeline, wf, "")
 	if len(timeline) > 0 {
 		basePrompt := LoadDispatchPrompt(workDir, found.Assignee)

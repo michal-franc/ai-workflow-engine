@@ -106,10 +106,14 @@ jobs:
           # release snapshot is one commit, so commit subjects say nothing.
           CHANGELOG="cmd/issue-cli/CHANGELOG.md"
           TMP="$(mktemp -d)"
-          git show "${TARGET_SHA}:${CHANGELOG}" | awk -v v="$CURRENT" '
-            /^## / { if (found) exit; if ($2 == v) { found = 1; next } }
-            found { print }
-          ' | sed -e '/./,$!d' > "$TMP/notes.md"
+          # Read the whole file first: an awk that stops early in a pipe makes
+          # git show die of SIGPIPE, which pipefail turns into a failed step
+          # (exit 141, v0.54.0).
+          git show "${TARGET_SHA}:${CHANGELOG}" > "$TMP/changelog.md"
+          awk -v v="$CURRENT" '
+            /^## / { if (found) done = 1; else if ($2 == v) { found = 1; next } }
+            found && !done { print }
+          ' "$TMP/changelog.md" | sed -e '/./,$!d' > "$TMP/notes.md"
           if [ ! -s "$TMP/notes.md" ]; then
             echo "_No ${CURRENT} section in ${CHANGELOG}._" > "$TMP/notes.md"
           fi

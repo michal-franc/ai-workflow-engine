@@ -22,6 +22,10 @@ renames `## Unreleased` to `## vX.Y.Z — YYYY-MM-DD` and pushes, and the
 release-marker Action tags and builds it. Pushes with `## Unreleased` on top
 release nothing.
 
+## v0.54.1 — 2026-10-24
+
+- **The release Action writes its notes again (fix).** v0.54.0's run failed after tagging (exit 141): the step piped `git show` of the CHANGELOG into an `awk` that stops at the next heading, so `git show` died of SIGPIPE under `pipefail` and no release or binaries were made. It now reads the file first.
+
 ## v0.54.0 — 2026-10-24
 
 - **The privacy badges know when a repo is private.** The viewer's health watcher asks GitHub, at most once an hour per repo and never on a page view, whether the code repo (origin) is publicly visible, and caches the answer in its git folder. Work files tracked in a private repo now read as a green **Private repo** (info, not the red "Work in code repo"), and so does Code when privacy isn't set up; the Health line adds what to do before making the repo public (tracker init, release setup, a one-time history clean). Not on GitHub, or not asked yet: the badges are as before.

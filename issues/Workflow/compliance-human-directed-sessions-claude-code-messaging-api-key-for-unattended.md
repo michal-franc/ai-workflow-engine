@@ -8,8 +8,8 @@ version: "0.59"
 created: "2026-10-23"
 ---
 
-Goal: agents act only if directed by a human. Agent-to-agent messages go through Claude Code's own features, and
-the tool runs nothing unattended.
+Goal: work starts only when a human directs it. Once started, agents work on their own (auto mode) through their
+task's workflow. Agent-to-agent messages go through Claude Code's own features, and the tool runs nothing unattended.
 
 Owner, 2026-10-23: added for a new PR, to start on 2026-10-24.
 
@@ -63,13 +63,28 @@ issue-cli lead dispatch <slug> [<slug>...] --quote "<the human's words>" [--how 
   trail shows whose words started the worker.
 - It goes through the same dispatch path as the board button (same worktree, prompt, session name), not a second
   launcher.
-- One quote can cover several slugs ("dispatch agents for this epic" → the children Michal named or agreed to). The
-  lead lists the slugs in its chat before running the command.
+- The human names the workers; the lead starts those and no more. For an epic, the lead proposes which children to
+  start, Michal says which, and the lead dispatches exactly those slugs. `lead dispatch` takes explicit slugs only
+  (no `--epic` that expands to every child). Starting more later needs a new instruction from Michal.
 - The brief: "Dispatch only with `issue-cli lead dispatch … --quote` and the human's words from this chat. Never after
   planning on your own, never the next issue on your own."
 
 As with `approve --quote`, the quote is the lead's report of what Michal said. The tool records it but can't check it;
 the trail makes it reviewable.
+
+### Workers: one task, then stop
+
+Owner, 2026-10-24: "the workers they do this one specific task from workflow and that is it".
+
+A worker runs on auto mode through its own issue's workflow, then stops. It doesn't start, claim or pick up any
+other issue, and doesn't start other agents.
+
+- Today nothing enforces this. `issue-cli start` / `claim` / `transition` take any slug, and a worker knows its own
+  slug (`ISSUE_VIEWER_ISSUE_SLUG`, `whoAmI` → `RoleWorker`).
+- Add: in a worker session, `start`, `claim` and `transition` on a slug other than the worker's own fail with
+  "you work on <own-slug> only; ask your lead". `lead dispatch` and `lead spawn` already refuse workers.
+- The worker brief: when the issue reaches its last state (or a gate it waits on), stop. Don't run `issue-cli next`
+  and don't pick the next issue.
 
 ## 3. No unattended work on the subscription login
 
@@ -84,18 +99,19 @@ issue.
 
 Add a short section to `docs/agent-dispatch.md` (and link it from `docs/patterns/lead-session.md`).
 
-Owner, 2026-10-24: "Only if directed by human". This is the disclaimer's headline rule.
+Owner, 2026-10-24: the "only if directed by human" rule is about unattended runs: "we still want agents on automode
+doing things just the first push to start work cannot come from lead automatically".
 
-**Agents act only when a human directs them.** That covers:
+The disclaimer says:
 
-- **Starting a session:** a dispatch from the board, `lead spawn`, or `lead dispatch --quote` with the human's
-  words from the lead's chat.
-- **Prompting a running session:** the approve nudge and Re-send prompt, both human clicks.
-- **Gates:** ticked by the human, or by the lead with `approve --quote` and the human's words.
-- **Decisions:** the lead answers from recorded decisions only. A question with no recorded answer goes to the human.
-- **Nothing on its own:** no scheduler, timer, overnight batch or auto-dispatch, and nothing should be wrapped
-  around the tool (cron, a loop script) that drives sessions without a human. Unattended runs are outside this tool:
-  `claude -p` or the Agent SDK with your own API key, not a Claude subscription.
+- **A human starts the work.** Each worker starts from a dispatch on the board, or from `lead dispatch --quote` with
+  the human's words naming that worker. The lead never starts work on its own: not when planning finishes, not as
+  the next issue, not more workers than the human named.
+- **Then agents work on their own.** A started worker runs in auto mode through its one issue's workflow and stops
+  there. It stops at the gates the workflow puts in front of the human.
+- **No unattended runs.** The tool has no scheduler, timer, overnight batch or auto-dispatch, and nothing should be
+  wrapped around it (cron, a loop script) that starts or prompts sessions without a human. Unattended runs are outside
+  this tool: `claude -p` or the Agent SDK with your own API key, not a Claude subscription.
 
 ## Acceptance criteria (draft)
 
@@ -108,6 +124,9 @@ Owner, 2026-10-24: "Only if directed by human". This is the disclaimer's headlin
 - [ ] `lead dispatch` without `--quote` fails and starts nothing
 - [ ] `lead dispatch` from a worker fails and starts nothing
 - [ ] Each dispatch leaves a `dispatch: "<quote>"` comment on the issue
+- [ ] `lead dispatch` takes explicit slugs only; nothing expands an epic to all its children
+- [ ] In a worker session, `start` / `claim` / `transition` on another slug fail and change nothing
+- [ ] The worker brief says to stop when its issue is done, and never to pick the next issue
 - [ ] Nothing new starts or prompts an interactive session without a human action
 - [ ] `docs/agent-dispatch.md` carries the disclaimer in section 4, linked from `docs/patterns/lead-session.md`
 

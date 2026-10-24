@@ -1,0 +1,102 @@
+session: evidence-tab
+issue: ui/evidence-tab-proof-shots-and-criteria
+title: The Evidence tab says whether an issue is proven, with the shots next to the criteria
+scenario: evidence-tab
+
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: A done issue reads proven, with its shots, links, verdict, change and playtest
+    proves: [AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC9]
+    setup:
+      - open: /p/{project}/issue/ui/evidence-demo
+      - check: { text_contains: { target: evidence.label, text: "4 / 4 proven" } }
+      - click: detail.pagetab.evidence
+      - wait_for: evidence.tab
+    checks:
+      - url: { contains: "tab=evidence" }
+      - selected: detail.pagetab.evidence
+      - visible: [evidence.shots, evidence.shot.ev1, evidence.shot.ev2, evidence.criteria, evidence.verdict, evidence.change, evidence.playtest, evidence.key, evidence.watch, evidence.stale]
+      - text_contains: { target: evidence.shot.ev1, text: "proves AC1" }
+      - text_contains: { target: evidence.shot.ev2, text: "proves AC2" }
+      - count: { pattern: evidence.shot.vp.*, min: 2 }
+      - text_contains: { target: evidence.shots.other, text: "1 other step in evidence-demo" }
+      - text_contains: { target: evidence.criterion.ac2, text: "TestDemoCount" }
+      - text_contains: { target: evidence.criterion.ac2, text: "reported after the last change" }
+      - text_contains: { target: evidence.criterion.ac3, text: "found" }
+      - text_contains: { target: evidence.criterion.ac4, text: "11.8 ms median render" }
+      - count: { pattern: evidence.criterion.*, equals: 4 }
+      - text_contains: { target: evidence.verdict, text: "4 / 4" }
+      - text_contains: { target: evidence.verdict, text: "After the last code commit" }
+      - text_contains: { target: evidence.verdict, text: "4h 0m" }
+      - text_contains: { target: evidence.change, text: "3 commits" }
+      - text_contains: { target: evidence.change, text: "Of the added lines, 2 are in test files" }
+      - count: { pattern: evidence.change.area, equals: 2 }
+      - text_contains: { target: evidence.playtest.step.ev9, text: "pass" }
+      - text_contains: { target: evidence.playtest, text: "Reads well at a glance" }
+      - text_contains: { target: evidence.watch, text: "dark theme only" }
+      - absent: [evidence.missing, evidence.strays]
+
+  - id: TP5
+    title: An issue short of proof shows amber rows, the failed screen and the stray trailer
+    proves: [AC1, AC2, AC3, AC4]
+    setup:
+      - open: /p/{project}/issue/ui/evidence-short?tab=evidence
+    checks:
+      - text_contains: { target: evidence.label, text: "1 / 4 proven" }
+      - text_contains: { target: evidence.shot.ev5, text: "failed" }
+      - text_contains: { target: evidence.shot.ev5, text: "no_horizontal_scroll" }
+      - text_contains: { target: evidence.criterion.ac1, text: "unproven" }
+      - text_contains: { target: evidence.criterion.ac1, text: "fix it and run the session again" }
+      - text_contains: { target: evidence.criterion.ac2, text: "not found" }
+      - text_contains: { target: evidence.criterion.ac3, text: "no link" }
+      - text_contains: { target: evidence.criterion.ac4, text: "proven" }
+      - text_contains: { target: evidence.strays, text: "Unknown criterion AC9" }
+      - text_contains: { target: evidence.verdict, text: "Short: AC1" }
+      - text_contains: { target: evidence.verdict, text: "Not merged" }
+      - text_contains: { target: evidence.verdict, text: "none yet" }
+      - text_contains: { target: evidence.playtest.step.ev5, text: "failed" }
+
+  - id: TP6
+    title: An issue from before the gate reads ticked, unlinked, and lists its stale questions
+    proves: [AC1, AC8]
+    setup:
+      - open: /p/{project}/issue/ui/evidence-legacy?tab=evidence
+    checks:
+      - text_contains: { target: evidence.label, text: "3 ticked · 0 linked" }
+      - text_contains: { target: evidence.criterion.ac1, text: "ticked · no link" }
+      - visible: evidence.shots.empty
+      - count: { pattern: evidence.stale.line, equals: 3 }
+      - text_contains: { target: evidence.stale, text: "Clarifications: Version" }
+      - text_contains: { target: evidence.stale, text: "D-1" }
+      - text_contains: { target: evidence.stale, text: "No decision matches" }
+      - text_contains: { target: evidence.change, text: "commits can't be listed" }
+
+  - id: TP9
+    title: The Stats page shows how much disk the project takes
+    proves: [AC14]
+    setup:
+      - cli: [health, snapshot]
+      - open: /p/{project}/stats
+    checks:
+      - visible: [stats.chart.storage, stats.card.storage]
+      - text_contains: { target: stats.chart.storage, text: "Disk use" }
+      - text_contains: { target: stats.card.storage, text: "playtest shots" }
+      - text_contains: { target: stats.card.storage, text: "worktrees" }
+
+  - id: TP8
+    title: The Evidence tab answers "is it proven?" at a glance
+    judgement_step: true
+    setup:
+      - open: /p/{project}/issue/ui/evidence-demo?tab=evidence
+    targets:
+      - { id: evidence.shots, note: The shots each criterion points to }
+      - { id: evidence.criteria, note: Each criterion, its links and their checks }
+      - { id: evidence.verdict, note: The verdict }
+    expect: Within a few seconds you can tell the badge is proven, see what each shot proves, and see why each criterion counts as proven. Switching the EV1 chips swaps the desktop and phone shots, and a click opens the full shot.
+    do: Look at the tab top to bottom, click the 390×844 chip on EV1, then click the shot.
+    why: You open an issue to approve or playtest it; the Evidence tab is the one place that says whether the work is proven.

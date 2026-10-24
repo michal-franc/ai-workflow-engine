@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/michal-franc/issue-viewer/internal/milestone"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -61,6 +62,8 @@ type MilestoneView struct {
 	Legend    []StatusSegment
 	OpenAreas []AreaCount
 	Open      int
+	// OpenEpics is how many of the open issues are epics.
+	OpenEpics int
 }
 
 // StatusSegment is one status's share of the milestone.
@@ -190,7 +193,9 @@ const epicsAll = "all"
 
 // buildEpicsView groups open epics by area for each version that has epic
 // children, current (the milestone) first, then "all".
-func buildEpicsView(cs *canvasStatuses, issues []*tracker.Issue, epics []EpicProgress, current string) EpicsView {
+// released is the newest released version: the Version select lists only the
+// versions after it (and non-numeric ones such as "future").
+func buildEpicsView(cs *canvasStatuses, issues []*tracker.Issue, epics []EpicProgress, current, released string) EpicsView {
 	ev := EpicsView{Epics: len(epics)}
 	children := map[string][]*tracker.Issue{}
 	versions := map[string]bool{}
@@ -210,10 +215,15 @@ func buildEpicsView(cs *canvasStatuses, issues []*tracker.Issue, epics []EpicPro
 	}
 
 	var keys []string
+	rel := milestone.Norm(released)
 	for v := range versions {
-		if v != current {
-			keys = append(keys, v)
+		if v == current {
+			continue
 		}
+		if n := milestone.Norm(v); n != "" && rel != "" && milestone.Compare(n, rel) <= 0 {
+			continue // released: the select shows what is still to come
+		}
+		keys = append(keys, v)
 	}
 	sort.Slice(keys, func(i, j int) bool { return compareVersions(keys[i], keys[j]) < 0 })
 	if versions[current] {
@@ -247,7 +257,12 @@ func buildEpicsView(cs *canvasStatuses, issues []*tracker.Issue, epics []EpicPro
 				}
 				kids = in
 			}
-			row := EpicProgress{Issue: e.Issue, Progress: progressOf(e.Issue.Title, cs, kids), Running: e.Running}
+			all := progressOf(e.Issue.Title, cs, children[e.Issue.Slug])
+			row := EpicProgress{Issue: e.Issue, Progress: progressOf(e.Issue.Title, cs, kids), Running: e.Running,
+				AllDone: all.Total > 0 && all.Done == all.Total}
+			if key != epicsAll {
+				row.LaterOpen, row.LaterIn = openElsewhere(cs, children[e.Issue.Slug], key)
+			}
 			a := areaOf(e.Issue)
 			ar := byArea[a]
 			if ar == nil {
@@ -444,7 +459,7 @@ func (m *StatusModel) NeedsSummary() string {
 	if m.CI.Red() {
 		parts = append(parts, "local CI red")
 	}
-	for _, k := range []struct{ kind, label string }{{"gate", "to approve"}, {"playtest", "to playtest"}, {"question", "question"}} {
+	for _, k := range []struct{ kind, label string }{{"gate", "to approve"}, {"playtest", "to playtest"}, {"checks", "to check"}, {"question", "question"}} {
 		if n := len(m.WaitingOf(k.kind)); n > 0 {
 			label := k.label
 			if k.kind == "question" && n > 1 {
@@ -504,4 +519,28 @@ func (m *StatusModel) NextSummary() string {
 	}
 	parts = append(parts, fmt.Sprintf("%d backlog", len(m.Backlog)), fmt.Sprintf("%d parked", len(m.Parked)))
 	return strings.Join(parts, " · ")
+}
+
+// openElsewhere counts kids still open outside version and names their
+// versions, oldest first ("none" for a child with no version).
+func openElsewhere(cs *canvasStatuses, kids []*tracker.Issue, version string) (int, string) {
+	n := 0
+	seen := map[string]bool{}
+	var vs []string
+	for _, c := range kids {
+		if c.Version == version || cs.closed(c.Status) {
+			continue
+		}
+		n++
+		v := c.Version
+		if v == "" {
+			v = "none"
+		}
+		if !seen[v] {
+			seen[v] = true
+			vs = append(vs, v)
+		}
+	}
+	sort.Slice(vs, func(i, j int) bool { return compareVersions(vs[i], vs[j]) < 0 })
+	return n, strings.Join(vs, ", ")
 }

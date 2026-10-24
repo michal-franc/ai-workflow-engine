@@ -1,0 +1,6 @@
+{{/* The privacy badges after a page title, and their lines (privacy_view.go). */}}
+{{define "privacy-badges"}}{{range .Badges}}<a href="#{{.Anchor}}" class="privacy-badge privacy-{{.Level}}{{if and .NotSetUp (eq .Level "grey")}} privacy-unset{{end}}" data-testid="status.privacy.badge.{{.Kind}}" data-level="{{.Level}}" title="{{.Sentence}}" aria-label="{{.Sentence}}">{{.Icon}}<span>{{.Label}}</span></a>{{end}}{{end}}
+{{define "privacy-lines"}}<div class="status-privacy" data-testid="status.privacy">
+{{range .Badges}}{{if .Boxed}}<div class="status-privacy-line boxed privacy-{{.Level}}" id="{{.Anchor}}" data-testid="status.privacy.line.{{.Kind}}" data-level="{{.Level}}">{{.Icon}}<span><b>{{.Label}}:</b> {{.Sentence}}.{{if .Fix}} {{if .FixIsCommand}}<code>{{.Fix}}</code>{{else}}<a href="{{.UpdatesURL}}" data-testid="status.privacy.setup.{{.Kind}}">{{.Fix}} →</a>{{end}}{{end}}</span></div>
+{{else}}<div class="status-privacy-line privacy-{{.Level}}" id="{{.Anchor}}" data-testid="status.privacy.line.{{.Kind}}" data-level="{{.Level}}">{{.Icon}}<span>{{.Sentence}}{{if .Note}}. <span class="status-meta" data-testid="status.privacy.note.{{.Kind}}">{{.Note}}</span>{{end}}{{if .NotSetUp}} · <a href="{{.UpdatesURL}}" data-testid="status.privacy.setup.{{.Kind}}">Enable on Updates →</a>{{end}}</span></div>
+{{end}}{{end}}</div>{{end}}

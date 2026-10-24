@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -37,20 +38,40 @@ type MilestoneRow struct {
 	Cut      string // "v0.53.0"
 	Progress Progress
 	// Open are its issues neither done nor parked, furthest along first.
-	Open   []*tracker.Issue
+	Open []*tracker.Issue
+	// Epic marks the open issues that are epics, by slug.
+	Epic   map[string]bool
 	Checks []ReleaseCheck
 	Ready  bool
 	Today  string
+	// RC: releases go through candidates (workbench.release_candidates).
+	// Candidate is the newest one; CutNext the candidate tag to cut now ("" when
+	// none is due); Soaking a candidate with every check met: publish only on
+	// the owner's ok.
+	RC        bool
+	Candidate *CandidateRow
+	CutNext   string
+	Soaking   bool
+	// Branch is the release branch (release/vX.Y) once it is cut: the
+	// candidate soaks there and fixes are picked onto it. Worktree is its
+	// checkout; Snapshots: publish is issue-cli release publish
+	// (privacy.code: snapshots).
+	Branch    string
+	Worktree  string
+	Snapshots bool
+	// Unpicked are the milestone's done issues whose commits the release
+	// branch lacks.
+	Unpicked []string
 }
 
 // ReleaseCheck is one condition for cutting the release.
 type ReleaseCheck struct {
-	Key  string // issues, ci, changelog
-	Text string
-	Meta string
+	Key  string `json:"key"` // issues, ci, changelog, soaked, picked, reports
+	Text string `json:"text"`
+	Meta string `json:"meta,omitempty"`
 	// Detail is a second line saying why the check fails.
-	Detail string
-	OK     bool
+	Detail string `json:"detail,omitempty"`
+	OK     bool   `json:"ok"`
 }
 
 // UnpushedRow is the local branch against its upstream.
@@ -181,9 +202,21 @@ func buildReleaseWait(proj *tracker.Project, wf *tracker.WorkflowConfig, cs *can
 			}
 			ms.Checks = append(ms.Checks, c)
 		}
-		ms.Ready = true
-		for _, c := range ms.Checks {
-			ms.Ready = ms.Ready && c.OK
+		if wf.Workbench.ReleaseCandidates {
+			root := projectRoot(proj)
+			head := bs.Head
+			ms.Snapshots = wf.Privacy.Snapshots()
+			if b := milestone.ReleaseBranch(ms.Cut); gitHasBranch(root, b) {
+				ms.Branch, head = b, b
+				ms.Worktree = filepath.Join(ciRootFor(proj), ".worktrees", milestone.ReleaseWorktreeName(ms.Cut))
+				ms.addPicked(root, items, cs)
+			}
+			ms.addCandidate(root, head, changelog)
+		} else {
+			ms.Ready = true
+			for _, c := range ms.Checks {
+				ms.Ready = ms.Ready && c.OK
+			}
 		}
 		rw.Milestone = ms
 	}
@@ -205,6 +238,17 @@ func releaseWaitMarkdown(b *strings.Builder, rw *ReleaseWait, now time.Time) {
 	if ms := rw.Milestone; ms != nil {
 		fmt.Fprintf(b, "- Milestone %s: %d/%d done; ", ms.Version, ms.Progress.Done, ms.Progress.Total)
 		switch {
+		case ms.RC && ms.CutNext != "":
+			fmt.Fprintf(b, "ready to cut release candidate %s: issue-cli release cut %s (tags it on %s, never pushed), install that build from the release worktree and restart what runs it, then tell the leads of the projects that run it\n", ms.CutNext, ms.Cut, milestone.ReleaseBranch(ms.Cut))
+		case ms.RC && ms.Soaking && ms.Snapshots:
+			fmt.Fprintf(b, "%s soaking since %s; publish %s only on the owner's ok on the soak: cd %s && issue-cli release publish %s\n", ms.Candidate.Tag, shortDuration(now.Sub(ms.Candidate.CutAt)), ms.Cut, ms.Worktree, ms.Cut)
+		case ms.RC && ms.Soaking:
+			fmt.Fprintf(b, "%s soaking since %s; publish %s only on the owner's ok on the soak: ", ms.Candidate.Tag, shortDuration(now.Sub(ms.Candidate.CutAt)), ms.Cut)
+			if rw.Changelog != "" {
+				fmt.Fprintf(b, "rename ## Unreleased in %s to ## %s — %s, then push\n", rw.Changelog, ms.Cut, ms.Today)
+			} else {
+				fmt.Fprintf(b, "tag %s and push\n", ms.Cut)
+			}
 		case !ms.Ready:
 			fmt.Fprintf(b, "%s not ready: %s\n", ms.Cut, strings.Join(ms.Reasons(), "; "))
 		case rw.Changelog != "":
@@ -222,6 +266,9 @@ func releaseWaitMarkdown(b *strings.Builder, rw *ReleaseWait, now time.Time) {
 				who = "no assignee"
 			}
 			fmt.Fprintf(b, "  - %s (%s, %s)\n", issue.Slug, issue.Status, who)
+		}
+		if ms.Candidate != nil {
+			candidateMarkdown(b, ms.Candidate, now)
 		}
 	}
 	if rw.Changelog != "" {

@@ -98,12 +98,15 @@ projects:
 issue-viewer -config projects.yaml
 ```
 
-`projects.yaml.example` in this repo lists every key. The dispatch keys (`terminal`, `tmux_session`, `agent_models`) are explained in [Agent Dispatch](agent-dispatch.md). Two top-level keys set machine-wide defaults for projects that leave them unset:
+`projects.yaml.example` in this repo lists every key. The dispatch keys (`terminal`, `lead_terminal`, `tmux_session`, `agent_models`) are explained in [Agent Dispatch](agent-dispatch.md). These top-level keys set machine-wide defaults for projects that leave them unset:
 
 - `terminal:`, e.g. `none`
+- `lead_terminal:` and `lead_window_session:`, e.g. `tmux-window` and `main` to get each project lead as a tab in your own tmux session
 - `tmux_session_per_project: true`, which gives each project its own tmux session for its lead and workers
 
 `allowed_hosts:` lists Host names the viewer answers to besides loopback; see [Server flags](#server-flags).
+
+`viewer_url:` is the address the viewer is reached at, e.g. `viewer_url: "https://viewer.lan"`. Every link the viewer and issue-cli print uses it, and `issue-cli status` calls it. That covers approval links, `show`'s Timeline, and the issue-approve buttons in an agent's session. Without it, issue-cli uses the running viewer's own address from `viewer.json`, then `http://localhost:8080`. Its host is added to `allowed_hosts` by itself. It doesn't change where the viewer listens: that is still `-host` / `-port`. The value must be an `http://` or `https://` URL with a host; a path prefix behind a reverse proxy is kept.
 
 `engine_project: <slug>` names the project that `issue-cli report-bug` files issue-cli bugs into. Without it, report-bug uses the project whose `repo:` is `michal-franc/ai-workflow-engine`; see [`report-bug`](CLI/overview.md#report-bug).
 

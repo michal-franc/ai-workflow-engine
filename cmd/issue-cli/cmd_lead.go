@@ -18,19 +18,23 @@ var leadCommand = &Command{
 epic children included. Only the human decides.
 
 Subcommands:
-  spawn [--attach] [--agent claude|codex]
+  spawn [--headless] [--agent claude|codex]
       Start the project lead. A live lead is re-attached, never started
-      twice. Runs headless unless --attach.
+      twice. lead_terminal: in projects.yaml decides what opens (unset:
+      headless; tmux-window: a tab in lead_window_session); --headless
+      opens nothing either way. Workers follow terminal: instead.
   whoami
       Your role, lead, and what you may tick.
   list
       The project lead (live or not) and the open epics, with how many of
       their children are running.
   message <target> "text"
-      Paste a message into the lead's or a worker's session, signed
+      Message a Codex session: pastes the text into it, signed
       [from <you>]. target: project, a lead-/agent- session name, or an
-      issue slug (its worker). Workers can't message; they post question:
-      comments instead.
+      issue slug (its worker). A Claude Code session is never pasted into:
+      the command refuses and names the address to use with your own
+      SendMessage tool (ListAgents lists them). Workers can't message; they
+      post question: comments instead.
 
 Examples:
   issue-cli lead spawn
@@ -46,7 +50,7 @@ func init() {
 
 func runLead(ctx *Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("lead requires a subcommand\n\nUsage:\n  issue-cli lead spawn [--attach]\n  issue-cli lead whoami\n  issue-cli lead list\n  issue-cli lead message <target> \"text\"")
+		return fmt.Errorf("lead requires a subcommand\n\nUsage:\n  issue-cli lead spawn [--headless]\n  issue-cli lead whoami\n  issue-cli lead list\n  issue-cli lead message <target> \"text\"")
 	}
 	sub, rest := args[0], args[1:]
 	switch sub {
@@ -74,7 +78,8 @@ func runLeadSpawn(ctx *Context, args []string) error {
 		}
 	}
 	fs := newFlagSet("lead spawn", ctx)
-	attachFlag := fs.Bool("attach", false, "open a terminal on the lead (default: headless)")
+	headlessFlag := fs.Bool("headless", false, "open nothing, even when lead_terminal is set")
+	fs.Bool("attach", false, "deprecated, no effect: lead_terminal decides")
 	agentFlag := fs.String("agent", "claude", "agent to run: claude or codex")
 	if err := parseFlags(ctx, fs, args); err != nil {
 		return err
@@ -91,8 +96,7 @@ func runLeadSpawn(ctx *Context, args []string) error {
 
 	spec := agentrun.LeadSpec(proj, proj.LoadWorkflow(), projectRoot(proj), ctx.now())
 	spec.AgentType = *agentFlag
-	spec.ViewerURL = strings.TrimSpace(os.Getenv("ISSUE_VIEWER_URL"))
-	spec.Headless = !*attachFlag
+	spec.Headless = *headlessFlag
 
 	resp := startAgent(proj, spec)
 	if resp.Status == "error" {
@@ -111,6 +115,9 @@ func runLeadSpawn(ctx *Context, args []string) error {
 	printSteps(ctx, resp.Steps)
 	if resp.AttachCmd != "" {
 		fmt.Fprintf(ctx.Stdout, "\nInside tmux:  %s\nFrom a shell: %s\n", resp.SwitchCmd, resp.AttachCmd)
+		if agentrun.LeadHeadless(proj) && !*headlessFlag && os.Getenv("TMUX") != "" {
+			fmt.Fprintln(ctx.Stdout, "tip: set lead_terminal: tmux-window and lead_window_session: <your session> in projects.yaml to open the lead as a tab in your session")
+		}
 	}
 	return nil
 }
@@ -118,8 +125,11 @@ func runLeadSpawn(ctx *Context, args []string) error {
 func printSteps(ctx *Context, steps []agentrun.Step) {
 	for _, s := range steps {
 		mark := "✓"
-		if s.Status == "error" {
+		switch s.Status {
+		case "error":
 			mark = "✗"
+		case "warning":
+			mark = "!"
 		}
 		line := fmt.Sprintf("  %s %s", mark, s.Name)
 		if s.Detail != "" {
@@ -321,15 +331,18 @@ func runLeadMessage(ctx *Context, args []string) error {
 		return fmt.Errorf("workers can't message sessions. Ask your lead on your issue trail instead:\n  %s", tracker.InjectProject(proj, fmt.Sprintf("issue-cli comment %s \"question: ...\"", slug)))
 	}
 	session := resolveMessageTarget(proj, issues, target)
+	signed := fmt.Sprintf("[from %s] %s", me.sender(), text)
+	if !sessionLive(proj)(session) {
+		return messageNotRunning(proj, session)
+	}
+	if sessionAgent(proj, session) != "codex" {
+		return fmt.Errorf("not sent: %s runs Claude Code, and issue-cli never pastes into a Claude session. Send it with your own SendMessage tool:\n  SendMessage({to: %q, message: %q})\n\nListAgents lists the live names. issue-cli lead message pastes only into Codex sessions", session, session, signed)
+	}
 	textFile := filepath.Join(projectRoot(proj), ".agent-logs", session, "messages", ctx.now().Format("20060102-150405")+".txt")
-	resp := pasteIntoSession(proj, session, fmt.Sprintf("[from %s] %s", me.sender(), text), textFile, "")
+	resp := pasteIntoSession(proj, session, signed, textFile, "")
 	switch resp.Status {
 	case "no-session":
-		hint := ""
-		if session == tracker.LeadSessionName(proj) {
-			hint = "\n\nStart it: " + tracker.InjectProject(proj, "issue-cli lead spawn")
-		}
-		return fmt.Errorf("%s is not running; nothing was sent.%s", resp.Session, hint)
+		return messageNotRunning(proj, resp.Session)
 	case "error":
 		printSteps(ctx, resp.Steps)
 		return fmt.Errorf("sending to %s failed (see the steps above)", resp.Session)
@@ -340,6 +353,16 @@ func runLeadMessage(ctx *Context, args []string) error {
 	fmt.Fprintf(ctx.Stdout, "✓ Sent to %s\n", resp.Session)
 	printSteps(ctx, resp.Steps)
 	return nil
+}
+
+// messageNotRunning is lead message's answer when the target session is not
+// live.
+func messageNotRunning(proj *tracker.Project, session string) error {
+	hint := ""
+	if session == tracker.LeadSessionName(proj) {
+		hint = "\n\nStart it: " + tracker.InjectProject(proj, "issue-cli lead spawn")
+	}
+	return fmt.Errorf("%s is not running; nothing was sent.%s", session, hint)
 }
 
 // resolveMessageTarget turns a message target into a session name: "project"

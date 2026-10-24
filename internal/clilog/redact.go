@@ -28,9 +28,10 @@ var keptValueFlags = map[string]bool{
 var boolFlags = map[string]bool{
 	"all": true, "attach": true, "clear": true, "debug": true,
 	"deferred": true, "design": true, "detach": true, "dry-run": true,
-	"force": true, "global": true, "help": true, "h": true,
-	"if-untested": true, "import": true, "json": true, "list": true,
-	"once": true, "rename": true, "send": true,
+	"force": true, "global": true, "headless": true, "help": true, "h": true,
+	"if-untested": true, "import": true, "json": true, "lib": true, "list": true,
+	"first": true, "md": true, "once": true, "quiet": true, "rename": true, "reprompt": true, "schema": true,
+	"send": true, "spawn": true, "yes": true,
 }
 
 // maxKeptPositional is the longest positional kept verbatim: slugs, box ids

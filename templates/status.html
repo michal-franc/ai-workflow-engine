@@ -15,7 +15,10 @@
     <main class="container wb-page" data-testid="status.page" data-project="{{.Project}}">
         <div class="page-head status-head">
             <div>
-                <h1 class="page-title">Status</h1>
+                <div class="status-title-row">
+                    <h1 class="page-title">Status</h1>
+                    {{with .Privacy}}{{template "privacy-badges" .}}{{end}}
+                </div>
                 <p class="page-sub" title="Read from the issues, the changelog, tmux and the lead's handoff note.">{{.Project}} · {{.All.Done}} / {{.All.Total}} done{{with .EpicsByArea}}{{if .Epics}} · {{plural .Epics "epic" "epics"}} in {{plural .Areas "area" "areas"}}{{end}}{{end}} · as of {{.AsOf.Format "Mon 2 Jan, 15:04"}}</p>
             </div>
             <div class="status-actions">
@@ -94,6 +97,21 @@
                     {{end}}{{if $rest}}</details>{{end}}
                 </div>
                 {{end}}
+                {{with .WaitingOf "checks"}}
+                {{$rest := rest $.Cap.Needs .}}
+                <div class="status-list">
+                    <span class="label">Checks</span>
+                    {{range $i, $it := .}}{{if eq $i $.Cap.Needs}}<details class="status-more" data-fold="needs.checks" data-testid="status.waiting.more.checks"><summary>+{{len $rest}} more</summary>{{end}}
+                    <div class="status-row" data-testid="status.waiting.checks.{{tid .Issue.Slug}}">
+                        <div class="status-row-stack">
+                            <a href="{{$.IssueURL .Issue.Slug}}" class="status-title">{{.Issue.Title}}</a>
+                            <span class="status-meta">script <span class="mono">{{range $j, $s := .Sessions}}{{if $j}}, {{end}}{{$s}}{{end}}</span> · no run by you</span>
+                        </div>
+                        <a class="btn btn-small btn-amber" href="{{$.IssueURL .Issue.Slug}}">▶ Run checks</a>
+                    </div>
+                    {{end}}{{if $rest}}</details>{{end}}
+                </div>
+                {{end}}
                 {{$questions := .WaitingOf "question"}}
                 {{$qrest := rest $.Cap.Needs $questions}}
                 {{if or $questions (not .WaitingCount)}}
@@ -105,7 +123,7 @@
                         <span class="status-meta">waiting {{if .Approx}}≈ {{end}}{{$.AgeOf .Since}}</span>
                     </div>
                     {{else}}
-                    <span class="status-meta">Nothing needs you. Gates, playtests and open <code>question:</code> comments show here.</span>
+                    <span class="status-meta">Nothing needs you. Gates, playtests, check scripts and open <code>question:</code> comments show here.</span>
                     {{end}}{{if $qrest}}</details>{{end}}
                 </div>
                 {{end}}
@@ -222,6 +240,7 @@
                 {{if .OpenAreas}}
                 <div class="status-chips status-areas">
                     <span class="label">Open by area</span>
+                    {{if .OpenEpics}}<span class="chip chip-purple" data-testid="status.milestone.epics" title="Open epics count as open issues: the milestone is done when they are closed too">{{plural .OpenEpics "epic" "epics"}} open</span>{{end}}
                     {{range head $.Cap.MilestoneAreas .OpenAreas}}<span class="chip" data-testid="status.milestone.area.{{tid .Area}}">{{.Area}} <span class="mono">{{.Count}}</span></span>{{end}}
                     {{with rest $.Cap.MilestoneAreas .OpenAreas}}<span class="chip chip-muted" data-testid="status.milestone.areas_more" title="{{range $i, $a := .}}{{if $i}}, {{end}}{{$a.Area}} {{$a.Count}}{{end}}">+{{len .}} areas</span>{{end}}
                 </div>
@@ -240,6 +259,41 @@
                 {{end}}
                 {{end}}
             </section>
+            {{with .Health}}
+            <section class="card status-card" data-testid="status.health" aria-labelledby="status-health-h">
+                <div class="status-card-head">
+                    <h2 id="status-health-h">Health</h2>
+                    <a href="{{$.Prefix}}/health" class="status-meta" data-testid="status.health.open">Open Health →</a>
+                </div>
+                <div class="status-health-scores">
+                    <div class="status-health-score" data-testid="status.health.derived">
+                        <span class="label">Derived</span>
+                        <span class="v">{{.Derived}}</span>
+                        <span class="status-health-bar s-derived" aria-hidden="true"><span style="width: {{.DerivedPct}}%"></span></span>
+                        <span class="line">{{.DerivedLine}}</span>
+                    </div>
+                    <div class="status-health-score" data-testid="status.health.opinion">
+                        <span class="label">Agent opinion</span>
+                        <span class="v">{{.Opinion}}</span>
+                        <span class="status-health-bar s-opinion" aria-hidden="true"><span style="width: {{.OpinionPct}}%"></span></span>
+                        <span class="line{{if .OpinionStale}} stale{{end}}">{{if .OpinionStale}}<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg>{{end}}{{.OpinionLine}}</span>
+                    </div>
+                </div>
+                {{if or .Weakest .Proposed .Lint $.Privacy}}
+                <div class="status-health-foot">
+                    {{if .Weakest}}<span><span class="status-meta">Weakest:</span> {{.Weakest}}</span>{{end}}
+                    {{if .Lint}}<a href="{{$.Prefix}}/health#lint" data-testid="status.health.lint">{{.Lint}}</a>{{end}}
+                    {{if .Proposed}}<a href="{{$.Prefix}}/health#review" data-testid="status.health.recommendations">{{plural .Proposed "recommendation waits" "recommendations wait"}} for you</a>{{end}}
+                    {{with $.Privacy}}{{template "privacy-lines" .}}{{end}}
+                </div>
+                {{end}}
+            </section>
+            {{else}}{{with .Privacy}}
+            <section class="card status-card" data-testid="status.privacy_card" aria-labelledby="status-privacy-h">
+                <div class="status-card-head"><h2 id="status-privacy-h">Privacy</h2></div>
+                {{template "privacy-lines" .}}
+            </section>
+            {{end}}{{end}}
             {{with .CI}}
             <section class="card status-card status-ci status-ci-{{if .State}}{{.State}}{{else}}none{{end}}" data-testid="status.ci" aria-labelledby="status-ci-h">
                 <div class="status-card-head">
@@ -329,8 +383,8 @@
                         <div class="status-grid-cols status-epic-row" data-testid="status.epic.{{tid .Issue.Slug}}" data-started="{{gt .Progress.Done 0}}" data-filter="{{.Issue.Slug}} {{.Issue.Title}}">
                             <a href="{{$.IssueURL .Issue.Slug}}" class="status-ellipsis" title="{{.Issue.Slug}} · {{.Issue.Status}} · {{.Note}}">{{.Issue.Title}}</a>
                             <span class="status-bar"><span style="width: {{.Progress.Pct}}%"></span></span>
-                            <span class="mono num">{{.Progress.Done}}/{{.Progress.Total}}</span>
-                            <span class="num status-meta">{{if .Running}}<span class="chip chip-green" title="{{plural .Running "child" "children"}} with agents">{{.Running}} running</span>{{end}}</span>
+                            <span class="mono num">{{.Progress.Done}}/{{.Progress.Total}}{{if .LaterOpen}} <span class="status-meta" data-testid="status.epic.later.{{tid .Issue.Slug}}" title="{{plural .LaterOpen "child" "children"}} still open in {{.LaterIn}}: the epic continues there">+{{.LaterOpen}} → {{.LaterIn}}</span>{{end}}</span>
+                            <span class="num status-meta">{{if .ReadyToClose}}<a class="chip chip-amber" href="{{$.IssueURL .Issue.Slug}}" data-testid="status.epic.close.{{tid .Issue.Slug}}" title="All children done; the epic is still {{.Issue.Status}}. Move it to done to close it">close?</a>{{else}}<span class="chip" title="The epic's own status">{{.Issue.Status}}</span>{{end}}{{if .Running}} <span class="chip chip-green" title="{{plural .Running "child" "children"}} with agents">{{.Running}} running</span>{{end}}</span>
                         </div>
                         {{end}}{{if $rest}}</details>{{end}}
                     </details>
@@ -345,18 +399,19 @@
 
             {{with .ReleaseWait}}
             <div class="status-side">
-            <section class="card status-card{{if and .Milestone .Milestone.Ready}} status-ready-card{{end}}" data-testid="status.release_wait" aria-labelledby="status-release-wait-h">
+            <section class="card status-card{{if and .Milestone (or .Milestone.Ready .Milestone.CutNext)}} status-ready-card{{end}}" data-testid="status.release_wait" aria-labelledby="status-release-wait-h">
                 <div class="status-card-head">
                     <h2 id="status-release-wait-h">Waiting for release</h2>
-                    {{with .Milestone}}<span class="chip{{if .Ready}} chip-green{{else}} chip-amber{{end}}" data-testid="status.release_wait.state">{{if .Ready}}ready to cut{{else}}{{.Cut}} not ready{{end}}</span>{{end}}
+                    {{with .Milestone}}{{if .RC}}<span class="chip{{if or .CutNext .Soaking}} chip-green{{else}} chip-amber{{end}}" data-testid="status.release_wait.state">{{if .CutNext}}ready to cut {{.CutNext}}{{else if .Soaking}}{{.Candidate.Tag}} soaking{{else}}{{.Cut}} not ready{{end}}</span>{{else}}<span class="chip{{if .Ready}} chip-green{{else}} chip-amber{{end}}" data-testid="status.release_wait.state">{{if .Ready}}ready to cut{{else}}{{.Cut}} not ready{{end}}</span>{{end}}{{end}}
                 </div>
+                {{with $.Candidate}}<a class="rc-silver" href="#status-release-wait-h" data-testid="status.rc_badge" title="A release candidate runs on this machine's projects; it is released only on the owner's ok">{{.Tag}} · release candidate · soaking {{$.AgeOf .CutAt}}</a>{{end}}
                 {{with .Milestone}}
                 <div class="status-progress" data-testid="status.release_wait.milestone">
                     <div class="status-progress-row"><span class="status-strong">Milestone {{.Version}}</span><span class="mono status-meta">{{.Progress.Done}}/{{.Progress.Total}} done</span></div>
                     <div class="status-bar"><span style="width: {{.Progress.Pct}}%"></span></div>
                 </div>
                 <div class="status-list" data-testid="status.release_wait.checks">
-                    <span class="label">Ready to cut {{.Cut}} when</span>
+                    <span class="label">{{if .RC}}{{.Cut}} is published when{{else}}Ready to cut {{.Cut}} when{{end}}</span>
                     {{range .Checks}}
                     <div class="status-check {{if .OK}}status-check-ok{{else}}status-check-no{{end}}" data-testid="status.release_wait.check.{{.Key}}" data-ok="{{.OK}}">
                         {{if .OK}}<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-label="met"><path d="M3 8.5l3.2 3L13 4.5"/></svg>{{else}}<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" role="img" aria-label="not met"><path d="M4 4l8 8M12 4l-8 8"/></svg>{{end}}
@@ -368,7 +423,63 @@
                     </div>
                     {{end}}
                 </div>
-                {{if .Ready}}
+                {{with .Candidate}}
+                {{$stale := or .ViewerStale .CLIStale}}
+                <div class="status-list status-divided" data-testid="status.release_wait.candidate">
+                    <span class="label">Release candidate</span>
+                    <details class="status-more status-fold" data-fold="release_wait.candidate" data-testid="status.release_wait.candidate.fold">
+                    <summary data-testid="status.release_wait.candidate.summary"><span class="mono">{{.Tag}}</span> · cut {{$.AgeOf .CutAt}} ago · {{if not .SinceKnown}}commits since unknown{{else if .Since}}{{plural .Since "commit" "commits"}} since{{else}}nothing merged since{{end}}{{with .Soak}} · ran by {{len .Ran}} of {{len .Projects}}{{if .Reports}} · {{plural (len .Reports) "open report" "open reports"}}{{end}}{{end}}{{if $stale}} · <span class="status-check-detail">not the candidate</span>{{end}}</summary>
+                    <div class="status-row" data-testid="status.release_wait.candidate.tag"><span class="status-strong mono">{{.Tag}}</span><span class="mono status-meta">{{if not .SinceKnown}}commits since unknown{{else if .Since}}{{plural .Since "commit" "commits"}} since: they soak in {{.Next}}{{else}}nothing merged since{{end}}</span></div>
+                    {{with .Soak}}
+                    <div class="status-row" data-testid="status.release_wait.candidate.running" data-stale="{{$stale}}">
+                        <div class="status-row-stack">
+                            <span>Running: viewer <code>{{.Viewer}}</code>, issue-cli <code>{{if .CLI}}{{.CLI}}{{else}}unknown{{end}}</code></span>
+                            {{if $stale}}<span class="mono status-check-detail">not the candidate: install {{$.ReleaseWait.Milestone.Candidate.Tag}} and restart the viewer</span>{{end}}
+                        </div>
+                    </div>
+                    <div class="status-row-stack" data-testid="status.release_wait.candidate.projects">
+                        <span class="label">Ran {{$.ReleaseWait.Milestone.Candidate.Tag}} · {{len .Ran}} of {{len .Projects}}</span>
+                        {{range .Ran}}<span class="status-row" data-testid="status.release_wait.candidate.project.{{tid .Slug}}"><span>{{.Name}}</span><span class="mono status-meta">{{plural .Calls "call" "calls"}}, last {{$.AgeOf .Last}} ago</span></span>{{end}}
+                        {{with .NotYet}}<span class="status-meta">Not yet: {{range $i, $p := .}}{{if $i}}, {{end}}{{$p.Name}}{{end}}</span>{{end}}
+                        {{with .NoLog}}<span class="status-meta">No usage log: {{range $i, $p := .}}{{if $i}}, {{end}}{{$p.Name}}{{end}}</span>{{end}}
+                    </div>
+                    {{if .Reports}}
+                    <div class="status-row-stack" data-testid="status.release_wait.candidate.reports">
+                        <span class="label">Open reports · {{len .Reports}}</span>
+                        {{range .Reports}}<div class="status-row" data-testid="status.release_wait.candidate.report.{{tid .Issue.Slug}}"><a href="{{$.IssueURL .Issue.Slug}}" class="status-title status-ellipsis">{{.Issue.Title}}</a><span class="mono status-meta">{{.Found}} · {{.Issue.Status}}</span></div>{{end}}
+                    </div>
+                    {{end}}
+                    {{if .Fixed}}
+                    <div class="status-row-stack" data-testid="status.release_wait.candidate.fixed">
+                        <span class="label">Fixed since {{$.ReleaseWait.Milestone.Candidate.Tag}}: soak in {{$.ReleaseWait.Milestone.Candidate.Next}}</span>
+                        {{range .Fixed}}<a href="{{$.IssueURL .Issue.Slug}}" class="status-title status-ellipsis">{{.Issue.Title}}</a>{{end}}
+                    </div>
+                    {{end}}
+                    {{end}}
+                    </details>
+                </div>
+                {{end}}
+                {{if .CutNext}}
+                <div class="status-ready" data-testid="status.release_wait.cut_rc">
+                    <span class="status-ready-title">Ready to cut release candidate {{.CutNext}}</span>
+                    <ol>
+                        <li>Cut it: <code>issue-cli release cut {{.Cut}}</code>. {{if .Branch}}It tags {{.CutNext}} on <code>{{.Branch}}</code>{{else}}It creates <code>{{releaseBranch .Cut}}</code> from main and its worktree, and tags {{.CutNext}} there{{end}}; the candidate tag is never pushed. Main moves on; fixes land on main and are picked onto the branch (<code>issue-cli release pick &lt;slug&gt;</code>).</li>
+                        <li>Install that build from the release worktree and restart what runs it (issue-viewer: <code>make install</code> there, then restart the viewer).</li>
+                        <li>Tell the leads of the projects that run it; they report problems with <code>issue-cli report-bug</code>, and those bugs join {{.Version}}.</li>
+                    </ol>
+                </div>
+                {{else if .Soaking}}
+                <div class="status-ready" data-testid="status.release_wait.publish">
+                    <span class="status-ready-title">{{.Candidate.Tag}} soaking: publish {{.Cut}} only on the owner's ok</span>
+                    <ol>
+                        <li>Ask the owner whether the soak is enough. Never publish without their ok.</li>
+                        {{if .Snapshots}}<li>From the release worktree: <code>cd {{.Worktree}} &amp;&amp; issue-cli release publish {{.Cut}}</code>. It names the changelog heading on the branch, pushes one <code>{{.Cut}}</code> commit to the public repo (whose Action tags and builds it), tags {{.Cut}} on <code>{{.Branch}}</code> and moves the released lines on main.</li>
+                        <li>Then <code>make install</code> from main.</li>
+                        {{else}}{{if $.ReleaseWait.Changelog}}<li>In <code>{{$.ReleaseWait.Changelog}}</code>, rename <code>## Unreleased</code> to <code>## {{.Cut}} — {{.Today}}</code> and add a one-line focus summary.</li>{{end}}
+                        <li>Push {{if $.ReleaseWait.Unpushed}}{{$.ReleaseWait.Unpushed.Branch}} to {{$.ReleaseWait.Unpushed.Upstream}}{{else}}the branch{{end}}. A release Action tags {{.Cut}}; without one, tag it yourself. Then fetch the tag and install the release build.</li>{{end}}
+                    </ol>
+                </div>
+                {{else if and .Ready (not .RC)}}
                 <div class="status-ready" data-testid="status.release_wait.ready">
                     <span class="status-ready-title">Ready to cut {{.Cut}}</span>
                     <ol>
@@ -388,6 +499,7 @@
                             <a href="{{$.IssueURL .Slug}}" class="status-title status-ellipsis">{{.Title}}</a>
                             <span class="mono status-meta status-ellipsis">{{if .Assignee}}{{.Assignee}}{{else}}no assignee{{end}}</span>
                         </div>
+                        {{if index $.ReleaseWait.Milestone.Epic .Slug}}<span class="chip chip-purple" data-testid="status.release_wait.open.epic.{{tid .Slug}}" title="An epic: it closes when you move it to done">epic</span>{{end}}
                         <span class="chip">{{.Status}}</span>
                     </div>
                     {{end}}{{if and $fold $rest}}</details>{{end}}{{if $fold}}</details>{{end}}
@@ -454,7 +566,7 @@
                 <section class="card status-card" data-testid="status.versions" aria-labelledby="status-versions-h">
                     <div class="status-card-head">
                         <h2 id="status-versions-h">Versions · {{len .Versions}}</h2>
-                        <span class="mono status-meta">{{.All.Done}} / {{.All.Total}}</span>
+                        <span class="mono status-meta" title="Issues in the versions not released yet">{{.VersionsProgress.Done}} / {{.VersionsProgress.Total}}</span>
                     </div>
                     {{$rest := rest .Cap.Versions .Versions}}
                     <div class="status-list">
@@ -482,7 +594,7 @@
                         {{if .Summary}}<span class="status-summary status-clamp">{{.SummaryHTML}}</span>{{end}}
                     </div>
                     {{else}}
-                    <p class="status-hint">{{with .Milestone}}No releases yet: {{.Cut}} will be the first. {{end}}No changelog or tags: point <code>workbench.changelog</code> in workflow.yaml at your changelog.</p>
+                    {{if or .Milestone (not .ChangelogDeclined)}}<p class="status-hint">{{with .Milestone}}No releases yet: {{.Cut}} will be the first. {{end}}{{if not .ChangelogDeclined}}<span data-testid="status.released.hint">No changelog or tags: point <code>workbench.changelog</code> in workflow.yaml at your changelog.</span>{{end}}</p>{{end}}
                     {{end}}
                     {{if .ReleasesURL}}<a href="{{.ReleasesURL}}">Full changelog</a>{{end}}
                     <button type="button" class="status-fit-more" data-testid="status.released.fit" aria-expanded="false" hidden>Show all</button>

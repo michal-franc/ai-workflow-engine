@@ -88,11 +88,58 @@ type PlaytestRun struct {
 	Mode    string // auto (ux-test) or judge (your playtest)
 	Started time.Time
 	Steps   []PlaytestStep
+	// Dir is the run's folder; its shots are in Dir/shots (a game's runner
+	// puts them in Dir itself).
+	Dir string
+	// Build is the commit the run tested ("0589154+da7be930" when dirty).
+	Build string
+	// Reduced is the day the run's shots were shrunk (empty: originals).
+	Reduced string
 }
 
 type PlaytestStep struct {
 	ID     string `yaml:"id"`
+	Title  string `yaml:"title"`
 	Status string `yaml:"status"`
+	// Judgement marks a step only the owner can judge.
+	Judgement bool `yaml:"judgement_step"`
+	// Proves lists the acceptance criteria the step proves (AC2), copied by
+	// the runner from the session's step.
+	Proves    []string           `yaml:"proves,omitempty"`
+	Viewports []PlaytestViewport `yaml:"viewports"`
+	Judge     *PlaytestJudge     `yaml:"judge"`
+}
+
+// PlaytestViewport is one step run at one screen size.
+type PlaytestViewport struct {
+	Viewport string `yaml:"viewport"` // "1440x900"
+	Status   string `yaml:"status"`
+	Error    string `yaml:"error"`
+	// Screenshot is the shot the runner saved; only its base name is used,
+	// looked up in the run's shots/ folder, then the run folder (runs can
+	// move).
+	Screenshot string           `yaml:"screenshot"`
+	Checks     []PlaytestCheck  `yaml:"checks"`
+	Layout     []PlaytestLayout `yaml:"layout"`
+}
+
+// PlaytestLayout is one layout rule an element broke.
+type PlaytestLayout struct {
+	Rule   string `yaml:"rule"`
+	ID     string `yaml:"id"`
+	Detail string `yaml:"detail"`
+}
+
+type PlaytestCheck struct {
+	Check  string `yaml:"check"`
+	Pass   bool   `yaml:"pass"`
+	Actual string `yaml:"actual"`
+}
+
+// PlaytestJudge is the owner's verdict on a judgement step.
+type PlaytestJudge struct {
+	Status string `yaml:"status"`
+	Note   string `yaml:"note"`
 }
 
 // Failed lists the ids of the steps that failed.

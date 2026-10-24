@@ -47,6 +47,8 @@ var WorkflowValidationRules = []SchemaNamedDoc{
 	{Name: "body_not_empty", Description: "Issue body must contain non-whitespace content"},
 	{Name: "has_checkboxes", Description: "Body must contain at least one '- [ ]' or '- [x]' checkbox anywhere"},
 	{Name: "section_has_checkboxes: <Title>", Description: "Named '## <Title>' section must contain at least one checkbox"},
+	{Name: "criteria_checkboxes: <Title>", Description: "Every list item in '## <Title>' is a checkbox, and none still has the text the workflow's append_section put there"},
+	{Name: "criteria_proven: since <YYYY-MM-DD>", Description: "Every Acceptance Criteria box has a proof link that passes its check (issue-cli prove); issues created before the date, and issues without criteria, pass"},
 	{Name: "has_assignee", Description: "Issue must have a non-empty assignee"},
 	{Name: "all_checkboxes_checked", Description: "Every checkbox in the body must be checked"},
 	{Name: "section_checkboxes_checked: <Title>", Description: "'## <Title>' section must exist with at least one checkbox, and every checkbox in it must be checked"},

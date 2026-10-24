@@ -193,7 +193,8 @@ All taken from the sample project (`make demo`).
 |---|---|
 | `name`, `slug` | Display name and URL slug (`/p/<slug>/`) |
 | `issues`, `docs`, `workflow`, `workdir` | Where the files live; `workdir` is where agents start |
-| `terminal` | Command that opens a window on the agent's session, with `{{session}}` substituted; `none` for headless. Unset means i3 + alacritty |
+| `terminal` | Command that opens a window on a worker's session, with `{{session}}`, `{{project}}`, `{{name}}`, `{{role}}`, `{{window}}` substituted; `none` for headless. Unset means i3 + alacritty |
+| `lead_terminal`, `lead_window_session`, `lead_window` | What opens for the project lead: unset or `none` is headless, `tmux-window` adds the lead as a background tab in your own tmux session (`lead_window_session`, optionally at index `lead_window`), anything else is a command like `terminal` ([docs/agent-dispatch.md](docs/agent-dispatch.md#lead-terminal)) |
 | `tmux_session` | Run every agent of the project as a window in one shared session |
 | `tmux_session_per_project` | Top level: give each project one session for its lead and workers (with `terminal: none`, nothing opens a window) |
 | `agent_model_source`, `agent_models` | `project` pins a model per agent (`claude`, `codex`); `global` (default) leaves it to the agent |

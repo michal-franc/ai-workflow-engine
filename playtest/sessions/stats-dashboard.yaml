@@ -19,7 +19,9 @@ steps:
       - visible: [stats.options, stats.range, stats.group, stats.tables]
       - selected: stats.range.all
       - count: { pattern: stats.gauge, equals: 5 }
-      - count: { pattern: stats.chart.*, equals: 8 }
+      # 8 trend charts, plus Disk use once the board's own daily snapshot
+      # (taken at start, with the storage family) lands before the page.
+      - count: { pattern: stats.chart.*, min: 8, max: 9 }
       - count: { pattern: stats.pending, equals: 3 }
       - absent: stats.backfill_hint
       - text_contains: { target: stats.chart.cycle, text: "Cycle time p50, by type" }

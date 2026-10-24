@@ -1,0 +1,43 @@
+session: catalog-truth
+issue: workflow/feature-catalog-says-what-isnt-so-always-on-features-read-as-switchable-a-declined-features-hint-still-shows-upgrade-calls-a-stale-record-up-to-date
+title: Feature catalog truth - a declined feature's hint, a stale record, a health glob that matched nothing
+scenario: catalog-truth
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP2
+    title: The repro re-run - the declined changelog hint is gone, the stale record is reported, the empty glob is said
+    setup:
+      - open: /p/{project}/status
+    act:
+      - check: { visible: status.released }
+      - check: { absent: status.released.hint }
+      - click: nav.tab.health
+      - wait_for: health.page
+    checks:
+      - url: { contains: "/p/ledger/health" }
+      - visible: health.warnings
+      - text_contains: { target: health.warnings, text: "tests" }
+      - text_contains: { target: health.warnings, text: "health.e2e_sessions (default playtest/sessions/*.yaml) matched no file" }
+      - cli: { args: [workflow, upgrade], contains: "Detected but not in the features: record", not_contains: "up_to_date" }
+      - cli: { args: [process, workflow], contains: "features: record is stale: local-ci" }
+      - cli: { args: [health, lint, --check, template], contains: "issue-cli workflow scan" }
+      - cli: { args: [health], contains: "⚠ health.e2e_sessions" }
+      - cli: { args: [workflow, scan, --dry-run], contains: "local-ci" }
+    do: |
+      Open Status and look at Recently released; then open Health and read
+      under Derived health. In a terminal on this board, run
+      `issue-cli workflow upgrade`, `issue-cli process workflow` and
+      `issue-cli workflow scan --dry-run`.
+    expect: |
+      Recently released is empty with no "point workbench.changelog" line,
+      since the record declines status-changelog. Health lists one warning:
+      tests, the default playtest/sessions/*.yaml glob matched no file.
+      upgrade does not say up_to_date and names local-ci as detected but
+      not recorded; process workflow warns that the features: record is
+      stale (local-ci) and names `issue-cli workflow scan`. scan prints each
+      category heading (lifecycle … conventions) once.

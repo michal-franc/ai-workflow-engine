@@ -1,0 +1,12 @@
+{
+  "run": {"date": "2026-10-20T23:59", "project": "ledger", "branch": "main", "commit": "abc1234", "trigger": "daily", "duration_ms": 120},
+  "families": {
+    "codebase": {"ms": 40, "metrics": 1},
+    "tests": {"ms": 2, "metrics": 0, "warnings": ["health.e2e_sessions (default playtest/sessions/*.yaml) matched no file, so no e2e session rows"]},
+    "score": {"ms": 0, "metrics": 1, "hint": "components and opinion: /health"}
+  },
+  "metrics": [
+    {"id": "codebase.lines{kind=code}", "metric": "codebase.lines", "labels": {"kind": "code"}, "value": 1200, "name": "Lines", "group": "codebase", "band": {"unit": "count"}},
+    {"id": "score.derived", "metric": "score.derived", "value": 72, "name": "Derived health", "group": "score", "band": {"unit": "count"}}
+  ]
+}

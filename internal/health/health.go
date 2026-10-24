@@ -37,6 +37,8 @@ const (
 	TriggerManual = "manual"
 	// TriggerBackfill: issue-cli health backfill computed a past day.
 	TriggerBackfill = "backfill"
+	// TriggerReview: issue-cli health review record stored an opinion.
+	TriggerReview = "review"
 )
 
 // ErrNoPast is a family's answer when env.Backfill asks it about a past day
@@ -73,6 +75,30 @@ type Env struct {
 // Family measures one group of metrics. A non-nil error means the whole
 // family failed; it is recorded and the snapshot is still written.
 type Family func(ctx context.Context, env Env) ([]Metric, error)
+
+type warningsKey struct{}
+
+// Warn records a warning on the running family (FamilyResult.Warnings):
+// something it could not measure as configured, such as a glob that matched
+// no file. Outside a snapshot it does nothing.
+func Warn(ctx context.Context, format string, args ...any) {
+	if w, ok := ctx.Value(warningsKey{}).(*warnings); ok {
+		w.mu.Lock()
+		w.list = append(w.list, fmt.Sprintf(format, args...))
+		w.mu.Unlock()
+	}
+}
+
+type warnings struct {
+	mu   sync.Mutex
+	list []string
+}
+
+func (w *warnings) get() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return append([]string(nil), w.list...)
+}
 
 type registered struct {
 	name string
@@ -153,6 +179,9 @@ type FamilyResult struct {
 	Metrics int    `json:"metrics"`
 	Error   string `json:"error,omitempty"`
 	Hint    string `json:"hint,omitempty"` // where to read more (Describe)
+	// Warnings are what the family could not measure as configured (a glob
+	// that matched no file); its rows are still written.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // Row is one metric in the file. ID is Metric plus its labels, sorted:
@@ -274,11 +303,12 @@ func take(ctx context.Context, env Env, trigger string, fams []registered) (*Sna
 	help := map[string]string{}
 	for _, f := range fams {
 		famStart := time.Now()
-		metrics, err := runFamily(ctx, env, f)
+		warned := &warnings{}
+		metrics, err := runFamily(context.WithValue(ctx, warningsKey{}, warned), env, f)
 		if errors.Is(err, ErrNoPast) {
 			continue
 		}
-		res := FamilyResult{MS: time.Since(famStart).Milliseconds(), Hint: hintFor(f.name)}
+		res := FamilyResult{MS: time.Since(famStart).Milliseconds(), Hint: hintFor(f.name), Warnings: warned.get()}
 		if err != nil {
 			res.Error = err.Error()
 			snap.Families[f.name] = res
@@ -300,6 +330,7 @@ func take(ctx context.Context, env Env, trigger string, fams []registered) (*Sna
 	for i := range snap.Metrics {
 		snap.Metrics[i].Name = help[snap.Metrics[i].Metric]
 	}
+	deriveInto(env, snap)
 	snap.Run.DurationMS = time.Since(start).Milliseconds()
 	path, err := Write(env.Root, snap, env.Now)
 	if err != nil {

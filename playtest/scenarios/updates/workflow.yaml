@@ -1,0 +1,21 @@
+template: development@v0.36.0
+
+features:
+  installed:
+    - status-prompts@v0.36.0
+  declined:
+    - scoring
+
+statuses:
+  - name: "idea"
+    prompt: "Clarify the idea with the human."
+  - name: "in progress"
+  - name: "done"
+transitions:
+  - from: "idea"
+    to: "in progress"
+  - from: "in progress"
+    to: "done"
+ci:
+  run:
+    - cmd: make check

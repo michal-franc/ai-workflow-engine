@@ -1,0 +1,359 @@
+{
+ "run": {
+  "date": "2026-09-27T23:59",
+  "project": "hl",
+  "branch": "main",
+  "commit": "abc1234",
+  "trigger": "daily",
+  "duration_ms": 400
+ },
+ "families": {
+  "tests": {
+   "ms": 1,
+   "metrics": 8
+  },
+  "shape": {
+   "ms": 1,
+   "metrics": 2
+  },
+  "score": {
+   "ms": 0,
+   "metrics": 20
+  },
+  "opinion": {
+   "ms": 0,
+   "metrics": 1
+  }
+ },
+ "metrics": [
+  {
+   "id": "score.component.weight{component=unit_wait}",
+   "metric": "score.component.weight",
+   "value": 20,
+   "group": "score",
+   "labels": {
+    "component": "unit_wait"
+   }
+  },
+  {
+   "id": "score.component{component=unit_wait}",
+   "metric": "score.component",
+   "value": 100,
+   "group": "score",
+   "labels": {
+    "component": "unit_wait"
+   }
+  },
+  {
+   "id": "score.component.value{component=unit_wait}",
+   "metric": "score.component.value",
+   "value": 35.6,
+   "group": "score",
+   "labels": {
+    "component": "unit_wait"
+   }
+  },
+  {
+   "id": "score.component.weight{component=unit_cost_trend}",
+   "metric": "score.component.weight",
+   "value": 10,
+   "group": "score",
+   "labels": {
+    "component": "unit_cost_trend"
+   }
+  },
+  {
+   "id": "score.component.weight{component=e2e_wait}",
+   "metric": "score.component.weight",
+   "value": 10,
+   "group": "score",
+   "labels": {
+    "component": "e2e_wait"
+   }
+  },
+  {
+   "id": "score.component.weight{component=e2e_coverage}",
+   "metric": "score.component.weight",
+   "value": 10,
+   "group": "score",
+   "labels": {
+    "component": "e2e_coverage"
+   }
+  },
+  {
+   "id": "score.component{component=e2e_coverage}",
+   "metric": "score.component",
+   "value": 100,
+   "group": "score",
+   "labels": {
+    "component": "e2e_coverage"
+   }
+  },
+  {
+   "id": "score.component.value{component=e2e_coverage}",
+   "metric": "score.component.value",
+   "value": 1.0,
+   "group": "score",
+   "labels": {
+    "component": "e2e_coverage"
+   }
+  },
+  {
+   "id": "score.component.weight{component=flaky}",
+   "metric": "score.component.weight",
+   "value": 10,
+   "group": "score",
+   "labels": {
+    "component": "flaky"
+   }
+  },
+  {
+   "id": "score.component.weight{component=big_files}",
+   "metric": "score.component.weight",
+   "value": 15,
+   "group": "score",
+   "labels": {
+    "component": "big_files"
+   }
+  },
+  {
+   "id": "score.component{component=big_files}",
+   "metric": "score.component",
+   "value": 36,
+   "group": "score",
+   "labels": {
+    "component": "big_files"
+   }
+  },
+  {
+   "id": "score.component.value{component=big_files}",
+   "metric": "score.component.value",
+   "value": 0.21,
+   "group": "score",
+   "labels": {
+    "component": "big_files"
+   }
+  },
+  {
+   "id": "score.component.weight{component=long_funcs}",
+   "metric": "score.component.weight",
+   "value": 10,
+   "group": "score",
+   "labels": {
+    "component": "long_funcs"
+   }
+  },
+  {
+   "id": "score.component{component=long_funcs}",
+   "metric": "score.component",
+   "value": 85,
+   "group": "score",
+   "labels": {
+    "component": "long_funcs"
+   }
+  },
+  {
+   "id": "score.component.value{component=long_funcs}",
+   "metric": "score.component.value",
+   "value": 0.032,
+   "group": "score",
+   "labels": {
+    "component": "long_funcs"
+   }
+  },
+  {
+   "id": "score.component.weight{component=test_balance}",
+   "metric": "score.component.weight",
+   "value": 10,
+   "group": "score",
+   "labels": {
+    "component": "test_balance"
+   }
+  },
+  {
+   "id": "score.component{component=test_balance}",
+   "metric": "score.component",
+   "value": 100,
+   "group": "score",
+   "labels": {
+    "component": "test_balance"
+   }
+  },
+  {
+   "id": "score.component.value{component=test_balance}",
+   "metric": "score.component.value",
+   "value": 0,
+   "group": "score",
+   "labels": {
+    "component": "test_balance"
+   }
+  },
+  {
+   "id": "score.component.weight{component=hotspots}",
+   "metric": "score.component.weight",
+   "value": 5,
+   "group": "score",
+   "labels": {
+    "component": "hotspots"
+   }
+  },
+  {
+   "id": "score.component{component=hotspots}",
+   "metric": "score.component",
+   "value": 95,
+   "group": "score",
+   "labels": {
+    "component": "hotspots"
+   }
+  },
+  {
+   "id": "score.component.value{component=hotspots}",
+   "metric": "score.component.value",
+   "value": 0.121,
+   "group": "score",
+   "labels": {
+    "component": "hotspots"
+   }
+  },
+  {
+   "id": "score.coverage",
+   "metric": "score.coverage",
+   "value": 0.7,
+   "group": "score",
+   "band": {
+    "unit": "share"
+   }
+  },
+  {
+   "id": "score.derived",
+   "metric": "score.derived",
+   "value": 83,
+   "group": "score"
+  },
+  {
+   "id": "tests.count{kind=unit,result=all}",
+   "metric": "tests.count",
+   "value": 1043,
+   "group": "tests",
+   "labels": {
+    "kind": "unit",
+    "result": "all"
+   },
+   "band": {
+    "unit": "count"
+   }
+  },
+  {
+   "id": "tests.count{kind=unit,result=pass}",
+   "metric": "tests.count",
+   "value": 1043,
+   "group": "tests",
+   "labels": {
+    "kind": "unit",
+    "result": "pass"
+   },
+   "band": {
+    "unit": "count"
+   }
+  },
+  {
+   "id": "tests.count{kind=unit,result=fail}",
+   "metric": "tests.count",
+   "value": 0,
+   "group": "tests",
+   "labels": {
+    "kind": "unit",
+    "result": "fail"
+   },
+   "band": {
+    "unit": "count"
+   }
+  },
+  {
+   "id": "tests.count{kind=unit,result=skip}",
+   "metric": "tests.count",
+   "value": 0,
+   "group": "tests",
+   "labels": {
+    "kind": "unit",
+    "result": "skip"
+   },
+   "band": {
+    "unit": "count"
+   }
+  },
+  {
+   "id": "tests.wall_seconds{kind=unit}",
+   "metric": "tests.wall_seconds",
+   "value": 35.6,
+   "group": "tests",
+   "labels": {
+    "kind": "unit"
+   },
+   "band": {
+    "unit": "seconds"
+   }
+  },
+  {
+   "id": "tests.per_test_ms{kind=unit,stat=mean}",
+   "metric": "tests.per_test_ms",
+   "value": 34.1,
+   "group": "tests",
+   "labels": {
+    "kind": "unit",
+    "stat": "mean"
+   }
+  },
+  {
+   "id": "tests.part.seconds{kind=unit,part=cmd/playtest}",
+   "metric": "tests.part.seconds",
+   "value": 35.6,
+   "group": "tests",
+   "labels": {
+    "kind": "unit",
+    "part": "cmd/playtest"
+   },
+   "band": {
+    "unit": "seconds"
+   }
+  },
+  {
+   "id": "tests.slowest.seconds{kind=unit,test=cmd/playtest.TestUXTestReportsFailures}",
+   "metric": "tests.slowest.seconds",
+   "value": 9.0,
+   "group": "tests",
+   "labels": {
+    "kind": "unit",
+    "test": "cmd/playtest.TestUXTestReportsFailures"
+   },
+   "band": {
+    "unit": "seconds"
+   }
+  },
+  {
+   "id": "shape.hotspot{path=static/style.css}",
+   "metric": "shape.hotspot",
+   "value": 162513,
+   "group": "shape",
+   "labels": {
+    "path": "static/style.css"
+   },
+   "band": {
+    "unit": "count"
+   }
+  },
+  {
+   "id": "shape.long_func.lines{func=buildCanvas,path=handlers_canvas.go}",
+   "metric": "shape.long_func.lines",
+   "value": 297,
+   "group": "shape",
+   "labels": {
+    "func": "buildCanvas",
+    "path": "handlers_canvas.go"
+   },
+   "band": {
+    "unit": "count"
+   }
+  }
+ ]
+}

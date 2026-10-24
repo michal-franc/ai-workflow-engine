@@ -352,6 +352,14 @@
     </div>
     {{if .Legend}}<div class="stats-legend">{{range .Legend}}{{if .Href}}<a href="{{.Href}}" class="stats-lg{{if .Hidden}} off{{end}}" title="{{if .Hidden}}Show{{else}}Hide{{end}} {{.Name}}"><span class="stats-sw {{.Class}}"></span>{{.Name}}</a>{{else}}<span class="stats-lg"><span class="stats-sw {{.Class}}"></span>{{.Name}}</span>{{end}}{{end}}</div>{{end}}
     {{if .Error}}<p class="stats-error">{{.Error}}</p>{{end}}
+    {{if .Bars}}
+    <div class="stats-areas" data-testid="stats.card.{{.ID}}">
+        {{if .Big}}<div class="stats-big">{{.Big}}</div>{{end}}
+        <div class="stats-area-list">{{range .Bars}}
+            <span class="mono">{{.Label}}</span><span class="mono num">{{.Value}}</span><span class="stats-area-bar"><span style="width: {{.Pct}}%"></span></span>{{end}}
+        </div>
+    </div>
+    {{end}}
     {{if .Empty}}<p class="stats-muted stats-card-empty">{{.Empty}}</p>{{else}}<div class="stats-plot">{{.SVG}}</div>{{end}}
     {{if .Table.Rows}}
     <details class="stats-table" id="{{.ID}}-table" data-testid="stats.table.{{.ID}}">

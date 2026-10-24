@@ -28,6 +28,7 @@ Use issue-cli to inspect the current status requirements, complete the required 
 Stop and ask the user whenever clarification or manual verification is required.
 At a human-approval gate, tell the user in chat exactly what needs approving and where, then stop and end your turn.
 Do not wait, poll or re-run commands to check for the approval: the human messages you once it is approved.
+This issue is your one task. When it reaches its last status, or a gate that waits on the human, stop there: do not run issue-cli next, do not start, claim or move another issue, and do not start other agents.
 
 ## Current status guidance
 
@@ -50,7 +51,7 @@ Do not wait, poll or re-run commands to check for the approval: the human messag
    issue-cli check {{slug}} <id> [<id>...]
    (Matching by text, issue-cli check <slug> "<checkbox text>", still works as a fallback.)
 
-4. If you are unsure about something or need clarification, ask the user (or message your lead) in chat before proceeding.
+4. If you are unsure about something or need clarification, ask the user in chat (or post a question: comment) before proceeding.
    When the human decides something, record it in their words:
    issue-cli decide <slug> --text "<what was decided>" --quote "<their words>"
 

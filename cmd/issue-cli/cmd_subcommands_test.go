@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
@@ -893,6 +894,20 @@ func TestRunCreateNewIssue(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(proj.IssueDir, "CLI", "another-idea.md")); err != nil {
 		t.Fatalf("created file missing: %v", err)
+	}
+}
+
+func TestRunCreateWritesCreatedDate(t *testing.T) {
+	proj, _, _ := makeSimpleProject(t, "in progress")
+	ctx, _, _ := newTestContext(proj, false)
+	ctx.Now = func() time.Time { return time.Date(2026, 10, 24, 23, 30, 0, 0, time.Local) }
+	if err := runCreate(ctx, []string{"--title", "dated idea"}); err != nil {
+		t.Fatalf("runCreate: %v", err)
+	}
+	issues, _ := tracker.LoadIssues(proj.IssueDir)
+	issue := tracker.FindIssue(issues, "dated-idea")
+	if issue == nil || issue.Created != "2026-10-24" {
+		t.Fatalf("created = %v, want 2026-10-24", issue)
 	}
 }
 

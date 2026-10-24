@@ -112,6 +112,7 @@ func runCreate(ctx *Context, args []string) error {
 	content.WriteString("---\n")
 	content.WriteString(fmt.Sprintf("title: \"%s\"\n", strings.ReplaceAll(title, "\"", "\\\"")))
 	content.WriteString(fmt.Sprintf("status: \"%s\"\n", status))
+	content.WriteString(tracker.CreatedLine(ctx.now()))
 	if system != "" {
 		content.WriteString(fmt.Sprintf("system: \"%s\"\n", system))
 	}

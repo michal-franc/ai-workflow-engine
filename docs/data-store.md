@@ -33,6 +33,11 @@ high / medium / low). It is `omitempty` in the JSON: entries that don't set
 a tier — including every entry written before this field existed — keep the
 old shape on disk and load as `Tier: ""`.
 
+`issue-cli prove` keeps its links in the same file under `proofs`, keyed by criterion id
+(`{"AC2": [{"kind": "value", "ref": "690 vs 380", "at": "…", "criterion": "<text when linked>"}]}`). The key is
+`omitempty`, so sidecars without links don't change, and the data table never shows it. See
+[Proof Links](Workflow/proof.md).
+
 `next_id` is a monotonic counter — `data remove` does not reuse ids. Writes are atomic (temp file + `fsync` + `rename`) so a crashed agent never leaves a half-written JSON file. There is **no locking**: two concurrent writers race, last-write-wins. The atomic rename only guarantees the file on disk is never corrupt, not that the read–modify–write was serialized.
 
 ## Placement marker in the body

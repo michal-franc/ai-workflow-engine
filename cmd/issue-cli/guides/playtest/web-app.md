@@ -29,7 +29,7 @@ The make targets:
 - `make playtest [ISSUE=…]`
 - `make playtest-report ISSUE=… [APPLY=1]`
 
-In a dispatched worktree (branch `work/<slug>`) `ISSUE` defaults to `<slug>`, so a plain `make playtest` or `make playtest-report APPLY=1` works on that issue. On any other branch it stays empty, and passing `ISSUE=` runs every session.
+In a dispatched worktree (branch `work/<slug>`) `ISSUE` defaults to `<slug>`, so a plain `make playtest` or `make playtest-report APPLY=1` works on that issue. On any other branch it stays empty, and passing `ISSUE=` runs every session. `S=` narrows within that issue, so to run another issue's session from a worktree pass both: `make ux-test ISSUE= S=local-ci`.
 
 ## Test ids
 
@@ -129,6 +129,7 @@ branches:
 - **Fixed commit dates:** scenario commits get fixed dates, an hour apart from 2026-10-01 12:00 UTC, so shas and dates match between runs and `REPEAT=2` passes.
 - **Worktrees** are excluded from the project's own commits.
 - **Upstream:** `upstream: <branch>` makes main track that branch (`git branch -u`), so views that compare main with its upstream have one. Create the branch with `from: main~N` to leave main N commits ahead. Example: `playtest/scenarios/release/`.
+- **Tags:** `tags: [{name: v1.5.0-rc.1, ref: main~1}]` makes annotated tags after the commits (`ref` defaults to main), dated like the commits. **Repo:** `project.repo:` goes into the scenario's projects.yaml; the engine's repo (`michal-franc/ai-workflow-engine`) makes the board treat the project as the engine. Example: `playtest/scenarios/release-rc/` (a release candidate soaking).
 - **Example:** `playtest/scenarios/metrics/` (the Metrics view).
 
 ## The runner (cmd/playtest)

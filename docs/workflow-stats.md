@@ -99,6 +99,7 @@ A gauge over its limit says "Over limit" with an icon, never colour alone.
 - **Agent working time per issue:** `workflow.working.p50|p90{type=all}`.
 - **Rework and gate failures:** `workflow.rework.loops{type=all}`, and the `workflow.gate_failures` rows with `dry_run=false` summed; the dry runs are in each point's tooltip.
 - **Lines of code:** `codebase.source_lines`, with the test ratio and its sparkline in the subtitle.
+- **Disk use:** the `storage` family's latest total (`storage.total_mb`) and a bar per area (worktrees, playtest shots, `.git`, `.agent-logs`, attachments), with the total's line once two snapshots have it. Past sizes can't be backfilled, so the line starts with the family's first daily snapshot. The subtitle points at `issue-cli playtest prune --all`. The metric names are in [Workbench Files](workbench-files.md#health-snapshots).
 
 Each workflow point covers the issues done in the 30 days before its snapshot, so a point's issues (click it) come from that window. A line breaks across a missing day, and a vertical "data starts" marker shows where history begins. Charts whose family no snapshot has yet (CI and `make validate` duration, ux-test duration and flaky steps, tokens per issue) are dashed "No data yet" cards naming the issue that brings them. With fewer than two snapshots in the range, a hint names `issue-cli --project <slug> health backfill`. A family that failed in the latest snapshot shows its error on its charts.
 

@@ -1,0 +1,112 @@
+session: updates
+issue: workflow/feature-catalog-catches-up-ci-health-project-pages-status-page-leads-and-local-merge-shipping-in-workflow-upgrade
+title: Updates tab - the operator sees and decides workflow features to adopt
+scenario: updates
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    proves: [AC10]
+    title: The sidebar's Updates tab counts the proposals; the page lists them newest first with the template state
+    setup:
+      - open: /p/{project}/workboard
+    act:
+      - check: { visible: nav.tab.updates.count }
+      - click: nav.tab.updates
+    checks:
+      - url: { contains: "/p/harbor/updates" }
+      - selected: nav.tab.updates
+      - visible: [updates.page, updates.template, updates.filters, updates.card.ci-test-results, updates.card.proof-links, updates.installed, updates.declined.scoring]
+      - text_equals: { target: updates.state, text: behind }
+      - text_contains: { target: updates.template, text: development@v0.36.0 }
+      - absent: [updates.card.local-ci, updates.card.scoring, updates.card.status-prompts]
+      - below: [updates.card.ci-test-results, updates.card.worktree]
+      - cli: { args: [workflow, upgrade], contains: "ci-test-results", not_contains: "[1] local-ci" }
+
+  - id: TP5
+    proves: [AC10]
+    title: Details opens the entry's why, where, question and snippet; a category chip filters the cards
+    setup:
+      - open: /p/{project}/updates
+    act:
+      - click: updates.card.ci-test-results.details
+      - check: { visible: updates.card.ci-test-results.snippet }
+      - check: { text_contains: { target: updates.card.ci-test-results.snippet, text: "format: trx" } }
+      - check: { text_contains: { target: updates.card.ci-test-results.details, text: "Which CI commands write test results" } }
+      - click: updates.filter.workbench
+    checks:
+      - url: { contains: "category=workbench" }
+      - selected: updates.filter.workbench
+      - visible: updates.card.health-tuning
+      - absent: [updates.card.proof-links, updates.card.ci-test-results]
+
+  - id: TP6
+    proves: [AC10]
+    title: Decline writes the features record and moves the card to Declined; Undo re-opens it
+    setup:
+      - open: /p/{project}/updates
+    act:
+      - click: updates.card.health-tuning.decline
+      - wait_for: updates.flash
+      - check: { text_contains: { target: updates.flash, text: "health-tuning declined" } }
+      - check: { absent: updates.card.health-tuning }
+      - check: { visible: [updates.declined.health-tuning, updates.undo] }
+      - check: { cli: { args: [workflow, scan, --dry-run], contains: "✗ health-tuning" } }
+      - click: updates.undo
+      - wait_for: updates.card.health-tuning
+    checks:
+      - text_contains: { target: updates.flash, text: "re-opened" }
+      - absent: updates.declined.health-tuning
+      - cli: { args: [workflow, scan, --dry-run], not_contains: "✗ health-tuning" }
+
+  - id: TP7
+    proves: [AC10]
+    title: Install with an agent takes the operator's answer and starts the install agent; a running install shows on its card
+    setup:
+      - open: /p/{project}/updates
+    act:
+      - click: updates.card.lead-prompt.install
+      - check: { visible: [updates.card.lead-prompt.words, updates.card.lead-prompt.start] }
+      - type: { target: updates.card.lead-prompt.words, text: "own the board, bring me approvals" }
+      # A live session takes the re-attach path: no agent is launched.
+      - tmux: [new-session, -d, -s, agent-harbor-install-lead-prompt, cat]
+      - click: updates.card.lead-prompt.start
+      - wait_for: updates.flash
+    checks:
+      - text_contains: { target: updates.flash, text: "Install agent for lead-prompt started" }
+      - visible: [updates.card.lead-prompt.installing, updates.card.lead-prompt.session]
+      - absent: updates.card.lead-prompt.decline
+      - text_contains: { target: updates.card.lead-prompt.session, text: "agent-harbor-install-lead-prompt" }
+
+  - id: TP8
+    proves: [AC10]
+    title: /updates compares every project, each row linking its Updates tab
+    setup:
+      - open: /updates
+    checks:
+      - visible: [updates.overview, updates.overview.stats, updates.overview.row]
+      - text_contains: { target: updates.overview, text: "development@v0.36.0" }
+      - text_contains: { target: updates.overview.row, text: "behind" }
+      - http: { path: "/updates", contains: "href=\"/p/harbor/updates\"" }
+
+  - id: TP9
+    proves: [AC10]
+    title: The Updates tab reads like the approved mockup in every theme and at phone width
+    setup:
+      - open: /p/{project}/updates
+    do: |
+      Compare with mockup A (issues/attachments/<issue>/Main.png), open Details
+      and Install on a card, switch the Dracula and light themes, then narrow
+      the window to phone width.
+    expect: |
+      The sidebar's Updates entry has an amber count. The template strip reads
+      development@v0.36.0 → v0.54.0 with an amber "behind" chip. Cards are
+      newest first, each with Details / Install with an agent / Decline in
+      one row; an opened Details or Install panel takes the card's full width.
+      Installed ids are chips, Declined rows have Re-open. At phone width the
+      sidebar stacks above and nothing scrolls sideways.
+    why: the look and the theme colours need the owner's eye.

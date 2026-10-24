@@ -67,7 +67,7 @@ func guardMetricsLine(proj *tracker.Project, issue *tracker.Issue) string {
 }
 
 func metricsURL(proj *tracker.Project, system string) string {
-	base := strings.TrimRight(viewerBaseURL(), "/")
+	base := viewerBaseURL(proj)
 	return fmt.Sprintf("%s/p/%s/metrics?system=%s", base, proj.Slug, system)
 }
 

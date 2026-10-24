@@ -1,0 +1,21 @@
+session: game-ammo
+issue: ui/evidence-game
+mode: ux-test
+build: b5de0554
+seed: 13
+started: 2026-10-01T15:10:00
+steps:
+- id: MV4
+  title: skip_to event ammo_explosion stops when an ammo bin blows
+  judgement: true
+  status: pass
+  checks:
+  - kind: state
+    subject: battle.events last ammo_explosion
+    passed: true
+  layout:
+  - resolution: 1920x1080
+    rule: no_zero_width_text
+    passed: true
+  screenshots:
+  - MV4@1920x1080.png

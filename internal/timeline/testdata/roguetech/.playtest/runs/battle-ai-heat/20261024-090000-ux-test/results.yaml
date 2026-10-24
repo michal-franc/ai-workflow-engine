@@ -1,0 +1,8 @@
+session: battle-ai-heat
+issue: api/reproducible-scenarios-and-playtest-cases-for-battles-and-screens
+mode: ux-test
+build: b5de0554
+started: this morning
+steps:
+- id: MV7
+  status: pass

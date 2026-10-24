@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/michal-franc/issue-viewer/internal/proof" // registers the criteria_proven check for transition previews
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 	"github.com/michal-franc/issue-viewer/internal/viewerstate"
 )
@@ -65,14 +66,14 @@ func run(args []string) error {
 
 	var projects []tracker.Project
 	var configuredHosts []string
-	absConfig := ""
+	absConfig, engine := "", ""
 
 	if *configFile != "" {
 		cfg, err := tracker.LoadProjectsConfig(*configFile)
 		if err != nil {
 			return fmt.Errorf("load config: %w", err)
 		}
-		projects, configuredHosts = cfg.Projects, cfg.AllowedHosts
+		projects, configuredHosts, engine = cfg.Projects, configHosts(cfg), engineSlug(cfg)
 		// Make the config path discoverable to dispatched bot sessions so the
 		// CLI doesn't fall back to its hard-coded "projects.yaml" default when
 		// the viewer was launched with a differently-named config.
@@ -100,6 +101,9 @@ func run(args []string) error {
 		return fmt.Errorf("initialize server: %w", err)
 	}
 	srv.allowedHosts = allowedHostsFor(*host, configuredHosts)
+	if engine != "" {
+		srv.engine = engine
+	}
 
 	// The first signal starts a graceful shutdown; stop() then restores the
 	// default handling, so a second one kills the process straight away.
@@ -121,6 +125,8 @@ func run(args []string) error {
 	}
 	// Project health: a snapshot a day per project (health_watch.go).
 	srv.bg.Go("health snapshots", func() { srv.watchHealth(ctx.Done()) })
+	// Private trackers: commit, pull and push the work files (tracker_watch.go).
+	srv.bg.Go("tracker sync", func() { srv.watchTrackers(ctx.Done()) })
 	// The stats page's aggregate and CLI usage, built before the first
 	// visit (stats_cache.go).
 	srv.bg.Go("stats warm-up", func() { srv.warmStats(ctx.Done()) })
@@ -136,6 +142,9 @@ func run(args []string) error {
 	}
 
 	fmt.Printf("Issue Viewer running at %s\n", url)
+	if len(projects) > 0 && projects[0].ViewerURL != "" {
+		fmt.Printf("Links and issue-cli use viewer_url %s\n", projects[0].ViewerURL)
+	}
 	if !isLoopbackHost(*host) {
 		fmt.Fprintf(os.Stderr, "WARNING: listening on %s, not loopback: anyone who can reach it can dispatch agents and edit issues\n", addr)
 		fmt.Fprintf(os.Stderr, "WARNING: answering Host %s; other names get 421 (add them under allowed_hosts: in projects.yaml)\n", hostList(srv.allowedHosts))

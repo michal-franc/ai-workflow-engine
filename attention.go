@@ -9,6 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/michal-franc/issue-viewer/internal/checks"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -33,6 +34,10 @@ type Attention struct {
 	// issue and has no judge (owner) run yet; Playtests lists those sessions.
 	PlaytestDue bool
 	Playtests   []string
+	// ChecksDue is set in human-testing when a guided check script names the
+	// issue and has no owner run yet; Checks lists those scripts.
+	ChecksDue bool
+	Checks    []string
 	Parked      bool
 	ParkReason  string
 	// Since is when the issue entered its current status: the last stats
@@ -44,9 +49,10 @@ type Attention struct {
 // WaitingItem is one thing the owner has to do on an issue.
 type WaitingItem struct {
 	Issue *tracker.Issue
-	// Kind is gate, playtest or question.
+	// Kind is gate, playtest, checks or question.
 	Kind string
-	// Target is the gate's target status; Sessions the playtests to run.
+	// Target is the gate's target status; Sessions the playtests (or check
+	// scripts) to run.
 	Target   string
 	Sessions []string
 	Since    time.Time
@@ -57,24 +63,8 @@ type WaitingItem struct {
 // pendingGate returns the status the issue waits on the human for: its next
 // status, when that transition needs approval not yet given.
 func pendingGate(wf *tracker.WorkflowConfig, issue *tracker.Issue) string {
-	_, gate := gateTransition(wf, issue)
+	_, gate := tracker.NextGate(wf, issue)
 	return gate
-}
-
-// gateTransition returns the issue's next status and, when that transition
-// needs approval not yet given, the status the approval is for.
-func gateTransition(wf *tracker.WorkflowConfig, issue *tracker.Issue) (next, gate string) {
-	order := wf.GetStatusOrder()
-	idx := wf.GetStatusIndex(issue.Status)
-	if idx < 0 || idx+1 >= len(order) {
-		return "", ""
-	}
-	next = order[idx+1]
-	required := wf.RequiredHumanApproval(issue.Status, next)
-	if required == "" || strings.EqualFold(issue.HumanApproval, required) {
-		return next, ""
-	}
-	return next, required
 }
 
 // openQuestion reports whether the issue's newest comment is a question:
@@ -92,13 +82,15 @@ func ownerAttention(proj *tracker.Project, issue *tracker.Issue) Attention {
 	wf := proj.LoadWorkflowForIssue(issue)
 	comments, _ := tracker.LoadComments(issue.FilePath)
 	var a Attention
-	if next, gate := gateTransition(wf, issue); gate != "" {
-		a.Gate = &GateInfo{Target: gate, Ready: wf.ReadyForApproval(issue, issue.Status, next, comments)}
+	if _, gate := tracker.NextGate(wf, issue); gate != "" {
+		a.Gate = &GateInfo{Target: gate, Ready: tracker.WaitingOnGate(wf, issue, comments) != ""}
 	}
 	a.OpenQuestion = openQuestion(comments)
 	if strings.EqualFold(issue.Status, "human-testing") {
 		a.Playtests = playtestsToRun(playtestRoots(proj, issue, wf), issue.Slug)
 		a.PlaytestDue = len(a.Playtests) > 0
+		a.Checks = checks.Due(checkRoots(proj, issue, wf), issue.Slug)
+		a.ChecksDue = len(a.Checks) > 0
 	}
 	if strings.EqualFold(issue.Status, "parked") {
 		a.Parked = true
@@ -109,7 +101,7 @@ func ownerAttention(proj *tracker.Project, issue *tracker.Issue) Attention {
 }
 
 // waitingOnOwner lists what the owner has to do across issues: ready gates,
-// playtests to run and open questions, oldest first. Callers scope it by
+// playtests and check scripts to run and open questions, oldest first. Callers scope it by
 // passing a subset (one system's issues).
 func waitingOnOwner(proj *tracker.Project, issues []*tracker.Issue) []WaitingItem {
 	var items []WaitingItem
@@ -120,6 +112,9 @@ func waitingOnOwner(proj *tracker.Project, issues []*tracker.Issue) []WaitingIte
 		}
 		if a.PlaytestDue {
 			items = append(items, WaitingItem{Issue: issue, Kind: "playtest", Sessions: a.Playtests, Since: a.Since, Approx: a.SinceApprox})
+		}
+		if a.ChecksDue {
+			items = append(items, WaitingItem{Issue: issue, Kind: "checks", Sessions: a.Checks, Since: a.Since, Approx: a.SinceApprox})
 		}
 		if a.OpenQuestion {
 			items = append(items, WaitingItem{Issue: issue, Kind: "question", Since: a.Since, Approx: a.SinceApprox})
@@ -160,7 +155,8 @@ func parkReason(body string) string {
 }
 
 // playtestRoots are the checkouts that may hold the issue's playtest sessions
-// and runs: the project root and the issue's worktree.
+// (and check scripts) and their runs: the project root and the issue's
+// worktree.
 func playtestRoots(proj *tracker.Project, issue *tracker.Issue, wf *tracker.WorkflowConfig) []string {
 	roots := []string{projectRoot(proj)}
 	if wt, _, enabled := resolveWorktree(resolveProjectWorkDir(proj), issue.Slug, wf); enabled && wt != "" && fileExists(wt) {

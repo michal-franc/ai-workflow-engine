@@ -50,6 +50,9 @@ type Step struct {
 	Do      string      `yaml:"do"`
 	Expect  string      `yaml:"expect"`
 	Why     string      `yaml:"why"`
+	// Proves lists the acceptance criteria this step proves (AC2); the
+	// runner copies it into the step's result for issue-cli prove.
+	Proves []string `yaml:"proves"`
 
 	Line int `yaml:"-"`
 

@@ -22,9 +22,10 @@ The Workflow system covers the workflow engine, transition logic, validation rul
 - `internal/tracker/heading.go` — shared section/heading helpers used by both workflow and issue code
 - `internal/tracker/lead.go`, `lead_brief.go` — the epic link (`parent:`, `umbrella:` alias), the lead's session name, `LeadFor` routing, issue worktrees, and the `leads:` brief
 - `cmd/issue-cli/templates/workflow/*.yaml` — bundled templates (`development`, `review`, `writing`), each stamped `template: <name>@<release>` and carrying its own `features:` record
-- `cmd/issue-cli/templates/workflow-features.yaml` — the feature catalog: every `workflow.yaml` capability, with detection probes and the text `upgrade` proposes
-- `cmd/issue-cli/workflow_features.go` — catalog loading, probe walker, `features:` record read/write, `scanWorkflowFeatures`
-- `cmd/issue-cli/workflow_upgrade.go` — stamp parsing, `buildUpgradePlan`, the `start`/`process workflow` upgrade hint
+- `cmd/issue-cli/templates/workflow-features.yaml` — the feature catalog: every `workflow.yaml` capability, with detection probes, `sources:` and the text `upgrade` proposes
+- `cmd/issue-cli/templates/embed.go` — package `templates`: embeds the bundled templates and the catalog for issue-cli and the viewer
+- `internal/workflowupgrade/` — catalog loading, probe walker, `features:` record read/write (`Scan`, `WriteRecord`), stamp parsing and `BuildPlan` (catalog.go, plan.go); `CheckBranch` for `workflow catalog-check` (check.go); the guard tests (guard_test.go)
+- `cmd/issue-cli/cmd_upgrade.go`, `cmd_scan.go`, `cmd_catalog_check.go` — the `workflow upgrade` / `scan` / `catalog-check` commands; `updates.go` — the viewer's Updates tab
 
 ## Workflow Structure
 
@@ -274,6 +275,32 @@ The optional `health:` block (`tracker.HealthConfig` in `internal/tracker/health
 
 Nothing about statuses, transitions or overlays changes. The collector is `internal/health/`: the family registry, the `.health/snapshots/` files, retention and the codebase family. The server's daily job is `health_watch.go`, and `issue-cli ci run` and `issue-cli health snapshot` take the others. User guide: [Workbench files: Health snapshots](../workbench-files.md#health-snapshots).
 
+## Release candidates (`workbench.release_candidates`)
+
+`workbench.release_candidates: true` (`tracker.WorkbenchConfig.ReleaseCandidates`) puts a release candidate before each release. When the milestone is ready, a local tag `<version>-rc.N` is cut and run on this machine's projects, and the release is published only on the owner's ok. The setting is project-wide like the rest of `workbench:`.
+
+Nothing about statuses, transitions or overlays changes, and no issue needs migrating. The setting changes three things:
+- The Waiting for release card (`release_candidate.go`) and `status.md`.
+- One line in the lead brief (`releaseCandidateBrief`).
+- What `report-bug` does with a report from a candidate build: the bug joins the milestone (`rcMilestone`).
+
+The version stamp (`make install`) and the usage log's `ver` apply to every build, whether the setting is on or not. User guide: [Roadmap: Cutting a release](../roadmap.md#cutting-a-release-candidate-soak-publish).
+
+**On a release branch.** `issue-cli release cut` cuts `release/vX.Y` with its worktree and tags the candidates there; once that branch exists, the card counts the commits picked onto it after the newest rc (not main's) and adds the `picked` check (every done milestone issue's `work/<slug>` commits are on the branch, by patch). `release pick` cherry-picks them; `release publish` publishes from the branch (with `privacy.code: snapshots`). `cmd/issue-cli/cmd_release.go` reads the card from the viewer's `/p/<project>/release.json` (`buildReleaseJSON`), so the CLI refuses on exactly the checks the page shows.
+
+## Privacy (`privacy:`)
+
+`privacy:` (`tracker.PrivacyConfig`, `internal/tracker/privacy.go`) records the owner's choice: `work_files` (tracker | in_repo), `work_paths`, `code` (snapshots | public), `public_remote`, `public_branch` and `decided` (their words). It is project-wide; `Lint` warns about unknown values, a work path outside the project, and an empty `decided:`. No status, transition or overlay changes, and no issue needs migrating; a project without the block shows only the facts git gives (a red Work badge when it tracks work files).
+
+What reads it:
+- `internal/privacy`: the tracker repo (`Tracker.Init`, `Sync`, the sync record), releases (`Setup`, `Cut`, `Pick`, `Publish`, `IsSnapshot`), the badges (`WorkBadge`, `CodeBadge`) and the pre-push guard (`InstallHook`, `PrePush`, `DecisionQuotes`).
+- `issue-cli tracker`, `privacy` and `release`; `issue-cli init` (asks both questions on a terminal).
+- The viewer: `tracker_watch.go` (sync every 10 min), `privacy_view.go` (Status badges and Health lines, projects list, `/stats` overview), the Waiting for release card's publish step.
+- The lead brief (`snapshotsBrief`, `trackerBrief`).
+- `.github/workflows/privacy-guard.yml` (PRs) and `release-marker.yml` (skips private repos).
+
+User guide: [Workflow: Private work and code](../workflow.md#private-work-and-code).
+
 ## System Overlays
 
 System-specific overrides are defined under the `systems:` key. They merge with the base workflow — overriding status prompts and appending transition actions for that system:
@@ -306,15 +333,34 @@ features:
 ```
 
 - `template:` is `WorkflowConfig.Template` and `features:` is `WorkflowConfig.Features` (`FeatureRecord{Installed, Declined}`). Both are declared on the struct so a marshal round trip keeps them, and `process schema` lists them. The engine never acts on either.
-- `template: custom` marks a hand-built workflow: no upgrade hint, no proposals. A file with no `template:` is **unstamped**; `upgrade` compares it with `development` (or `--template <name>`).
+- `template: custom` marks a hand-built workflow: no proposals and no Updates tab. A file with no `template:` is **unstamped**; `upgrade` compares it with `development` (or `--template <name>`).
 - "Latest" is the stamp of the template bundled in the running binary, not `issue-cli version`. Releases that don't change a template don't make projects look behind, and `dev` builds work.
 - Older binaries ignore both keys (yaml.v3 decoding is not strict).
 
 ### Feature catalog
 
-`cmd/issue-cli/templates/workflow-features.yaml` (embedded) lists every capability a `workflow.yaml` can use, grouped by category: lifecycle (status prompts, optional and parked statuses, wildcard transitions, transition fields, types, system overlays), gates (one entry per validator family), automation (`append_section`, `inject_prompt`, `set_fields`), actions, board, dispatch (worktrees), and conventions (template wording such as `lead-handoff-prompts`, which tells agents to say what they need at a gate and end their turn). Each entry has `id`, `version`, `category`, `propose`, `templates`, `title`, `what`, `why`, `where`, `snippet`, `question` and `detect`.
+`cmd/issue-cli/templates/workflow-features.yaml` (embedded) lists every capability a `workflow.yaml` can use, grouped by category: lifecycle (status prompts, optional and parked statuses, wildcard transitions, transition fields, types, system overlays), gates (one entry per validator family), automation (`append_section`, `inject_prompt`, `set_fields`, local CI and its test results), actions, board, workbench (the viewer's pages: health settings, the Status changelog, system pages, project pages, metrics and knobs, the balance board), dispatch (worktrees, the lead brief), and conventions (template wording such as `lead-handoff-prompts`, which tells agents to say what they need at a gate and end their turn, and `local-merge-shipping`). Each entry has `id`, `version`, `category`, `propose`, `templates`, `requires`, `sources`, `title`, `what`, `why`, `where`, `snippet`, `question`, `setup` and `detect`.
+
+Entries added in v0.54.0, when the catalog caught up with what projects adopt:
+
+| id | category | config | proposed |
+|---|---|---|---|
+| `local-ci` | automation | `ci:` (run, tier, failures, timeout, on_red) | yes |
+| `ci-test-results` | automation | `ci.run[].results` | yes, once the project has `local-ci` |
+| `health-tuning` | workbench | `health:` (limits, test_globs, e2e_sessions, …) | yes |
+| `status-changelog` | workbench | `workbench.changelog` (without it the Status page reads CHANGELOG.md, else git tags; declined, it stops suggesting the key) | yes |
+| `release-candidates` | workbench | `workbench.release_candidates` | catalog only (needs `status-changelog`) |
+| `system-pages` | workbench | `workbench.systems`: summaries, design docs, families (the pages come from `system:` without it) | yes |
+| `project-pages` | workbench | `workbench.status_page`, `workbench.pages` | yes |
+| `metrics-and-knobs` | workbench | `workbench.metrics`, `workbench.tuning` (without them Metrics lists Branches) | yes |
+| `balance-board` | workbench | `workbench.balance.comment_prefix` | catalog only |
+| `lead-prompt` | dispatch | `leads.project` | yes |
+| `local-merge-shipping` | conventions | the shipping prompt: `merge --ff-only`, never push | yes, `development` only; the bundled template keeps push |
 
 - `propose: true` entries are the ones `upgrade` offers to projects that lack them. `propose: false` entries are catalog-only: scanned and recorded, and listed only by `upgrade --all`.
+- `requires: [<id>]` holds an entry back until the project has those features; `upgrade --all` lists it with `needs <id>`.
+- `sources:` names the code behind the feature: repo globs anchored at the root (`internal/ci/**`), `file.go#Symbol` for one Go declaration, or `@prompt` for a convention that is prompt text only. `workflow catalog-check` reads them (see below).
+- `setup:` is an optional ordered list of `{who: owner | agent, do: …}` steps beyond the snippet, for a feature that sets things up outside `workflow.yaml` (repos, hooks). The Updates card lists them ("you" on the owner's), `workflow upgrade` prints them, and the install agent's brief walks them, telling the operator each owner step and waiting, never doing it. `TestSetupStepsSayWhoDoesThem` keeps `who` to the two values. `privacy` is the first entry with steps.
 - `detect` is a list of **structural probes** over the parsed YAML; the feature is present when any probe matches. A probe has a `path` (`key`, `key[]` for each list item, `*` for each map value) and at most one condition: none (the value is set: not empty, `false`, `0` or null), `equals`, `one_of`, `rule_in` (the rule name before `:`), or `contains` (case-insensitive, inside that one field only). A path that starts with `statuses[]` or `transitions[]` also searches every `types.<t>` and `systems.<s>` overlay. For example, a parked status is `statuses[].global equals true`, so `optional: true` on its own doesn't count.
 - The data store, stats, retros and comments are not catalogued: they are not `workflow.yaml` configuration.
 
@@ -322,19 +368,27 @@ features:
 
 ### Upgrading workflow.yaml
 
-1. `start` and `process workflow` print a one-line hint when `upgrade` has at least one proposal. Agents tell the operator and carry on; they upgrade only when asked.
-2. `issue-cli workflow upgrade` (read-only) lists the proposals: catalog entries newer than the stamp (all of them if unstamped), for the project's template, that the file doesn't have. What the file has comes from its `features:` record, or from the probes if there is no record. Declined features are listed with the re-open command, and an installed feature with a newer catalog version is proposed as an update.
-3. The agent proposes the items one at a time, backs the file up to `workflow.oldN.yaml`, writes the picked snippets, and sets `template: <name>@<latest>`.
+1. The operator sees the proposals on the viewer's **Updates** tab (`/p/<project>/updates`; `/updates` compares every project). From there they decline one, re-open it, or start an install agent. No `issue-cli` command mentions upgrades unless it is asked: workers and leads are never nudged.
+2. `issue-cli workflow upgrade` (read-only) lists the proposals for the project's template. With a `features:` record, the record decides: every proposed entry that is neither installed nor declined is listed, whatever the stamp says, so bumping the stamp can't hide an undecided feature. Without a record, what the file has comes from the probes and only entries newer than the stamp are listed (all of them if unstamped). Declined features are listed with the re-open command, and an installed feature with a newer catalog version is proposed as an update.
+3. The agent proposes the items one at a time, backs the file up to `workflow.oldN.yaml` and writes the picked snippets. It sets `template: <name>@<latest>` only once every proposal is installed or declined.
 4. `issue-cli workflow scan --installed <picked> --declined <declined>` records the result. Scan rewrites only the `features:` block.
 5. `issue-cli process workflow` validates the result. Existing issues keep the checklist sections they already have.
+
+A current stamp is `up_to_date` only when the record decides everything: `undecided` while proposals wait on the owner, `stale_record` when the file has features the record doesn't list. `process workflow`, `health lint` and the Updates tab ("not recorded") flag a stale record; undecided proposals show only on the Updates tab and in `upgrade`.
 
 Command details: [CLI overview](../CLI/overview.md#workflow-upgrade).
 
 ### Adding or changing a catalog entry
 
-1. Add or edit the entry in `workflow-features.yaml` with `version:` set to the release in `cmd/issue-cli/CHANGELOG.md`. Write probes against parsed paths, not raw text; use `contains` only for wording conventions, scoped to the field that carries the text.
+1. Add or edit the entry in `workflow-features.yaml` with `version:` set to the next release (the one after the newest `## vX.Y.Z` in `cmd/issue-cli/CHANGELOG.md`) and its `sources:`. Write probes against parsed paths, not raw text; use `contains` only for wording conventions, scoped to the field that carries the text.
+   - Put the entry in its category's section: output groups by category in catalog order, and `TestCatalogKeepsEachCategoryTogether` fails on an entry outside its section. Moving one reorders the bundled templates' `features:` records too, since they list entries in catalog order.
+   - When the viewer shows something without the key (system pages from `system:`, Branches in Metrics, the default CHANGELOG.md), say so in `what:` and keep the title on what the key adds, so the entry doesn't read as a switch.
 2. If a bundled template gains the feature, bump its `template: <name>@<version>` stamp and re-run `issue-cli workflow scan` on the template file so its `features:` record matches.
-3. `go test ./cmd/issue-cli/` checks that every field is filled, ids are unique, snippets parse, each probe has at most one condition and its path resolves in the `WorkflowConfig` structs, every stamp version has an entry, no entry is newer than its template's stamp, and each template's record equals what scan detects in it.
+3. `make validate` enforces it:
+   - `go test ./internal/workflowupgrade/` checks that every field is filled, ids are unique, snippets parse and are detected by their own probes, each probe has at most one condition and its path resolves in the `WorkflowConfig` structs, every source matches a tracked file (and its `#Symbol` exists), every stamp version has an entry, no entry is newer than its template's stamp, and each template's record equals what scan detects in it.
+   - `TestEveryWorkflowFeatureHasACatalogEntry` fails on a `workflow.yaml` key with no entry: every top-level key, the sub-keys of `ci`, `ci.run[]`, `health`, `leads`, `workbench` and `workbench.systems.*`, every validator rule and every action type. A key counts when a probe starts at it or an entry's snippet sets it; the rest go in `nonFeatureKeys` with a reason (a stale line fails too).
+   - `issue-cli workflow catalog-check` (it compares commits, so before the branch's first commit it prints "skipped: not a work branch") fails on a work branch that changes an entry's `sources:` (for `file.go#Symbol`, that declaration's code; doc comments don't count) or a bundled template without bumping its version past the last release. The message names the entry, the files and the version to set. When nothing a project adopts changed (a refactor, a fix), a commit trailer `Catalog: n/a <id>[,<id>] <why>` on the branch passes it instead. It skips on main.
+4. issue-viewer's own workflow asks too: the Design checklist has a catalog box (which entry the change adds or bumps), and Documentation asks again for config, validators, actions and prompt patterns, which the checks can't see.
 
 ## Validation Rules
 
@@ -353,6 +407,8 @@ To add a new structured validator:
 
 The `validations` package is a leaf — it does not import `tracker`. This is what makes the per-validator-per-file split possible without import cycles.
 
+`criteria_proven` is a colon-string rule whose check lives outside `tracker`: it needs git and playtest runs, so `internal/proof` registers it with `tracker.SetProofChecker` in `init`, and the binaries import that package (see [Proof Links](proof.md)). A transition hands validators the issue's full slug (`folderSlug`: system folder included), the same as `LoadIssues`.
+
 `linked_issue_in_status` and `command_succeeds` need runtime context (an issue lookup and the project's working directory); both are populated automatically by `Project.LoadWorkflow` via `attachRuntime`. `command_succeeds` is gated by the top-level `allow_shell: true` flag in `workflow.yaml`.
 
 ## Playtest Sessions in the Dev Workflow
@@ -367,6 +423,18 @@ This repo's `workflow.yaml` asks for manual checks to be written as playtest ses
 
 Issues that already have the old boxes ("Throwaway sandbox scenario prepared") keep them; only new transitions append the new wording.
 
+## Guided Check Scripts in the Dev Workflow
+
+Checks a session can't drive (CLI commands, API routes, tmux, terminal-only flows) come as [guided check scripts](../patterns/guided-check-scripts.md): `scripts/checks/<name>.sh` on the issue branch, run by `issue-cli check-script <slug>`. It is the `guided-check-scripts` catalog feature (v0.54.0), in the bundled `development` template and this repo's `workflow.yaml`:
+
+- **`backlog → in progress`** (and `in design → in progress`): a Test Plan `### Manual` box, "Manual checks that aren't playtests come as `scripts/checks/<name>.sh` (`issue-cli check-script <slug> --new <name>`), or N/A with the reason". Tweak and bugfix Manual boxes mention it next to the playtest session.
+- **The `testing` prompt:** start the script with `--new`, read `check-script --lib`, name each step's box with `--box`, pass `check-script <slug> --yes` before handing over, and never tick the owner's Manual boxes.
+- **The `human-testing` prompt:** the owner runs `issue-cli check-script <slug>` (▶ Run checks); it ticks the boxes that passed and comments failures as `checks:`, read like `playtest:` comments.
+- **`documentation → shipping`** (and a tweak's `testing → shipping`): a Shipping box, "Check scripts removed in a last commit before the merge, or none", and the shipping prompt says so: scripts stay on the issue branch (D-2).
+- When an issue has both a playtest session and a script, each Manual box belongs to one of them (a session step id, a script step's `--box`). The issue page asks for the playtest first, then the checks, then the approval; the Status page, the board card and the issue-approve band show both.
+
+The feature is detected by `check-script` in a status prompt or a transition body. Existing issues keep their Test Plans.
+
 ## Design Considerations
 
 When working on workflow changes:
@@ -374,5 +442,5 @@ When working on workflow changes:
 - State which statuses, rules, templates, or overlays will change
 - Consider whether existing issues need migration or compatibility handling
 - For new validators, follow the steps in *Validation Rules* above
-- For any new `workflow.yaml` capability (a field, action type or validator), add a feature catalog entry; see *Adding or changing a catalog entry* above
+- For any new `workflow.yaml` capability (a field, action type or validator), add a feature catalog entry, and bump an entry's version when its feature changes; see *Adding or changing a catalog entry* above (`make validate` checks both)
 - Test with `go test ./internal/tracker/...` (engine) and `go test ./internal/tracker/validations/...` (per-validator suite)

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/milestone"
 	"github.com/michal-franc/issue-viewer/internal/testids"
 	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
@@ -41,6 +42,7 @@ type StatusTabs struct {
 }
 
 var funcMap = template.FuncMap{
+	"releaseBranch": milestone.ReleaseBranch,
 	// commentDay is the day of a comment date stored as RFC3339 or a day.
 	"commentDay": tracker.CommentDay,
 	// sidebar is replaced per server (Server.sidebarNav): the Nav the shared

@@ -8,22 +8,34 @@
 #
 # Kept separate from CHANGELOG.md (engine release notes). Installing a feature
 # means an agent copies its snippet, adapted, into workflow.yaml; nothing here
-# is merged at load time. When the engine gains a capability, or a template
-# changes a feature:
-#   1. add or update the entry here with `version:` = the release in CHANGELOG.md,
+# is merged at load time. When the engine gains a capability, or a change
+# alters what a project adopts:
+#   1. add or update the entry here with `version:` = the next release (the
+#      one after the newest `## vX.Y.Z` in CHANGELOG.md),
 #   2. bump that template's `template: <name>@<version>` stamp if the template
 #      file itself changed, and re-run `issue-cli workflow scan` on it so its
 #      `features:` record matches.
-# TestWorkflowFeature* checks fields, probe paths, stamps, records and snippets.
+# make validate enforces both: TestEveryWorkflowFeatureHasACatalogEntry fails
+# on a workflow.yaml key, validator rule or action type no entry covers, and
+# `issue-cli workflow catalog-check` fails on a branch that changes an entry's
+# sources: or a template without the bump (or a `Catalog: n/a <id> <why>`
+# commit trailer). TestWorkflowFeature* checks fields, probe paths, stamps,
+# records and snippets.
 #
 # Fields:
 #   id           stable kebab-case name; recorded as <id>@<version>
 #   version      issue-cli release that last changed the entry
 #   category     grouping for output: lifecycle, gates, automation, actions,
-#                board, dispatch, conventions
+#                board, workbench, dispatch, conventions
 #   propose      true: `upgrade` proposes it to projects that lack it;
 #                false: catalog only (scanned and recorded; listed by upgrade --all)
 #   templates    bundled templates `upgrade` proposes it for (empty = all)
+#   requires     entry ids the project must have first; upgrade proposes the
+#                entry only then (--all lists it with `needs`)
+#   sources      repo globs of the code behind the feature (`**` allowed,
+#                anchored at the repo root), or `file.go#Symbol` for one Go
+#                declaration; "@prompt" for prompt-only conventions. Changing
+#                them on a branch needs a version bump (catalog-check)
 #   title, what, why, where, question   shown to the agent
 #   snippet      YAML example (must parse); adapt status names to the project
 #   detect       structural probes over the parsed workflow.yaml; the feature is
@@ -44,6 +56,7 @@ entries:
     version: v0.36.0
     category: lifecycle
     propose: false
+    sources: ["internal/tracker/workflow_config.go#WorkflowStatus", "internal/tracker/dispatch_prompt.go"]
     title: "Per-status agent guidance"
     what: |
       `statuses[].prompt` is shown to the agent when an issue enters that status
@@ -66,6 +79,7 @@ entries:
     version: v0.36.0
     category: lifecycle
     propose: false
+    sources: ["internal/tracker/workflow_transition.go#DefaultNextStatus", "internal/tracker/workflow_transition.go#IsSideStatus", "handlers_detail.go"]
     title: "Optional (skippable) statuses"
     what: |
       `optional: true` lets a forward transition skip the status. The viewer shows a
@@ -97,6 +111,7 @@ entries:
     category: lifecycle
     propose: true
     templates: [development]
+    sources: ["internal/tracker/workflow_transition.go#IsValidTransition", "internal/tracker/workflow_types.go"]
     title: "Parked statuses (blocked / deferred)"
     what: |
       A status marked `optional: true` and `global: true`, reachable from anywhere with a
@@ -130,6 +145,7 @@ entries:
     version: v0.36.0
     category: lifecycle
     propose: false
+    sources: ["internal/tracker/workflow_transition.go#IsValidTransition", "internal/tracker/workflow_transition.go#transitionActions"]
     title: "Wildcard transitions (from: \"*\")"
     what: |
       A transition with `from: "*"` applies from any status that has no exact edge to
@@ -153,6 +169,7 @@ entries:
     version: v0.36.0
     category: lifecycle
     propose: false
+    sources: ["internal/tracker/workflow_config.go#WorkflowField", "internal/tracker/workflow_transition.go#TransitionFields", "internal/tracker/workflow_transition.go#ValidateFieldAnswers", "internal/tracker/workflow_transition.go#MergeFieldValuesFromFrontmatter"]
     title: "Transition fields (answers collected before a move)"
     what: |
       `transitions[].fields` asks the human (in the viewer) or the agent (`--field`) for
@@ -177,6 +194,7 @@ entries:
     category: lifecycle
     propose: true
     templates: [development]
+    sources: ["internal/tracker/workflow_types.go", "cmd/issue-cli/cmd_set_type.go"]
     title: "Types of work: lighter paths for tweaks and bugfixes"
     what: |
       `default_type` plus a `types:` block. An issue's `type:` frontmatter picks its path
@@ -235,6 +253,7 @@ entries:
     version: v0.36.0
     category: lifecycle
     propose: true
+    sources: ["internal/tracker/workflow_merge.go"]
     title: "Per-system prompt and checklist overlays"
     what: |
       `systems:` overrides status prompts and appends transition actions for issues whose
@@ -261,6 +280,7 @@ entries:
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/gate.go", "internal/tracker/approval_comment.go", "internal/tracker/workflow_transition.go#ApprovalMissingError"]
     title: "Human approval gates"
     what: |
       A `require_human_approval` action blocks a transition until the human approves the
@@ -280,11 +300,14 @@ entries:
     detect:
       - path: transitions[].actions[].type
         one_of: [require_human_approval]
+      - path: transitions[].actions[].rule
+        rule_in: [approved_for, human_approval]
 
   - id: checklist-gates
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/workflow_validate.go#checkRule", "internal/tracker/workflow_validate.go#openCheckboxesError", "internal/tracker/checkbox_ref.go"]
     title: "Checklist gates"
     what: |
       Validators that block a transition until checkboxes exist or are ticked:
@@ -309,6 +332,7 @@ entries:
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/workflow_validate.go#checkRule"]
     title: "Assignee required to start"
     what: |
       The `has_assignee` validator blocks a transition until someone has claimed the
@@ -332,6 +356,7 @@ entries:
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/workflow_validate.go#checkRule"]
     title: "Test plan required"
     what: |
       The `has_test_plan` validator requires a `## Test Plan` section with `### Automated`
@@ -355,6 +380,7 @@ entries:
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/workflow_validate.go#checkRule"]
     title: "Evidence comments required (tests:, docs:)"
     what: |
       `has_comment_prefix: <prefix>` blocks a transition until a comment starting with
@@ -378,6 +404,7 @@ entries:
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/validations/has_section.go", "internal/tracker/validations/section_min_length.go", "internal/tracker/validations/section_max_length.go"]
     title: "Body and section content gates"
     what: |
       `body_not_empty`, `has_section` (a `## <section>` exists), `section_min_length` and
@@ -402,6 +429,7 @@ entries:
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/validations/no_todo_markers.go"]
     title: "No TODO/FIXME markers"
     what: |
       `no_todo_markers` blocks a transition while the issue body contains a whole-word
@@ -425,6 +453,7 @@ entries:
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/validations/field_present.go", "internal/tracker/validations/field_not_empty.go", "internal/tracker/validations/field_in.go", "internal/tracker/validations/field_matches.go"]
     title: "Frontmatter field gates"
     what: |
       `field_present`, `field_not_empty`, `field_in` (with `values:`) and `field_matches`
@@ -450,6 +479,7 @@ entries:
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/validations/has_label.go", "internal/tracker/validations/has_any_label.go"]
     title: "Label gates"
     what: |
       `has_label` (label named by `field:`) and `has_any_label` check the issue's labels.
@@ -472,6 +502,7 @@ entries:
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/validations/has_pr_url.go"]
     title: "Pull request link required"
     what: |
       `has_pr_url` requires the frontmatter `pr:` to be a GitHub pull request URL.
@@ -494,6 +525,7 @@ entries:
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/validations/linked_issue_in_status.go"]
     title: "Linked issue status gate"
     what: |
       `linked_issue_in_status` requires the issue named in a frontmatter key (`ref_key:`)
@@ -520,6 +552,7 @@ entries:
     category: gates
     propose: true
     templates: [development]
+    sources: ["internal/tracker/validations/command_succeeds.go"]
     title: "Shell command gates (command_succeeds)"
     what: |
       `allow_shell: true` enables the `command_succeeds` validator, so a transition can
@@ -550,6 +583,7 @@ entries:
     version: v0.36.0
     category: gates
     propose: false
+    sources: ["internal/tracker/validations/helpers.go"]
     title: "Custom failure hints"
     what: |
       `hint:` on a validate action replaces the default failure message with the exact
@@ -570,11 +604,57 @@ entries:
     detect:
       - path: transitions[].actions[].hint
 
+  - id: proof-links
+    version: v0.54.0
+    category: gates
+    propose: true
+    templates: [development]
+    sources: ["internal/proof/**", "internal/tracker/proof.go", "cmd/issue-cli/cmd_prove.go"]
+    title: "Each acceptance criterion linked to its proof"
+    what: |
+      Acceptance criteria must be checkboxes with their own text (criteria_checkboxes at
+      the design gate), and before human-testing every criterion needs a proof link that
+      passes its check (criteria_proven). Agents declare links where they write the proof:
+      `proves: [AC2]` on a playtest step, a `Proves: AC2 <TestName>` or `Proves: AC2`
+      trailer on a commit; `issue-cli prove` is the fallback and records measured values.
+      The engine checks every link (the test exists and a tests: comment is newer than the
+      code, the step passed, the commit is on the branch) and ticks the proven boxes.
+      The shipping prompt asks for `risk:` comments on anything to watch after the ship.
+    why: |
+      Nothing said which test, step or commit proves which criterion, so criteria were
+      ticked on the agent's word (or only the template placeholder was). The links make
+      "is it proven?" a question the engine answers, and give the Evidence tab its matrix.
+    where: "the in design → backlog / in progress validations, the testing → human-testing validations, and the \"in progress\" and \"shipping\" status prompts"
+    snippet: |
+      transitions:
+        - from: "in design"
+          to: "backlog"
+          actions:
+            - type: "validate"
+              rule: "criteria_checkboxes: Acceptance Criteria"
+        - from: "testing"
+          to: "human-testing"
+          actions:
+            - type: "validate"
+              rule: "criteria_proven: since {{today}}"   # issues created before this date don't need proof
+      statuses:
+        - name: "in progress"
+          prompt: |
+            Declare each acceptance criterion's proof where you write it: `proves: [AC2]` on the playtest step that shows it, a `Proves: AC2 <TestName>` trailer on the commit that adds or changes the test, or `Proves: AC2` on the commit that is the change. `issue-cli prove <slug> --list` shows what is proven.
+        - name: "shipping"
+          prompt: |
+            Before closing, post a `risk:` comment (`issue-cli comment <slug> --text "risk: ..."`) for anything to watch after the ship, or "risk: none".
+    question: "Should every acceptance criterion be linked to a proof the engine checks before human-testing (from today; older issues are exempt)?"
+    detect:
+      - path: transitions[].actions[].rule
+        rule_in: [criteria_proven, criteria_checkboxes]
+
   # --------------------------------------------------------------- automation
   - id: checklist-sections
     version: v0.36.0
     category: automation
     propose: false
+    sources: ["internal/tracker/workflow_transition.go#ApplyTransitionWithFields", "internal/tracker/heading.go"]
     title: "Checklist sections appended on transition"
     what: |
       An `append_section` action adds a `## <title>` section (usually checkboxes) to the
@@ -602,6 +682,7 @@ entries:
     version: v0.36.0
     category: automation
     propose: false
+    sources: ["internal/tracker/workflow_transition.go#ApplyTransitionWithFields"]
     title: "Prompts injected on a transition"
     what: |
       An `inject_prompt` action adds guidance for the agent on that specific edge, on top
@@ -626,6 +707,7 @@ entries:
     version: v0.36.0
     category: automation
     propose: false
+    sources: ["internal/tracker/workflow_transition.go#ApplyTransitionWithFields"]
     title: "Set or clear frontmatter on transition"
     what: |
       A `set_fields` action sets or clears a frontmatter field (assignee, priority,
@@ -646,11 +728,71 @@ entries:
       - path: transitions[].actions[].type
         one_of: [set_fields]
 
+  - id: local-ci
+    version: v0.54.0
+    category: automation
+    propose: true
+    sources: ["internal/ci/**", "internal/tracker/ci.go", "ci_watch.go", "ci_view.go", "cmd/issue-cli/cmd_ci.go"]
+    title: "Local CI on the integration branch"
+    what: |
+      `ci:` runs your check commands on local main after every merge, in a persistent
+      worktree (.worktrees/.ci), and keeps each run in .ci/. A red run shows on the Status
+      page and the board, comments `ci:` on the issues it blames, and tells the lead
+      (`on_red: file_issue` also files a bug). Commands can have a `tier` (`slow` runs
+      only on request) and a `failures` regex that names the failing tests.
+    why: |
+      Agents merge into main many times a day. Without CI nobody notices a red main
+      until the next agent trips over it, and then nobody knows which merge broke it.
+    where: "top-level ci: (run, tier, failures, timeout, on_red); docs/workflow.md, Local CI"
+    snippet: |
+      ci:
+        timeout: 15m
+        on_red: file_issue
+        run:
+          - cmd: make check
+            failures: '--- FAIL: (\S+)'
+          - cmd: make ux-test
+            tier: slow
+    question: "Which commands prove main is healthy, and which of them are too slow to run after every merge?"
+    detect:
+      - path: ci.run
+
+  - id: ci-test-results
+    version: v0.54.0
+    category: automation
+    propose: true
+    requires: [local-ci]
+    sources: ["internal/testresults/**", "internal/tracker/ci.go#CIResult", "cmd/issue-cli/cmd_ci_gotest.go"]
+    title: "Test results from local CI"
+    what: |
+      Each `ci.run` command can name the result files it writes into `$CI_RESULTS_DIR`
+      (`go-test-json`, `trx`, `junit` or `playtest`, as `kind: unit` or `e2e`). Local CI
+      reads them into the run record, and the Health view shows test counts, runtime and
+      the slowest tests over time.
+    why: |
+      CI only says red or green. With results you see how many tests ran, how long they
+      took and which ones got slower, and the health score can count them.
+    where: "ci.run[].results"
+    snippet: |
+      ci:
+        run:
+          - cmd: make check
+            results:
+              - {kind: unit, format: trx, file: unit.trx}
+          - cmd: make ux-test
+            tier: slow
+            results:
+              - {kind: e2e, format: playtest, file: e2e.json}
+    question: "Which CI commands write test results, and in which format?"
+    detect:
+      - path: ci.run[].results
+
   # ------------------------------------------------------------------ actions
   - id: issue-actions
     version: v0.36.0
     category: actions
     propose: true
+    sources: ["internal/tracker/workflow_config.go#IssueActionList", "internal/tracker/workflow_config.go#CustomAction"]
     title: "Issue action buttons"
     what: |
       `issue_actions:` adds one-shot agent buttons to the issue detail view. Each opens an
@@ -677,6 +819,7 @@ entries:
     version: v0.36.0
     category: actions
     propose: true
+    sources: ["internal/tracker/workflow_config.go#CustomAction", "handlers_dispatch.go#handleProjectAction", "handlers_dispatch.go#renderProjectActionPrompt"]
     title: "Project action buttons"
     what: |
       `project_actions:` adds one-shot agent buttons to the list, board and graph views.
@@ -702,6 +845,7 @@ entries:
     version: v0.36.0
     category: board
     propose: false
+    sources: ["internal/tracker/workflow_config.go#WorkflowBoardConfig", "handlers_board.go"]
     title: "Custom board columns"
     what: |
       `board.columns` sets which statuses the board shows, in order (default: the whole
@@ -720,6 +864,7 @@ entries:
     version: v0.36.0
     category: board
     propose: false
+    sources: ["internal/tracker/workflow_config.go#WorkflowBoardConfig", "templates/board.html"]
     title: "Custom board card fields"
     what: |
       `board.card_fields` picks the frontmatter fields shown on board cards (default:
@@ -739,6 +884,7 @@ entries:
     category: board
     propose: true
     templates: [development]
+    sources: ["internal/tracker/scoring.go"]
     title: "Ticket scoring and score sort"
     what: |
       An opt-in `scoring:` policy computes a score per issue from priority, due date,
@@ -761,12 +907,254 @@ entries:
       - path: scoring.enabled
         equals: true
 
+  # ---------------------------------------------------------------- workbench
+  # Project-wide config for the viewer's own pages: Health, Status, System
+  # pages, project pages, Metrics, Balance.
+  - id: health-tuning
+    version: v0.54.0
+    category: workbench
+    propose: true
+    sources: ["internal/tracker/health.go", "internal/health/**", "health_view.go", "health_watch.go", "cmd/issue-cli/cmd_health.go", "internal/playtestruns/**"]
+    title: "Health snapshot settings"
+    what: |
+      `health:` tunes the daily health snapshots behind the Health and Stats pages: the
+      gauge limits (`limits.waiting_share`, `limits.big_files`), test file globs, which
+      playtest sessions count as e2e (`e2e_sessions`), long-function and big-file sizes,
+      and the derived score's components (`score`, including `lint`: issue-cli health lint's
+      warnings, 0 → 20), and after how many days the daily pass shrinks a done issue's
+      playtest shots (`shrink_shots_after_days`, 0 = never). Snapshots run with defaults
+      without it.
+    why: |
+      The defaults fit a Go repo. A C#, Godot or Python project needs its own test globs
+      and e2e sessions, or the tests family counts nothing and the score misleads.
+    where: "top-level health: (docs/workbench-files.md, Health snapshots)"
+    snippet: |
+      health:
+        test_globs: ["**/*Tests.cs"]
+        e2e_sessions: ["playtest/sessions/*.yaml"]
+        limits:
+          waiting_share: 0.25
+          big_files: 10
+        shrink_shots_after_days: 30
+    question: "Where are your tests and e2e sessions, and are the default gauge limits right for this project?"
+    detect:
+      - path: health
+
+  - id: status-changelog
+    version: v0.54.0
+    category: workbench
+    propose: true
+    sources: ["release_wait.go", "status.go#readChangelog", "internal/milestone/**"]
+    title: "Releases on the Status page"
+    what: |
+      Without `workbench.changelog` the Status page reads CHANGELOG.md at the project
+      root, else git tags. The key names a different changelog: Recently released lists
+      its version headings, and Waiting for release lists the `## Unreleased` entries with
+      the commits not pushed yet. Releases are cut per milestone: move the
+      `## Unreleased` entries under a version heading. Declined, the Status page stops
+      suggesting the key.
+    why: |
+      The Status page shows what shipped and what is merged but not released, without
+      anyone writing a status update.
+    where: "workbench.changelog (default CHANGELOG.md at the project root; set it to record the feature)"
+    snippet: |
+      workbench:
+        changelog: CHANGELOG.md
+    question: "Do you keep a changelog with an ## Unreleased section, and where is it?"
+    detect:
+      - path: workbench.changelog
+
+  - id: release-candidates
+    version: v0.54.0
+    category: workbench
+    propose: false
+    requires: [status-changelog]
+    sources: ["release_candidate.go", "internal/milestone/rc.go", "internal/telemetry/version.go", "cmd/issue-cli/cmd_version.go#rcNote", "cmd/issue-cli/cmd_report_bug.go#rcMilestone", "internal/tracker/lead_brief.go#releaseCandidateBrief"]
+    title: "Release candidates before a release"
+    what: |
+      `workbench.release_candidates: true` puts a soak before each release. When the
+      milestone is ready, the lead tags `<version>-rc.1` locally (never pushed), installs
+      that build and runs it on this machine's projects. Waiting for release shows the
+      candidate: when it was cut, the commits merged after it (each needs a new rc), and,
+      on the engine project, which projects ran it and the open report-bug issues filed
+      from it. The release is published only on the owner's ok on a soaked candidate.
+    why: |
+      Nothing runs a release as a whole on real projects before it is public; a candidate
+      catches what the per-issue checks miss, and bugs found in the soak stay in the
+      release instead of shipping.
+    where: "workbench.release_candidates"
+    snippet: |
+      workbench:
+        release_candidates: true
+    question: "Should each release run as a local release candidate on your projects before it is published?"
+    detect:
+      - path: workbench.release_candidates
+
+  - id: privacy
+    version: v0.54.0
+    category: workbench
+    propose: true
+    sources: ["internal/privacy/**", "internal/tracker/privacy.go", "privacy_view.go", "tracker_watch.go", "templates/_privacy.html", "cmd/issue-cli/cmd_tracker.go", "cmd/issue-cli/cmd_privacy.go", "cmd/issue-cli/cmd_release.go", ".github/workflows/release-marker.yml", ".github/workflows/privacy-guard.yml"]
+    title: "Private work files and private development"
+    what: |
+      `privacy:` records the owner's two choices. `work_files: tracker` keeps issues/,
+      sessions/, retros/, bugs/ and .health/snapshots/ in a private tracker repo whose git
+      folder sits outside the checkout, so every path stays where it is while the code repo
+      ignores them; the viewer commits, pulls and pushes it every 10 minutes (`issue-cli
+      tracker sync` on demand). `code: snapshots` keeps the development history in a private
+      dev repo (origin) and gives the public repo ONE commit per release: a release is cut
+      as release/vX.Y (`issue-cli release cut`), soaks there with fixes picked from main
+      (`release pick`), and `release publish` pushes the branch tip's tree as one `vX.Y.Z`
+      commit. A pre-push guard refuses work files in the code repo, dev commits to the
+      public remote, and (with `code: public`) commit messages quoting a decision. Status
+      shows a Work and a Code badge after the title: green private, amber something to
+      fix, red work or history where it shouldn't be, grey public by choice.
+    why: |
+      A public dev repo publishes how the work was done, not just the result: issue bodies,
+      owner quotes and D-n text in commit messages, branch names, PRs that can never be
+      rewritten. Ignored instead, the work files sit on one disk with no backup.
+    where: "privacy"
+    snippet: |
+      privacy:
+        work_files: tracker        # or in_repo: keep them in the code repo, by choice
+        code: snapshots            # or public: develop in the public repo
+        decided: "{{today}}, owner: \"<their words>\""
+    question: "Do you want your work files (issues, sessions, retros, attachments) private, in a private tracker repo, or public, in the code repo? And should development be private, with only releases published, or in the public repo?"
+    setup:
+      - who: agent
+        do: "Record both answers in workflow.yaml privacy: with the owner's words in decided:, and with issue-cli decide when an issue is open for it."
+      - who: owner
+        do: "For a private tracker: create a private GitHub repo, e.g. <name>-tracker, and give the agent its URL. For private development: create a private <name>-dev too. The agent never creates repos."
+      - who: agent
+        do: "issue-cli tracker init --remote <tracker url>: creates or adopts the git folder outside the checkout, ignores the work paths, installs the pre-push guard, pushes the first backup."
+      - who: owner
+        do: "If the code repo still tracks work files, run the git rm -r --cached and commit that tracker init prints."
+      - who: agent
+        do: "With code: snapshots, issue-cli release setup --dev <dev url>: origin becomes the dev repo with every branch and non-candidate tag, the old origin becomes the remote public. In the release workflow, skip private repos (if: !github.event.repository.private) and take notes from the CHANGELOG. Copy .github/workflows/privacy-guard.yml from the engine repo: it fails PRs that touch work files, and every PR on the public repo."
+      - who: owner
+        do: "Clean the public repo's old history once, from a mirror (git filter-repo of the work paths, force push), never in the working checkout. The next release is the first snapshot (issue-cli release publish <version> --first)."
+      - who: agent
+        do: "issue-cli privacy check: every line green, or each fix explained to the owner. Other machines and cloud sessions clone the dev repo and the tracker, never the public repo."
+    detect:
+      - path: privacy
+
+  - id: system-pages
+    version: v0.54.0
+    category: workbench
+    propose: true
+    sources: ["systems.go", "handlers_systems.go", "docsections.go", "internal/tracker/workbench.go#WorkbenchSystem", "internal/tracker/workbench.go#WorkbenchFamily"]
+    title: "System page details"
+    what: |
+      Every issue `system:` already has a page, listed under Systems in the sidebar.
+      Without `workbench.systems` each page shows the system's issues. The key adds to
+      the page: a one-line summary, its design doc beside the issues, and families (an
+      epic's children inside the system, each with its own page).
+    why: |
+      A system's issues, design doc and open questions sit on one page instead of a
+      filtered list and a doc in another tab.
+    where: "workbench.systems.<system>: summary, design_doc, families (the pages themselves come from `system:`)"
+    snippet: |
+      workbench:
+        systems:
+          Combat:
+            summary: "Turn order, weapons and damage."
+            design_doc: docs/combat.md
+            umbrella: combat/combat-roadmap
+            families:
+              Weapons:
+                umbrella: combat/weapon-overhaul
+    question: "Which systems should have a summary and a design doc on their page?"
+    detect:
+      - path: workbench.systems
+
+  - id: project-pages
+    version: v0.54.0
+    category: workbench
+    propose: true
+    sources: ["handlers_pages.go", "internal/tracker/workbench.go#WorkbenchPage", "internal/tracker/workbench.go#PagePaths"]
+    title: "Project pages"
+    what: |
+      `workbench.status_page` shows your own HTML page as the default Status view (the
+      built-in page stays one tab away), and `workbench.pages` lists extra pages under
+      Status in the sidebar. Pages are plain files in the repo, shown sandboxed, and can
+      post a live status line to the viewer.
+    why: |
+      A project with its own report (a balance report, a roadmap page) shows it where
+      people already look, kept up to date by the agents that write it.
+    where: "workbench.status_page, workbench.pages[] (title, path); docs/workbench-files.md, Project pages"
+    snippet: |
+      workbench:
+        status_page: docs/status/index.html
+        pages:
+          - title: "Balance report"
+            path: docs/reports/balance.html
+    question: "Does the project have HTML reports worth showing in the viewer?"
+    detect:
+      - path: workbench.status_page
+      - path: workbench.pages
+
+  - id: metrics-and-knobs
+    version: v0.54.0
+    category: workbench
+    propose: true
+    sources: ["handlers_metrics.go", "handlers_metrics_panels.go", "internal/tracker/metrics.go", "internal/tracker/knobs.go", "internal/tracker/branches.go"]
+    title: "Metrics and knobs"
+    what: |
+      Without `workbench.metrics` the Metrics view of a git checkout still lists its
+      Branches. The key points at the probe runs your tests write (`probe_results`, in
+      the format in docs/workbench-files.md) and optional target bands (`targets`);
+      `workbench.tuning` at knob exports. The Metrics view then shows each guard metric
+      against its band, and system pages show their own metrics and knobs. Only worth
+      it when your tests already write measured values.
+    why: |
+      A change that moves a tuned number shows up as "off" before it ships, and agents
+      can see which knobs a system has.
+    where: "workbench.metrics (probe_results, targets), workbench.tuning; docs/workbench-files.md"
+    snippet: |
+      workbench:
+        metrics:
+          probe_results: docs/balance/snapshot.json
+          targets: docs/balance/targets.json
+        tuning:
+          - build/workbench/knobs.json
+        systems:
+          Combat:
+            metrics: [hit-rate, damage-*]
+            knobs: [Weapon*]
+    question: "Do your tests or probes already write measured values worth guarding, and do you export tuning knobs? (Without them the view only lists branches.)"
+    detect:
+      - path: workbench.metrics.probe_results
+      - path: workbench.tuning
+
+  - id: balance-board
+    version: v0.54.0
+    category: workbench
+    propose: false
+    sources: ["internal/tracker/balance.go", "handlers_balance.go", "cmd/issue-cli/cmd_balance.go"]
+    title: "Balance board"
+    what: |
+      `workbench.balance.comment_prefix` turns typed balance notes (`issue-cli balance`)
+      into the Balance view: open hypotheses per metric, what was tried, and the
+      evidence.
+    why: |
+      Tuning a game or a simulation is many small experiments. The board keeps them
+      from being lost in issue comments.
+    where: "workbench.balance.comment_prefix"
+    snippet: |
+      workbench:
+        balance:
+          comment_prefix: "balance:"
+    question: "Do you tune numbers through experiments you want to track?"
+    detect:
+      - path: workbench.balance.comment_prefix
+
   # ----------------------------------------------------------------- dispatch
   - id: worktree
     version: v0.36.0
     category: dispatch
     propose: true
     templates: [development]
+    sources: ["internal/agentrun/**", "internal/tracker/workflow_config.go#WorktreeEnabled"]
     title: "Per-issue git worktrees on dispatch"
     what: |
       `worktree: true` makes the viewer's dispatch create a git worktree and branch per
@@ -787,6 +1175,7 @@ entries:
     version: v0.36.0
     category: dispatch
     propose: false
+    sources: ["internal/agentrun/**"]
     title: "Worktree setup command"
     what: |
       `worktree_setup` runs a bootstrap command (e.g. `make`) inside a newly created
@@ -802,6 +1191,36 @@ entries:
     detect:
       - path: worktree_setup
 
+  - id: lead-prompt
+    version: v0.54.0
+    category: dispatch
+    propose: true
+    sources: ["internal/tracker/lead_brief.go", "internal/tracker/lead.go", "cmd/issue-cli/cmd_lead.go"]
+    title: "Project lead brief"
+    what: |
+      `leads.project` is the brief the project lead starts with (`issue-cli lead spawn`,
+      one lead per project): what it owns, how it routes work to workers, and that it
+      records your answers with `issue-cli decide --quote` in your words. It templates
+      `{{project}}` and `{{lead}}`; without it the built-in brief applies. Whatever it
+      says, the CLI adds the lead's limits: answer workers only from recorded decisions,
+      ask you when none covers it, dispatch only the issues you name
+      (`issue-cli dispatch --quote`), tick gates only with your quote.
+    why: |
+      The lead is the one session that sees every worker. A brief written for this
+      project tells it what you care about and what it may decide alone.
+    where: "top-level leads.project"
+    snippet: |
+      leads:
+        project: |
+          You are the project lead of {{project}}, running in {{lead}} in the main checkout.
+          The human decides. Groom ideas, dispatch the workers the human names, relay their
+          questions and approvals, and review their designs and diffs.
+          Record each answer in the human's words:
+          issue-cli decide <slug> --text "..." --how "lead chat" --quote "<their words>".
+    question: "What should the project lead own, and what must it always bring to you?"
+    detect:
+      - path: leads.project
+
   # -------------------------------------------------------------- conventions
   # Prompt and checklist wording the bundled templates ship. The probes match
   # text, but only inside the fields that carry it.
@@ -809,6 +1228,7 @@ entries:
     version: v0.36.0
     category: conventions
     propose: true
+    sources: ["@prompt"]
     title: "Approval gates and questions are handed to the lead"
     what: |
       Prompts before a human-approval gate (and wherever the agent needs a decision)
@@ -839,6 +1259,7 @@ entries:
     category: conventions
     propose: true
     templates: [development]
+    sources: ["@prompt"]
     title: "Design step reviews overlap and discoverability"
     what: |
       Two Design checkboxes and matching in-design prompt lines: list existing features
@@ -876,6 +1297,7 @@ entries:
     category: conventions
     propose: true
     templates: [development]
+    sources: ["@prompt"]
     title: "Manual tests run in a throwaway sandbox"
     what: |
       The Test Plan's `### Manual` boxes ask for a throwaway, gitignored sandbox scenario
@@ -914,6 +1336,7 @@ entries:
     category: conventions
     propose: true
     templates: [development]
+    sources: ["cmd/playtest/**", "cmd/issue-cli/cmd_process_playtest.go", "cmd/issue-cli/guides/playtest/**"]
     title: "Manual checks as playtest sessions"
     what: |
       The testing and human-testing prompts say: if the project has a playtest system
@@ -941,11 +1364,68 @@ entries:
       - path: transitions[].actions[].body
         contains: "playtest session"
 
+  - id: guided-check-scripts
+    version: v0.54.0
+    category: conventions
+    propose: true
+    templates: [development]
+    sources: ["internal/checks/**", "cmd/issue-cli/cmd_check_script.go", "handlers_checks.go"]
+    title: "Manual checks that aren't playtests as guided check scripts"
+    what: |
+      Manual checks run from a shell (CLI commands, API routes, scripts, tmux) come as
+      scripts/checks/<name>.sh on the issue branch, built on the helper library issue-cli
+      ships (`issue-cli check-script --lib`). The owner runs one command,
+      `issue-cli check-script <slug>` (▶ Run checks in the viewer): each step says what it
+      checks, why, what to look at and what to expect, runs the commands, checks what a
+      machine can and asks about the rest; the owner's run ticks the boxes that passed and
+      comments failures as `checks:`. Adds lines to the testing, human-testing and shipping
+      prompts, a Test Plan Manual box and a Shipping box (scripts stay on the branch).
+    why: |
+      Instead of copying, pasting and judging a list of commands, the owner answers y/n
+      while the script does the rest, and the agent's sandbox, cleanup and box mapping
+      live in one place that a machine run (`--yes`) checks before handover.
+      It supersedes the written-steps part of sandbox-manual-tests for shell checks.
+    where: "the \"testing\", \"human-testing\" and \"shipping\" status prompts, the backlog → in progress \"Test Plan\" body and the documentation → shipping \"Shipping\" body"
+    snippet: |
+      statuses:
+        - name: "testing"
+          prompt: |
+            Manual checks that aren't playtest sessions (commands, API routes, scripts, tmux) come as a guided check script: start it with `issue-cli check-script <slug> --new <name>` (scripts/checks/<name>.sh on the issue branch), read the helpers in `issue-cli check-script --lib`, name the box each step proves with `--box`, and pass `issue-cli check-script <slug> --yes` before handing over. Never tick the owner's Manual boxes yourself.
+        - name: "human-testing"
+          prompt: |
+            If the issue has a guided check script, the human runs `issue-cli check-script <slug>` (▶ Run checks in the viewer): it ticks the boxes that passed and comments failures as `checks:`.
+        - name: "shipping"
+          prompt: |
+            Remove the issue's scripts/checks/<name>.sh in a last commit before the merge: check scripts stay on the issue branch.
+      transitions:
+        - from: "backlog"
+          to: "in progress"
+          actions:
+            - type: "append_section"
+              title: "Test Plan"
+              body: |
+                ### Manual
+                - [ ] Manual checks that aren't playtests come as `scripts/checks/<name>.sh` (`issue-cli check-script <slug> --new <name>`), or N/A with the reason
+        - from: "documentation"
+          to: "shipping"
+          actions:
+            - type: "append_section"
+              title: "Shipping"
+              body: |
+                - [ ] Check scripts (scripts/checks/<name>.sh) removed in a last commit before the merge, or none
+    question: "Should manual checks that run from a shell come as guided check scripts the owner runs with one command (adds lines to the testing, human-testing and shipping prompts and two checklist boxes)?"
+    detect:
+      - path: statuses[].prompt
+        contains: "check-script"
+      - path: transitions[].actions[].body
+        contains: "check-script"
+
   - id: testing-unrelated-failures
     version: v0.36.0
     category: conventions
     propose: true
     templates: [development]
+    sources: ["@prompt"]
     title: "Unrelated test failures are documented, not blocking"
     what: |
       A Testing checkbox and an inject_prompt line: if unrelated failures make the full
@@ -975,3 +1455,35 @@ entries:
         contains: "unrelated failures"
       - path: transitions[].actions[].prompt
         contains: "unrelated failures"
+
+  - id: local-merge-shipping
+    version: v0.54.0
+    category: conventions
+    propose: true
+    templates: [development]
+    sources: ["@prompt"]
+    title: "Ship by local merge"
+    what: |
+      The shipping prompt and checklist ship without a remote: merge local main into the
+      branch, run the project's checks, fast-forward the main checkout to the branch
+      (`git -C <main checkout> merge --ff-only <branch>`) and never push. The change goes
+      under `## Unreleased` in the changelog; releases are cut per milestone and pushed by
+      the lead when you ask. The bundled template keeps push: this is opt-in.
+    why: |
+      With many agents on one machine, pushes and pull requests per issue are noise. Local
+      main stays the integration branch, local CI checks every move, and you choose when
+      a milestone leaves the machine.
+    where: "the shipping status prompt and the Shipping checklist (its append_section)"
+    snippet: |
+      statuses:
+        - name: "shipping"
+          prompt: |
+            1. Add your change under `## Unreleased` in CHANGELOG.md. Don't bump the version.
+            2. Commit on your branch.
+            3. `git merge main` (the local branch), resolve conflicts, run the checks.
+            4. Fast-forward the main checkout to your branch: `git -C <main checkout> merge --ff-only <your branch>`. If main moved, repeat step 3. Never push.
+            5. Comment `shipped: <sha> fast-forwarded into main`.
+    question: "Should agents ship by fast-forwarding local main, never pushing, with releases per milestone?"
+    detect:
+      - path: statuses[].prompt
+        contains: "merge --ff-only"

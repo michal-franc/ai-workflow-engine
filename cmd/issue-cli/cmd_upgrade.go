@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/michal-franc/issue-viewer/internal/workflowupgrade"
 )
 
 const upgradeLongHelp = `Show which workflow.yaml features this project could adopt.
@@ -19,10 +21,21 @@ record picks and declines with ` + "`issue-cli workflow scan`" + `, validate).
 
 What is installed comes from the features: record when the file has one, and
 from the catalog's detection probes otherwise. Declined features are listed,
-not proposed.
+not proposed. With a record, the record decides: every feature neither
+installed nor declined is proposed, whatever the stamp says, so bump the stamp
+only once nothing is undecided. Without one, only entries newer than the stamp
+are proposed. An entry that requires another (ci-test-results needs local-ci)
+waits until the project has it; --all lists it as "needs <id>".
 
-Agents: only upgrade when the operator asks. When start or process workflow
-print an upgrade hint, tell the operator and carry on with your task.
+The catalog covers every workflow.yaml capability: lifecycle, gates,
+automation (local-ci, ci-test-results), actions, board, workbench
+(health-tuning, status-changelog, system-pages, project-pages,
+metrics-and-knobs, balance-board), dispatch (worktree, lead-prompt) and
+conventions (playtest-sessions, guided-check-scripts, proof-links,
+local-merge-shipping). --all lists every entry the file lacks.
+
+Agents: only upgrade when the operator asks. No other command mentions
+upgrades; the operator sees them on the viewer's Updates tab.
 
 Usage:
   issue-cli workflow upgrade                      # proposals and steps
@@ -58,13 +71,13 @@ func runWorkflowUpgrade(ctx *Context, args []string) error {
 	}
 	path := projectWorkflowFile(ctx.Project)
 	if path == "" {
-		return fmt.Errorf("no workflow.yaml found: this project runs on the built-in default workflow\n\nCreate one from a bundled template:\n  issue-cli workflow init --template <%s>", strings.Join(availableWorkflowTemplates(), "|"))
+		return fmt.Errorf("no workflow.yaml found: this project runs on the built-in default workflow\n\nCreate one from a bundled template:\n  issue-cli workflow init --template <%s>", strings.Join(workflowupgrade.Templates(), "|"))
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", path, err)
 	}
-	plan, err := buildUpgradePlan(path, raw, *templateFlag, *allFlag)
+	plan, err := workflowupgrade.BuildPlan(path, raw, *templateFlag, *allFlag)
 	if err != nil {
 		return err
 	}
@@ -75,7 +88,7 @@ func runWorkflowUpgrade(ctx *Context, args []string) error {
 	return nil
 }
 
-func printUpgradePlan(w io.Writer, plan *upgradePlan) {
+func printUpgradePlan(w io.Writer, plan *workflowupgrade.Plan) {
 	fmt.Fprintln(w, "== Workflow upgrade ==")
 	fmt.Fprintf(w, "File:     %s\n", plan.WorkflowFile)
 	current := plan.Current
@@ -88,7 +101,7 @@ func printUpgradePlan(w io.Writer, plan *upgradePlan) {
 		fmt.Fprintf(w, "Template: %s\n", plan.Template)
 	}
 	fmt.Fprintf(w, "Status:   %s\n", plan.Status)
-	if plan.Status != upgradeCustom && plan.Status != upgradeUnknownTemplate {
+	if plan.Status != workflowupgrade.StatusCustom && plan.Status != workflowupgrade.StatusUnknownTemplate {
 		if plan.Record != nil {
 			fmt.Fprintf(w, "Record:   features: (%d installed, %d declined)\n", len(plan.Record.Installed), len(plan.Record.Declined))
 		} else {
@@ -103,7 +116,7 @@ func printUpgradePlan(w io.Writer, plan *upgradePlan) {
 		fmt.Fprintln(w, "== Proposals ==")
 		for _, p := range plan.Proposals {
 			var tags []string
-			if p.Kind == proposalUpdate {
+			if p.Kind == workflowupgrade.ProposalUpdate {
 				tags = append(tags, "update from "+p.Installed)
 			}
 			tags = append(tags, p.Version, p.Category)
@@ -115,6 +128,9 @@ func printUpgradePlan(w io.Writer, plan *upgradePlan) {
 			if p.Declined {
 				tags = append(tags, "declined earlier")
 			}
+			if len(p.Needs) > 0 {
+				tags = append(tags, "needs "+strings.Join(p.Needs, ", "))
+			}
 			fmt.Fprintf(w, "[%d] %s — %s (%s)\n", p.Number, p.ID, p.Title, strings.Join(tags, ", "))
 			fmt.Fprintf(w, "  What:  %s\n", indentContinuation(p.What, "         "))
 			fmt.Fprintf(w, "  Why:   %s\n", indentContinuation(p.Why, "         "))
@@ -123,6 +139,12 @@ func printUpgradePlan(w io.Writer, plan *upgradePlan) {
 			fmt.Fprintln(w, "  Snippet:")
 			for _, line := range strings.Split(p.Snippet, "\n") {
 				fmt.Fprintf(w, "    %s\n", line)
+			}
+			if len(p.Setup) > 0 {
+				fmt.Fprintln(w, "  Setup (in order; an owner step is the owner's to do):")
+				for i, st := range p.Setup {
+					fmt.Fprintf(w, "    %d. [%s] %s\n", i+1, st.Who, indentContinuation(strings.TrimSpace(st.Do), "         "))
+				}
 			}
 			fmt.Fprintln(w)
 		}

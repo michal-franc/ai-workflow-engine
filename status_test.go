@@ -391,3 +391,34 @@ func TestStatusUnsentBugReports(t *testing.T) {
 		t.Errorf("status.md:\n%s", md)
 	}
 }
+
+// With no changelog, Recently released suggests workbench.changelog, unless
+// the owner declined status-changelog in the features: record.
+func TestStatusChangelogHintRespectsDecline(t *testing.T) {
+	withMockTmuxSessions(t, nil)
+	stubAgentsGit(t)
+	const hint = "point <code>workbench.changelog</code>"
+	for _, c := range []struct {
+		name, record string
+		want         bool
+	}{
+		{"undecided", "", true},
+		{"declined", "features:\n  declined: [status-changelog]\n", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			proj := setupStatusProject(t, time.Now())
+			os.Remove(filepath.Join(proj.WorkDir, "docs/CHANGELOG.md"))
+			raw, _ := os.ReadFile(proj.WorkflowFile)
+			wf := c.record + strings.Replace(string(raw), "workbench:\n  changelog: docs/CHANGELOG.md\n", "", 1)
+			if err := os.WriteFile(proj.WorkflowFile, []byte(wf), 0644); err != nil {
+				t.Fatal(err)
+			}
+			ts := newTestServer(t, []tracker.Project{proj})
+			defer ts.Close()
+			_, body := getResp(t, ts.URL+"/p/status/status")
+			if got := strings.Contains(body, hint); got != c.want {
+				t.Errorf("hint shown = %v, want %v", got, c.want)
+			}
+		})
+	}
+}

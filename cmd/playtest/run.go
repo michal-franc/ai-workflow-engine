@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -19,6 +20,14 @@ type Runner struct {
 	Build       string
 	Keep        bool
 	Out         io.Writer
+	// OwnIssue is the issue this run is for (-issue, else the work/<slug>
+	// branch). An auto run of another issue's session keeps no shots except
+	// failing ones; "" keeps every shot. See OwnIssue().
+	OwnIssue string
+
+	// shotsSkipped: a shot was left out for another issue's session, said
+	// once per invocation.
+	shotsSkipped bool
 
 	bins *Binaries
 	// judgeHook lets a test drive the overlay the way the owner would.
@@ -32,6 +41,36 @@ type Runner struct {
 	// windowClosed: the owner closed the Chrome window; later sessions can't
 	// run in it.
 	windowClosed bool
+}
+
+// keepsShots: an auto run keeps the shots of the run's own issue's
+// sessions, and every shot when the run has no own issue.
+func (r *Runner) keepsShots(s *Session) bool {
+	return r.OwnIssue == "" || s.Issue == r.OwnIssue
+}
+
+// ShotsNote is the one line ux-test prints when it left shots out.
+func (r *Runner) ShotsNote() string {
+	if !r.shotsSkipped {
+		return ""
+	}
+	return fmt.Sprintf("shots kept for %s only (other sessions keep results.yaml and failing shots)", r.OwnIssue)
+}
+
+// OwnIssue is the issue a run is for: the -issue flag, else the slug of the
+// repo's work/<slug> branch, else "".
+func OwnIssue(repo, flag string) string {
+	if flag != "" {
+		return flag
+	}
+	out, err := exec.Command("git", "-C", repo, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if err != nil {
+		return ""
+	}
+	if slug, ok := strings.CutPrefix(strings.TrimSpace(string(out)), "work/"); ok {
+		return slug
+	}
+	return ""
 }
 
 // stepTimeout bounds one step at one viewport.
@@ -94,13 +133,14 @@ func (r *Runner) UXTest(b *Browser, s *Session, only map[string]bool) (*Results,
 		if len(only) > 0 && !only[st.ID] {
 			continue
 		}
-		sr := &StepResult{ID: st.ID, Title: st.Title, Judgement: st.Judgement(), HasChecks: len(st.checks) > 0, Status: StatusPass}
+		sr := &StepResult{ID: st.ID, Title: st.Title, Judgement: st.Judgement(), HasChecks: len(st.checks) > 0, Status: StatusPass, Proves: st.Proves}
 		res.Steps = append(res.Steps, sr)
 		if len(st.checks) == 0 {
 			// A judgement-only step: nothing for the machine to check, but
 			// its setup must still run cleanly.
 			sr.Status = StatusPending
 		}
+		stepStart := time.Now()
 		for _, vp := range s.Viewports() {
 			vr := r.runStep(b, bins, s, st, vp, dir)
 			sr.Viewports = append(sr.Viewports, vr)
@@ -108,7 +148,8 @@ func (r *Runner) UXTest(b *Browser, s *Session, only map[string]bool) (*Results,
 				sr.Status = StatusFail
 			}
 		}
-		r.printStep(sr)
+		sr.DurationMS = time.Since(stepStart).Milliseconds()
+		r.printStep(sr, dir)
 	}
 	if err := res.Write(dir); err != nil {
 		return nil, "", err
@@ -116,7 +157,7 @@ func (r *Runner) UXTest(b *Browser, s *Session, only map[string]bool) (*Results,
 	return res, dir, nil
 }
 
-func (r *Runner) printStep(sr *StepResult) {
+func (r *Runner) printStep(sr *StepResult, dir string) {
 	mark := map[string]string{StatusPass: "✓", StatusFail: "✗", StatusPending: "·"}[sr.Status]
 	note := ""
 	if sr.Status == StatusPending {
@@ -143,7 +184,7 @@ func (r *Runner) printStep(sr *StepResult) {
 			fmt.Fprintf(r.Out, "      console error: %s\n", c)
 		}
 		if vr.Screenshot != "" {
-			fmt.Fprintf(r.Out, "      screenshot: %s\n", vr.Screenshot)
+			fmt.Fprintf(r.Out, "      screenshot: %s\n", filepath.Join(dir, vr.Screenshot))
 		}
 		if vr.Log != "" {
 			fmt.Fprintf(r.Out, "      log: %s\n", vr.Log)
@@ -186,19 +227,26 @@ func (r *Runner) runStep(b *Browser, bins *Binaries, s *Session, st *Step, vp Vi
 	defer cancel()
 	env := &stepEnv{sc: sc, page: pg, snaps: map[string]string{}, log: logf}
 
+	// shoot saves the page; screenshot: is relative to the run folder, so
+	// a moved run still finds it.
 	shoot := func() {
 		if s.Checks.Screenshots == "none" {
 			return
 		}
+		if !r.keepsShots(s) && vr.Status != StatusFail {
+			r.shotsSkipped = true
+			return
+		}
 		if png, err := pg.Screenshot(ctx, true); err == nil {
-			p := filepath.Join(dir, "shots", name+".png")
-			if os.WriteFile(p, png, 0o644) == nil {
-				vr.Screenshot = p
+			rel := filepath.Join("shots", name+".png")
+			if os.WriteFile(filepath.Join(dir, rel), png, 0o644) == nil {
+				vr.Screenshot = filepath.ToSlash(rel)
 			}
 		}
 	}
 	for _, a := range append(chain(s, st), st.act...) {
 		if err := env.do(ctx, a); err != nil {
+			vr.Status = StatusFail
 			shoot()
 			dumpTargets(ctx, pg, logf)
 			return fail("%s at %s:%d: %v", a.Kind, s.File, a.Line, err)

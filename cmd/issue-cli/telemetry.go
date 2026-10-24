@@ -75,6 +75,7 @@ func buildEvent(inv *invocation, rawArgs []string, runErr error, panicked bool) 
 		PID:      os.Getpid(),
 		PPID:     os.Getppid(),
 		ArgsHash: telemetry.HashArgs(rawArgs),
+		Ver:      Version,
 	}
 	switch {
 	case inv.cmd != nil:

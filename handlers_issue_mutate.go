@@ -96,7 +96,7 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 	case update.Body != nil && payload.BaseBodyHash != "":
 		bodyHash, err = tracker.UpdateIssueFrontmatterIfBody(found.FilePath, payload.BaseBodyHash, update)
 		if errors.Is(err, tracker.ErrStaleBody) {
-			writeTransitionError(w, errors.New("This issue changed since the page loaded (an agent, the CLI or another tab wrote it). Your change was not saved: reload to see the current version."))
+			writeTransitionError(w, errors.New(staleBodyMessage))
 			return
 		}
 		if err != nil {
@@ -123,6 +123,46 @@ func (s *Server) handleUpdateIssue(w http.ResponseWriter, r *http.Request, proj 
 		resp["body_hash"] = bodyHash
 	}
 	json.NewEncoder(w).Encode(resp)
+}
+
+// staleBodyMessage is the 409 text when a page's body is older than the file.
+const staleBodyMessage = "This issue changed since the page loaded (an agent, the CLI or another tab wrote it). Your change was not saved: reload to see the current version."
+
+// handleToggleCheckbox flips one task-list checkbox, named by its line in
+// the body (the data-line the renderer puts on each box), never by counting
+// `[ ]` in the raw markdown, which also matches code and prose. It is
+// refused when the body changed since the page loaded (409), when the box
+// is already in the asked state (409: the page showed something else) and
+// when the line holds no task-list box (400).
+func (s *Server) handleToggleCheckbox(w http.ResponseWriter, r *http.Request, proj *tracker.Project, prefix string) {
+	slug := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, prefix+"/issue/"), "/checkbox")
+	issue := s.findIssueBySlug(proj, slug)
+	if issue == nil {
+		http.NotFound(w, r)
+		return
+	}
+	var payload struct {
+		Line         int    `json:"line"`
+		Checked      bool   `json:"checked"`
+		BaseBodyHash string `json:"base_body_hash"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil || payload.Line < 1 || payload.BaseBodyHash == "" {
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": "line and base_body_hash required"})
+		return
+	}
+	body, err := tracker.ToggleIssueTaskBox(issue.FilePath, payload.BaseBodyHash, payload.Line, payload.Checked)
+	switch {
+	case errors.Is(err, tracker.ErrStaleBody):
+		writeJSONStatus(w, http.StatusConflict, map[string]string{"error": staleBodyMessage})
+	case errors.Is(err, tracker.ErrTaskBoxState):
+		writeJSONStatus(w, http.StatusConflict, map[string]string{"error": "This box was already in that state in the file. Reload to see the current version."})
+	case errors.Is(err, tracker.ErrNoTaskBox):
+		writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	case err != nil:
+		writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": "update failed: " + err.Error()})
+	default:
+		writeJSONStatus(w, http.StatusOK, map[string]string{"status": "ok", "body": body, "body_hash": tracker.BodyHash(body)})
+	}
 }
 
 func hasNonStatusUpdates(u tracker.IssueUpdate) bool {
@@ -367,6 +407,7 @@ func openEditorTerminal(proj *tracker.Project, session string) (string, error) {
 	if agentrun.TerminalNone(proj) {
 		return editorReachHint(proj, session), nil
 	}
+	name := session
 	if shared := sharedTmuxSession(proj); shared != "" {
 		exec.Command("tmux", "select-window", "-t", agentTmuxTarget(proj, session)).Run()
 		if agentrun.SessionAttached(shared) {
@@ -375,7 +416,7 @@ func openEditorTerminal(proj *tracker.Project, session string) (string, error) {
 		session = shared
 	}
 	if terminal != "" {
-		termCmd := strings.ReplaceAll(terminal, "{{session}}", session)
+		termCmd := agentrun.ExpandTerminal(proj, terminal, session, name, agentrun.RoleEditor)
 		if err := exec.Command("sh", "-c", termCmd).Run(); err != nil {
 			return "", fmt.Errorf("open terminal: %w", err)
 		}

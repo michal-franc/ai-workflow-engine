@@ -1,0 +1,65 @@
+session: health-lint
+issue: cli/every-issue-gets-created-create-and-the-new-issue-form-write-it-and-a-backfill-dates-the-old-ones
+title: Health view - the Lint section lists every warning with its fix; the Status Health card counts them
+scenario: lint
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: The Health view's Lint section lists the three warnings with where and fix, and names issue-cli health lint
+    proves: [AC12]
+    setup:
+      - open: /p/{project}/health
+    checks:
+      - visible: [health.lint, health.lint.count, health.lint.list, health.lint.cmd]
+      - absent: [health.lint.error, health.lint.more]
+      - text_equals: { target: health.lint.count, text: 3 WARNINGS }
+      - count: { pattern: health.lint.row, equals: 3 }
+      - text_contains: { target: health.lint.list, text: 'schema workflow.yaml:23 unknown key "colums" in board' }
+      - text_contains: { target: health.lint.list, text: 'did you mean "columns"?' }
+      - text_contains: { target: health.lint.list, text: "statuses[in design].prompt is not templated, so {{slug}} reaches the agent as written" }
+      - text_contains: { target: health.lint.list, text: "undated cli/voice-directions" }
+      - text_equals: { target: health.lint.cmd, text: issue-cli --project lintdemo health lint }
+      # The lint score component counts them: 3 warnings between good 0 and bad 20.
+      - text_contains: { target: health.components, text: "lint" }
+
+  - id: TP5
+    title: Dating the undated issue with set-meta drops it from the list on reload
+    proves: [AC5, AC12]
+    setup:
+      - open: /p/{project}/health
+    act:
+      - check: { text_equals: { target: health.lint.count, text: 3 WARNINGS } }
+      - cli: [set-meta, cli/voice-directions, --key, created, --value, "2026-09-02"]
+      - reload: true
+      - wait_for: { text_equals: { target: health.lint.count, text: 2 WARNINGS } }
+    checks:
+      - count: { pattern: health.lint.row, equals: 2 }
+
+  - id: TP6
+    title: The Status page's Health card and status.md carry the lint count from the snapshot
+    proves: [AC11]
+    setup:
+      - open: /p/{project}/status
+    act:
+      - wait_for: { visible: status.health.lint }
+    checks:
+      - text_equals: { target: status.health.lint, text: 3 lint warnings }
+      - http: { path: "/p/{project}/status.md", contains: "- Lint: 3 lint warnings · issue-cli --project lintdemo health lint\n" }
+
+  - id: TP7
+    title: The Lint section reads well on the Health view, in every theme and on a phone
+    setup:
+      - open: /p/{project}/health
+    do: Read the Lint section, then switch to the Dracula and light themes, and look at the phone width.
+    expect: |
+      "LINT · 3 WARNINGS" heads the section, between the scores and the
+      trends. Each warning is one numbered line: the check and where
+      (workflow.yaml:N) in mono, the message, then the fix in muted text.
+      The issue-cli --project lintdemo health lint line sits under the list.
+      Long lines wrap; nothing runs off the page.
+    why: How the list reads and where it sits need the owner's eye.

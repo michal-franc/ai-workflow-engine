@@ -22,11 +22,13 @@ Flags:
   --json   print {"prompt","slug","status","worktree","branch","session"}
            (same shape as GET /p/<project>/issue/<slug>/dispatch-prompt?format=json)
 
+To start the worker with it, run issue-cli dispatch <slug>.
+
 Uses:
   - review the briefing before dispatching
   - start an agent some other way (a subagent, another terminal)
-  - recover a session that came up without its prompt. Prefer the issue
-    viewer's Re-send prompt button (POST .../dispatch/reprompt); by hand:
+  - recover a session that came up without its prompt. Prefer
+    issue-cli dispatch <slug> --reprompt (the Re-send prompt button); by hand:
       issue-cli dispatch-prompt <slug> | tmux load-buffer -b reprompt -
       tmux paste-buffer -d -p -b reprompt -t <session> && tmux send-keys -t <session> Enter
 

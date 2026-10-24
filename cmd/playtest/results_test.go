@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,6 +15,10 @@ func TestDiffIgnoresPathsAndTimes(t *testing.T) {
 		Viewports: []*ViewportResult{{Viewport: "1440x900", Status: StatusPass, Screenshot: "/b.png", Log: "/b.log"}}}}}
 	if d := Diff(a, b); d != "" {
 		t.Errorf("runs that only differ in paths and times differ:\n%s", d)
+	}
+	a.Steps[0].DurationMS, b.Steps[0].DurationMS = 1200, 1350
+	if d := Diff(a, b); d != "" {
+		t.Errorf("runs that only differ in step times differ:\n%s", d)
 	}
 	a.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "http /x.json", Pass: true, Actual: `200 {"listed_at":"2026-10-21T12:47:43Z","start_time":"2026-10-21 12:47:43"} in /tmp/pt-1844542027/proj`}}
 	b.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "http /x.json", Pass: true, Actual: `200 {"listed_at":"2026-10-21T12:47:58Z","start_time":"2026-10-21 12:47:58"} in /tmp/pt-3864846610/proj`}}
@@ -29,6 +34,23 @@ func TestDiffIgnoresPathsAndTimes(t *testing.T) {
 	b.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "http /x.json", Pass: true, Actual: `200 {"dir":"/tmp/pt-3864846610/tmux","ne…`}}
 	if d := Diff(a, b); d != "" {
 		t.Errorf("one body cut at different points after masking differs:\n%s", d)
+	}
+	a.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "cli dispatch", Pass: true, Actual: `A human approves at: http://127.0.0.1:36755/p/crew/issue/x`}}
+	b.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "cli dispatch", Pass: true, Actual: `A human approves at: http://127.0.0.1:45875/p/crew/issue/x`}}
+	if d := Diff(a, b); d != "" {
+		t.Errorf("runs that only differ in the board's port differ:\n%s", d)
+	}
+	// "exit 0: {" makes YAML quote the value, so the cut ends in …'
+	a.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "cli status --json", Pass: true, Actual: `exit 0: {"as_of":"2026-10-23T15:41:12.1+02:00","slug":"ui/child"…`}}
+	b.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "cli status --json", Pass: true, Actual: `exit 0: {"as_of":"2026-10-23T15:41:12.123+02:00","slug":"ui/chi…`}}
+	if d := Diff(a, b); d != "" {
+		t.Errorf("one quoted body cut at different points after masking differs:\n%s", d)
+	}
+	// A newline makes YAML double-quote the value.
+	a.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "cli show", Pass: true, Actual: "exit 0: == Child ==\nTimeline: http://127.0.0.1:36755/p/crew\nBrief: none. The Issue ta…"}}
+	b.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "cli show", Pass: true, Actual: "exit 0: == Child ==\nTimeline: http://127.0.0.1:45875/p/crew\nBrief: none. The Issue …"}}
+	if d := Diff(a, b); d != "" {
+		t.Errorf("one double-quoted body cut at different points after masking differs:\n%s", d)
 	}
 	b.Steps[0].Viewports[0].Checks = []CheckResult{{Check: "visible x", Pass: false, Actual: "hidden"}}
 	if d := Diff(a, b); !strings.Contains(d, "run 2:") {
@@ -134,5 +156,32 @@ steps:
 		if !strings.Contains(missing, want) {
 			t.Errorf("missing %q in:\n%s", want, missing)
 		}
+	}
+}
+
+func TestOwnIssueFromFlagOrWorkBranch(t *testing.T) {
+	if got := OwnIssue(t.TempDir(), "ui/flag"); got != "ui/flag" {
+		t.Errorf("flag: %q", got)
+	}
+	if got := OwnIssue(t.TempDir(), ""); got != "" {
+		t.Errorf("not a repo: %q", got)
+	}
+	repo := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	run("init", "-q", "-b", "main")
+	run("commit", "-q", "--allow-empty", "-m", "x")
+	if got := OwnIssue(repo, ""); got != "" {
+		t.Errorf("main: %q", got)
+	}
+	run("checkout", "-q", "-b", "work/ui/evidence-tab")
+	if got := OwnIssue(repo, ""); got != "ui/evidence-tab" {
+		t.Errorf("work branch: %q", got)
 	}
 }

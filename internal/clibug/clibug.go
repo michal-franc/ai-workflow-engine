@@ -151,6 +151,11 @@ type Result struct {
 	File    string `json:"file"`
 	// Reports counts the reports on the issue, this one included.
 	Reports int `json:"reports"`
+	// FoundIn is the release candidate build the report came from ("" for
+	// any other build); Milestone the version: it put the issue in ("" when
+	// the issue already had one).
+	Milestone string `json:"milestone,omitempty"`
+	FoundIn   string `json:"found_in,omitempty"`
 }
 
 // Sender delivers a report somewhere it gets triaged: the local engine board

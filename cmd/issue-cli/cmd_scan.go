@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/michal-franc/issue-viewer/internal/workflowupgrade"
 )
 
 const scanUsage = `Usage:
@@ -31,13 +33,13 @@ func runWorkflowScan(ctx *Context, args []string) error {
 	}
 	path := projectWorkflowFile(ctx.Project)
 	if path == "" {
-		return fmt.Errorf("no workflow.yaml found: this project runs on the built-in default workflow\n\nCreate one from a bundled template:\n  issue-cli workflow init --template <%s>", strings.Join(availableWorkflowTemplates(), "|"))
+		return fmt.Errorf("no workflow.yaml found: this project runs on the built-in default workflow\n\nCreate one from a bundled template:\n  issue-cli workflow init --template <%s>", strings.Join(workflowupgrade.Templates(), "|"))
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", path, err)
 	}
-	res, err := scanWorkflowFeatures(path, raw, scanOptions{
+	res, err := workflowupgrade.Scan(path, raw, workflowupgrade.ScanOptions{
 		Installed: splitIDList(*installed),
 		Declined:  splitIDList(*declined),
 		Forget:    splitIDList(*forget),
@@ -47,7 +49,7 @@ func runWorkflowScan(ctx *Context, args []string) error {
 	}
 	res.DryRun = *dryRun
 	if !res.DryRun && (len(res.Changes) > 0 || !res.HadRecord) {
-		out, err := writeFeatureRecord(raw, res.Record)
+		out, err := workflowupgrade.WriteRecord(raw, res.Record)
 		if err != nil {
 			return err
 		}
@@ -67,7 +69,7 @@ func runWorkflowScan(ctx *Context, args []string) error {
 	return nil
 }
 
-func printScanResult(w io.Writer, res *scanResult) {
+func printScanResult(w io.Writer, res *workflowupgrade.ScanResult) {
 	fmt.Fprintln(w, "== Workflow scan ==")
 	fmt.Fprintf(w, "File:   %s\n", res.WorkflowFile)
 	if res.HadRecord {
@@ -130,4 +132,15 @@ func printScanResult(w io.Writer, res *scanResult) {
 	if res.DryRun {
 		fmt.Fprintln(w, "\nRun without --dry-run to write it. Only the features: block is changed.")
 	}
+}
+
+// splitIDList parses a comma/space separated --installed/--declined value.
+func splitIDList(s string) []string {
+	var out []string
+	for _, f := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' }) {
+		if f = strings.TrimSpace(f); f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
 }

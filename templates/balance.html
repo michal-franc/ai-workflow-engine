@@ -161,6 +161,7 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ agent: 'claude' })
             }).then(function(res) {
+                if (res.status === 409) return res.json().then(function(d) { throw new Error('waiting on your approval for ' + d.gate + ' (approve it on the issue, or dispatch anyway from there)'); });
                 if (!res.ok) return res.text().then(function(t) { throw new Error(t.trim() || res.statusText); });
                 return res.json();
             }).then(function(data) {

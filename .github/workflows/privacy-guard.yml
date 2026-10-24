@@ -1,0 +1,57 @@
+name: Privacy Guard
+
+# The other half of the pre-push guard (issue-cli privacy pre-push), for what
+# never passes through a hook: a PR opened on GitHub, by a cloud session or
+# another machine. It reads privacy: in workflow.yaml (docs/workflow.md,
+# Private work and code):
+#   - work_files: tracker: a PR that touches a work path fails;
+#   - code: snapshots: on the public repo every PR fails, because the public
+#     repo gets release snapshots only; PRs go to the private dev repo.
+# A private repo is the dev repo: work-path PRs still fail there, PRs don't.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  privacy-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Check the PR against privacy
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PRIVATE_REPO: ${{ github.event.repository.private }}
+        run: |
+          set -euo pipefail
+          [ -f workflow.yaml ] || { echo "No workflow.yaml: nothing to check."; exit 0; }
+          eval "$(python3 - <<'PY'
+          import yaml
+          doc = yaml.safe_load(open("workflow.yaml")) or {}
+          p = doc.get("privacy") or {}
+          paths = p.get("work_paths") or ["issues", "sessions", "retros", "bugs", ".health/snapshots"]
+          print("WORK_FILES=%s" % (p.get("work_files") or ""))
+          print("CODE=%s" % (p.get("code") or ""))
+          print("WORK_PATHS='%s'" % " ".join(x.strip("/") for x in paths))
+          PY
+          )"
+          if [ "$CODE" = "snapshots" ] && [ "$PRIVATE_REPO" != "true" ]; then
+            echo "::error::This repo publishes release snapshots only (privacy.code: snapshots): open the PR on the private dev repo instead. A PR here is public for good."
+            exit 1
+          fi
+          if [ "$WORK_FILES" = "tracker" ]; then
+            touched="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- $WORK_PATHS)"
+            if [ -n "$touched" ]; then
+              echo "::error::This PR touches work files, which live in the private tracker repo (privacy.work_files: tracker):"
+              echo "$touched" | head -20
+              exit 1
+            fi
+          fi
+          echo "Privacy guard: ok."

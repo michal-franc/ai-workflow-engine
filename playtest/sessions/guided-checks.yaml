@@ -1,0 +1,46 @@
+session: guided-checks
+issue: workflow/guided-check-scripts-as-a-workflow-feature-scriptschecksname-sh-walk-the-owner-through-manual-checks
+title: An issue with a guided check script offers ▶ Run checks on its page and the Status page
+scenario: checks
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: The band offers ▶ Run checks, and the click starts window check-script-<slug>
+    setup:
+      - open: /p/{project}/issue/cli/checks-due
+    act:
+      - check: { text_contains: { target: detail.needs, text: "Run the guided checks: 1 script." } }
+      - check: { text_contains: { target: detail.needs, text: "tmux window check-script-cli-checks-due" } }
+      - check: { text_contains: { target: detail.needs.command, text: "issue-cli --project ck check-script cli/checks-due" } }
+      - check: { visible: [detail.needs.run_checks, detail.needs.copy] }
+      - click: detail.needs.run_checks
+      - wait_for: { text_contains: { target: detail.toast, text: "Started check-script-cli-checks-due" } }
+      - open: /p/{project}/issue/cli/checks-done
+    checks:
+      - absent: detail.needs.run_checks
+    targets:
+      - { id: detail.needs, note: Needs you with ▶ Run checks }
+    do: |
+      1. On Checks due, read the band.
+      2. Press ▶ Run checks. The scenario is headless, so the toast names
+         the window and how to reach it instead of opening a terminal.
+    expect: |
+      The band says a script walks you through the checks, names the tmux
+      window, and ▶ Run checks reads as the one action; Copy command is the
+      fallback. The toast says the window started.
+    why: ux-test sees the button and the toast; only you can say the band reads as one clear ask.
+
+  - id: TP5
+    title: The Status page lists the issue under Checks
+    setup:
+      - open: /p/{project}/status
+      - click: status.waiting.pop
+    checks:
+      - visible: status.waiting.checks.cli/checks-due
+      - text_contains: { target: status.waiting.checks.cli/checks-due, text: "script checks-due · no run by you" }
+      - absent: status.waiting.checks.cli/checks-done

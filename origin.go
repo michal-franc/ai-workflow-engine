@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
 // defaultHost keeps the viewer on loopback: its POST endpoints start agents
@@ -69,6 +71,17 @@ var interfaceAddrs = net.InterfaceAddrs
 // loopbackHosts are always valid Host names; the *.localhost names resolve
 // to loopback by RFC 6761, so a rebinding DNS answer cannot claim them.
 var loopbackHosts = []string{"localhost", "127.0.0.1", "[::1]", "*.localhost"}
+
+// configHosts are the Host names projects.yaml allows: allowed_hosts, plus
+// viewer_url's host, since every link the viewer and issue-cli print points
+// there.
+func configHosts(cfg *tracker.ProjectsConfig) []string {
+	hosts := append([]string(nil), cfg.AllowedHosts...)
+	if u, err := url.Parse(cfg.ViewerURL); err == nil && u.Host != "" {
+		hosts = append(hosts, u.Host)
+	}
+	return hosts
+}
 
 // allowedHostsFor is the Host allowlist past loopback: projects.yaml's
 // allowed_hosts, plus the bind address when -host leaves loopback (every

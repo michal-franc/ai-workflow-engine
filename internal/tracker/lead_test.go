@@ -141,13 +141,14 @@ func TestBuildDispatchPrompt_ChildOfEpic(t *testing.T) {
 	for _, want := range []string{
 		"You report to the project lead lead-p (live). Your issue is part of epic ui/epic.",
 		"`issue-cli --project p comment ui/child \"question: ...\"`",
-		"(lead-<project>, agent-<slug>)",
+		"Don't message lead-p or any other agent (SendMessage) unless the human, in your chat, gives you permission or asks you to.",
+		"Your address is agent-ui-child",
 	} {
 		if !strings.Contains(dp.Prompt, want) {
 			t.Errorf("prompt missing %q", want)
 		}
 	}
-	for _, gone := range []string{"sub-lead", "## Base branch", "base/ui/epic"} {
+	for _, gone := range []string{"sub-lead", "## Base branch", "base/ui/epic", "you can also message", "message your lead"} {
 		if strings.Contains(dp.Prompt, gone) {
 			t.Errorf("prompt still mentions %q", gone)
 		}

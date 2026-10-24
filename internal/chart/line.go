@@ -39,6 +39,9 @@ type Line struct {
 	LimitLabel string
 	MarkerAt   time.Time
 	MarkerText string
+	// Top and Step fix the value axis (a 0–100 score: 100 and 25); 0 picks
+	// them from the data.
+	Top, Step float64
 	// Selected rings the point at this time in the series with this name.
 	SelectedAt     time.Time
 	SelectedSeries string
@@ -91,17 +94,21 @@ func (l Line) SVG() template.HTML {
 		}
 	}
 	top, step := niceMax(l.Unit, max, lineTicks)
+	if l.Top > 0 && l.Step > 0 && max <= l.Top {
+		top, step = l.Top, l.Step
+	}
 	y := func(v float64) float64 { return plotB - v/top*(plotB-plotT) }
+	ticks := int(top/step + 0.5)
 
 	var b strings.Builder
 	b.WriteString(`<svg class="chart chart-line" viewBox="0 0 560 200" role="img" aria-label="` + esc(l.Label) + `">`)
 	b.WriteString(`<g class="chart-grid">`)
-	for i := 0; i <= lineTicks; i++ {
+	for i := 0; i <= ticks; i++ {
 		v := step * float64(i)
 		b.WriteString(`<line x1="` + f(plotL) + `" y1="` + f(y(v)) + `" x2="` + f(plotR) + `" y2="` + f(y(v)) + `"></line>`)
 	}
 	b.WriteString(`</g>`)
-	for i := 0; i <= lineTicks; i++ {
+	for i := 0; i <= ticks; i++ {
 		v := step * float64(i)
 		label := Format(l.Unit, v)
 		if v == 0 {

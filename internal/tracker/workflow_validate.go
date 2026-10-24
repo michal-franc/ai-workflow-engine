@@ -119,6 +119,10 @@ func validationSummary(rule string) string {
 			return "Validate section has checkboxes (existence only — contents verified later)"
 		}
 		return fmt.Sprintf("Validate section %s has checkboxes (existence only — contents verified later)", arg)
+	case "criteria_checkboxes":
+		return fmt.Sprintf("Validate every item in section %s is a checkbox with its own text", arg)
+	case "criteria_proven":
+		return "Validate every acceptance criterion has a proof link that passes its check (issue-cli prove <slug> --list)"
 	case "has_assignee":
 		return "Validate issue has assignee"
 	case "all_checkboxes_checked":
@@ -172,6 +176,10 @@ func (w *WorkflowConfig) checkRule(rule string, issue *Issue, comments []Comment
 		if total == 0 {
 			return fmt.Errorf("no checkboxes found in section %q — add explicit checklist items there", ruleArg)
 		}
+	case "criteria_checkboxes":
+		return w.checkCriteriaCheckboxes(ruleArg, issue)
+	case criteriaProvenRule:
+		return w.checkCriteriaProven(ruleArg, issue, comments)
 	case "has_assignee":
 		if issue.Assignee == "" {
 			return fmt.Errorf("no assignee — claim the issue first:\n\n  issue-cli claim %s --assignee \"your-name\"", issue.Slug)

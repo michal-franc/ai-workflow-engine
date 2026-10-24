@@ -1,0 +1,32 @@
+session: evidence-game-runs
+issue: ui/evidence-and-timeline-drop-game-playtest-runs-dates-without-a-timezone-and-the-games-results-schema
+title: A game runner's playtest runs show on the Evidence tab
+scenario: evidence-tab
+
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP2
+    title: Runs in the game's schema show their shots, by session, with no step linked to a criterion
+    judgement_step: true
+    setup:
+      - open: /p/{project}/issue/ui/evidence-game?tab=evidence
+      - wait_for: evidence.tab
+    checks:
+      - visible: [evidence.shots, evidence.shot.mv7, evidence.shot.mv4, evidence.playtest]
+      - count: { pattern: evidence.shot.*, equals: 2 }
+      - text_contains: { target: evidence.shots, text: "each session's latest ux-test run; no step proves a criterion yet" }
+      - text_contains: { target: evidence.shot.mv7, text: "judged pass" }
+      - text_contains: { target: evidence.shot.mv4, text: "passed" }
+      - text_contains: { target: evidence.playtest.step.mv7, text: "pass" }
+      - http: { path: "/p/{project}/files/.playtest/runs/game-heat/20261001-150000-ux-test/MV7@1920x1080.png", status: 200 }
+      - absent: [evidence.shots.empty, evidence.shots.other]
+    targets:
+      - { id: evidence.shots, note: Each session's latest ux-test shots }
+      - { id: evidence.playtest, note: Each step's machine result and your verdict }
+    expect: The Shots card shows two pictures, MV7 (game-heat, judged pass) and MV4 (game-ammo, passed); nothing says "No playtest run".
+    do: Look at the Shots and Playtest cards, then click a shot to open it full size.
+    why: Game projects (RogueTech) write their own results.yaml; before this fix every run was dropped on its date and the tab said no playtest had run.

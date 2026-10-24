@@ -61,6 +61,7 @@ func runShow(ctx *Context, args []string) error {
 	printDepLines(ctx, issue, issues)
 	// Where the issue's time went, to hand the owner a link.
 	fmt.Fprintf(ctx.Stdout, "Timeline: %s?tab=timeline\n", issueURL(ctx.Project, issue.Slug))
+	fmt.Fprintf(ctx.Stdout, "Evidence: %s?tab=evidence\n", issueURL(ctx.Project, issue.Slug))
 	// The sentence the owner reads first on the Issue tab.
 	if brief := tracker.Brief(issue.BodyRaw); brief != "" {
 		fmt.Fprintf(ctx.Stdout, "Brief: %s\n", brief)
@@ -95,6 +96,7 @@ func runShow(ctx *Context, args []string) error {
 		}
 		fmt.Fprintln(ctx.Stdout)
 	}
+	printCheckScriptHint(ctx.Stdout, ctx.Project, wf, issue)
 
 	comments, _ := tracker.LoadComments(issue.FilePath)
 	if len(comments) > 0 {

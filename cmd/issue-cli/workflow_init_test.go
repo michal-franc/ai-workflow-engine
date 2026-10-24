@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
+	"github.com/michal-franc/issue-viewer/internal/workflowupgrade"
 )
 
 // chdir switches to dir and registers a cleanup that restores the original CWD.
@@ -24,7 +25,7 @@ func chdir(t *testing.T, dir string) {
 }
 
 func TestAvailableWorkflowTemplatesIncludesAllThree(t *testing.T) {
-	got := availableWorkflowTemplates()
+	got := workflowupgrade.Templates()
 	want := map[string]bool{"development": false, "review": false, "writing": false}
 	for _, name := range got {
 		if _, ok := want[name]; ok {
@@ -33,15 +34,15 @@ func TestAvailableWorkflowTemplatesIncludesAllThree(t *testing.T) {
 	}
 	for name, seen := range want {
 		if !seen {
-			t.Errorf("missing template %q in availableWorkflowTemplates() = %v", name, got)
+			t.Errorf("missing template %q in workflowupgrade.Templates() = %v", name, got)
 		}
 	}
 }
 
 func TestBundledTemplatesParseAsWorkflowConfig(t *testing.T) {
-	for _, name := range availableWorkflowTemplates() {
+	for _, name := range workflowupgrade.Templates() {
 		t.Run(name, func(t *testing.T) {
-			data, err := readWorkflowTemplate(name)
+			data, err := workflowupgrade.ReadTemplate(name)
 			if err != nil {
 				t.Fatalf("read template %q: %v", name, err)
 			}
@@ -181,7 +182,7 @@ func TestDoWorkflowInitInteractiveSelectionByNumber(t *testing.T) {
 	dir := t.TempDir()
 	chdir(t, dir)
 
-	templates := availableWorkflowTemplates()
+	templates := workflowupgrade.Templates()
 	if len(templates) == 0 {
 		t.Skip("no templates bundled")
 	}
@@ -255,5 +256,51 @@ func TestDoWorkflowInitProducesProjectThatLoadProjectAccepts(t *testing.T) {
 	}
 	if _, err := tracker.LoadWorkflow("workflow.yaml"); err != nil {
 		t.Fatalf("written workflow.yaml does not load: %v", err)
+	}
+}
+
+func TestDoWorkflowInitAsksWhetherTheWorkFilesArePrivate(t *testing.T) {
+	dir := t.TempDir()
+	chdir(t, dir)
+	var out bytes.Buffer
+	if err := doWorkflowInit("development", false, strings.NewReader("1\n1\nkeep the quotes private\n"), &out, true); err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, out.String(), "Work files (issues, sessions, retros, attachments): private or public?")
+	assertContains(t, out.String(), "✓ Recorded privacy.work_files: tracker in workflow.yaml")
+	assertContains(t, out.String(), "issue-cli tracker init --remote <its url>")
+	assertContains(t, out.String(), "Development: private, with only releases published, or in the public repo?")
+	assertContains(t, out.String(), "✓ Recorded privacy.code: snapshots in workflow.yaml")
+	assertContains(t, out.String(), "issue-cli release setup --dev <its url>")
+	wf, err := tracker.LoadWorkflow(filepath.Join(dir, "workflow.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wf.Privacy == nil || wf.Privacy.WorkFiles != "tracker" || wf.Privacy.Code != "snapshots" || !strings.HasSuffix(wf.Privacy.Decided, `owner: "keep the quotes private"`) {
+		t.Errorf("privacy = %+v", wf.Privacy)
+	}
+	if lint := wf.Privacy.Validate(); len(lint) != 0 {
+		t.Errorf("init wrote a privacy block with warnings: %v", lint)
+	}
+}
+
+func TestDoWorkflowInitDecidesNothingWithoutAnAnswer(t *testing.T) {
+	for name, tc := range map[string]struct {
+		in  string
+		tty bool
+	}{"no terminal": {"", false}, "Enter": {"\n", true}} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			chdir(t, dir)
+			var out bytes.Buffer
+			if err := doWorkflowInit("development", false, strings.NewReader(tc.in), &out, tc.tty); err != nil {
+				t.Fatal(err)
+			}
+			assertContains(t, out.String(), privacyUndecided)
+			wf, _ := tracker.LoadWorkflow(filepath.Join(dir, "workflow.yaml"))
+			if wf.Privacy != nil {
+				t.Errorf("privacy written without an answer: %+v", wf.Privacy)
+			}
+		})
 	}
 }

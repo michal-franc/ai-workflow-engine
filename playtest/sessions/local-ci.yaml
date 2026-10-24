@@ -38,6 +38,8 @@ steps:
       - tmux: [new-session, -d, -s, land, -c, "{dir}", "git merge -q --ff-only work/ui/route-planner-panel"]
       - wait_for: { http: { path: "/p/{project}/status.md", contains: "- Local CI: main red since" }, ms: 30000 }
       - reload: true
+      # Needs you is a tile that opens over the page.
+      - click: status.waiting.pop
     checks:
       - count: { pattern: status.ci.run.*, min: 2 }
       - text_equals: { target: status.ci.state, text: red }
@@ -45,6 +47,7 @@ steps:
       - text_contains: { target: status.ci.failed, text: "TestRoutePlanner" }
       - text_contains: { target: status.ci.blamed, text: "Route planner panel" }
       - visible: [status.ci.log, status.waiting.ci]
+      - text_equals: { target: status.waiting.pop.summary, text: "local CI red" }
       - text_equals: { target: status.waiting.count, text: "1" }
       - text_equals: { target: nav.tab.status.count, text: "1" }
       - issue: { slug: ui/route-planner-panel, comment_contains: "ci: local CI red on main" }

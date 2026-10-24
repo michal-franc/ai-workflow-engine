@@ -80,6 +80,9 @@ func TestStartAgentSession_TypingDuringDispatchCannotChangeTheStartCommand(t *te
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			out := installFakeAgents(t)
+			// Unset before the first tmux call: its server keeps the env.
+			t.Setenv("ISSUE_VIEWER_URL", "")
+			os.Unsetenv("ISSUE_VIEWER_URL")
 			isolateTmux(t)
 			withPromptDeliveryTimeout(t, 5*time.Second)
 			original := agentrun.SessionAttached
@@ -96,7 +99,7 @@ func TestStartAgentSession_TypingDuringDispatchCannotChangeTheStartCommand(t *te
 
 			session := "agent-x"
 			prompt := "You have been assigned this issue: x\n\nit's \"quoted\" and costs $HOME\nlast line of the briefing\n"
-			resp := startAgentSession(proj, session, prompt, "x", tc.agent, "http://viewer.test", nil)
+			resp := startAgentSession(proj, session, prompt, "x", tc.agent, nil)
 			if resp.Status != "dispatched" {
 				t.Fatalf("Status = %q; steps=%+v", resp.Status, resp.Steps)
 			}
@@ -116,7 +119,6 @@ func TestStartAgentSession_TypingDuringDispatchCannotChangeTheStartCommand(t *te
 			for _, want := range []string{
 				"ISSUE_CLI_LOG=" + filepath.Join(logDir, session+".clilog"),
 				"ISSUE_VIEWER_ISSUE_SLUG=x",
-				"ISSUE_VIEWER_URL=http://viewer.test",
 				"ISSUE_VIEWER_PROJECT=test",
 				"ISSUE_VIEWER_SERVER_PWD=",
 			} {
@@ -125,6 +127,11 @@ func TestStartAgentSession_TypingDuringDispatchCannotChangeTheStartCommand(t *te
 				}
 			}
 
+			// The viewer's address comes from projects.yaml / viewer.json,
+			// never from the environment (the test's own env has none).
+			if strings.Contains(env, "ISSUE_VIEWER_URL=") {
+				t.Errorf("agent env sets ISSUE_VIEWER_URL:\n%s", env)
+			}
 			for _, step := range resp.Steps {
 				if strings.HasPrefix(step.Name, "Select window") {
 					t.Errorf("dispatch selected the agent's window: %+v", step)
@@ -171,7 +178,7 @@ func TestStartAgentSession_CtrlCOnTheAgentKeepsTheWindow(t *testing.T) {
 		t.Fatal(err)
 	}
 	proj := &tracker.Project{Slug: "test", Terminal: "none", TmuxSession: "work", WorkDir: t.TempDir()}
-	if resp := startAgentSession(proj, "agent-x", "prompt\n", "x", "claude", "", nil); resp.Status != "dispatched" {
+	if resp := startAgentSession(proj, "agent-x", "prompt\n", "x", "claude", nil); resp.Status != "dispatched" {
 		t.Fatalf("Status = %q; steps=%+v", resp.Status, resp.Steps)
 	}
 	waitForFile(t, out+".args")

@@ -66,6 +66,9 @@ type Config struct {
 	AllowShell bool
 	IssuesRoot string
 	Lookup     LookupFunc
+	// Children lists an epic's children (issues naming it in parent:). Used by
+	// children_closed; the tracker injects it from its issue store.
+	Children func(slug string) []*IssueView
 }
 
 // CheckFn is the signature each validator implements.

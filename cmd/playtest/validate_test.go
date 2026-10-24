@@ -117,7 +117,7 @@ steps:
 	s, _ := LoadSession(p)
 	v := &Validator{
 		ScenarioDir: filepath.Join(repoDir(t), "playtest", "scenarios"),
-		Checklist:   func(string) (map[string]bool, bool) { return map[string]bool{"TP2": true}, true },
+		Checklist:   func(string) (map[string]string, bool) { return map[string]string{"TP2": "Test Plan"}, true },
 	}
 	errs := v.Validate(s)
 	if len(errs) != 1 {
@@ -127,13 +127,52 @@ steps:
 		t.Errorf("got %v", errs[1])
 	}
 
-	v.Checklist = func(string) (map[string]bool, bool) { return nil, false }
+	v.Checklist = func(string) (map[string]string, bool) { return nil, false }
 	v.Notes = nil
 	if errs := v.Validate(s); len(errs) != 0 {
 		t.Errorf("an unresolvable issue should only check shape, got %v", errs)
 	}
 	if len(v.Notes) != 1 {
 		t.Errorf("want a note about the unresolvable issue, got %v", v.Notes)
+	}
+}
+
+func TestValidateProvesNamesCriteria(t *testing.T) {
+	p := writeSession(t, `session: bad
+issue: some/issue
+scenario: basic
+steps:
+  - id: TP2
+    title: real box
+    proves: [AC1, TP2, AC5, "first one"]
+    checks: [{ visible: board.search }]
+`)
+	s, _ := LoadSession(p)
+	if strings.Join(s.Steps[0].Proves, ",") != "AC1,TP2,AC5,first one" {
+		t.Fatalf("proves = %v", s.Steps[0].Proves)
+	}
+	v := &Validator{
+		ScenarioDir: filepath.Join(repoDir(t), "playtest", "scenarios"),
+		Checklist: func(string) (map[string]string, bool) {
+			return map[string]string{"TP2": "Test Plan", "AC1": "Acceptance Criteria"}, true
+		},
+	}
+	var text []string
+	for _, e := range v.Validate(s) {
+		text = append(text, e.Error())
+	}
+	all := strings.Join(text, "\n")
+	for _, want := range []string{
+		`step TP2 proves "TP2", which is not an acceptance criterion of some/issue`,
+		`step TP2 proves "AC5", which is not an acceptance criterion of some/issue`,
+		`step TP2 proves "first one", which is not a criterion id`,
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %q in:\n%s", want, all)
+		}
+	}
+	if len(text) != 3 {
+		t.Errorf("want 3 errors (AC1 is fine), got:\n%s", all)
 	}
 }
 

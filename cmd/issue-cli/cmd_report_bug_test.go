@@ -110,6 +110,9 @@ func TestReportBugCreatesCliBugIssue(t *testing.T) {
 	if !hasLabel(issue, "cli-bug") {
 		t.Errorf("labels = %v, want cli-bug", issue.Labels)
 	}
+	if issue.Created != time.Now().Format("2006-01-02") {
+		t.Errorf("created = %q, want today", issue.Created)
+	}
 	fields := map[string]string{}
 	for _, ef := range issue.ExtraFields {
 		fields[ef.Key] = ef.Value
@@ -348,5 +351,91 @@ func TestReportBugRunsWithoutProject(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "cli/no-project-given") {
 		t.Fatalf("output:\n%s", out.String())
+	}
+}
+
+// withVersion builds the binary as v for one test.
+func withVersion(t *testing.T, v string) {
+	t.Helper()
+	orig := Version
+	Version = v
+	t.Cleanup(func() { Version = orig })
+}
+
+func TestReportBugFromReleaseCandidateJoinsTheMilestone(t *testing.T) {
+	f := newReportBugFixture(t, "", engineEntry)
+	// The engine board already labels the milestone "0.54".
+	os.WriteFile(filepath.Join(f.engineDir, "planned.md"), []byte("---\ntitle: \"Planned\"\nstatus: \"backlog\"\nversion: \"0.54\"\n---\nbody\n"), 0644)
+	os.WriteFile(filepath.Join(f.engineDir, "later.md"), []byte("---\ntitle: \"Later bug\"\nstatus: \"idea\"\nversion: \"0.55\"\nlabels:\n  - cli-bug\n---\nbody\n"), 0644)
+	withVersion(t, "v0.54.0-rc.2")
+
+	out := f.run(t, false, "Status card loses the candidate row after a restart")
+	issue := tracker.FindIssue(f.cliBugs(t), "cli/status-card-loses-the-candidate-row-after-a-restart")
+	if issue == nil {
+		t.Fatalf("no new cli-bug issue:\n%s", out)
+	}
+	if issue.Version != "0.54" {
+		t.Errorf("version = %q, want 0.54 (the label the board uses for v0.54.0)", issue.Version)
+	}
+	if !strings.Contains(issue.BodyRaw, "- issue-cli: v0.54.0-rc.2 ") {
+		t.Errorf("body does not record the candidate:\n%s", issue.BodyRaw)
+	}
+	if !strings.Contains(out, "Added to milestone 0.54 (found in release candidate v0.54.0-rc.2): the release waits for its fix") {
+		t.Errorf("output does not say where it went:\n%s", out)
+	}
+
+	// A report on an open bug that already has a version leaves it there.
+	out = f.run(t, false, "Later bug")
+	if got := tracker.FindIssue(f.cliBugs(t), "later-bug"); got == nil || got.Version != "0.55" {
+		t.Fatalf("later bug moved: %+v", got)
+	}
+	if !strings.Contains(out, "Filed against release candidate v0.54.0-rc.2; the issue already has a version, so it stays there") {
+		t.Errorf("output:\n%s", out)
+	}
+}
+
+func TestReportBugCommentFromCandidateSetsAMissingVersion(t *testing.T) {
+	f := newReportBugFixture(t, "", engineEntry)
+	f.run(t, false, "Check ticks the wrong box when ids repeat")
+	withVersion(t, "v0.54.0-rc.1-3-gabc1234")
+	out := f.run(t, true, "Check ticks the wrong box when ids repeat")
+	issues := f.cliBugs(t)
+	if len(issues) != 1 || issues[0].Version != "0.54" {
+		t.Fatalf("issues = %+v, want one with version 0.54", issues)
+	}
+	var got map[string]interface{}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["result"] != "commented" || got["milestone"] != "0.54" || got["found_in"] != "v0.54.0-rc.1-3-gabc1234" {
+		t.Fatalf("json = %s", out)
+	}
+}
+
+func TestReportBugFromReleaseLeavesVersionAlone(t *testing.T) {
+	f := newReportBugFixture(t, "", engineEntry)
+	withVersion(t, "v0.54.0")
+	out := f.run(t, false, "Something broke")
+	issues := f.cliBugs(t)
+	if len(issues) != 1 || issues[0].Version != "" || strings.Contains(out, "milestone") || strings.Contains(out, "candidate") {
+		t.Fatalf("a release build's report should not pick a milestone: %+v\n%s", issues, out)
+	}
+}
+
+func TestVersionNamesReleaseCandidate(t *testing.T) {
+	for v, want := range map[string]string{
+		"dev":                     "issue-cli dev\n",
+		"v0.54.0":                 "issue-cli v0.54.0\n",
+		"v0.54.0-rc.1":            "issue-cli v0.54.0-rc.1 (release candidate for v0.54.0: report problems with issue-cli report-bug \"…\")\n",
+		"v0.54.0-rc.1-2-gabc1234": "issue-cli v0.54.0-rc.1-2-gabc1234 (a build past release candidate v0.54.0-rc.1: report problems with issue-cli report-bug \"…\")\n",
+	} {
+		withVersion(t, v)
+		ctx, stdout, _ := newTestContext(nil, false)
+		if err := runVersion(ctx, nil); err != nil {
+			t.Fatal(err)
+		}
+		if stdout.String() != want {
+			t.Errorf("version %s: got %q, want %q", v, stdout.String(), want)
+		}
 	}
 }

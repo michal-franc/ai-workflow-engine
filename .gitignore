@@ -35,3 +35,9 @@ projects-*.yaml
 
 # Playtest runs: results, logs, screenshots, built binaries
 /.playtest/
+
+# Lead handoff notes: private, like /issues/ (owner 2026-10-24)
+/sessions/
+
+# Work files live in the private tracker repo (issue-cli tracker init)
+/.health/snapshots/

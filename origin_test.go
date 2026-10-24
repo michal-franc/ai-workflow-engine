@@ -4,6 +4,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -233,5 +234,19 @@ func TestHostGuard_WildcardBindAcceptsInterfaceAddresses(t *testing.T) {
 		for _, host := range tc.deny {
 			check(host, http.StatusMisdirectedRequest)
 		}
+	}
+}
+
+// viewer_url's host is allowed with allowed_hosts: the links point there.
+func TestConfigHosts_IncludesViewerURLHost(t *testing.T) {
+	got := configHosts(&tracker.ProjectsConfig{AllowedHosts: []string{"box.lan"}, ViewerURL: "https://issues.example.com:9000/viewer"})
+	if want := []string{"box.lan", "issues.example.com:9000"}; !slices.Equal(got, want) {
+		t.Fatalf("configHosts = %q, want %q", got, want)
+	}
+	if hosts := allowedHostsFor("127.0.0.1", got); !slices.Contains(hosts, "issues.example.com") {
+		t.Fatalf("allowedHostsFor = %q, want issues.example.com", hosts)
+	}
+	if got := configHosts(&tracker.ProjectsConfig{}); len(got) != 0 {
+		t.Fatalf("no keys: %q", got)
 	}
 }

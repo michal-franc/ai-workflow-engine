@@ -2,15 +2,11 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
+	"github.com/michal-franc/issue-viewer/internal/viewerstate"
 )
-
-// defaultViewerURL is the fallback base URL used when ISSUE_VIEWER_URL is unset.
-// Matches the default port baked into main.go's -port flag.
-const defaultViewerURL = "http://localhost:8080"
 
 // approvalHint builds the multi-line "click here to approve" message we tack
 // onto an ApprovalMissingError so the user does not have to context-switch to
@@ -23,15 +19,15 @@ func approvalHint(proj *tracker.Project, slug, requiredStatus string) string {
 	var b strings.Builder
 	b.WriteString("A human must approve this in the issue viewer:\n  ")
 	b.WriteString(approvalURL(proj, slug, requiredStatus))
-	if os.Getenv("ISSUE_VIEWER_URL") == "" {
-		b.WriteString("\n\n(set ISSUE_VIEWER_URL if your viewer is on a different host/port)")
+	if proj == nil || proj.ViewerURL == "" {
+		b.WriteString("\n\n(set viewer_url in projects.yaml if your viewer is on a different host/port)")
 	}
 	return b.String()
 }
 
 // approvalURL is the deep link to the approve button for requiredStatus.
 func approvalURL(proj *tracker.Project, slug, requiredStatus string) string {
-	base := strings.TrimRight(viewerBaseURL(), "/")
+	base := viewerBaseURL(proj)
 	switch {
 	case proj != nil && slug != "":
 		return fmt.Sprintf("%s/p/%s/issue/%s#approve-%s", base, proj.Slug, slug, fragmentStatus(requiredStatus))
@@ -42,14 +38,15 @@ func approvalURL(proj *tracker.Project, slug, requiredStatus string) string {
 	}
 }
 
-// viewerBaseURL returns the configured viewer base URL or the default. The env
-// var is the contract — dispatched bot sessions inherit it from the server
-// that spawned them (see handlers_dispatch.go).
-func viewerBaseURL() string {
-	if u := strings.TrimSpace(os.Getenv("ISSUE_VIEWER_URL")); u != "" {
-		return u
+// viewerBaseURL is the viewer's base URL without a trailing slash, for every
+// link issue-cli prints and every call it makes to the viewer: viewer_url
+// from projects.yaml, else the running viewer's address when it serves this
+// config (viewer.json), else http://localhost:8080.
+func viewerBaseURL(proj *tracker.Project) string {
+	if proj == nil {
+		return viewerstate.BaseURL("", "")
 	}
-	return defaultViewerURL
+	return viewerstate.BaseURL(proj.ViewerURL, proj.ConfigPath)
 }
 
 // fragmentStatus normalises a status name for use in a URL fragment. Spaces
@@ -61,7 +58,7 @@ func fragmentStatus(status string) string {
 
 // issueURL is the viewer link to an issue's detail page.
 func issueURL(proj *tracker.Project, slug string) string {
-	base := strings.TrimRight(viewerBaseURL(), "/")
+	base := viewerBaseURL(proj)
 	if proj != nil {
 		return fmt.Sprintf("%s/p/%s/issue/%s", base, proj.Slug, slug)
 	}

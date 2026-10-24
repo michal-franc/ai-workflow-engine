@@ -15,7 +15,7 @@ Every issue is a markdown file with YAML frontmatter.
 | `version`  | No       | Version string, filterable on the board            |
 | `labels`   | No       | List of label strings                              |
 | `priority` | No       | `low`, `medium`, `high`, or `critical`             |
-| `created`  | No       | Date string for sorting (newest first)             |
+| `created`  | No       | `YYYY-MM-DD`, written when the issue is created; sorts newest first, and the `criteria_proven` gate exempts issues dated before its date |
 | `number`   | No       | GitHub issue number (links to GitHub with `repo`)  |
 | `repo`     | No       | GitHub repo in `owner/repo` format                 |
 | `assignee` | No       | Free text; dispatched agents use `agent-<slug>`    |
@@ -108,6 +108,8 @@ issue-cli set-meta <slug> --key waiting --clear
 ```
 
 Workflow-managed fields (`title`, `status`, `human_approval`, `queued_approval`, `approved_for`, `started_at`, `done_at`, `number`, `repo`, `created`, `labels`) are refused — use the dedicated commands (`transition`, `update --title`, etc.) for those.
+
+`created` is the one exception: `set-meta <slug> --key created --value YYYY-MM-DD` dates an issue that has none (what `issue-cli health lint`'s undated warning asks for), and refuses to change or clear an existing date. New issues get `created: "<today>"` from `issue-cli create`, `report-bug`, CI's red issue and the viewer's New issue form.
 
 Every single-value write (`set-meta`, `update --title`, the detail page edits, transition fields) stores the value as one double-quoted YAML line, escaping `\`, `"`, newlines, carriage returns and tabs. Any value reads back exactly as written, including `$1`, `${x}`, `: #` or a leading `-`.
 

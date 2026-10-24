@@ -23,10 +23,25 @@ type CIConfig struct {
 
 // CICommand is one `ci.run` entry.
 type CICommand struct {
-	Cmd      string `yaml:"cmd" desc:"Shell command (sh -c), run in the CI worktree"`
-	Tier     string `yaml:"tier,omitempty" desc:"Empty or default: runs on every move of the branch. Any other name (slow): only with issue-cli ci run --tier <name>"`
-	Failures string `yaml:"failures,omitempty" desc:"Regex whose first group names a failing test in the command's output (shown in ci status and comments)"`
+	Cmd      string     `yaml:"cmd" desc:"Shell command (sh -c), run in the CI worktree"`
+	Tier     string     `yaml:"tier,omitempty" desc:"Empty or default: runs on every move of the branch. Any other name (slow): only with issue-cli ci run --tier <name>"`
+	Failures string     `yaml:"failures,omitempty" desc:"Regex whose first group names a failing test in the command's output (shown in ci status and comments)"`
+	Results  []CIResult `yaml:"results,omitempty" desc:"Machine-readable test results the command writes into $CI_RESULTS_DIR: [{kind, format, file}]; the health tests family reads them"`
 }
+
+// CIResult is one results file a ci.run command writes into $CI_RESULTS_DIR,
+// parsed after the command (docs/workbench-files.md, "Test results").
+type CIResult struct {
+	Kind   string `yaml:"kind" desc:"unit or e2e"`
+	Format string `yaml:"format" desc:"go-test-json, trx, junit or playtest"`
+	File   string `yaml:"file" desc:"File name inside $CI_RESULTS_DIR, e.g. unit.json"`
+}
+
+// Test-result kinds and formats a CIResult may name.
+var (
+	CIResultKinds   = []string{"unit", "e2e"}
+	CIResultFormats = []string{"go-test-json", "trx", "junit", "playtest"}
+)
 
 // CIDefaultTier is the tier that runs on every move of the branch.
 const CIDefaultTier = "default"
@@ -151,6 +166,7 @@ func (c *CIConfig) Validate() []string {
 		if cmd.TierName() == CIDefaultTier {
 			defaults++
 		}
+		problems = append(problems, cmd.validateResults(i)...)
 		if cmd.Failures == "" {
 			continue
 		}
@@ -166,6 +182,41 @@ func (c *CIConfig) Validate() []string {
 		problems = append(problems, "ci.run has no default-tier command: nothing runs when the branch moves")
 	}
 	return problems
+}
+
+// validateResults checks the command's results: entries.
+func (c CICommand) validateResults(i int) []string {
+	var problems []string
+	files := map[string]bool{}
+	for j, r := range c.Results {
+		at := fmt.Sprintf("ci.run[%d].results[%d]", i, j)
+		if !contains(CIResultKinds, r.Kind) {
+			problems = append(problems, fmt.Sprintf("%s.kind %q is not one of %s", at, r.Kind, strings.Join(CIResultKinds, ", ")))
+		}
+		if !contains(CIResultFormats, r.Format) {
+			problems = append(problems, fmt.Sprintf("%s.format %q is not one of %s", at, r.Format, strings.Join(CIResultFormats, ", ")))
+		}
+		f := strings.TrimSpace(r.File)
+		switch {
+		case f == "":
+			problems = append(problems, fmt.Sprintf("%s.file is empty: name the file the command writes into $CI_RESULTS_DIR, e.g. %s.json", at, r.Kind))
+		case strings.Contains(f, "/") || strings.Contains(f, `\`) || f == "." || f == "..":
+			problems = append(problems, fmt.Sprintf("%s.file %q must be a plain file name inside $CI_RESULTS_DIR", at, r.File))
+		case files[f]:
+			problems = append(problems, fmt.Sprintf("%s.file %q is listed twice", at, r.File))
+		}
+		files[f] = true
+	}
+	return problems
+}
+
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 // FailureNames pulls failing test names out of a command's output with its
@@ -200,6 +251,9 @@ func cloneCI(c *CIConfig) *CIConfig {
 	}
 	out := *c
 	out.Run = append([]CICommand(nil), c.Run...)
+	for i := range out.Run {
+		out.Run[i].Results = append([]CIResult(nil), c.Run[i].Results...)
+	}
 	if c.Nice != nil {
 		n := *c.Nice
 		out.Nice = &n

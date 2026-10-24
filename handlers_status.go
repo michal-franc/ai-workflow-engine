@@ -22,6 +22,9 @@ func (s *Server) loadStatus(proj *tracker.Project, prefix string) (*StatusModel,
 	agents, _ := s.buildAgentsModel(proj, prefix)
 	m := buildStatus(proj, issues, agents, time.Now())
 	m.Prefix = prefix
+	if rw := m.ReleaseWait; rw != nil && rw.Milestone != nil && rw.Milestone.Candidate != nil && proj.Slug == s.engine {
+		rw.Milestone.addSoak(soakInput{projects: s.projects, issues: issues, cs: newCanvasStatuses(proj.LoadWorkflow()), viewer: Version})
+	}
 	return m, nil
 }
 

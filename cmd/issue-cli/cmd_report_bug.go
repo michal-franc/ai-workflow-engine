@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/clibug"
+	"github.com/michal-franc/issue-viewer/internal/milestone"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -329,9 +331,11 @@ func printOutcome(ctx *Context, o reportOutcome) {
 	case "created":
 		fmt.Fprintf(w, "✓ Reported as new cli-bug issue %s on the %s board\n", o.Slug, o.Project)
 		fmt.Fprintf(w, "file: %s\n", o.File)
+		printFoundIn(w, o)
 	case "commented":
 		fmt.Fprintf(w, "✓ Already reported: added your report to cli-bug issue %s on the %s board (%d reports)\n", o.Slug, o.Project, o.Reports)
 		fmt.Fprintf(w, "file: %s\n", o.File)
+		printFoundIn(w, o)
 	case "queued":
 		fmt.Fprintf(w, "saved locally, not sent: %s\n", o.Queued)
 		// A multi-line why (the config lookup's) stays under "why:".
@@ -342,6 +346,16 @@ func printOutcome(ctx *Context, o reportOutcome) {
 		fmt.Fprintf(w, "skipped: %s\n", o.Reason)
 	default:
 		fmt.Fprintf(ctx.Stderr, "report lost: %s\n", o.Reason)
+	}
+}
+
+// printFoundIn says where a report from a release candidate build went.
+func printFoundIn(w io.Writer, o reportOutcome) {
+	switch {
+	case o.Milestone != "":
+		fmt.Fprintf(w, "Added to milestone %s (found in release candidate %s): the release waits for its fix\n", o.Milestone, o.FoundIn)
+	case o.FoundIn != "":
+		fmt.Fprintf(w, "Filed against release candidate %s; the issue already has a version, so it stays there\n", o.FoundIn)
 	}
 }
 
@@ -392,6 +406,14 @@ func (b *boardSender) comment(issue *tracker.Issue, r clibug.Report) (clibug.Res
 	if err := tracker.AddComment(issue.FilePath, 0, strings.TrimSpace(text), "issue-cli"); err != nil {
 		return clibug.Result{}, err
 	}
+	var milestone string
+	if issue.Version == "" {
+		if milestone = b.rcMilestone(r); milestone != "" {
+			if err := tracker.UpdateIssueFrontmatter(issue.FilePath, tracker.IssueUpdate{Version: &milestone}); err != nil {
+				return clibug.Result{}, err
+			}
+		}
+	}
 	comments, _ := tracker.LoadComments(issue.FilePath)
 	n := 1
 	for _, c := range comments {
@@ -399,7 +421,32 @@ func (b *boardSender) comment(issue *tracker.Issue, r clibug.Report) (clibug.Res
 			n++
 		}
 	}
-	return clibug.Result{Kind: "commented", Project: b.engine.Slug, Slug: issue.Slug, File: issue.FilePath, Reports: n}, nil
+	return b.withMilestone(clibug.Result{Kind: "commented", Project: b.engine.Slug, Slug: issue.Slug, File: issue.FilePath, Reports: n}, r, milestone), nil
+}
+
+// rcMilestone is the engine board's version: label for the release a
+// release candidate build is a candidate for: a bug found in the soak
+// belongs to that release, not the next one. "" for any other build.
+func (b *boardSender) rcMilestone(r clibug.Report) string {
+	rc, ok := milestone.ParseRC(r.Version)
+	if !ok {
+		return ""
+	}
+	issues, _ := tracker.LoadIssues(b.engine.IssueDir)
+	var inUse []string
+	for _, is := range issues {
+		inUse = append(inUse, is.Version)
+	}
+	return milestone.IssueVersion(rc.Cut, inUse)
+}
+
+// withMilestone notes on res the milestone the report put the issue in and
+// the candidate it was found in.
+func (b *boardSender) withMilestone(res clibug.Result, r clibug.Report, version string) clibug.Result {
+	if _, ok := milestone.ParseRC(r.Version); ok {
+		res.Milestone, res.FoundIn = version, r.Version
+	}
+	return res
 }
 
 // create files the issue through `create` (as CI's fileRedIssue does), so
@@ -444,6 +491,10 @@ func (b *boardSender) create(title string, r clibug.Report, previous *tracker.Is
 		Body:        &newBody,
 		ExtraFields: map[string]string{},
 	}
+	version := b.rcMilestone(r)
+	if version != "" {
+		update.Version = &version
+	}
 	if from := r.ReportedFrom(); from != "" {
 		update.ExtraFields["reported_from"] = from
 	}
@@ -453,7 +504,7 @@ func (b *boardSender) create(title string, r clibug.Report, previous *tracker.Is
 	if err := tracker.UpdateIssueFrontmatter(issue.FilePath, update); err != nil {
 		return clibug.Result{}, err
 	}
-	return clibug.Result{Kind: "created", Project: proj.Slug, Slug: issue.Slug, File: issue.FilePath, Reports: 1}, nil
+	return b.withMilestone(clibug.Result{Kind: "created", Project: proj.Slug, Slug: issue.Slug, File: issue.FilePath, Reports: 1}, r, version), nil
 }
 
 func hasLabel(issue *tracker.Issue, label string) bool {

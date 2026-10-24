@@ -1,0 +1,22 @@
+session: health-layout-medium
+issue: workflow/health-scores-derived-metrics-and-agent-opinion-tests-count-vs-runtime-e2e-codebase-shape
+title: Status at 1100 wide - a main column and a 320px side column, no squeezed thirds
+scenario: health
+
+# Between 901 and 1199px a third of the grid is too narrow for the side
+# cards, so the Status grid falls back to main + 320px side. No local CI
+# here: Current milestone takes the main column and Health the side.
+session_checks:
+  viewports: [1100x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP7
+    title: At 1100 wide the side cards keep 320px
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - beside: [status.milestone, status.health]
+      - size: { target: status.health, min_width: 316, max_width: 324 }
+      - below: [status.milestone, status.epics]

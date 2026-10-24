@@ -178,6 +178,9 @@ func TestShow_PrintsWorkflowFile(t *testing.T) {
 	if !strings.Contains(stdout.String(), "/issue/a?tab=timeline\n") {
 		t.Fatalf("show should print the Timeline tab link:\n%s", stdout.String())
 	}
+	if !strings.Contains(stdout.String(), "Evidence: ") || !strings.Contains(stdout.String(), "/issue/a?tab=evidence\n") {
+		t.Fatalf("show should print the Evidence tab link:\n%s", stdout.String())
+	}
 	if !strings.Contains(stdout.String(), "Brief: body\n") {
 		t.Fatalf("show should print the Issue tab's brief:\n%s", stdout.String())
 	}

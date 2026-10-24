@@ -333,7 +333,13 @@ func (s *Server) handleAgentOpen(w http.ResponseWriter, r *http.Request, proj *t
 	// The terminal shows the agent's own session, or in shared mode the
 	// shared session switched to the agent's window.
 	shared := agentrun.SharedSession(proj)
-	if agentrun.TerminalNone(proj) {
+	// A lead follows lead_terminal: (headless when unset), workers terminal:.
+	lead := strings.HasPrefix(body.Session, "lead-")
+	headless := agentrun.TerminalNone(proj)
+	if lead {
+		headless = agentrun.LeadHeadless(proj)
+	}
+	if headless {
 		// Nothing to open or focus: in shared mode select the agent's window
 		// so whoever is in the shared session sees it, and hand back the
 		// commands for reaching it from elsewhere.
@@ -342,6 +348,16 @@ func (s *Server) handleAgentOpen(w http.ResponseWriter, r *http.Request, proj *t
 			resp.Status = "selected"
 		}
 		resp.Steps = append(resp.Steps, DispatchStep{Name: "Terminal: headless — attach manually", Status: "ok"})
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+	if lead {
+		ok, shown := leadTerminal(proj, body.Session, &resp.Steps)
+		if !ok {
+			resp.Status = "error"
+		} else if !shown {
+			resp.Steps = append(resp.Steps, DispatchStep{Name: "Terminal: headless — attach manually", Status: "ok"})
+		}
 		json.NewEncoder(w).Encode(resp)
 		return
 	}
@@ -375,6 +391,7 @@ var agentSessionLive = func(proj *tracker.Project, name string) bool {
 	return agentrun.HasSession(agentTmuxTarget(proj, name))
 }
 var attachAgent = agentrun.AttachStep
+var leadTerminal = agentrun.LeadTerminalStep
 
 // startLead is a seam over agentrun for tests.
 var startLead = agentrun.Start
@@ -398,7 +415,6 @@ func (s *Server) handleLeadSpawn(w http.ResponseWriter, r *http.Request, proj *t
 	if spec.AgentType == "" {
 		spec.AgentType = "claude"
 	}
-	spec.ViewerURL = viewerURLFromRequest(r)
 	resp := startLead(proj, spec)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

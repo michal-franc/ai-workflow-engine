@@ -17,11 +17,16 @@ Examples:
   issue-cli set-meta <slug> --key waiting --value "design review"
   issue-cli set-meta <slug> --key waiting --clear
   issue-cli set-meta <slug> --key depends_on --value "ui/other-issue, cli/another"
+  issue-cli set-meta <slug> --key created --value 2026-04-02
 
 depends_on takes the slugs of the issues this one waits on (comma-separated);
 each must exist. Two or more are written as a YAML list. The new value
 replaces the old one: pass every slug the issue waits on. The detail page and show list them, and the Metrics view's
-Branches tab shows them per branch.`,
+Branches tab shows them per branch.
+
+created is set by create; set-meta may date an issue that has none
+(YYYY-MM-DD, what issue-cli lint's undated check asks for) but never
+changes or clears an existing date.`,
 	Run: runSetMeta,
 }
 
@@ -72,9 +77,14 @@ func runSetMeta(ctx *Context, args []string) error {
 			list = slugs
 		}
 	}
-	if list != nil {
+	switch {
+	case key == "created" && clear:
+		return fmt.Errorf("set-meta can't clear created: an issue's date is never removed")
+	case key == "created":
+		err = tracker.SetCreated(issue.FilePath, value)
+	case list != nil:
 		err = tracker.SetFrontmatterList(issue.FilePath, key, list)
-	} else {
+	default:
 		err = tracker.SetFrontmatterField(issue.FilePath, key, value, clear)
 	}
 	if err != nil {

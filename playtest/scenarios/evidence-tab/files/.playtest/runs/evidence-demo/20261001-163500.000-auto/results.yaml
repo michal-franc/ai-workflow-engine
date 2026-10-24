@@ -1,0 +1,37 @@
+session: evidence-demo
+issue: ui/evidence-demo
+title: The badge shows the count and glows
+mode: auto
+build: 3c1d2e0
+started: "2026-10-01T16:35:00Z"
+steps:
+    - id: EV1
+      title: The badge shows the count
+      status: pass
+      proves: [AC1]
+      viewports:
+        - viewport: 1440x900
+          status: pass
+          screenshot: shots/EV1-1440x900.png
+        - viewport: 390x844
+          status: pass
+          screenshot: /tmp/old-runner/abs/shots/EV1-390x844.png
+    - id: EV2
+      title: The count matches the list
+      status: pass
+      proves: [AC2]
+      viewports:
+        - viewport: 1440x900
+          status: pass
+          screenshot: shots/EV2-1440x900.png
+    - id: EV3
+      title: The page loads without console errors
+      status: pass
+      viewports:
+        - viewport: 1440x900
+          status: pass
+    - id: EV9
+      title: The badge reads well at a glance
+      judgement_step: true
+      status: pending
+      proves: [AC1]

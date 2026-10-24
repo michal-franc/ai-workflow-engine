@@ -11,16 +11,18 @@ steps:
       - post:
           path: /p/{project}/issue/ui/sticky-board-header
           json: { title: "Sticky $1 ${x} \"header\" \\ end\nline two" }
-      - cli: [set-meta, ui/sticky-1-x-header-endline-two, --key, note, --value, "cost $1 ${x} \"q\" back\\slash\nline two"]
-      - check: { issue: { slug: ui/sticky-1-x-header-endline-two, field: title, equals: "Sticky $1 ${x} \"header\" \\ end\nline two" } }
-      - check: { issue: { slug: ui/sticky-1-x-header-endline-two, field: note, equals: "cost $1 ${x} \"q\" back\\slash\nline two" } }
-      - open: /p/{project}/issue/ui/sticky-1-x-header-endline-two
+      - cli: [set-meta, ui/sticky-board-header, --key, note, --value, "cost $1 ${x} \"q\" back\\slash\nline two"]
+      - check: { issue: { slug: ui/sticky-board-header, field: title, equals: "Sticky $1 ${x} \"header\" \\ end\nline two" } }
+      - check: { issue: { slug: ui/sticky-board-header, field: note, equals: "cost $1 ${x} \"q\" back\\slash\nline two" } }
+      - open: /p/{project}/issue/ui/sticky-board-header
       - check: { text_contains: { target: detail.title, text: "Sticky $1 ${x} \"header\" \\ end" } }
     act:
       # A later write after a multi-line value used to leave the old second
       # line behind and break the file.
-      - cli: [update, ui/sticky-1-x-header-endline-two, --title, "Sticky $2"]
+      # A retitle keeps the slug (pinned with slug:), so the issue stays put.
+      - cli: [update, ui/sticky-board-header, --title, "Sticky $2"]
     checks:
-      - issue: { slug: ui/sticky-2, field: title, equals: "Sticky $2" }
-      - issue: { slug: ui/sticky-2, field: note, equals: "cost $1 ${x} \"q\" back\\slash\nline two" }
-      - issue: { slug: ui/sticky-2, field: status, equals: done }
+      - issue: { slug: ui/sticky-board-header, field: title, equals: "Sticky $2" }
+      - issue: { slug: ui/sticky-board-header, field: note, equals: "cost $1 ${x} \"q\" back\\slash\nline two" }
+      - issue: { slug: ui/sticky-board-header, field: status, equals: done }
+      - issue: { slug: ui/sticky-board-header, field: slug, equals: sticky-board-header }

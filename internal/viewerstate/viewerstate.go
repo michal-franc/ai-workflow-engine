@@ -87,3 +87,38 @@ func Read() (State, error) {
 	err = json.Unmarshal(data, &s)
 	return s, err
 }
+
+// DefaultURL is the viewer's address when nothing says otherwise: the
+// default -port on localhost.
+const DefaultURL = "http://localhost:8080"
+
+// BaseURL is the viewer's base URL, without a trailing slash: configured
+// (projects.yaml's viewer_url) when set, else the URL in viewer.json when
+// that viewer serves configPath, else DefaultURL.
+func BaseURL(configured, configPath string) string {
+	if u := strings.TrimRight(strings.TrimSpace(configured), "/"); u != "" {
+		return u
+	}
+	if configPath != "" {
+		if s, err := Read(); err == nil && s.URL != "" && sameFile(s.Config, configPath) {
+			return strings.TrimRight(s.URL, "/")
+		}
+	}
+	return DefaultURL
+}
+
+// sameFile reports whether a and b name the same file, comparing absolute
+// paths when the files can't be stat'ed.
+func sameFile(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	ai, aerr := os.Stat(a)
+	bi, berr := os.Stat(b)
+	if aerr == nil && berr == nil {
+		return os.SameFile(ai, bi)
+	}
+	aa, _ := filepath.Abs(a)
+	ba, _ := filepath.Abs(b)
+	return aa == ba
+}

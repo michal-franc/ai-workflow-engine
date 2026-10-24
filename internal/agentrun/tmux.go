@@ -80,6 +80,34 @@ func Target(proj *tracker.Project, name string) string {
 	return name
 }
 
+// SessionAgent names the agent the live session called name was started
+// with: "claude" or "codex", read from its pane's start command (the
+// AgentCommand wrapper), or "" when it was not started by the launcher.
+// Check IsLive first: for a name that isn't live tmux answers for some other
+// pane.
+func SessionAgent(proj *tracker.Project, name string) string {
+	out, err := exec.Command("tmux", "display-message", "-p", "-t", Target(proj, name), "#{pane_start_command}").Output()
+	if err != nil {
+		return ""
+	}
+	return agentOfStartCommand(string(out))
+}
+
+// agentOfStartCommand reads the agent out of an AgentCommand start command:
+// the first word after the INT trap.
+func agentOfStartCommand(cmd string) string {
+	_, rest, ok := strings.Cut(cmd, "trap : INT; ")
+	if !ok {
+		return ""
+	}
+	word, _, _ := strings.Cut(strings.TrimSpace(rest), " ")
+	switch word {
+	case "claude", "codex":
+		return word
+	}
+	return ""
+}
+
 // IsLive reports whether the agent or lead called name has a live tmux home.
 func IsLive(proj *tracker.Project, name string) bool {
 	return HasSession(Target(proj, name))
@@ -239,7 +267,7 @@ func ParseSessions(out string) []Session {
 	var sessions []Session
 	for _, line := range strings.Split(out, "\n") {
 		fields := strings.Split(strings.TrimSpace(line), "\t")
-		if len(fields) < 2 || fields[0] == "" {
+		if len(fields) < 2 || fields[0] == "" || IsLeadView(fields[0]) {
 			continue
 		}
 		session := Session{Name: fields[0]}
@@ -307,7 +335,7 @@ func ParseSharedWindows(out string) []Session {
 	var sessions []Session
 	for _, line := range strings.Split(out, "\n") {
 		sessionName, windowName, ok := strings.Cut(strings.TrimSpace(line), "\t")
-		if !ok || hasManagedPrefix(sessionName) || !hasManagedPrefix(windowName) {
+		if !ok || hasManagedPrefix(sessionName) || IsLeadView(sessionName) || !hasManagedPrefix(windowName) {
 			continue
 		}
 		sessions = append(sessions, Session{Name: sessionName + ":" + windowName})
@@ -332,7 +360,7 @@ func defaultCapturePane(target string) (string, error) {
 // PromptDeliveryStep polls the agent's pane until the prompt's delivery
 // marker appears, and records whether it did. It never re-sends: a missing
 // prompt is reported as a failed step for the human to act on.
-func PromptDeliveryStep(steps *[]Step, target, prompt, repromptURL string) {
+func PromptDeliveryStep(steps *[]Step, target, prompt, repromptHint string) {
 	marker := tracker.PromptDeliveryMarker(prompt)
 	if marker == "" {
 		return
@@ -349,8 +377,8 @@ func PromptDeliveryStep(steps *[]Step, target, prompt, repromptURL string) {
 		time.Sleep(promptDeliveryPoll)
 	}
 	detail := fmt.Sprintf("its last line was not visible in the pane after %s; nothing was re-sent. Check the session, then ", PromptDeliveryTimeout)
-	if repromptURL != "" {
-		detail += "use Re-send prompt or POST " + repromptURL
+	if repromptHint != "" {
+		detail += "use Re-send prompt or run: " + repromptHint
 	} else {
 		detail += "paste the prompt from this response by hand"
 	}
@@ -361,6 +389,12 @@ func PromptDeliveryStep(steps *[]Step, target, prompt, repromptURL string) {
 // Uses proj.Terminal if set; falls back to i3+alacritty for backwards compat.
 // terminal="none" is headless: appends an info step and returns true.
 func OpenTerminalStep(proj *tracker.Project, session string, steps *[]Step) bool {
+	return openTerminal(proj, session, session, steps)
+}
+
+// openTerminal is OpenTerminalStep for the agent called name, whose
+// terminal attaches to session (the shared session in shared mode).
+func openTerminal(proj *tracker.Project, session, name string, steps *[]Step) bool {
 	terminal := ""
 	if proj != nil {
 		terminal = proj.Terminal
@@ -372,7 +406,7 @@ func OpenTerminalStep(proj *tracker.Project, session string, steps *[]Step) bool
 	}
 
 	if terminal != "" {
-		cmd := strings.ReplaceAll(terminal, "{{session}}", session)
+		cmd := ExpandTerminal(proj, terminal, session, name, RoleOf(name))
 		return RunStep(steps, "Open terminal", exec.Command("sh", "-c", cmd))
 	}
 
@@ -395,6 +429,41 @@ func OpenTerminalStep(proj *tracker.Project, session string, steps *[]Step) bool
 		exec.Command("i3-msg", "exec", fmt.Sprintf("alacritty -T %s -e %stmux attach -t %s", session, envFlag, session)))
 }
 
+// Roles {{role}} expands to in terminal commands.
+const (
+	RoleLead   = "lead"
+	RoleWorker = "worker"
+	RoleEditor = "editor"
+)
+
+// RoleOf is the {{role}} of the agent called name: lead for lead-*, worker
+// otherwise.
+func RoleOf(name string) string {
+	if strings.HasPrefix(name, "lead-") {
+		return RoleLead
+	}
+	return RoleWorker
+}
+
+// ExpandTerminal fills in a terminal: or lead_terminal: command for the agent
+// called name: {{session}} is the session to attach (the shared session in
+// shared mode), {{project}} the project slug, {{name}} the agent's name,
+// {{role}} lead, worker or editor, and {{window}} the agent's exact tmux
+// target. Each value is shell-quoted when it isn't safe to type unquoted.
+func ExpandTerminal(proj *tracker.Project, command, session, name, role string) string {
+	project := ""
+	if proj != nil {
+		project = proj.Slug
+	}
+	return strings.NewReplacer(
+		"{{session}}", shellWord(session),
+		"{{project}}", shellWord(project),
+		"{{name}}", shellWord(name),
+		"{{role}}", shellWord(role),
+		"{{window}}", shellWord(Target(proj, name)),
+	).Replace(command)
+}
+
 // AttachStep makes the agent visible to the human. By default it opens a
 // terminal on the agent's own session. In shared mode it selects the agent's
 // window and only opens a terminal when nobody is attached to the shared
@@ -402,7 +471,7 @@ func OpenTerminalStep(proj *tracker.Project, session string, steps *[]Step) bool
 func AttachStep(proj *tracker.Project, name string, steps *[]Step) bool {
 	shared := SharedSession(proj)
 	if shared == "" {
-		return OpenTerminalStep(proj, name, steps)
+		return openTerminal(proj, name, name, steps)
 	}
 	RunStep(steps, fmt.Sprintf("Select window %s", name),
 		exec.Command("tmux", "select-window", "-t", Target(proj, name)))
@@ -410,7 +479,7 @@ func AttachStep(proj *tracker.Project, name string, steps *[]Step) bool {
 		*steps = append(*steps, Step{Name: fmt.Sprintf("Session %s already open — no new terminal", shared), Status: "ok"})
 		return true
 	}
-	return OpenTerminalStep(proj, shared, steps)
+	return openTerminal(proj, shared, name, steps)
 }
 
 // ShowStep makes a newly started agent reachable without moving anyone's
@@ -420,13 +489,13 @@ func AttachStep(proj *tracker.Project, name string, steps *[]Step) bool {
 func ShowStep(proj *tracker.Project, name string, steps *[]Step) bool {
 	shared := SharedSession(proj)
 	if shared == "" {
-		return OpenTerminalStep(proj, name, steps)
+		return openTerminal(proj, name, name, steps)
 	}
 	if SessionAttached(shared) {
 		*steps = append(*steps, Step{Name: fmt.Sprintf("Window %s added to session %s — not selected", name, shared), Status: "ok"})
 		return true
 	}
-	return OpenTerminalStep(proj, shared, steps)
+	return openTerminal(proj, shared, name, steps)
 }
 
 func RunStep(steps *[]Step, name string, cmd *exec.Cmd) bool {

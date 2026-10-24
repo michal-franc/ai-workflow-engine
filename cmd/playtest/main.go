@@ -21,6 +21,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/michal-franc/issue-viewer/internal/testresults"
 )
 
 const usage = `playtest — run issue-viewer playtest sessions (playtest/sessions/*.yaml)
@@ -28,9 +31,11 @@ const usage = `playtest — run issue-viewer playtest sessions (playtest/session
 Commands:
   check                        validate every session: schema, actions, checks,
                                targets (internal/testids), scenarios, step ids
-  ux-test  [-issue SLUG] [-s SESSION] [-step ID,…] [-repeat N] [-keep] [-headed]
+  ux-test  [-issue SLUG] [-s SESSION] [-step ID,…] [-repeat N] [-keep] [-headed] [-results FILE]
                                run the machine checks headless at every viewport;
-                               exit 1 on any failure; -repeat N diffs N runs
+                               exit 1 on any failure; -repeat N diffs N runs;
+                               -results writes sessions, steps and times as JSON
+                               (default $CI_RESULTS_DIR/e2e.json in local CI)
   playtest [-issue SLUG] [-s SESSION]
                                walk the owner through the judgement steps
                                (expect:) in a Chrome window with the overlay
@@ -52,6 +57,7 @@ type opts struct {
 	sessions, scenarios, runs string
 	issue, session, steps     string
 	project                   string
+	results                   string
 	repeat                    int
 	keep, headed, apply       bool
 }
@@ -77,6 +83,7 @@ func run(args []string, out, errw io.Writer) int {
 	fs.StringVar(&o.session, "s", "", "only this session")
 	fs.StringVar(&o.steps, "step", "", "only these step ids (comma-separated)")
 	fs.StringVar(&o.project, "project", envOr("PLAYTEST_PROJECT", "issue-viewer"), "issue-cli --project for the real issue")
+	fs.StringVar(&o.results, "results", resultsDefault(), "ux-test: also write the e2e results (sessions, steps, times) here; default $CI_RESULTS_DIR/e2e.json in local CI")
 	fs.IntVar(&o.repeat, "repeat", 1, "run N times and fail if results differ")
 	fs.BoolVar(&o.keep, "keep", false, "keep scenario temp dirs")
 	fs.BoolVar(&o.headed, "headed", false, "show the browser during ux-test")
@@ -195,16 +202,33 @@ func cmdUXTest(repo string, o opts, out, errw io.Writer) int {
 		return 2
 	}
 	defer b.Close()
-	r := &Runner{Repo: repo, ScenarioDir: o.scenarios, RunsRoot: o.runs, Build: BuildID(repo), Keep: o.keep, Out: out}
+	r := &Runner{Repo: repo, ScenarioDir: o.scenarios, RunsRoot: o.runs, Build: BuildID(repo), Keep: o.keep, Out: out, OwnIssue: OwnIssue(repo, o.issue)}
 	code := 0
+	e2e := testresults.Playtest{Started: time.Now()}
+	defer func() {
+		if note := r.ShotsNote(); note != "" {
+			fmt.Fprintln(out, note)
+		}
+	}()
+	defer func() {
+		if o.results == "" {
+			return
+		}
+		e2e.Finished = time.Now()
+		if err := writeE2E(o.results, e2e); err != nil {
+			fmt.Fprintln(errw, "playtest: e2e results:", err)
+		}
+	}()
 	for _, s := range sel {
 		var first *Results
 		for i := range max(o.repeat, 1) {
+			start := time.Now()
 			res, dir, err := r.UXTest(b, s, stepFilter(o.steps))
 			if err != nil {
 				fmt.Fprintln(errw, "playtest:", err)
 				return 2
 			}
+			e2e.Sessions = append(e2e.Sessions, e2eSession(res, time.Since(start)))
 			fmt.Fprintf(out, "results: %s\n", filepath.Join(dir, "results.yaml"))
 			for _, st := range res.Steps {
 				if st.Status == StatusFail {
@@ -234,9 +258,9 @@ func issueCLI() string { return envOr("PLAYTEST_ISSUE_CLI", "issue-cli") }
 
 // issueChecklist reads an issue's checkbox ids through the real issue-cli.
 // It returns ok=false when the issue can't be resolved here.
-func issueChecklist(project string) func(string) (map[string]bool, bool) {
-	cache := map[string]map[string]bool{}
-	return func(slug string) (map[string]bool, bool) {
+func issueChecklist(project string) func(string) (map[string]string, bool) {
+	cache := map[string]map[string]string{}
+	return func(slug string) (map[string]string, bool) {
 		if ids, ok := cache[slug]; ok {
 			return ids, ids != nil
 		}
@@ -252,15 +276,18 @@ func issueChecklist(project string) func(string) (map[string]bool, bool) {
 		}
 		var doc struct {
 			Items []struct {
-				ID string `json:"id"`
+				ID      string `json:"id"`
+				Section string `json:"section"`
 			} `json:"items"`
 		}
 		if json.Unmarshal(raw, &doc) != nil {
 			return nil, false
 		}
-		ids := map[string]bool{}
+		ids := map[string]string{}
 		for _, it := range doc.Items {
-			ids[strings.ToUpper(it.ID)] = true
+			if it.ID != "" {
+				ids[strings.ToUpper(it.ID)] = it.Section
+			}
 		}
 		cache[slug] = ids
 		return ids, true

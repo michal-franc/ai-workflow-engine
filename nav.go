@@ -28,6 +28,9 @@ type navView struct {
 // the issues.
 var navViews = []navView{
 	{Key: "status", Label: "Status", Path: "/status"},
+	{Key: "health", Label: "Health", Path: "/health", Show: func(s *Server, p *tracker.Project) bool {
+		return isGitCheckout(projectRoot(p))
+	}},
 	{Key: "systems", Label: "Systems", Path: "/systems"},
 	{Key: "workboard", Label: "Board", Path: "/workboard"},
 	{Key: "list", Label: "List", Path: "/"},
@@ -38,6 +41,11 @@ var navViews = []navView{
 		return hasMetricsOrTuning(p) || isGitCheckout(projectRoot(p))
 	}},
 	{Key: "decisions", Label: "Decisions", Path: "/decisions"},
+	// Updates: workflow features the project could adopt (D-6). Hidden for a
+	// built-in or `template: custom` workflow.
+	{Key: "updates", Label: "Updates", Path: "/updates", Show: func(s *Server, p *tracker.Project) bool {
+		return projectUpgradePlan(p) != nil
+	}},
 	{Key: "docs", Label: "Docs", Path: "/docs"},
 	// The classic board keeps drag-and-drop until the retire child removes it.
 	{Key: "board", Label: "Classic board", Path: "/board", More: true},
@@ -170,6 +178,12 @@ func (s *Server) sidebarNav(prefix, active string) Nav {
 			}
 			if n > 0 {
 				item.Note, item.Attention = fmt.Sprint(n), true
+			}
+		case "health":
+			item.Note = healthNavNote(proj)
+		case "updates":
+			if note := updatesNavNote(proj); note != "" {
+				item.Note, item.Attention = note, true
 			}
 		case "systems":
 			item.Active = active == "systems" || strings.HasPrefix(active, "systems/")

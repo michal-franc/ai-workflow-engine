@@ -43,8 +43,8 @@ steps:
       - beside: [status.shipped, status.versions]
       - below: [status.milestone, status.epics]
       - below: [status.epics, status.shipped]
-      - size: { target: status.release_wait, min_width: 318, max_width: 322 }
-      - size: { target: status.versions, min_width: 318, max_width: 322 }
+      - size: { target: status.release_wait, min_width: 366, max_width: 378 }  # a third of the grid, as wide as a top tile (D-10 of workflow/health-scores-…)
+      - size: { target: status.versions, min_width: 366, max_width: 378 }  # a third of the grid, as wide as a top tile (D-10 of workflow/health-scores-…)
     do: Load the page at 1440×900 without scrolling.
     expect: |
       The three tiles (Needs you, Working on, What's next), Current

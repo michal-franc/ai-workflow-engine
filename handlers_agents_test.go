@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -221,6 +222,45 @@ func TestAgentOpen_TerminalNone(t *testing.T) {
 	}
 }
 
+// Open on a lead follows lead_terminal:, not terminal: (D-5). Unset is
+// headless with the hints even when terminal: is set; set, it runs
+// lead_terminal and never the workers' attach.
+func TestAgentOpen_LeadFollowsLeadTerminal(t *testing.T) {
+	proj := setupAgentsProject(t)
+	proj.Terminal = "alacritty -e tmux attach -t {{session}}"
+	var leadOpened []string
+	origLive, origAttach, origLead := agentSessionLive, attachAgent, leadTerminal
+	agentSessionLive = func(*tracker.Project, string) bool { return true }
+	attachAgent = func(*tracker.Project, string, *[]agentrun.Step) bool {
+		t.Fatal("a lead must not open through terminal:")
+		return false
+	}
+	leadTerminal = func(_ *tracker.Project, name string, steps *[]agentrun.Step) (bool, bool) {
+		leadOpened = append(leadOpened, name)
+		*steps = append(*steps, agentrun.Step{Name: "Open lead terminal", Status: "ok"})
+		return true, true
+	}
+	t.Cleanup(func() { agentSessionLive, attachAgent, leadTerminal = origLive, origAttach, origLead })
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"lead-agents"}`)
+	if code != 200 || resp["status"] != "opened" || len(leadOpened) != 0 || resp["attach_cmd"] == "" {
+		t.Fatalf("unset lead_terminal: %d %v leadOpened=%v", code, resp, leadOpened)
+	}
+	if !strings.Contains(fmt.Sprint(resp["steps"]), "headless") {
+		t.Fatalf("unset lead_terminal: want the headless step, got %v", resp["steps"])
+	}
+
+	proj.LeadTerminal = "tmux-window"
+	ts2 := newTestServer(t, []tracker.Project{proj})
+	defer ts2.Close()
+	code, resp = postJSON(t, ts2.URL+"/p/agents/agents/open", `{"session":"lead-agents"}`)
+	if code != 200 || resp["status"] != "opened" || len(leadOpened) != 1 || leadOpened[0] != "lead-agents" {
+		t.Fatalf("lead_terminal set: %d %v leadOpened=%v", code, resp, leadOpened)
+	}
+}
+
 func TestAgentOpenAndDetail(t *testing.T) {
 	proj := setupAgentsProject(t)
 	stubAgentsGit(t)
@@ -248,18 +288,18 @@ func TestAgentOpenAndDetail(t *testing.T) {
 	ts := newTestServer(t, []tracker.Project{proj})
 	defer ts.Close()
 
-	code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"lead-ui-epic"}`)
-	if code != 200 || resp["status"] != "opened" || len(opened) != 1 || opened[0] != "lead-ui-epic" || resp["attach_cmd"] == "" {
+	code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"agent-ui-child"}`)
+	if code != 200 || resp["status"] != "opened" || len(opened) != 1 || opened[0] != "agent-ui-child" || resp["attach_cmd"] == "" {
 		t.Fatalf("open: %d %v opened=%v", code, resp, opened)
 	}
 	// A session that already has a terminal never gets a second window: its
 	// window is brought to the front, or the answer says it is open.
-	attached["lead-ui-epic"] = true
-	if code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"lead-ui-epic"}`); code != 200 || resp["status"] != "focused" || len(opened) != 1 || len(focused) != 1 || focused[0] != "lead-ui-epic" {
+	attached["agent-ui-child"] = true
+	if code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"agent-ui-child"}`); code != 200 || resp["status"] != "focused" || len(opened) != 1 || len(focused) != 1 || focused[0] != "agent-ui-child" {
 		t.Fatalf("focus: %d %v opened=%v focused=%v", code, resp, opened, focused)
 	}
 	focusOK = false
-	if code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"lead-ui-epic"}`); code != 200 || resp["status"] != "already-open" || len(opened) != 1 {
+	if code, resp := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"agent-ui-child"}`); code != 200 || resp["status"] != "already-open" || len(opened) != 1 {
 		t.Fatalf("already open, no window to focus: %d %v opened=%v", code, resp, opened)
 	}
 	if code, _ := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"agent-gone"}`); code != 409 || len(opened) != 1 {
@@ -268,7 +308,7 @@ func TestAgentOpenAndDetail(t *testing.T) {
 	if code, _ := postJSON(t, ts.URL+"/p/agents/agents/open", `{"session":"zsh; rm"}`); code != 400 {
 		t.Fatalf("bad session name: %d", code)
 	}
-	if code, _ := postJSON(t, ts.URL+"/p/agents/agents/message", `{"session":"lead-ui-epic","text":"hi"}`); code == 200 {
+	if code, _ := postJSON(t, ts.URL+"/p/agents/agents/message", `{"session":"agent-ui-child","text":"hi"}`); code == 200 {
 		t.Fatalf("the canvas message endpoint is gone (D-12), got %d", code)
 	}
 

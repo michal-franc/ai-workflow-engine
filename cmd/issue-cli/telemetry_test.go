@@ -228,7 +228,7 @@ func TestTelemetryEventFields(t *testing.T) {
 	if strings.Join(e.Flags, ",") != "config,project" {
 		t.Fatalf("flags should be the global flag names: %v", e.Flags)
 	}
-	if e.V != 1 || e.TS == "" || e.ArgsHash == "" || e.PID == 0 || e.Exit != 0 {
+	if e.V != 1 || e.TS == "" || e.ArgsHash == "" || e.PID == 0 || e.Exit != 0 || e.Ver != Version {
 		t.Fatalf("base fields missing: %+v", e)
 	}
 	t.Setenv("ISSUE_VIEWER_ISSUE_SLUG", "")

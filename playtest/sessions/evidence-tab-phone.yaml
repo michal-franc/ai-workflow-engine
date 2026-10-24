@@ -1,0 +1,22 @@
+session: evidence-tab-phone
+issue: ui/evidence-tab-proof-shots-and-criteria
+title: On a phone the Evidence tab stacks, Verdict first, with no sideways scroll
+scenario: evidence-tab
+
+session_checks:
+  viewports: [390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP7
+    title: At 390 px the Verdict comes first and nothing scrolls sideways
+    proves: [AC15]
+    setup:
+      - open: /p/{project}/issue/ui/evidence-demo?tab=evidence
+    checks:
+      - below: [evidence.verdict, evidence.shots]
+      - below: [evidence.shots, evidence.criteria]
+      - below: [evidence.criteria, evidence.playtest]
+      - visible: [evidence.shot.ev1, evidence.criterion.ac1]
+      - http: { path: "/p/{project}/issue/ui/evidence-short?tab=evidence", contains: "Unknown criterion AC9" }

@@ -1,7 +1,6 @@
-package main
+package workflowupgrade
 
 import (
-	_ "embed"
 	"fmt"
 	"reflect"
 	"sort"
@@ -12,31 +11,44 @@ import (
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
-// workflowFeaturesYAML is the feature catalog `workflow scan` detects and
-// `workflow upgrade` proposes from. It sits outside templates/workflow/ so the
-// *.yaml template glob doesn't pick it up as a template.
-//
-//go:embed templates/workflow-features.yaml
-var workflowFeaturesYAML []byte
-
-type featureEntry struct {
-	ID        string         `yaml:"id"`
-	Version   string         `yaml:"version"`
-	Category  string         `yaml:"category"`
-	Propose   bool           `yaml:"propose"`
-	Templates []string       `yaml:"templates"`
-	Title     string         `yaml:"title"`
-	What      string         `yaml:"what"`
-	Why       string         `yaml:"why"`
-	Where     string         `yaml:"where"`
-	Snippet   string         `yaml:"snippet"`
-	Question  string         `yaml:"question"`
-	Detect    []featureProbe `yaml:"detect"`
+type Entry struct {
+	ID        string   `yaml:"id"`
+	Version   string   `yaml:"version"`
+	Category  string   `yaml:"category"`
+	Propose   bool     `yaml:"propose"`
+	Templates []string `yaml:"templates"`
+	Title     string   `yaml:"title"`
+	What      string   `yaml:"what"`
+	Why       string   `yaml:"why"`
+	Where     string   `yaml:"where"`
+	Snippet   string   `yaml:"snippet"`
+	Question  string   `yaml:"question"`
+	Detect    []Probe  `yaml:"detect"`
+	// Requires lists entry ids the project must have before upgrade
+	// proposes this one (ci-test-results needs local-ci).
+	Requires []string `yaml:"requires"`
+	// Sources are the repo globs of the code behind the feature. `workflow
+	// catalog-check` asks for a version bump when a branch changes them.
+	Sources []string `yaml:"sources"`
+	// Setup is the ordered steps beyond the snippet, for a feature that sets
+	// things up outside workflow.yaml (repos, hooks). The Updates card lists
+	// them and the install agent walks them; an owner step is the owner's to
+	// do, never the agent's.
+	Setup []SetupStep `yaml:"setup"`
 }
 
-// featureProbe matches values at a path in the parsed workflow.yaml. With no
+// SetupStep is one setup step: who does it (owner or agent) and what.
+type SetupStep struct {
+	Who string `yaml:"who" json:"who"`
+	Do  string `yaml:"do" json:"do"`
+}
+
+// SetupWho are the values a setup step's who may take.
+var SetupWho = []string{"owner", "agent"}
+
+// Probe matches values at a path in the parsed workflow.yaml. With no
 // condition it matches any set value; otherwise the single condition given.
-type featureProbe struct {
+type Probe struct {
 	Path     string   `yaml:"path"`
 	Equals   any      `yaml:"equals"`
 	OneOf    []string `yaml:"one_of"`
@@ -44,9 +56,13 @@ type featureProbe struct {
 	Contains string   `yaml:"contains"`
 }
 
+// Categories is the catalog's category list, in the order the Updates tab
+// and scan output group entries.
+var Categories = []string{"lifecycle", "gates", "automation", "actions", "board", "workbench", "dispatch", "conventions"}
+
 // appliesTo reports whether upgrade proposes the entry for a template. An
 // entry without templates applies to all of them.
-func (e featureEntry) appliesTo(template string) bool {
+func (e Entry) appliesTo(template string) bool {
 	if len(e.Templates) == 0 {
 		return true
 	}
@@ -58,28 +74,28 @@ func (e featureEntry) appliesTo(template string) bool {
 	return false
 }
 
-func loadFeatureCatalog() ([]featureEntry, error) {
+func Catalog() ([]Entry, error) {
 	var doc struct {
-		Entries []featureEntry `yaml:"entries"`
+		Entries []Entry `yaml:"entries"`
 	}
-	if err := yaml.Unmarshal(workflowFeaturesYAML, &doc); err != nil {
+	if err := yaml.Unmarshal(catalogYAML(), &doc); err != nil {
 		return nil, fmt.Errorf("parsing bundled feature catalog: %w", err)
 	}
 	return doc.Entries, nil
 }
 
-func catalogIndex(entries []featureEntry) map[string]featureEntry {
-	idx := make(map[string]featureEntry, len(entries))
+func catalogIndex(entries []Entry) map[string]Entry {
+	idx := make(map[string]Entry, len(entries))
 	for _, e := range entries {
 		idx[e.ID] = e
 	}
 	return idx
 }
 
-// parseWorkflowDoc decodes workflow.yaml generically for probing. A file that
+// ParseDoc decodes workflow.yaml generically for probing. A file that
 // doesn't parse as a mapping yields nil, so probes find nothing rather than
 // breaking the command (the hint must never fail).
-func parseWorkflowDoc(raw []byte) map[string]any {
+func ParseDoc(raw []byte) map[string]any {
 	var m map[string]any
 	if err := yaml.Unmarshal(raw, &m); err != nil {
 		return nil
@@ -145,7 +161,7 @@ func walkSegments(node any, segs []string, at string, visit func(string, any)) {
 }
 
 // matches reports whether one value satisfies the probe's condition.
-func (p featureProbe) matches(v any) bool {
+func (p Probe) matches(v any) bool {
 	s, isString := v.(string)
 	switch {
 	case p.Equals != nil:
@@ -194,7 +210,7 @@ func containsString(list []string, s string) bool {
 }
 
 // describe renders the condition for evidence lines.
-func (p featureProbe) describe(v any) string {
+func (p Probe) describe(v any) string {
 	switch {
 	case p.Contains != "":
 		return fmt.Sprintf("contains %q", p.Contains)
@@ -225,15 +241,15 @@ func shortValue(v any) string {
 	return s
 }
 
-// featureDetection is the result of probing one catalog entry.
-type featureDetection struct {
+// Detection is the result of probing one catalog entry.
+type Detection struct {
 	Matches  int
 	Evidence string // first match: concrete path and condition
 }
 
-// detectFeature runs an entry's probes over the parsed workflow.yaml.
-func detectFeature(e featureEntry, doc map[string]any) featureDetection {
-	var d featureDetection
+// Detect runs an entry's probes over the parsed workflow.yaml.
+func Detect(e Entry, doc map[string]any) Detection {
+	var d Detection
 	if doc == nil {
 		return d
 	}
@@ -259,9 +275,9 @@ func featureRef(s string) (id, version string) {
 	return strings.TrimSpace(id), strings.TrimSpace(version)
 }
 
-// readFeatureRecord returns the file's features: record and whether the key
+// ReadRecord returns the file's features: record and whether the key
 // is present at all.
-func readFeatureRecord(raw []byte) (tracker.FeatureRecord, bool) {
+func ReadRecord(raw []byte) (tracker.FeatureRecord, bool) {
 	var doc struct {
 		Features *tracker.FeatureRecord `yaml:"features"`
 	}
@@ -271,8 +287,8 @@ func readFeatureRecord(raw []byte) (tracker.FeatureRecord, bool) {
 	return *doc.Features, true
 }
 
-// recordIndex maps installed ids to versions and lists declined ids.
-func recordIndex(rec tracker.FeatureRecord) (installed map[string]string, declined map[string]bool) {
+// RecordIndex maps installed ids to versions and lists declined ids.
+func RecordIndex(rec tracker.FeatureRecord) (installed map[string]string, declined map[string]bool) {
 	installed = map[string]string{}
 	declined = map[string]bool{}
 	for _, s := range rec.Installed {
@@ -291,8 +307,8 @@ func recordIndex(rec tracker.FeatureRecord) (installed map[string]string, declin
 
 const featureRecordComment = "# Feature record: catalog features this file has (<id>@<version>) and the\n# ones the human declined. Written by `issue-cli workflow scan`, read by\n# `issue-cli workflow upgrade`."
 
-// renderFeatureRecord is the features: block scan writes.
-func renderFeatureRecord(rec tracker.FeatureRecord) string {
+// RenderRecord is the features: block scan writes.
+func RenderRecord(rec tracker.FeatureRecord) string {
 	var b strings.Builder
 	b.WriteString("features:\n")
 	if len(rec.Installed) == 0 && len(rec.Declined) == 0 {
@@ -314,12 +330,12 @@ func renderFeatureRecord(rec tracker.FeatureRecord) string {
 	return b.String()
 }
 
-// writeFeatureRecord replaces the top-level features: block in raw, or
+// WriteRecord replaces the top-level features: block in raw, or
 // inserts one after the template: line (else before the first top-level
 // key). It edits text so comments and layout elsewhere survive, then checks
 // that nothing but features: changed.
-func writeFeatureRecord(raw []byte, rec tracker.FeatureRecord) ([]byte, error) {
-	block := renderFeatureRecord(rec)
+func WriteRecord(raw []byte, rec tracker.FeatureRecord) ([]byte, error) {
+	block := RenderRecord(rec)
 	lines := strings.SplitAfter(string(raw), "\n")
 	if n := len(lines); n > 0 && lines[n-1] == "" {
 		lines = lines[:n-1]
@@ -374,13 +390,13 @@ func writeFeatureRecord(raw []byte, rec tracker.FeatureRecord) ([]byte, error) {
 	}
 	result := []byte(strings.Join(out, ""))
 
-	before, after := parseWorkflowDoc(raw), parseWorkflowDoc(result)
+	before, after := ParseDoc(raw), ParseDoc(result)
 	if before == nil || after == nil {
 		return nil, fmt.Errorf("workflow.yaml does not parse as a YAML mapping")
 	}
 	delete(before, "features")
 	delete(after, "features")
-	got, _ := readFeatureRecord(result)
+	got, _ := ReadRecord(result)
 	if !reflect.DeepEqual(before, after) || !reflect.DeepEqual(normalizeRecord(got), normalizeRecord(rec)) {
 		return nil, fmt.Errorf("could not safely rewrite the features: block; replace it by hand with:\n\n%s", block)
 	}
@@ -397,8 +413,8 @@ func normalizeRecord(r tracker.FeatureRecord) tracker.FeatureRecord {
 	return r
 }
 
-// scanFeature is one catalog entry's line in the scan report.
-type scanFeature struct {
+// ScanFeature is one catalog entry's line in the scan report.
+type ScanFeature struct {
 	ID       string `json:"id"`
 	Version  string `json:"version"`
 	Category string `json:"category"`
@@ -411,23 +427,23 @@ type scanFeature struct {
 	Recorded string `json:"recorded"`
 }
 
-type scanResult struct {
+type ScanResult struct {
 	WorkflowFile string                `json:"workflow_file"`
 	DryRun       bool                  `json:"dry_run"`
 	Written      bool                  `json:"written"`
 	HadRecord    bool                  `json:"had_record"`
-	Features     []scanFeature         `json:"features"`
+	Features     []ScanFeature         `json:"features"`
 	Record       tracker.FeatureRecord `json:"record"`
 	Block        string                `json:"block"`
 	Changes      []string              `json:"changes"`
 	Notes        []string              `json:"notes"`
 }
 
-type scanOptions struct {
+type ScanOptions struct {
 	Installed, Declined, Forget []string
 }
 
-// scanWorkflowFeatures detects catalog features in raw and merges them with
+// Scan detects catalog features in raw and merges them with
 // the existing record and the explicit flags:
 //   - installed = detected ∪ already recorded ∪ --installed, minus --forget
 //     for undetected ones. A recorded version is kept; new and --installed
@@ -437,8 +453,8 @@ type scanOptions struct {
 //
 // Ids in the record that the catalog doesn't know are kept, after the known
 // ones.
-func scanWorkflowFeatures(path string, raw []byte, opts scanOptions) (*scanResult, error) {
-	entries, err := loadFeatureCatalog()
+func Scan(path string, raw []byte, opts ScanOptions) (*ScanResult, error) {
+	entries, err := Catalog()
 	if err != nil {
 		return nil, err
 	}
@@ -446,27 +462,27 @@ func scanWorkflowFeatures(path string, raw []byte, opts scanOptions) (*scanResul
 	for _, list := range [][]string{opts.Installed, opts.Declined, opts.Forget} {
 		for _, id := range list {
 			if _, ok := idx[id]; !ok {
-				return nil, fmt.Errorf("unknown feature id %q (known: %s)", id, strings.Join(featureIDs(entries), ", "))
+				return nil, fmt.Errorf("unknown feature id %q (known: %s)", id, strings.Join(IDs(entries), ", "))
 			}
 		}
 	}
-	doc := parseWorkflowDoc(raw)
+	doc := ParseDoc(raw)
 	if doc == nil {
 		return nil, fmt.Errorf("%s does not parse as a YAML mapping", path)
 	}
 
-	old, hadRecord := readFeatureRecord(raw)
-	oldInstalled, oldDeclined := recordIndex(old)
+	old, hadRecord := ReadRecord(raw)
+	oldInstalled, oldDeclined := RecordIndex(old)
 	explicitInstall := setOf(opts.Installed)
 	explicitDecline := setOf(opts.Declined)
 	forget := setOf(opts.Forget)
 
-	res := &scanResult{WorkflowFile: path, HadRecord: hadRecord, Features: []scanFeature{}, Changes: []string{}, Notes: []string{}}
+	res := &ScanResult{WorkflowFile: path, HadRecord: hadRecord, Features: []ScanFeature{}, Changes: []string{}, Notes: []string{}}
 	var rec tracker.FeatureRecord
 	installedNow := map[string]bool{}
 	for _, e := range entries {
-		d := detectFeature(e, doc)
-		f := scanFeature{ID: e.ID, Version: e.Version, Category: e.Category, Title: e.Title, Detected: d.Matches > 0, Matches: d.Matches, Evidence: d.Evidence}
+		d := Detect(e, doc)
+		f := ScanFeature{ID: e.ID, Version: e.Version, Category: e.Category, Title: e.Title, Detected: d.Matches > 0, Matches: d.Matches, Evidence: d.Evidence}
 		oldVersion, wasInstalled := oldInstalled[e.ID]
 		if f.Detected && explicitDecline[e.ID] {
 			return nil, fmt.Errorf("%s is present in %s (%s); remove it from the file before declining it", e.ID, path, d.Evidence)
@@ -541,7 +557,7 @@ func scanWorkflowFeatures(path string, raw []byte, opts scanOptions) (*scanResul
 		}
 	}
 	res.Record = rec
-	res.Block = renderFeatureRecord(rec)
+	res.Block = RenderRecord(rec)
 	return res, nil
 }
 
@@ -553,21 +569,10 @@ func setOf(list []string) map[string]bool {
 	return m
 }
 
-func featureIDs(entries []featureEntry) []string {
+func IDs(entries []Entry) []string {
 	ids := make([]string, 0, len(entries))
 	for _, e := range entries {
 		ids = append(ids, e.ID)
 	}
 	return ids
-}
-
-// splitIDList parses a comma/space separated --installed/--declined value.
-func splitIDList(s string) []string {
-	var out []string
-	for _, f := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' }) {
-		if f = strings.TrimSpace(f); f != "" {
-			out = append(out, f)
-		}
-	}
-	return out
 }

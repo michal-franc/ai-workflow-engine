@@ -83,6 +83,9 @@ func codebaseFamily(ctx context.Context, env Env) ([]Metric, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cur.byKind[KindTest] == nil {
+		Warn(ctx, "%s matched no code file, so test lines count as 0", globNote("test_globs", env.Config != nil && len(env.Config.TestGlobs) > 0, rules.tests))
+	}
 	out := tallyMetrics(cur, rules.bigFrom)
 	g, err := growthMetrics(ctx, env, cur, rules)
 	if err != nil {
@@ -142,14 +145,28 @@ type blobEntry struct {
 	size int64
 }
 
-// scanTree counts every blob in commit's tree: one ls-tree, then one
-// cat-file --batch for the blobs worth reading.
+// scanTree counts every blob in commit's tree.
 func scanTree(ctx context.Context, root, commit string, rules scanRules) (*tally, error) {
-	listing, err := gitBytes(ctx, root, "ls-tree", "-r", "-l", "-z", commit)
+	t := newTally()
+	oversized, err := walkBlobs(ctx, root, commit, rules.skip, func(p string, data []byte) {
+		t.addFile(p, data, rules)
+	})
 	if err != nil {
 		return nil, err
 	}
-	t := newTally()
+	t.binary += oversized
+	return t, nil
+}
+
+// walkBlobs reads every blob in commit's tree that skip keeps: one ls-tree,
+// then one cat-file --batch. visit gets each blob's content (binary ones
+// too; the caller sniffs). Blobs over maxBlobBytes are not read, only
+// counted in oversized. Symlinks and submodules are skipped.
+func walkBlobs(ctx context.Context, root, commit string, skip func(string) bool, visit func(p string, data []byte)) (oversized int, err error) {
+	listing, err := gitBytes(ctx, root, "ls-tree", "-r", "-l", "-z", commit)
+	if err != nil {
+		return 0, err
+	}
 	var toRead []blobEntry
 	for _, rec := range bytes.Split(listing, []byte{0}) {
 		meta, p, ok := strings.Cut(string(rec), "\t")
@@ -160,32 +177,32 @@ func scanTree(ctx context.Context, root, commit string, rules scanRules) (*tally
 		if len(f) != 4 || f[1] != "blob" || f[0] == "120000" {
 			continue // submodules, symlinks
 		}
-		if rules.skip(p) {
+		if skip(p) {
 			continue
 		}
 		size, _ := strconv.ParseInt(f[3], 10, 64)
 		if size > maxBlobBytes {
-			t.binary++
+			oversized++
 			continue
 		}
 		toRead = append(toRead, blobEntry{f[2], p, size})
 	}
 	if len(toRead) == 0 {
-		return t, nil
+		return oversized, nil
 	}
 
 	cmd := exec.CommandContext(ctx, "git", "cat-file", "--batch")
 	cmd.Dir = root
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	if err := cmd.Start(); err != nil {
-		return nil, err
+		return 0, err
 	}
 	go func() {
 		w := bufio.NewWriter(stdin)
@@ -201,12 +218,12 @@ func scanTree(ctx context.Context, root, commit string, rules scanRules) (*tally
 		header, err := r.ReadString('\n')
 		if err != nil {
 			cmd.Wait()
-			return nil, fmt.Errorf("git cat-file: %w", err)
+			return 0, fmt.Errorf("git cat-file: %w", err)
 		}
 		f := strings.Fields(header) // sha type size
 		if len(f) != 3 {
 			cmd.Wait()
-			return nil, fmt.Errorf("git cat-file: unexpected %q", strings.TrimSpace(header))
+			return 0, fmt.Errorf("git cat-file: unexpected %q", strings.TrimSpace(header))
 		}
 		size, _ := strconv.Atoi(f[2])
 		if cap(buf) < size+1 {
@@ -215,14 +232,14 @@ func scanTree(ctx context.Context, root, commit string, rules scanRules) (*tally
 		data := buf[:size+1] // content plus the trailing newline
 		if _, err := io.ReadFull(r, data); err != nil {
 			cmd.Wait()
-			return nil, fmt.Errorf("git cat-file: %w", err)
+			return 0, fmt.Errorf("git cat-file: %w", err)
 		}
-		t.addFile(b.path, data[:size], rules)
+		visit(b.path, data[:size])
 	}
 	if err := cmd.Wait(); err != nil {
-		return nil, fmt.Errorf("git cat-file: %w", err)
+		return 0, fmt.Errorf("git cat-file: %w", err)
 	}
-	return t, nil
+	return oversized, nil
 }
 
 // addFile counts one blob's content.

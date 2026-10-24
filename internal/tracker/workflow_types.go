@@ -196,6 +196,7 @@ func (w *WorkflowConfig) Lint() []string {
 	out := w.Workbench.Validate()
 	out = append(out, w.CI.Validate()...)
 	out = append(out, w.Health.Validate()...)
+	out = append(out, w.Privacy.Validate()...)
 	if strings.TrimSpace(w.Leads.Epic) != "" {
 		out = append(out, "leads.epic is obsolete and ignored: there is one lead per project (remove it)")
 	}
@@ -313,7 +314,7 @@ func checkedSection(a WorkflowAction) string {
 			return strings.TrimSpace(a.Section)
 		}
 	}
-	for _, prefix := range []string{"section_checkboxes_checked:", "section_has_checkboxes:"} {
+	for _, prefix := range []string{"section_checkboxes_checked:", "section_has_checkboxes:", "criteria_checkboxes:"} {
 		if strings.HasPrefix(a.Rule, prefix) {
 			return strings.TrimSpace(strings.TrimPrefix(a.Rule, prefix))
 		}

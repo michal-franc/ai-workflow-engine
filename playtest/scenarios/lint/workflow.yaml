@@ -1,0 +1,23 @@
+template: custom
+statuses:
+  - name: "idea"
+    description: "Raw idea"
+  - name: "in design"
+    description: "Being designed"
+    prompt: "Design {{slug}} with the owner before you build it."
+  - name: "done"
+    description: "Shipped"
+transitions:
+  - from: "idea"
+    to: "in design"
+    actions:
+      - type: "append_section"
+        title: "Design"
+        body: "- [ ] Approach documented"
+  - from: "in design"
+    to: "done"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Design"
+board:
+  colums: ["idea", "in design", "done"]

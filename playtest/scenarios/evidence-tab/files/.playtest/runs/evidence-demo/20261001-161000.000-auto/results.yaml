@@ -1,0 +1,11 @@
+session: evidence-demo
+issue: ui/evidence-demo
+title: The badge shows the count and glows
+mode: auto
+build: 0000001
+started: "2026-10-01T16:10:00Z"
+steps:
+    - id: EV1
+      title: The badge shows the count
+      status: fail
+      proves: [AC1]

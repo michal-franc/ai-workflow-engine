@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
@@ -22,8 +23,8 @@ var templateFS embed.FS
 var staticFS embed.FS
 
 type Server struct {
-	projects     []tracker.Project
-	tmpl         *template.Template
+	projects []tracker.Project
+	tmpl     *template.Template
 	// allowedHosts are the Host names past loopback the viewer answers to
 	// (allowedHostsFor); Routes refuses the rest with 421.
 	allowedHosts []string
@@ -32,6 +33,9 @@ type Server struct {
 	bg *background
 	// stats caches the stats page's aggregate and CLI usage per project.
 	stats *statsCache
+	// engine is the engine project's slug (where report-bug files), whose
+	// Status page shows a release candidate's soak; "" for none.
+	engine string
 }
 
 // AgentSession is one live tmux session (or shared-session window).
@@ -60,6 +64,7 @@ func NewServer(projects []tracker.Project) (*Server, error) {
 		tmpl:     tmpl,
 		bg:       newBackground(context.Background()),
 		stats:    newStatsCache(),
+		engine:   engineSlug(&tracker.ProjectsConfig{Projects: projects}),
 	}
 	tmpl.Funcs(template.FuncMap{"sidebar": s.sidebarNav})
 	return s, nil
@@ -79,6 +84,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("/", s.handleProjectList)
 	mux.HandleFunc("/p/", s.handleProjectRoutes)
 	mux.HandleFunc("/stats", s.handleStatsOverview)
+	mux.HandleFunc("/updates", s.handleUpdatesOverview)
 	mux.HandleFunc("/project-for", s.handleProjectFor)
 	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
 	return hostAllowed(s.allowedHosts, sameOriginOnly(mux))
@@ -120,6 +126,8 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleStatusMD(w, r, proj, prefix)
 	case rest == "status.json" && r.Method == http.MethodGet:
 		s.handleStatusJSON(w, r, proj, prefix)
+	case rest == "release.json" && r.Method == http.MethodGet:
+		s.handleReleaseJSON(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "pages/") && r.Method == http.MethodGet:
 		s.handleProjectPage(w, r, proj, prefix, rest)
 	case strings.HasPrefix(rest, "page-raw/") && (r.Method == http.MethodGet || r.Method == http.MethodHead):
@@ -132,6 +140,14 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleGitHubImport(w, r, proj)
 	case rest == "stats":
 		s.handleStats(w, r, proj, prefix)
+	case rest == "health" && r.Method == http.MethodGet:
+		s.handleHealth(w, r, proj, prefix)
+	case rest == "health/review" && r.Method == http.MethodPost:
+		s.handleHealthReview(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "health/recommendation/") && strings.HasSuffix(rest, "/file") && r.Method == http.MethodPost:
+		s.handleHealthFile(w, r, proj, prefix, rest)
+	case strings.HasPrefix(rest, "health/recommendation/") && strings.HasSuffix(rest, "/dismiss") && r.Method == http.MethodPost:
+		s.handleHealthDismiss(w, r, proj, prefix, rest)
 	case rest == "agents" && r.Method == http.MethodGet:
 		s.handleAgents(w, r, proj, prefix)
 	case rest == "agents.json" && r.Method == http.MethodGet:
@@ -152,6 +168,12 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleUpdateBugStatus(w, r, proj, prefix)
 	case rest == "decisions" && r.Method == http.MethodGet:
 		s.handleDecisions(w, r, proj, prefix)
+	case rest == "updates" && r.Method == http.MethodGet:
+		s.handleUpdates(w, r, proj, prefix)
+	case (rest == "updates/decline" || rest == "updates/reopen") && r.Method == http.MethodPost:
+		s.handleUpdatesRecord(w, r, proj, prefix, strings.TrimPrefix(rest, "updates/"))
+	case rest == "updates/install" && r.Method == http.MethodPost:
+		s.handleUpdatesInstall(w, r, proj, prefix)
 	case rest == "metrics" && r.Method == http.MethodGet:
 		s.handleMetrics(w, r, proj, prefix, false)
 	case rest == "metrics.json" && r.Method == http.MethodGet:
@@ -202,6 +224,10 @@ func (s *Server) handleProjectRoutes(w http.ResponseWriter, r *http.Request) {
 		s.handleTransitionPreview(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/type") && r.Method == http.MethodPost:
 		s.handleSetIssueType(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/check-script") && r.Method == http.MethodPost:
+		s.handleRunChecks(w, r, proj, prefix)
+	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/checkbox") && r.Method == http.MethodPost:
+		s.handleToggleCheckbox(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/approve") && r.Method == http.MethodPost:
 		s.handleApproveIssue(w, r, proj, prefix)
 	case strings.HasPrefix(rest, "issue/") && strings.HasSuffix(rest, "/delete") && r.Method == http.MethodPost:
@@ -237,6 +263,9 @@ type ProjectSummary struct {
 	Slug       string
 	IssueCount int
 	DocCount   int
+	Updates    int // workflow features to decide (the Updates tab)
+	// Privacy is the work-files and code markers (privacy_view.go).
+	Privacy []PrivacyBadge
 }
 
 func (s *Server) handleProjectList(w http.ResponseWriter, r *http.Request) {
@@ -271,6 +300,10 @@ func (s *Server) handleProjectList(w http.ResponseWriter, r *http.Request) {
 				IssueCount: len(issues),
 				DocCount:   len(docs),
 			}
+			if plan := projectUpgradePlan(&p); plan != nil {
+				summaries[i].Updates = len(plan.Proposals)
+			}
+			summaries[i].Privacy = privacyView(&p, "/p/"+p.Slug, time.Now()).Badges
 		}(i, p)
 	}
 	wg.Wait()

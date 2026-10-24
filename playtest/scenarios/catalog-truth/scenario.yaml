@@ -1,0 +1,13 @@
+# Feature catalog truth: a development workflow stamped at the bundled
+# version whose features: record declines status-changelog and misses the
+# local CI the file has (a ci: block). No CHANGELOG.md and no tags, so
+# Recently released is empty. One health snapshot (2026-10-20) whose tests
+# family warns that the default e2e_sessions glob matched no file;
+# health.off keeps the viewer from adding today's snapshot.
+title: Feature catalog truth - declined hint, stale record, empty health glob
+project:
+  name: Ledger
+  slug: ledger
+issues: tracker
+workflow: workflow.yaml
+root: files

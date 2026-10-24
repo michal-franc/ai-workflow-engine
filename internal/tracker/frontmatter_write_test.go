@@ -200,3 +200,46 @@ func TestCreateIssueFile_RefusesUnparsableFrontmatter(t *testing.T) {
 		t.Errorf("issue file written despite the refusal")
 	}
 }
+
+func TestSetCreated(t *testing.T) {
+	fp := filepath.Join(t.TempDir(), "test.md")
+	if err := os.WriteFile(fp, []byte("---\ntitle: \"Test\"\nstatus: \"idea\"\npriority: \"high\"\n---\n\nBody.\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := SetCreated(fp, "2026-04-02T10:00"); err == nil {
+		t.Error("a non-date value was accepted")
+	}
+	if err := SetCreated(fp, "2026-04-02"); err != nil {
+		t.Fatalf("SetCreated on an undated issue: %v", err)
+	}
+	if issue, _ := readParsed(t, fp); issue.Created != "2026-04-02" {
+		t.Errorf("created = %q, want 2026-04-02", issue.Created)
+	}
+	err := SetCreated(fp, "2026-05-01")
+	if err == nil || !strings.Contains(err.Error(), "never changed") {
+		t.Errorf("changing an existing date: err = %v, want a refusal", err)
+	}
+	if issue, _ := readParsed(t, fp); issue.Created != "2026-04-02" {
+		t.Errorf("created changed to %q", issue.Created)
+	}
+}
+
+func TestSetFrontmatterField_AppendAddsNoBlankLine(t *testing.T) {
+	for _, tc := range []struct{ name, fm, want string }{
+		{"no blank before ---", "---\ntitle: \"Test\"\n---\nBody.\n", "---\ntitle: \"Test\"\nwaiting: \"x\"\n---\nBody.\n"},
+		{"blank before --- kept", "---\ntitle: \"Test\"\n\n---\nBody.\n", "---\ntitle: \"Test\"\nwaiting: \"x\"\n\n---\nBody.\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fp := filepath.Join(t.TempDir(), "test.md")
+			if err := os.WriteFile(fp, []byte(tc.fm), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if err := SetFrontmatterField(fp, "waiting", "x", false); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := os.ReadFile(fp); string(got) != tc.want {
+				t.Errorf("got\n%q\nwant\n%q", got, tc.want)
+			}
+		})
+	}
+}

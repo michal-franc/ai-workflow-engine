@@ -1,0 +1,14 @@
+session: evidence-demo
+issue: ui/evidence-demo
+title: The badge shows the count and glows
+mode: judge
+build: 3c1d2e0
+started: "2026-10-01T17:35:00Z"
+steps:
+    - id: EV9
+      title: The badge reads well at a glance
+      judgement_step: true
+      status: pass
+      proves: [AC1]
+      judge:
+        status: pass

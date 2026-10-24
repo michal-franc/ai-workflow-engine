@@ -1,11 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"html/template"
 	"math"
 	"net/http"
 	"net/url"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/michal-franc/issue-viewer/internal/chart"
@@ -26,6 +28,9 @@ type OverviewData struct {
 	Sorts  []statsOption
 	Range  string
 	Days   int
+	// Privacy counts every project's work-files marker (privacy_view.go):
+	// "2 private · 1 in code repo".
+	Privacy string
 }
 
 // OverviewCell is one value and its sparkline.
@@ -39,6 +44,8 @@ type OverviewCell struct {
 type OverviewRow struct {
 	Name, Slug, Href string
 	Latest           string
+	// Privacy is the work-files and code markers.
+	Privacy []PrivacyBadge
 
 	Waiting      OverviewCell
 	WaitingShare float64
@@ -94,8 +101,15 @@ func buildOverview(projects []tracker.Project, q url.Values, now time.Time) Over
 
 	from := now.AddDate(0, 0, -d.Days)
 	seen := map[string]bool{}
+	markers := map[string]int{}
 	for i := range projects {
 		proj := &projects[i]
+		privacyRow := privacyView(proj, "/p/"+proj.Slug, now).Badges
+		for _, b := range privacyRow {
+			if b.Kind == "work" {
+				markers[b.Marker]++
+			}
+		}
 		wf := proj.LoadWorkflow()
 		root := ciRootFor(proj)
 		if !wf.Health.Enabled() || seen[root] {
@@ -108,8 +122,11 @@ func buildOverview(projects []tracker.Project, q url.Values, now time.Time) Over
 			continue
 		}
 		seen[root] = true
-		d.Rows = append(d.Rows, overviewRow(proj, wf, lastPerDay(snaps, from, now), snaps[len(snaps)-1]))
+		row := overviewRow(proj, wf, lastPerDay(snaps, from, now), snaps[len(snaps)-1])
+		row.Privacy = privacyRow
+		d.Rows = append(d.Rows, row)
 	}
+	d.Privacy = privacyCounts(markers)
 	less := map[string]func(a, b OverviewRow) bool{
 		"done":    func(a, b OverviewRow) bool { return a.Done > b.Done },
 		"waiting": func(a, b OverviewRow) bool { return a.WaitingShare > b.WaitingShare },
@@ -165,3 +182,14 @@ func overviewRow(proj *tracker.Project, wf *tracker.WorkflowConfig, daily []*hea
 
 // Pct is a share as a whole percentage, capped at 100, for meter widths.
 func (r OverviewRow) Pct(v float64) int { return int(math.Round(math.Min(1, math.Max(0, v)) * 100)) }
+
+// privacyCounts is "2 private · 1 in code repo · 1 public", worst first.
+func privacyCounts(markers map[string]int) string {
+	var parts []string
+	for _, m := range []string{"In code repo", "Backup failing", "No backup", "Private", "Public", "Not set up"} {
+		if n := markers[m]; n > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", n, strings.ToLower(m)))
+		}
+	}
+	return strings.Join(parts, " · ")
+}

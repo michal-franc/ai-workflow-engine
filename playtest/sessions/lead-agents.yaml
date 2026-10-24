@@ -49,15 +49,20 @@ steps:
       - cli: { args: [--project, crew, lead, list], contains: "ui/epic (in progress) · children running 1/2" }
       - cli: { args: [--project, crew, lead, list], not_contains: "sub-lead" }
 
+  # lead message pastes only into Codex: the lead stand-in's start command
+  # reads like the launcher's codex wrapper (after the #, so nothing runs);
+  # the plain cat worker counts as Claude and gets the SendMessage call.
   - id: TP6
-    title: lead message pastes the text, signed, into the target session
+    title: lead message pastes the text, signed, into a Codex session; a Claude session gets the SendMessage call instead
     setup:
-      - tmux: [new-session, -d, -s, lead-crew, cat]
+      - tmux: [new-session, -d, -s, lead-crew, sh, -c, "cat # trap : INT; codex stand-in"]
+      - tmux: [new-session, -d, -s, agent-ui-child, cat]
     act:
       - cli: [--project, crew, lead, message, project, ping from the human]
       - open: /p/{project}/agents
     checks:
       - tmux: { pane: lead-crew, contains: "[from human] ping from the human" }
+      - cli: { args: [--project, crew, lead, message, ui/child, ping from the human], exit: 1, contains: "SendMessage({to: \"agent-ui-child\"" }
 
   - id: TP7
     title: A child of the epic is dispatched from main, and its prompt names the live project lead and its epic

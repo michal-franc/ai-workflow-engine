@@ -19,6 +19,10 @@ type WorkbenchConfig struct {
 	// Changelog is the release history the Status page lists recent releases
 	// from; empty means CHANGELOG.md when the project root has one.
 	Changelog string `yaml:"changelog,omitempty" desc:"Changelog file the Status page reads recent releases from (default CHANGELOG.md), relative to the project root"`
+	// ReleaseCandidates puts a release candidate step before each release:
+	// a local tag <cut>-rc.N runs on this machine's projects first, and the
+	// release is published only on the owner's ok.
+	ReleaseCandidates bool `yaml:"release_candidates,omitempty" desc:"Releases go through a local release candidate (<version>-rc.N tag) that soaks before the release is published; the Status page's Waiting for release card tracks it"`
 	// StatusPage and Pages are the project's own HTML pages, shown sandboxed
 	// in the viewer frame (docs/workbench-files.md, "Project pages").
 	StatusPage string          `yaml:"status_page,omitempty" desc:"Project HTML page /status shows by default (the built-in page stays one tab away), relative to the project root"`
@@ -102,7 +106,7 @@ type WorkbenchBalance struct {
 
 // IsZero reports whether the block was left out.
 func (c WorkbenchConfig) IsZero() bool {
-	return len(c.Systems) == 0 && c.Metrics == (WorkbenchMetrics{}) && len(c.Tuning) == 0 && c.Balance == (WorkbenchBalance{}) && c.Changelog == "" &&
+	return len(c.Systems) == 0 && c.Metrics == (WorkbenchMetrics{}) && len(c.Tuning) == 0 && c.Balance == (WorkbenchBalance{}) && c.Changelog == "" && !c.ReleaseCandidates &&
 		c.StatusPage == "" && len(c.Pages) == 0
 }
 

@@ -29,14 +29,16 @@ func runClaim(ctx *Context, args []string) error {
 	if err := parseFlags(ctx, fs, rest); err != nil {
 		return err
 	}
-	assignee := *assigneeFlag
-	if assignee == "" {
-		assignee = agentNameForSlug(slug)
-	}
-
-	issue, _, err := findIssueOrErr(ctx, slug)
+	issue, issues, err := findIssueOrErr(ctx, slug)
 	if err != nil {
 		return err
+	}
+	if err := ownIssueOnly(ctx, issues, issue, "claim"); err != nil {
+		return err
+	}
+	assignee := *assigneeFlag
+	if assignee == "" {
+		assignee = agentNameForSlug(issue.Slug)
 	}
 
 	if issue.Assignee != "" && issue.Assignee != assignee && !*force {

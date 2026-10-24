@@ -1,0 +1,90 @@
+session: dispatch-status-cli
+issue: cli/issue-cli-dispatch-issue-cli-status-let-agents-use-the-viewer-without-raw-http-calls
+title: issue-cli dispatch and status reach the viewer without HTTP; dispatch refuses at a ready gate; links follow viewer_url
+scenario: leads
+
+# Every issue in the scenario is in progress, and in progress → testing needs
+# only the human's approval, so each one waits on a gate: a new dispatch is
+# refused (exit 3, 409, the modal's banner). A `cat` session fakes a live
+# worker, so a dispatch onto it takes the re-attach path and no real agent
+# starts. Dispatch anyway would start a real agent, so no step presses it.
+# The scenario's projects.yaml sets viewer_url to the scenario's board.
+# Starting a real worker and the issue-approve mod are under ### Manual.
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+  # The modal's dispatch on a gated issue is refused on purpose (TP6): the
+  # 409 the browser logs is the refusal under test.
+  console_ignore:
+    - "issue/ui/child/dispatch"
+
+steps:
+  - id: TP4
+    title: dispatch on an issue that only waits on the owner's approval exits 3, names the gate and starts nothing; POST /dispatch answers 409
+    act:
+      - post: { path: "/p/{project}/issue/ui/child/dispatch", json: { agent: claude }, status: 409 }
+      - open: /p/{project}/issue/ui/child
+    checks:
+      - cli: { args: [--project, crew, dispatch, ui/child, --quote, "start child"], exit: 3, contains: "ui/child waits on the owner's approval for \"testing\"" }
+      - cli: { args: [--project, crew, dispatch, ui/child, --quote, "start child"], exit: 3, contains: "A human approves at: {base}/p/crew/issue/ui/child#approve-testing" }
+      - cli: { args: [--project, crew, dispatch, ui/child, --quote, "start child"], exit: 3, contains: "issue-cli --project crew dispatch ui/child --force" }
+      - cli: { args: [--project, crew, --json, dispatch, ui/child, --quote, "start child"], exit: 3, contains: "\"status\": \"waiting-on-gate\"" }
+      - tmux: { session: agent-ui-child, present: false }
+
+  - id: TP5
+    title: dispatch onto a live worker re-attaches, exit 0, and prints the switch and attach commands
+    setup:
+      - tmux: [new-session, -d, -s, agent-ui-child, cat]
+    act:
+      - open: /p/{project}/issue/ui/child
+    checks:
+      - cli: { args: [--project, crew, dispatch, ui/child, --quote, "start child"], contains: "Already live: agent-ui-child" }
+      - cli: { args: [--project, crew, dispatch, ui/child, --quote, "start child"], contains: "Inside tmux:  tmux switch-client -t agent-ui-child" }
+      - cli: { args: [--project, crew, dispatch, ui/child, --agent, gpt, --quote, "start child"], exit: 2, contains: "--agent must be claude or codex" }
+
+  - id: TP6
+    title: Claude on an issue waiting on your approval says so, offers Approve and Dispatch anyway, and starts nothing
+    setup:
+      - open: /p/{project}/issue/ui/child
+    act:
+      - click: detail.dispatch.claude
+      - wait_for: dispatch.gate
+    targets:
+      - { id: dispatch.gate, note: Why nothing started }
+      - { id: dispatch.gate.approve, note: Goes to the approve box }
+      - { id: dispatch.gate.force, note: Starts a real agent; don't press it here }
+    checks:
+      - text_contains: { target: dispatch.gate, text: "Waiting on your approval for testing" }
+      - text_contains: { target: dispatch.gate, text: "Nothing was started" }
+      - visible: [dispatch.gate.approve, dispatch.gate.force]
+      - tmux: { session: agent-ui-child, present: false }
+    do: |
+      1. Read the banner in the dispatch modal.
+      2. Press Approve and check it lands on the issue's approve box.
+         Don't press Dispatch anyway: it would start a real agent.
+    expect: |
+      The banner says plainly that the issue only needs your approval, that
+      nothing was started, and what each of the two choices does. Approve
+      takes you to the testing approval.
+    why: ux-test checks the banner's text; only you can say whether it reads as a choice rather than an error.
+
+  - id: TP7
+    title: issue-cli status prints the viewer's stand-up and its JSON; a slug points at show
+    act:
+      - open: /p/{project}/status
+    checks:
+      - http: { path: "/p/{project}/status.md", contains: "# Crew status" }
+      - cli: { args: [--project, crew, status], contains: "# Crew status" }
+      - cli: { args: [--project, crew, status], contains: "## Waiting on you" }
+      - cli: { args: [--project, crew, status, --json], contains: "\"project\":\"Crew\"" }
+      - cli: { args: [--project, crew, status, ui/child], exit: 2, contains: "issue-cli --project crew show ui/child" }
+
+  - id: TP8
+    title: links follow viewer_url from projects.yaml, and projects --json names it
+    act:
+      - open: /p/{project}/issue/ui/child
+    checks:
+      - cli: { args: [--project, crew, show, ui/child], contains: "Timeline: {base}/p/crew/issue/ui/child?tab=timeline" }
+      - cli: { args: [--project, crew, projects, --json], contains: "\"viewer_url\": \"{base}\"" }

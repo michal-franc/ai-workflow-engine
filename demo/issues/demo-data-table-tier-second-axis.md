@@ -1,6 +1,7 @@
 ---
 title: "Demo: data-table tier as a structured second axis"
 status: "idea"
+created: "2026-05-07"
 ---
 ## Summary
 

@@ -1,0 +1,12 @@
+# Guided check scripts (workflow/guided-check-scripts-as-a-workflow-feature-…).
+# cli/checks-due is in human-testing and scripts/checks/checks-due.sh names
+# it with no owner run: the band, the Status page and the card offer
+# ▶ Run checks. cli/checks-done has a script and an owner run record under
+# .agent-logs/checks/, so nothing waits on the owner there.
+title: Guided check scripts - Run checks
+project:
+  name: Checks Demo
+  slug: ck
+issues: tracker
+workflow: workflow.yaml
+root: files

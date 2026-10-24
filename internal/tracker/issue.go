@@ -14,9 +14,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
-	"github.com/yuin/goldmark/renderer/html"
 	"gopkg.in/yaml.v3"
 )
 
@@ -139,12 +136,8 @@ func ParseIssue(filename string, data []byte) (*Issue, error) {
 	body = strings.TrimSpace(body)
 	issue.BodyRaw = body
 
-	md := goldmark.New(
-		goldmark.WithExtensions(extension.TaskList, extension.Table),
-		goldmark.WithRendererOptions(html.WithUnsafe()),
-	)
 	var buf bytes.Buffer
-	if err := md.Convert([]byte(body), &buf); err != nil {
+	if err := newIssueMarkdown().Convert([]byte(body), &buf); err != nil {
 		return nil, fmt.Errorf("rendering markdown in %s: %w", filename, err)
 	}
 	issue.BodyHTML = buf.String()
@@ -761,7 +754,10 @@ func replaceFrontmatterKey(fm, key string, lines []string) string {
 		if lines == nil {
 			return fm
 		}
-		return strings.TrimRight(fm, "\n") + "\n" + strings.Join(lines, "\n") + "\n"
+		// Keep the frontmatter's own ending: a newline added here would
+		// show as a blank line before the closing ---.
+		trimmed := strings.TrimRight(fm, "\n")
+		return trimmed + "\n" + strings.Join(lines, "\n") + fm[len(trimmed):]
 	}
 	var out []string
 	prev := 0
@@ -872,7 +868,29 @@ func SetFrontmatterList(filePath, key string, values []string) error {
 	})
 }
 
+// createdKeyRe finds a created: line in raw frontmatter.
+var createdKeyRe = regexp.MustCompile(`(?m)^created:`)
+
+// SetCreated dates an undated issue: created is protected, but an issue
+// without one may get it once (set-meta, the backfill). An existing date is
+// never changed.
+func SetCreated(filePath, date string) error {
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		return fmt.Errorf("created must be a YYYY-MM-DD date, got %q", date)
+	}
+	return editFrontmatterKeyErr(filePath, "created", func(fm string) (string, error) {
+		if createdKeyRe.MatchString(fm) {
+			return "", fmt.Errorf("%s already has created:; an issue's date is never changed", filePath)
+		}
+		return setFrontmatterScalar(fm, "created", date), nil
+	})
+}
+
 func editFrontmatterKey(filePath, key string, edit func(fm string) string) error {
+	return editFrontmatterKeyErr(filePath, key, func(fm string) (string, error) { return edit(fm), nil })
+}
+
+func editFrontmatterKeyErr(filePath, key string, edit func(fm string) (string, error)) error {
 	return withIssueLock(filePath, func() error {
 		data, err := os.ReadFile(filePath)
 		if err != nil {
@@ -889,7 +907,10 @@ func editFrontmatterKey(filePath, key string, edit func(fm string) string) error
 			return fmt.Errorf("invalid frontmatter in %s", filePath)
 		}
 
-		fmRaw := edit(parts[0])
+		fmRaw, err := edit(parts[0])
+		if err != nil {
+			return err
+		}
 		body := parts[1]
 		if err := checkFrontmatter(fmRaw, []string{key}); err != nil {
 			return fmt.Errorf("%s: %w", filePath, err)
@@ -931,6 +952,17 @@ type CreateIssueOpts struct {
 	Body     string
 	// Type is written as type: when set (projects with types: in workflow.yaml).
 	Type string
+	// Now dates the issue's created: line; zero is time.Now.
+	Now time.Time
+}
+
+// CreatedLine is the created: frontmatter line every new issue gets: the
+// date the criteria_proven gate reads (proofCovers).
+func CreatedLine(now time.Time) string {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	return fmt.Sprintf("created: %q\n", now.Format("2006-01-02"))
 }
 
 func CreateIssueFile(issueDir, title, status, system, version string) (filePath, slug string, err error) {
@@ -960,6 +992,7 @@ func CreateIssueFileOpts(issueDir string, opts CreateIssueOpts) (filePath, slug 
 	content.WriteString("---\n")
 	content.WriteString(fmt.Sprintf("title: \"%s\"\n", strings.ReplaceAll(opts.Title, "\"", "\\\"")))
 	content.WriteString(fmt.Sprintf("status: \"%s\"\n", opts.Status))
+	content.WriteString(CreatedLine(opts.Now))
 	if opts.System != "" {
 		content.WriteString(fmt.Sprintf("system: \"%s\"\n", opts.System))
 	}

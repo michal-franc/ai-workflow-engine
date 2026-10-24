@@ -105,6 +105,18 @@ func TestPrintHealthShowsFamilyErrors(t *testing.T) {
 	}
 }
 
+// A family's warnings print under its line: a glob that matched nothing is
+// said, not counted as zero silently.
+func TestPrintHealthShowsFamilyWarnings(t *testing.T) {
+	snap := &health.Snapshot{
+		Run:      health.RunInfo{Date: "2026-10-23T14:05", Branch: "main", Commit: "abc1234", Trigger: "daily"},
+		Families: map[string]health.FamilyResult{"tests": {MS: 2, Warnings: []string{"health.e2e_sessions (default playtest/sessions/*.yaml) matched no file, so no e2e session rows"}}},
+	}
+	var buf bytes.Buffer
+	printHealth(&buf, snap, "/x.json")
+	assertContains(t, buf.String(), "  tests      ok, 0 metrics (2 ms)\n             ⚠ health.e2e_sessions (default playtest/sessions/*.yaml) matched no file")
+}
+
 // Backfill fills each past day after the first commit, skips days that
 // have a snapshot, and names the stats page; health then points at it.
 func TestHealthBackfill(t *testing.T) {

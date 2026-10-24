@@ -1,0 +1,25 @@
+# Release candidates (workbench.release_candidates) on the engine project:
+# Atlas carries the engine's repo, so its Status card shows the soak.
+# Milestone 1.5: ui/dark-map-style is done; cli/route-export-drops-waypoints
+# is an open report-bug issue found in v1.5.0-rc.1 (version 1.5), so the
+# release waits for it. v1.5.0-rc.1 tags the "Fix route export" commit; the
+# only commit after it touches CHANGELOG.md alone, so the soak is current.
+# root/.agent-logs/telemetry.jsonl holds Atlas's three calls on rc.1. The
+# scenario binaries are plain builds ("dev"), so the card flags the running
+# build as not the candidate.
+title: Release candidate soaking on the engine - rc.1, an open report, publish on the owner's ok
+project:
+  name: Atlas
+  slug: atlas
+  repo: michal-franc/ai-workflow-engine
+issues: tracker
+workflow: workflow.yaml
+root: root
+commits:
+  - files: commits/fix
+    message: "Fix route export"
+  - files: commits/changelog
+    message: "Changelog: route export fix"
+tags:
+  - name: v1.5.0-rc.1
+    ref: main~1

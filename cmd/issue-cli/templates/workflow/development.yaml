@@ -2,7 +2,7 @@
 # issue-cli release that last changed it. `issue-cli workflow upgrade` compares
 # it with the template bundled in the binary and proposes newer features.
 # Set it to `custom` if this workflow is no longer based on a template.
-template: development@v0.36.0
+template: development@v0.54.0
 
 # Feature record: catalog features this file has (<id>@<version>) and the
 # ones the human declined. Written by `issue-cli workflow scan`, read by
@@ -18,6 +18,7 @@ features:
     - comment-evidence-gates@v0.36.0
     - body-structure-gates@v0.36.0
     - failure-hints@v0.36.0
+    - proof-links@v0.54.0
     - checklist-sections@v0.36.0
     - transition-prompts@v0.36.0
     - set-fields@v0.36.0
@@ -28,6 +29,7 @@ features:
     - design-overlap-discoverability@v0.36.0
     - sandbox-manual-tests@v0.36.0
     - playtest-sessions@v0.36.0
+    - guided-check-scripts@v0.54.0
     - testing-unrelated-failures@v0.36.0
 
 board:
@@ -83,6 +85,7 @@ statuses:
     prompt: |
       Implement the accepted design and keep the issue body, implementation checklist, and test plan accurate as work progresses.
       Record implementation notes and planned verification steps in the issue body; checkboxes mark completion but do not replace written content.
+      Declare each acceptance criterion's proof where you write it: `proves: [AC2]` on the playtest step that shows it, a `Proves: AC2 <TestName>` trailer on the commit that adds or changes the test, or `Proves: AC2` on the commit that is the change. `issue-cli prove <slug> --list` shows what is proven.
   - name: "testing"
     description: "Under verification"
     prompt: |
@@ -91,6 +94,7 @@ statuses:
       For manual checks, prepare a throwaway sandbox scenario (a gitignored path such as `.agent-logs/<name>-sandbox/`, never committed): isolated config, data and state, and one script with setup/run/clean steps. It must never touch real user data or state.
       Describe it under `### Manual` in the Test Plan: where the script lives, the exact commands the human runs, what to look at, the expected result for each step, and how to clean up.
       If the project has a playtest system (see `issue-cli process playtest`), write the manual checks as a playtest session (step id = checkbox id) and pass its machine run (ux-test) before handing over, so the human only judges what a machine can't.
+      Manual checks that aren't playtest sessions (commands, API routes, scripts, tmux) come as a guided check script: start it with `issue-cli check-script <slug> --new <name>` (scripts/checks/<name>.sh on the issue branch), read the helpers in `issue-cli check-script --lib`, name the box each step proves with `--box`, and pass `issue-cli check-script <slug> --yes` before handing over. Never tick the owner's Manual boxes yourself.
   - name: "human-testing"
     description: "Manual verification by humans"
     prompt: |
@@ -98,6 +102,7 @@ statuses:
       Make sure the manual checks are explicit, minimal, and reproducible.
       Point the human at the sandbox scenario and the `### Manual` steps in the Test Plan; do not ask them to verify against real data.
       If the manual checks are a playtest session, point the human at its playtest and report commands; the report ticks the boxes that passed and comments failures as `playtest:`.
+      If the issue has a guided check script, the human runs `issue-cli check-script <slug>` (▶ Run checks in the viewer): it ticks the boxes that passed and comments failures as `checks:`.
   - name: "documentation"
     description: "Being documented"
     prompt: |
@@ -106,7 +111,9 @@ statuses:
     description: "Committing and pushing changes"
     prompt: |
       Commit the changes with a message referencing the issue, push the commit to the remote, and note a PR link if one is opened.
+      Remove the issue's scripts/checks/<name>.sh in a last commit before the merge: check scripts stay on the issue branch.
       Tell the human in chat that this needs `done` approval in the issue viewer once the commit is pushed; only humans close issues.
+      Before closing, post a `risk:` comment (`issue-cli comment <slug> --text "risk: ..."`) for anything to watch after the ship, or "risk: none".
   - name: "done"
     description: "Completed"
 
@@ -142,6 +149,8 @@ transitions:
         rule: "section_checkboxes_checked: Design"
       - type: "validate"
         rule: "section_has_checkboxes: Acceptance Criteria"
+      - type: "validate"
+        rule: "criteria_checkboxes: Acceptance Criteria"
       - type: "require_human_approval"
         status: "backlog"
       - type: "set_fields"
@@ -169,6 +178,7 @@ transitions:
           ### Manual
           - [ ] Throwaway sandbox scenario prepared (gitignored, e.g. under `.agent-logs/<name>-sandbox/`, never committed; isolated config/data/state; never touches real user data)
           - [ ] Human steps written: exact commands to run, what to look at, expected result for each, and how to clean up
+          - [ ] Manual checks that aren't playtests come as `scripts/checks/<name>.sh` (`issue-cli check-script <slug> --new <name>`), or N/A with the reason
   - from: "in progress"
     to: "testing"
     actions:
@@ -195,6 +205,8 @@ transitions:
         rule: "section_checkboxes_checked: Testing"
       - type: "validate"
         rule: "has_comment_prefix: tests:"
+      - type: "validate"
+        rule: "criteria_proven"
       - type: "append_section"
         title: "Human Testing"
         body: |
@@ -222,6 +234,7 @@ transitions:
           - [ ] Changes committed with a message referencing the issue
           - [ ] Commit pushed to the remote
           - [ ] PR opened if applicable
+          - [ ] Check scripts (scripts/checks/<name>.sh) removed in a last commit before the merge, or none
   - from: "shipping"
     to: "done"
     actions:

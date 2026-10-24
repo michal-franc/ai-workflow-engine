@@ -1,0 +1,35 @@
+statuses:
+  - name: "idea"
+    description: "Raw idea"
+  - name: "backlog"
+    description: "Ready to work on"
+  - name: "in progress"
+    description: "Being built"
+  - name: "testing"
+    description: "Being checked"
+  - name: "done"
+    description: "Finished"
+
+transitions:
+  - from: "idea"
+    to: "backlog"
+    actions:
+      - type: "validate"
+        rule: "body_not_empty"
+  - from: "backlog"
+    to: "in progress"
+    actions:
+      - type: "require_human_approval"
+        status: "in progress"
+  - from: "in progress"
+    to: "testing"
+    actions:
+      - type: "validate"
+        rule: "section_checkboxes_checked: Plan"
+  - from: "testing"
+    to: "done"
+
+# The fixture snapshots under files/.health/ are the whole history: off keeps
+# the viewer's daily snapshot from adding today's, so every run sees the same.
+health:
+  off: true

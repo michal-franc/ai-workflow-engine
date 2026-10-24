@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/michal-franc/issue-viewer/internal/ci"
@@ -15,15 +14,16 @@ import (
 // are asked for by someone who watches them):
 //
 //   - green → red, or a red run failing a different command: a ci: comment
-//     on every issue merged since the last green run, and the live lead is
-//     nudged; with on_red: file_issue the streak's bugfix issue is filed
-//     (first red) or commented.
+//     on every issue merged since the last green run; with on_red:
+//     file_issue the streak's bugfix issue is filed (first red) or
+//     commented.
 //   - still red, same command: only the streak's bugfix issue hears about it.
-//   - red → green: the lead is nudged, the bugfix issue gets a comment.
-//   - CI can't run (first time): the lead is nudged.
+//   - red → green: the bugfix issue gets a comment.
 //
-// The ci-red card markers need nothing here: the viewer reads them from
-// .ci/state.json.
+// CI runs on a timer, so it never pastes into or prompts a session: the lead
+// reads the state (issue-cli ci status, the Status page) when the human asks
+// or before a push. The Status page, status.md and the ci-red card markers
+// need nothing here: the viewer reads them from .ci/state.json.
 func ciReporter(ctx *Context, proj *tracker.Project, wf *tracker.WorkflowConfig, root string) func(prev *ci.State, run *ci.Run, next *ci.State) {
 	return func(prev *ci.State, run *ci.Run, next *ci.State) {
 		if run.Tier != tracker.CIDefaultTier {
@@ -56,16 +56,6 @@ func ciReporter(ctx *Context, proj *tracker.Project, wf *tracker.WorkflowConfig,
 			for _, slug := range next.Blamed {
 				ciComment(ctx, issues, slug, text)
 			}
-			nudge := fmt.Sprintf("local CI red on %s at %s: %s%s.", branch, ci.Short(run.Sha), run.Failed, failuresNote(run.Failures))
-			if len(next.Blamed) > 0 {
-				nudge += " Merged since green: " + strings.Join(next.Blamed, ", ") + "."
-			} else if next.GreenSha == "" {
-				nudge += " First run: nothing to blame."
-			}
-			if next.RedIssue != "" {
-				nudge += " Tracked in " + next.RedIssue + "."
-			}
-			nudgeLead(ctx, proj, nudge+" Revert, fix forward or dispatch a fix: "+tracker.InjectProject(proj, "issue-cli ci status"))
 		case run.State == ci.Red:
 			if next.RedIssue != "" {
 				ciComment(ctx, issues, next.RedIssue, fmt.Sprintf("ci: %s still red at %s (`%s`). Log: %s", branch, ci.Short(run.Sha), run.Failed, run.Log))
@@ -74,9 +64,6 @@ func ciReporter(ctx *Context, proj *tracker.Project, wf *tracker.WorkflowConfig,
 			if prev.RedIssue != "" {
 				ciComment(ctx, issues, prev.RedIssue, fmt.Sprintf("ci: %s green again at %s. Close this issue once its fix has shipped.", branch, ci.Short(run.Sha)))
 			}
-			nudgeLead(ctx, proj, fmt.Sprintf("local CI green again on %s at %s (red since %s).", branch, ci.Short(run.Sha), ci.Short(prev.RedSince)))
-		case run.State == ci.Error && prevState != ci.Error:
-			nudgeLead(ctx, proj, fmt.Sprintf("local CI can't run on %s at %s: %s. Fix it, or: %s", branch, ci.Short(run.Sha), run.Error, tracker.InjectProject(proj, "issue-cli ci reset")))
 		}
 	}
 }
@@ -112,20 +99,6 @@ func ciComment(ctx *Context, issues []*tracker.Issue, slug, text string) {
 	}
 	if err := tracker.AddComment(issue.FilePath, 0, text, "ci"); err != nil {
 		fmt.Fprintf(ctx.Stderr, "ci: comment on %s: %v\n", slug, err)
-	}
-}
-
-// nudgeLead pastes a [from ci] line into the project lead's session when it
-// is live. Nothing happens otherwise: the Status page shows the state.
-func nudgeLead(ctx *Context, proj *tracker.Project, text string) {
-	lead := tracker.LeadSessionName(proj)
-	if !sessionLive(proj)(lead) {
-		return
-	}
-	textFile := filepath.Join(projectRoot(proj), ".agent-logs", lead, "messages", ctx.now().Format("20060102-150405")+"-ci.txt")
-	resp := pasteIntoSession(proj, lead, "[from ci] "+text, textFile, "")
-	if resp.Status == "error" {
-		fmt.Fprintf(ctx.Stderr, "ci: nudging %s failed\n", lead)
 	}
 }
 

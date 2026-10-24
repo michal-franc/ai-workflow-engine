@@ -40,22 +40,18 @@
         </div>
 
         <nav class="status-tabs detail-tabs" aria-label="Issue page tabs" data-testid="detail.pagetabs">
-            <a href="{{.Prefix}}/issue/{{.Issue.Slug}}" class="status-tab{{if eq .Tab "issue"}} active{{end}}" data-testid="detail.pagetab.issue"{{if eq .Tab "issue"}} aria-current="true"{{end}}>Issue</a>
+            <a href="{{.Prefix}}/issue/{{.Issue.Slug}}" class="status-tab{{if eq .Tab "issue"}} active{{end}}" data-testid="detail.pagetab.issue"{{if eq .Tab "issue"}} aria-current="true"{{end}}>{{if .Epic}}Epic <span class="chip chip-{{if .Epic.AllDone}}green{{else}}amber{{end}}" data-testid="detail.epic.label" title="Children closed">{{.Epic.Done}}/{{.Epic.Total}}</span>{{else}}Issue{{end}}</a>
             <a href="{{.Prefix}}/issue/{{.Issue.Slug}}?tab=timeline" class="status-tab{{if eq .Tab "timeline"}} active{{end}}" data-testid="detail.pagetab.timeline"{{if eq .Tab "timeline"}} aria-current="true"{{end}}>Timeline{{if .TimelineTotal}} <span class="chip">{{.TimelineTotal}}</span>{{end}}</a>
-            <a href="{{.Prefix}}/issue/{{.Issue.Slug}}?tab=evidence" class="status-tab{{if eq .Tab "evidence"}} active{{end}}" data-testid="detail.pagetab.evidence"{{if eq .Tab "evidence"}} aria-current="true"{{end}}>Evidence <span class="chip">coming</span></a>
+            <a href="{{.Prefix}}/issue/{{.Issue.Slug}}?tab=evidence" class="status-tab{{if eq .Tab "evidence"}} active{{end}}" data-testid="detail.pagetab.evidence"{{if eq .Tab "evidence"}} aria-current="true"{{end}}>Evidence{{with .EvidenceLabel.Text}} <span class="chip{{if ne $.EvidenceLabel.Class "gray"}} chip-{{$.EvidenceLabel.Class}}{{end}}" data-testid="evidence.label">{{.}}</span>{{end}}</a>
         </nav>
 
         {{if eq .Tab "timeline"}}
         {{template "timeline" .}}
         {{else if eq .Tab "evidence"}}
-        <section class="card tl-card tl-coming" data-testid="evidence.coming">
-            <div class="tl-body">
-                <strong>Evidence is coming</strong>
-                <p class="tl-muted">Screenshots tagged with what they prove, and each acceptance criterion linked to its proof, arrive with a later release. Until then the proof is in the issue body and its comments.</p>
-            </div>
-        </section>
+        {{template "evidence" .}}
         {{else}}
         {{template "issue-band" .}}
+        {{if .Epic}}{{template "epic-children" .}}{{end}}
         <div class="detail-layout it-layout">
             <div class="it-main">
                 {{template "issue-main" .}}
@@ -304,11 +300,11 @@
                 {{end}}
 
                 <div class="sidebar-section dispatch-btn-group">
-                    <button class="dispatch-btn" onclick="dispatchToAgent('claude')">
+                    <button class="dispatch-btn" data-testid="detail.dispatch.claude" onclick="dispatchToAgent('claude')">
                         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.75a.75.75 0 00-1.19.61v11.28a.75.75 0 001.19.61l9.5-5.64a.75.75 0 000-1.22L1.5 1.75z"/></svg>
                         Claude
                     </button>
-                    <button class="dispatch-btn dispatch-btn-codex" onclick="dispatchToAgent('codex')">
+                    <button class="dispatch-btn dispatch-btn-codex" data-testid="detail.dispatch.codex" onclick="dispatchToAgent('codex')">
                         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.5 1.75a.75.75 0 00-1.19.61v11.28a.75.75 0 001.19.61l9.5-5.64a.75.75 0 000-1.22L1.5 1.75z"/></svg>
                         Codex
                     </button>
@@ -857,11 +853,14 @@
     }
 
     // --- Interactive checkboxes ---
+    // Each task-list box carries data-line, its line in the body, from the
+    // renderer. A click asks the server to flip that line; it never counts
+    // `[ ]` in the raw markdown, which also matches code and prose.
     function initCheckboxes() {
         var preview = document.getElementById('body-preview');
         if (!preview) return;
 
-        var boxes = preview.querySelectorAll('input[type="checkbox"]');
+        var boxes = preview.querySelectorAll('input[type="checkbox"][data-line]');
         boxes.forEach(function(cb, idx) {
             cb.disabled = false;
             cb.dataset.idx = idx;
@@ -874,24 +873,31 @@
 
     function toggleCheckbox(cb) {
         var textarea = document.getElementById('body-textarea');
-        var body = textarea.value;
-        var idx = parseInt(cb.dataset.idx);
-
-        // Find the nth checkbox pattern in the raw markdown
-        var count = 0;
-        var result = body.replace(/\[([ xX])\]/g, function(match, inner) {
-            if (count++ === idx) {
-                return cb.checked ? '[x]' : '[ ]';
-            }
-            return match;
-        });
-
-        textarea.value = result;
-        saveBodyUpdate(result, null, function() {
-            // Stale page: undo the click and reload to the current body.
+        fetch(issueURL + '/checkbox', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                line: parseInt(cb.dataset.line),
+                checked: cb.checked,
+                base_body_hash: textarea.dataset.bodyHash
+            })
+        }).then(function(res) {
+            return res.json().catch(function() { return {}; }).then(function(data) {
+                if (res.ok) {
+                    textarea.value = data.body;
+                    textarea.dataset.bodyHash = data.body_hash;
+                    showToast('Saved');
+                    return;
+                }
+                // Stale page or a box the file no longer has: undo the
+                // click and reload to the current body.
+                cb.checked = !cb.checked;
+                showToast(data.error || 'Not saved. Reload the page.', true);
+                if (res.status === 409) setTimeout(function() { location.reload(); }, 2500);
+            });
+        }).catch(function(err) {
             cb.checked = !cb.checked;
-            textarea.value = body;
-            setTimeout(function() { location.reload(); }, 2500);
+            showToast('Not saved: ' + err.message, true);
         });
     }
 
@@ -1011,7 +1017,13 @@
         }).then(res => res.json()).then(data => {
             sessionEl.textContent = 'tmux session: ' + data.session;
             promptEl.textContent = data.prompt;
+            // A refusal sent no prompt.
+            promptEl.closest('details').style.display = data.status === 'waiting-on-gate' ? 'none' : '';
 
+            if (data.status === 'waiting-on-gate') {
+                stepsEl.innerHTML = gateBanner(issueURL, data.gate, "dispatchToAgent('" + label + "', true)");
+                return;
+            }
             var html = '';
             if (data.status === 'reattached') {
                 html += '<div class="dispatch-banner reattached">'
@@ -1038,8 +1050,20 @@
         });
     }
 
-    function dispatchToAgent(agent) {
-        runDispatch(issueURL + '/dispatch', agent, { agent: agent });
+    function dispatchToAgent(agent, force) {
+        runDispatch(issueURL + '/dispatch', agent, { agent: agent, force: !!force });
+    }
+
+    // gateBanner is the dispatch modal's answer when the issue only waits on
+    // the owner's approval (409 waiting-on-gate): approve it, or dispatch
+    // anyway (force).
+    function gateBanner(issuePath, gate, forceCall) {
+        var safe = String(gate).replace(/[&<>"']/g, function(c) { return '&#' + c.charCodeAt(0) + ';'; });
+        return '<div class="dispatch-banner reattached" data-testid="dispatch.gate">'
+            + 'Waiting on your approval for <b>' + safe + '</b>: everything else is done, so a new agent would only stop at the gate. Nothing was started. '
+            + '<a href="' + issuePath + '#approve-' + safe.replace(/ /g, '-') + '" data-testid="dispatch.gate.approve" onclick="closeDispatchModal()">Approve</a> or '
+            + '<button class="dispatch-banner-btn" data-testid="dispatch.gate.force" onclick="' + forceCall + '">Dispatch anyway</button>'
+            + '</div>';
     }
 
     function repromptAgent() {
@@ -1256,6 +1280,26 @@
         } else {
             showToast('Copy is not available here; select the command instead', true);
         }
+    }
+
+    // runChecks is ▶ Run checks: the viewer starts the owner's run of the
+    // issue's check scripts in tmux window check-script-<slug> and opens it.
+    function runChecks(btn) {
+        btn.disabled = true;
+        fetch(issueURL + '/check-script', { method: 'POST' })
+            .then(r => r.json()).then(d => {
+                btn.disabled = false;
+                if (d.status === 'no-scripts') {
+                    showToast('No check script names this issue', true);
+                } else if (d.status === 'error') {
+                    const bad = (d.steps || []).find(s => s.status === 'error');
+                    showToast('Run checks failed: ' + (bad ? bad.name + (bad.detail ? ': ' + bad.detail : '') : 'unknown error'), true);
+                } else if ((d.steps || []).some(s => s.name.indexOf('Terminal: headless') === 0)) {
+                    showToast('Started ' + d.session + '. No terminal configured. Inside tmux: ' + d.switch_cmd);
+                } else {
+                    showToast((d.status === 'already-running' ? 'Brought back ' : 'Started ') + d.session);
+                }
+            }).catch(e => { btn.disabled = false; showToast('Run checks failed: ' + e, true); });
     }
 
     function openAgent(name, btn) {

@@ -36,13 +36,16 @@ const (
 
 // StepResult is one step's outcome.
 type StepResult struct {
-	ID        string            `yaml:"id"`
-	Title     string            `yaml:"title"`
-	Judgement bool              `yaml:"judgement_step,omitempty"`
-	HasChecks bool              `yaml:"has_checks,omitempty"`
-	Status    string            `yaml:"status"`
-	Viewports []*ViewportResult `yaml:"viewports,omitempty"`
-	Judge     *JudgeResult      `yaml:"judge,omitempty"`
+	ID        string   `yaml:"id"`
+	Title     string   `yaml:"title"`
+	Judgement bool     `yaml:"judgement_step,omitempty"`
+	HasChecks bool     `yaml:"has_checks,omitempty"`
+	Status    string   `yaml:"status"`
+	Proves    []string `yaml:"proves,omitempty"`
+	// DurationMS is the step's time at every viewport, setup included.
+	DurationMS int64             `yaml:"duration_ms,omitempty"`
+	Viewports  []*ViewportResult `yaml:"viewports,omitempty"`
+	Judge      *JudgeResult      `yaml:"judge,omitempty"`
 }
 
 // ViewportResult is one step run at one viewport.
@@ -163,6 +166,8 @@ var volatile = []struct {
 }{
 	{regexp.MustCompile(`\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?`), "<time>"},
 	{regexp.MustCompile(`/pt-\d+\b`), "/pt-<n>"},
+	// The scenario's board runs on a free port, and links name it.
+	{regexp.MustCompile(`127\.0\.0\.1:\d+`), "127.0.0.1:<port>"},
 }
 
 // sameTruncated reports whether two lines are the same text cut off at
@@ -170,10 +175,14 @@ var volatile = []struct {
 // it, so a masked part of a different length moves the cut.
 func sameTruncated(x, y string) bool {
 	const cut = "…"
+	// YAML quotes a value with ": " (single) or a newline (double) in it, so
+	// the cut may sit before the closing quote.
+	unquote := func(s string) string { return strings.TrimSuffix(strings.TrimSuffix(s, "'"), `"`) }
+	x, y = unquote(x), unquote(y)
 	if !strings.HasSuffix(x, cut) && !strings.HasSuffix(y, cut) {
 		return false
 	}
-	x, y = strings.TrimSuffix(strings.TrimSuffix(x, "'"), cut), strings.TrimSuffix(strings.TrimSuffix(y, "'"), cut)
+	x, y = strings.TrimSuffix(x, cut), strings.TrimSuffix(y, cut)
 	if len(x) > len(y) {
 		x, y = y, x
 	}
@@ -186,7 +195,7 @@ func canonical(r *Results) []string {
 	c.Steps = nil
 	for _, s := range r.Steps {
 		cs := *s
-		cs.Viewports = nil
+		cs.Viewports, cs.DurationMS = nil, 0 // a step's time differs every run
 		for _, v := range s.Viewports {
 			cv := *v
 			cv.Screenshot, cv.Log = "", ""

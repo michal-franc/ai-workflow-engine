@@ -150,7 +150,8 @@ var ChangelogHeading = regexp.MustCompile(`^##\s+\[?(v?\d[^\s\]]*)\]?(?:\s+[â€”â
 
 // Released is the newest released version: the first version heading of
 // the changelog (configured, else CHANGELOG.md) under root, else the newest
-// git tag. "" when there is neither.
+// git tag that is not a pre-release (a candidate tag is not released). ""
+// when there is neither.
 func Released(ctx context.Context, root, changelog string) string {
 	if changelog == "" {
 		changelog = "CHANGELOG.md"
@@ -162,11 +163,22 @@ func Released(ctx context.Context, root, changelog string) string {
 			}
 		}
 	}
-	out, err := exec.CommandContext(ctx, "git", "-C", root, "for-each-ref", "--sort=-creatordate", "--count=1", "--format=%(refname:short)", "refs/tags").Output()
+	out, err := exec.CommandContext(ctx, "git", "-C", root, "for-each-ref", "--sort=-creatordate", "--format=%(refname:short)", "refs/tags").Output()
 	if err != nil {
 		return ""
 	}
-	return strings.TrimSpace(string(out))
+	return newestRelease(string(out))
+}
+
+// newestRelease is the first tag of a newest-first list that is not a
+// pre-release.
+func newestRelease(tags string) string {
+	for _, t := range strings.Split(tags, "\n") {
+		if t = strings.TrimSpace(t); t != "" && !IsPreRelease(t) {
+			return t
+		}
+	}
+	return ""
 }
 
 // ByVersion groups issues by their version: field; issues without one are

@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/michal-franc/issue-viewer/internal/agentrun"
@@ -57,32 +55,9 @@ type DispatchResponse = agentrun.Response
 
 var dispatchAgentSession = startAgentSession
 
-// viewerURLFromRequest reconstructs the externally-visible base URL of the
-// viewer from the inbound request, so dispatched bot sessions can later emit
-// deep-link approval hints that point back at the same host the human just
-// clicked from. Falls back to ISSUE_VIEWER_URL on the server's environment if
-// the request doesn't carry a Host header (rare, but possible behind some
-// proxies).
-func viewerURLFromRequest(r *http.Request) string {
-	if r == nil {
-		return strings.TrimSpace(os.Getenv("ISSUE_VIEWER_URL"))
-	}
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-		scheme = proto
-	}
-	host := r.Host
-	if fwd := r.Header.Get("X-Forwarded-Host"); fwd != "" {
-		host = fwd
-	}
-	if host == "" {
-		return strings.TrimSpace(os.Getenv("ISSUE_VIEWER_URL"))
-	}
-	return scheme + "://" + host
-}
+// startDispatch starts an issue's worker from agentrun.DispatchSpec; tests
+// stub it.
+var startDispatch = agentrun.Start
 
 func agentLaunchCommand(proj *tracker.Project, agentType, session, promptPath string) string {
 	return agentrun.LaunchCommand(proj, agentType, session, promptPath)
@@ -90,21 +65,6 @@ func agentLaunchCommand(proj *tracker.Project, agentType, session, promptPath st
 
 func writeDispatchPrompt(sessionLogDir, prompt string) (string, error) {
 	return agentrun.WritePrompt(sessionLogDir, prompt)
-}
-
-// repromptURL is the endpoint that re-sends the briefing into a live agent
-// session, quoted in dispatch hints. Empty when session is not the issue's
-// main agent session (custom actions, retros reviews), which reprompt can't
-// reach.
-func repromptURL(proj *tracker.Project, session, issueSlug string) string {
-	if issueSlug == "" || session != tmuxSessionName(issueSlug) {
-		return ""
-	}
-	prefix := ""
-	if proj != nil && proj.Slug != "" {
-		prefix = "/p/" + proj.Slug
-	}
-	return prefix + "/issue/" + issueSlug + "/dispatch/reprompt"
 }
 
 func runStep(steps *[]DispatchStep, name string, cmd *exec.Cmd) bool {
@@ -119,21 +79,26 @@ func attachAgentStep(proj *tracker.Project, name string, steps *[]DispatchStep) 
 	return agentrun.AttachStep(proj, name, steps)
 }
 
-// startAgentSession launches (or re-attaches to) the agent called session.
-// With wf and an issue slug it runs in the issue's worktree.
-func startAgentSession(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string, viewerURL string, wf *tracker.WorkflowConfig) DispatchResponse {
+// startAgentSession launches (or re-attaches to) the agent called session:
+// custom and project actions, retros reviews. With wf and an issue slug it
+// runs in the issue's worktree. An issue's own worker goes through
+// agentrun.DispatchSpec instead (handleDispatchAgent).
+func startAgentSession(proj *tracker.Project, session string, prompt string, issueSlug string, agentType string, wf *tracker.WorkflowConfig) DispatchResponse {
 	workDir := resolveProjectWorkDir(proj)
-	return agentrun.Start(proj, agentrun.Spec{
-		Session:     session,
-		Prompt:      prompt,
-		AgentType:   agentType,
-		IssueSlug:   issueSlug,
-		ViewerURL:   viewerURL,
-		WorkDir:     workDir,
-		Worktree:    issueWorktreeSpec(workDir, issueSlug, wf),
-		Workflow:    wf,
-		RepromptURL: repromptURL(proj, session, issueSlug),
-	})
+	spec := agentrun.Spec{
+		Session:   session,
+		Prompt:    prompt,
+		AgentType: agentType,
+		IssueSlug: issueSlug,
+		WorkDir:   workDir,
+		Worktree:  issueWorktreeSpec(workDir, issueSlug, wf),
+		Workflow:  wf,
+	}
+	// Reprompt only reaches the issue's main session, not an action's.
+	if issueSlug != "" && session == tmuxSessionName(issueSlug) {
+		spec.RepromptHint = agentrun.RepromptHint(proj, issueSlug)
+	}
+	return agentrun.Start(proj, spec)
 }
 
 func buildRetrosReviewPrompt(proj *tracker.Project, retros []*RetroEntry, bugs []*ToolBugReportView) string {
@@ -222,7 +187,7 @@ func (s *Server) handleRetrosReviewDispatch(w http.ResponseWriter, r *http.Reque
 
 	prompt := buildRetrosReviewPrompt(proj, retros, bugs)
 	session := tmuxSessionName(proj.Slug + "-retros-review")
-	resp := dispatchAgentSession(proj, session, prompt, "", agentType, viewerURLFromRequest(r), nil)
+	resp := dispatchAgentSession(proj, session, prompt, "", agentType, nil)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -233,15 +198,7 @@ func (s *Server) handleRetrosReviewDispatch(w http.ResponseWriter, r *http.Reque
 // replacement (not text/template) keeps prompts forgiving: an unrecognized
 // {{...}} is left verbatim rather than failing the dispatch.
 func renderActionPrompt(prompt string, issue *tracker.Issue) string {
-	r := strings.NewReplacer(
-		"{{slug}}", issue.Slug,
-		"{{title}}", issue.Title,
-		"{{status}}", issue.Status,
-		"{{system}}", issue.System,
-		"{{priority}}", issue.Priority,
-		"{{number}}", fmt.Sprintf("%d", issue.Number),
-	)
-	return r.Replace(prompt)
+	return tracker.FillPlaceholders(prompt, tracker.IssueActionValues(issue))
 }
 
 // renderProjectActionPrompt substitutes {{project}} into a project-level custom
@@ -249,10 +206,7 @@ func renderActionPrompt(prompt string, issue *tracker.Issue) string {
 // context is available. Plain string replacement keeps prompts forgiving: an
 // unrecognized {{...}} is left verbatim rather than failing the dispatch.
 func renderProjectActionPrompt(prompt string, proj *tracker.Project) string {
-	r := strings.NewReplacer(
-		"{{project}}", proj.Name,
-	)
-	return r.Replace(prompt)
+	return tracker.FillPlaceholders(prompt, tracker.ProjectActionValues(proj))
 }
 
 // handleProjectAction dispatches a project-level custom action from the list,
@@ -280,7 +234,7 @@ func (s *Server) handleProjectAction(w http.ResponseWriter, r *http.Request, pro
 
 	prompt := renderProjectActionPrompt(action.Prompt, proj)
 	session := tmuxSessionName(proj.Slug + "-" + actionID)
-	resp := dispatchAgentSession(proj, session, prompt, "", agentType, viewerURLFromRequest(r), nil)
+	resp := dispatchAgentSession(proj, session, prompt, "", agentType, nil)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
@@ -320,7 +274,7 @@ func (s *Server) handleCustomAction(w http.ResponseWriter, r *http.Request, proj
 
 	prompt := renderActionPrompt(action.Prompt, issue)
 	session := tmuxSessionName(slug + "-" + actionID)
-	resp := dispatchAgentSession(proj, session, prompt, issue.Slug, agentType, viewerURLFromRequest(r), nil)
+	resp := dispatchAgentSession(proj, session, prompt, issue.Slug, agentType, nil)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
@@ -335,21 +289,26 @@ func (s *Server) handleDispatchAgent(w http.ResponseWriter, r *http.Request, pro
 		return
 	}
 
-	// Parse agent type from request body (default: claude)
+	// Parse agent type from request body (default: claude). force skips the
+	// waiting-on-gate refusal (the modal's Dispatch anyway).
 	agentType := "claude"
 	var body struct {
 		Agent string `json:"agent"`
+		Force bool   `json:"force"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err == nil && body.Agent != "" {
 		agentType = body.Agent
 	}
 
-	wf := proj.LoadWorkflowForIssue(issue)
-	prompt := tracker.BuildDispatchPrompt(proj, issue, wf, resolveProjectWorkDir(proj), leadLive(proj)).Prompt
-	session := tmuxSessionName(slug)
-	resp := dispatchAgentSession(proj, session, prompt, issue.Slug, agentType, viewerURLFromRequest(r), wf)
+	// The same spec `issue-cli dispatch` starts.
+	spec, refused := agentrun.DispatchSpec(proj, issue, agentType, resolveProjectWorkDir(proj), body.Force)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	if refused != nil {
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(refused)
+		return
+	}
+	json.NewEncoder(w).Encode(startDispatch(proj, spec))
 }
 
 // handleDispatchPrompt serves GET /p/<project>/issue/<slug>/dispatch-prompt:
@@ -387,29 +346,10 @@ func (s *Server) handleDispatchReprompt(w http.ResponseWriter, r *http.Request, 
 		http.NotFound(w, r)
 		return
 	}
-	dp := tracker.BuildDispatchPrompt(proj, issue, proj.LoadWorkflowForIssue(issue), resolveProjectWorkDir(proj), leadLive(proj))
-	resp := repromptAgentSession(proj, tmuxSessionName(issue.Slug), dp.Prompt, issue.Slug, resolveProjectWorkDir(proj))
+	resp := agentrun.Reprompt(proj, issue, resolveProjectWorkDir(proj))
 	w.Header().Set("Content-Type", "application/json")
 	if resp.Status == "no-session" {
 		w.WriteHeader(http.StatusConflict)
 	}
 	json.NewEncoder(w).Encode(resp)
-}
-
-// repromptAgentSession pastes prompt into the live agent session and checks
-// it arrived (see agentrun.Paste).
-func repromptAgentSession(proj *tracker.Project, session, prompt, issueSlug, workDir string) DispatchResponse {
-	textFile := filepath.Join(workDir, ".agent-logs", session, "dispatch-prompt.txt")
-	response := agentrun.Paste(proj, session, prompt, textFile, repromptURL(proj, session, issueSlug))
-	switch response.Status {
-	case "sent":
-		response.Status = "reprompted"
-	case "no-session":
-		response.Steps = []DispatchStep{{
-			Name:   "No live agent session",
-			Status: "error",
-			Detail: fmt.Sprintf("%s is not running; dispatch the issue instead (POST /p/%s/issue/%s/dispatch or the Claude button)", response.Session, proj.Slug, issueSlug),
-		}}
-	}
-	return response
 }

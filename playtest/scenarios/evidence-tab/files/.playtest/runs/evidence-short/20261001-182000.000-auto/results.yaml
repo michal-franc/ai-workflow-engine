@@ -1,0 +1,30 @@
+session: evidence-short
+issue: ui/evidence-short
+title: The panel lists the badges
+mode: auto
+build: 7a8b9c0
+started: "2026-10-01T18:20:00Z"
+steps:
+    - id: EV5
+      title: The panel lists every badge
+      status: fail
+      proves: [AC1]
+      viewports:
+        - viewport: 1440x900
+          status: pass
+          screenshot: shots/EV5-1440x900.png
+        - viewport: 390x844
+          status: fail
+          screenshot: shots/EV5-390x844.png
+          checks:
+            - check: no_horizontal_scroll
+              pass: false
+              actual: scrollWidth 530 > clientWidth 390
+    - id: EV6
+      title: An empty panel says so
+      status: pass
+      proves: [AC4]
+      viewports:
+        - viewport: 1440x900
+          status: pass
+          screenshot: shots/EV6-1440x900.png

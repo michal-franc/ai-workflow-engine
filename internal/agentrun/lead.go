@@ -8,8 +8,8 @@ import (
 )
 
 // LeadSpec builds the launch spec for the project lead, rooted at the
-// project checkout root. The caller fills in AgentType, ViewerURL and
-// Headless, then starts it.
+// project checkout root. The caller fills in AgentType and Headless, then
+// starts it.
 func LeadSpec(proj *tracker.Project, wf *tracker.WorkflowConfig, root string, now time.Time) Spec {
 	return Spec{
 		WorkDir:   root,

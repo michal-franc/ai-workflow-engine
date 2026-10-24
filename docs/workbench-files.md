@@ -9,6 +9,8 @@ The **Metrics** view (`/p/<project>/metrics`) and the system-page panels show a 
 
 The same block also points the viewer at the project's own HTML pages: a custom Status page and extra sidebar pages, shown sandboxed. See [Project pages](#project-pages-status_page-pages).
 
+`workbench.release_candidates: true` puts a release candidate before each release. It changes no files and only affects the Status page's Waiting for release card ([UI](UI/overview.md)) and the lead brief. The flow is in [Roadmap: Cutting a release](roadmap.md#cutting-a-release-candidate-soak-publish).
+
 The engine also writes files of its own here: [Health snapshots](#health-snapshots), the project's size and workflow measured each day into `.health/snapshots/`.
 
 A project points at the files in the optional `workbench:` block of its `workflow.yaml`. Every path is relative to the project root. Validation rejects absolute paths and paths that leave the root, and the reader refuses symlinks that leave it and files over 2 MB.
@@ -130,13 +132,27 @@ rust-manager writes `docs/balance/snapshot.json` with `make balance` (Tests/Bala
 
 ## Health snapshots
 
-A project health snapshot is a dated JSON file that records how big the project is and, through other metric families, how its workflow is going. Snapshots build up into a history: the Stats page (`/p/<project>/stats`) draws its trend lines from them, `/stats` compares the projects with them, and the "getting worse" alerts will read them. `issue-cli health` prints the latest one.
+A project health snapshot is a dated JSON file. Its families record:
+
+- how big the project is and what shape it is in
+- how its tests run
+- how its workflow is going
+- what the newest agent review thought
+
+Every snapshot also gets the derived health score. Snapshots build up into a history read by:
+
+- the Health view (`/p/<project>/health`)
+- the Stats page (`/p/<project>/stats`) and `/stats`, which compares the projects
+- later, the "getting worse" alerts
+
+`issue-cli health` prints the latest one.
 
 - **Where:** `.health/snapshots/<YYYY-MM-DD>T<HHMM>.json` (local time) in the main checkout. `.health/` writes its own `.gitignore`, so the snapshots stay on this machine and no repo has to ignore them.
 - **When:**
   - **Daily:** the viewer looks every 10 minutes and takes one for each project (once per repository) that has none from today.
   - **After CI:** `issue-cli ci run` takes one after each default-tier run, red or green, at the commit it tested. A failed snapshot prints `health: no snapshot: <why>` and never changes the CI result.
   - **By hand:** `issue-cli health snapshot`.
+  - **After a review:** `issue-cli health review record` takes one (trigger `review`), so the new opinion shows at once.
   - **The past:** `issue-cli health backfill [--days 90]` computes one snapshot for each past day that has none, as it stood at 23:59 that day: the codebase at the commit the branch had then, the workflow over the issues done by then. Days before the branch's first commit get the workflow rows only; the milestone family only knows the present and is left out. A new project gets its trend lines on day one this way.
 - **Who:** every project in a git repository. `health.off: true` turns snapshots off, and a project outside git is skipped.
 - **Kept:** every snapshot from the last 35 days, and after that the last snapshot of each day. A snapshot in the same minute replaces the earlier one.
@@ -146,15 +162,15 @@ A project health snapshot is a dated JSON file that records how big the project 
 ```json
 {
   "run": {"date": "2026-10-23T14:05", "project": "issue-viewer", "branch": "main", "commit": "c55d815", "trigger": "daily", "duration_ms": 412},
-  "families": {"codebase": {"ms": 380, "metrics": 142}, "workflow": {"ms": 20000, "metrics": 0, "error": "timed out after 20s"}},
+  "families": {"codebase": {"ms": 380, "metrics": 142}, "tests": {"ms": 4, "metrics": 9, "warnings": ["health.e2e_sessions (default playtest/sessions/*.yaml) matched no file, so no e2e session rows"]}, "workflow": {"ms": 20000, "metrics": 0, "error": "timed out after 20s"}},
   "metrics": [
     {"id": "codebase.lines{kind=code}", "metric": "codebase.lines", "labels": {"kind": "code"}, "value": 61082, "name": "Lines in text files", "group": "codebase", "band": {"unit": "count"}}
   ]
 }
 ```
 
-- **`run.trigger`:** `daily`, `ci`, `manual` or `backfill`.
-- **`families`:** one entry per registered family, with its time, row count and `hint` (see [Adding a family](#adding-a-family)). A family that fails, panics or runs past its timeout gets `error`, and its rows are missing. The other families are still written.
+- **`run.trigger`:** `daily`, `ci`, `manual`, `backfill` or `review`.
+- **`families`:** one entry per registered family, with its time, row count and `hint` (see [Adding a family](#adding-a-family)). A family that fails, panics or runs past its timeout gets `error`, and its rows are missing. The other families are still written. `warnings` lists what a family could not measure as configured, such as a glob that matched no file; its rows are still written. `issue-cli health` prints each one under the family's line (`⚠ …`), and the Health view lists them under Derived health.
 - **Rows:**
   - `metric` and `labels` are the series key.
   - `id` is `metric{k=v,...}` with the labels sorted, or the bare name when there are no labels.
@@ -175,11 +191,20 @@ health:
   limits:                               # the Stats page gauges' thresholds
     waiting_share: 0.25                 # share of issue time waiting on you
     big_files: 10                       # files over big_file_lines
+  e2e_sessions: ["playtest/sessions/*.yaml"]   # the tests family's playtest sessions (default)
+  long_func_lines: 80                   # a long function has more lines than this
+  shrink_shots_after_days: 30           # shrink playtest shots of issues done this long ago (0: never)
+  score:                                # override a derived-score component
+    unit_wait: {good: 60s, bad: 240s, weight: 20}
+    e2e_coverage: {weight: 0}           # 0 turns a component off
 ```
 
 - **Globs:** `**` matches any number of folders. A glob without a `/` matches the file name in any folder, as in `.gitignore`.
 - **Limits:** a key left out takes its default (above); `0` turns that limit off, and a negative value fails validation. The "getting worse" alerts are meant to share this block.
 - **Default test globs:** `**/*_test.go`, `**/*Tests.cs`, `**/*Test.cs`, `**/*.test.js`, `**/*.test.ts`, `**/test_*.py` and `**/*_test.py`.
+- **Score bounds:** `good` and `bad` take a number, a duration (`60s`, `10m`: seconds) or a percentage (`5%`: 0.05). See [Scores](#scores).
+- **RogueTech:** sets `e2e_sessions: ["Data/Scenarios/*.yaml"]`.
+- **Shrinking shots:** once a day, after the daily snapshot, the viewer shrinks the playtest shots in the project root's `.playtest/runs/` whose issue has been done `shrink_shots_after_days` days (default 30; `0` turns it off, a negative value fails validation). Each PNG, in the run's `shots/` or beside its `results.yaml` (a game's runner saves them there), becomes a JPEG at most 720 px wide and three screens tall, cut from the top, and the run's `results.yaml` points at the new names (`screenshot:`, or a game's `screenshots:` list) and gets `reduced: <date>`; every check and verdict stays. It logs one line per project when it changed something (`health: <project>: shrank shots of 4 issues done before 2026-09-23: 15.2 MB → 1.9 MB`). Runs reach the root at done, see [`playtest prune`](CLI/overview.md#playtest-prune).
 
 ### The codebase family
 
@@ -189,7 +214,7 @@ It reads git objects at the head of the main branch: one `git ls-tree`, then one
 - **Binary files:** a file with a NUL byte in its first 8 KB, or a file over 2 MB, is counted in `codebase.binary_files` and nowhere else.
 - **Kinds:**
   - `code` is a source language (Go, C#, JS/TS, Python, Rust, shell, CSS, HTML, templates and so on).
-  - `test` is a code file that matches `test_globs`.
+  - `test` is a code file that matches `test_globs`. When no code file matches, the family warns "health.test_globs (…) matched no code file", naming the configured globs or "default" and the defaults.
   - `docs` is Markdown, txt, rst and adoc.
   - `data` is JSON, YAML, TOML, XML, CSV and SVG.
   - `other` is any other text file.
@@ -258,6 +283,168 @@ The current milestone, from `internal/milestone` (the same `Pick` the Status pag
 
 No rows when no version has issues. It knows only the present, so `issue-cli health backfill` leaves it out.
 
+### The tests family
+
+It runs no tests. It reads two sources:
+
+- **Local CI:** the newest run at or before the snapshot that wrote results for each kind, from `ci.run[].results` ([Local CI: Test results](workflow.md#test-results-results)).
+- **Sessions:** the playtest session files at the commit (`health.e2e_sessions`).
+
+Without results there are no rows for that kind, not zeros. `issue-cli health` then says how to add them. When `e2e_sessions` (configured or the default `playtest/sessions/*.yaml`) matches no file, the family warns "health.e2e_sessions (…) matched no file, so no e2e session rows" instead of writing nothing silently.
+
+| Metric | Labels | Value |
+|:--|:--|:--|
+| `tests.count` | `kind`: unit, e2e; `result`: all, pass, fail, skip | top-level tests in that run (e2e: playtest steps) |
+| `tests.subtests` | `kind` | subtests (Go `t.Run`) |
+| `tests.wall_seconds` | `kind` | the suite's own wall time (first to last event, or the file's start and finish), not the command's |
+| `tests.sum_seconds` | `kind` | per-test time summed; more than the wall when tests run in parallel |
+| `tests.per_test_ms` | `kind`, `stat`: mean, p50, p90 | per-test runtime, ms |
+| `tests.run_age_days` | `kind` | how old the CI run is |
+| `tests.part.seconds` | `kind`, `part` | the 10 slowest parts (Go package, test class, playtest session): the wall clock's critical path |
+| `tests.slow` | `kind` | tests over 1 s (unit) or steps over 30 s (e2e) |
+| `tests.count_by_area` | `kind`, `area` | tests per area: the package's top folder (Go), the namespace segment after the test assembly's root (TRX), the class's first segment (JUnit) |
+| `tests.slowest.seconds` | `kind`, `test` | the 10 slowest tests (`<package>.<Test>` for Go) |
+| `tests.e2e.sessions`, `tests.e2e.steps` | `system` (and `all`) | playtest sessions and steps in the tree, by their issue's system |
+| `tests.e2e.coverage` | none | issues done in 90 days whose system has a session / issues done with a system (`share`) |
+| `tests.e2e.uncovered` | `system` | issues done in 90 days in a system without a session |
+
+The rows below come with `workflow/health-check-speed-…` (the playtest telemetry). Until then the score leaves out the components that read them:
+
+- `tests.e2e.estimated_seconds`
+- `tests.e2e.flaky_share{window=14d}`
+
+A project whose test classes share one namespace (RogueTech) gets a coarse area split.
+
+### The shape family
+
+It reads the git objects at the snapshot's commit, in the same single pass the codebase family uses. It also reads one `git log --numstat` over the 30 days before the snapshot. Its source files are code files, tests included; function length counts code only.
+
+| Metric | Labels | Value |
+|:--|:--|:--|
+| `shape.funcs` | `lang` | functions read |
+| `shape.func_lines` | `stat`: p50, p90, max | function length in lines, signature to closing brace |
+| `shape.long_funcs` | none | functions over `long_func_lines` |
+| `shape.long_funcs.share` | none | of all functions (`share`) |
+| `shape.long_func.lines` | `path`, `func` | the 20 longest (`Type.Method` for Go methods) |
+| `shape.unparsed_files` | `lang` | code files whose functions could not be read: a Go syntax error, or a language without a reader (Ruby, Lua, F#, ...) |
+| `shape.big_lines.share` | none | source lines in files over `big_file_lines` / source lines |
+| `shape.churn.lines`, `shape.churn.commits` | `path`, `window`: 30d | the 20 most-churned source files: lines added + removed, commits |
+| `shape.churn.big_share` | `window`: 30d | the share of that churn in big files |
+| `shape.hotspot` | `path` | big files changed in 5+ commits in 30 days: lines × commits |
+
+How functions are read:
+
+- **Go** with `go/parser`, which is exact.
+- **Brace languages** (C#, JS/TS, Java, Kotlin, C/C++, Rust, Swift, PHP, shell, shaders) with a scanner. It skips comments, strings and char literals and counts a block whose header has a name and a parameter list, without a control keyword, an assignment or a lambda. Constructors and local functions count; lambdas and initializers don't.
+- **Python and GDScript** by indentation after `def` / `func`.
+- **Languages without functions** (CSS, HTML, SQL, templates) are not measured.
+
+On RogueTech the family takes about a second and finds 5,600 C# methods.
+
+### The storage family
+
+How much disk the project takes, by area: one walk of the main checkout, sizes from `lstat` (symlinks are not followed), within the family timeout. It only knows the present, so `issue-cli health backfill` leaves it out and the Stats page's **Disk use** card draws its line from the second daily snapshot on. The card lists the newest snapshot's areas with a bar each.
+
+| Metric | Labels | Value |
+|:--|:--|:--|
+| `storage.total_mb` | none | the checkout, everything included (MB, 2^20 bytes) |
+| `storage.git_mb` | none | `.git/` |
+| `storage.worktrees_mb` | none | `.worktrees/`, without the worktrees' `.playtest/` |
+| `storage.worktrees` | none | worktrees under `.worktrees/` (count) |
+| `storage.playtest_mb` | none | playtest runs and shots: `.playtest/` in the checkout and in every worktree |
+| `storage.agent_logs_mb` | none | `.agent-logs/` (clilogs, dispatch prompts) |
+| `storage.attachments_mb` | none | the issues dir's `attachments/` (walked on its own when it is outside the checkout) |
+
+On this repo (45 worktrees, 3.2 GB) the walk takes about a quarter of a second.
+
+### The lint family
+
+`issue-cli health lint`'s checks over workflow.yaml and the board (`internal/lint`), counted. Every finding is a warning: lint lowers the score, it never fails a run.
+
+- **The checks:**
+  - `undated`: issues without `created:`.
+  - `workflow`: the warnings `process workflow` prints.
+  - `schema`: unknown keys, missing `statuses:`/`transitions:`, deprecated keys.
+  - `template`: the `template:` stamp against the bundled template.
+  - `placeholders`: `{{name}}` a field never fills.
+  - `sections`: gates on sections no template writes the way the gate needs.
+
+  [CLI: health](CLI/overview.md#health) has each rule.
+- **When it runs:** in every snapshot: the one `issue-cli ci run` takes after each run, and the viewer's daily one. It reads the present files, so backfill leaves it out. The Health view also runs lint live: its **Lint** section lists every warning with its fix (50, then the command for the rest). The Status page's Health card shows the snapshot's count (`3 lint warnings`), linking to it.
+
+| Metric | Labels | Value |
+|:--|:--|:--|
+| `lint.warnings` | none | every warning (the `lint` score component) |
+| `lint.findings` | `check` | warnings per check, for checks that found any |
+
+### Scores
+
+After the families ran, every snapshot gets the derived health score. It isn't a family: `Derive` reads the snapshot's rows, and the snapshot from 30 days before for the trend components. Each component maps one measured value linearly from `good` (100) to `bad` (0), clamped. It rewards fast feedback and lean code (D-4): more tests are never a reward, only their cost counts.
+
+| Component | Measured value | good → bad | Weight |
+|:--|:--|:--|--:|
+| `unit_wait` | `tests.wall_seconds{kind=unit}` | 60 s → 240 s | 20 |
+| `unit_cost_trend` | `tests.per_test_ms{kind=unit,stat=mean}` change vs 30 days ago | +10% → +100% | 10 |
+| `e2e_wait` | e2e wall (CI run under 14 days old, else `tests.e2e.estimated_seconds`) | 10 min → 40 min | 10 |
+| `e2e_coverage` | `tests.e2e.coverage` | 90% → 50% | 10 |
+| `flaky` | `tests.e2e.flaky_share{window=14d}` | 0% → 5% | 10 |
+| `big_files` | `shape.big_lines.share` | 5% → 30% | 15 |
+| `long_funcs` | `shape.long_funcs.share` | 2% → 10% | 10 |
+| `test_balance` | change in `codebase.test_ratio` vs 30 days ago (without that snapshot: from the 30-day growth rows); a rise counts as 0 | −0.02 → −0.15 | 10 |
+| `hotspots` | `shape.churn.big_share{window=30d}` | 10% → 50% | 5 |
+| `lint` | `lint.warnings` (issue-cli health lint) | 0 → 20 | 10 |
+
+- **Missing data:** a component without data is left out and the weights are renormalised over the rest.
+- **The total** is written only when at least half the weight has data. Below that the Health view says what is missing.
+- **No data at all:** no score rows, not a zero.
+
+| Metric | Labels | Value |
+|:--|:--|:--|
+| `score.derived` | none | the derived health, 0–100 |
+| `score.coverage` | none | weight with data / total weight (`share`) |
+| `score.component` | `component` | each sub-score, 0–100 |
+| `score.component.value` | `component` | the measured value behind it |
+| `score.component.weight` | `component` | its weight; present for every enabled component, so one without a sub-score has no data |
+
+On 23 Oct 2026 issue-viewer scored 86–87 from 6 of 9 components. The `lint` component (24 Oct) makes ten.
+
+### The agent opinion
+
+`issue-cli health review` (or Run review on the Health view) has an agent review the project:
+
+1. It writes an evidence pack, `.health/reviews/<ts>/evidence.md`. The pack holds:
+   - the score's components
+   - tests per kind, with the slowest parts and tests and tests per area next to lines per area
+   - e2e coverage per system
+   - the biggest files, hotspots and longest functions
+   - lines from the 10 newest retros that mention tests, speed or size
+   - the previous review and what its cited metrics are now
+
+   Every number carries its row id.
+2. The prompt (`internal/health/review_prompt.md`) asks for:
+   - a 0–100 score
+   - a 60–200 word assessment
+   - 1–6 recommendations, each with a kind, evidence (a row id or a repo path), an effort and the expected effect
+
+   More tests are not a goal.
+3. The agent records it with `issue-cli health review record <file>`. That refuses anything whose evidence points at a metric not in the snapshot or a path not at the main head, and lists each problem with its fix.
+4. The review is stored as `.health/opinions/<YYYY-MM-DD>T<HHMM>.json`: score, assessment, recommendations, reviewer, the snapshot read and the derived score then. Each recommendation's state is `proposed`, `filed` (with the issue slug) or `dismissed` (with the reason).
+5. Only the owner turns a recommendation into work:
+   - **Viewer:** File as issue on the Health view; the click is the decision.
+   - **CLI:** `issue-cli health review file R2 --quote "<their words>"`.
+
+   Either one creates an `idea` issue labelled `health`, with the evidence and the decision. Its type is `feature` for `add_e2e` and `tweak` for the rest, and its system comes from a `system=` label in the evidence. Dismiss works the same way.
+
+The `opinion` family puts the newest review into every snapshot, so the line holds as a step between reviews. In backfill it returns `ErrNoPast`.
+
+| Metric | Labels | Value |
+|:--|:--|:--|
+| `opinion.score` | none | the newest review's score |
+| `opinion.age_days` | none | its age |
+| `opinion.recommendations` | `kind`, `state` | its recommendations |
+
+A review over 7 days old is flagged on the Health view, on the Status card and in `/status.md`. Nothing runs by itself (D-3).
+
 ### Adding a family
 
 A family is a Go function registered from `init()` in a package both binaries import (the server and `issue-cli`), so every snapshot includes it, whoever takes it:
@@ -273,6 +460,7 @@ func workflowFamily(ctx context.Context, env health.Env) ([]health.Metric, error
 
 - **Pointer:** `health.Describe("workflow", "tables: /stats")` (also from `init()`) stores a one-line pointer with the family's result (`families.<name>.hint`). `issue-cli health` prints it after the family's `ok, N metrics`, so agents find where to read more.
 - **Errors:** return an error only when the whole family fails. Skip and count the bad parts instead.
+- **Warnings:** `health.Warn(ctx, format, args...)` records something the family could not measure as configured (`families.<name>.warnings`), so a setting that matches nothing is said rather than counted as zero.
 - **Backfill:** with `env.Backfill` set, `Now` is a past day and `Commit` where the branch stood then (`""` before the first commit). A family that can only measure the present returns `health.ErrNoPast`, and the day's snapshot leaves it out instead of recording an error.
 - **Context:** honour `ctx`, because it is cancelled at the family timeout.
 - **Docs:** document each name and its labels in a subsection here.

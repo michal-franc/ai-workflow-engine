@@ -184,11 +184,11 @@ func (j *judge) shot(ctx context.Context, name string) string {
 	if err != nil {
 		return ""
 	}
-	p := filepath.Join(j.dir, "shots", name+".png")
-	if os.WriteFile(p, png, 0o644) != nil {
+	rel := filepath.Join("shots", name+".png")
+	if os.WriteFile(filepath.Join(j.dir, rel), png, 0o644) != nil {
 		return ""
 	}
-	return p
+	return filepath.ToSlash(rel)
 }
 
 // record stores the owner's verdict and the step's machine checks.
@@ -257,7 +257,7 @@ func (r *Runner) Playtest(b *Browser, s *Session, auto *Results) (*Results, stri
 	j.log = logf
 	j.res = &Results{Session: s.Name, Issue: s.Issue, Title: s.Title, Mode: "judge", Build: r.Build, Started: time.Now().Format(time.RFC3339)}
 	for _, st := range j.steps {
-		j.res.Steps = append(j.res.Steps, &StepResult{ID: st.ID, Title: st.Title, Judgement: true, HasChecks: len(st.checks) > 0, Status: StatusPending})
+		j.res.Steps = append(j.res.Steps, &StepResult{ID: st.ID, Title: st.Title, Judgement: true, HasChecks: len(st.checks) > 0, Status: StatusPending, Proves: st.Proves})
 	}
 	_ = j.res.Write(dir)
 

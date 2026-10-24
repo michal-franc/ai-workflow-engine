@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -26,8 +27,8 @@ type DetailData struct {
 	OptionalApprovals []OptionalApproval
 	// ApproveThen maps a required approval to the follow-up approval that
 	// "Approve <status> and <then>" queues in one click (queued_approval).
-	ApproveThen  map[string]string
-	RenderedBody template.HTML
+	ApproveThen   map[string]string
+	RenderedBody  template.HTML
 	CustomActions []tracker.CustomAction
 	WorkTypes     []WorkTypeOption
 	// TypeWarning flags an undefined type: value or an off-path status.
@@ -50,6 +51,80 @@ type DetailData struct {
 	TimelineFilters []timelineFilterLink
 	// IssueTab is built only on the Issue tab.
 	IssueTab *IssueTab
+	// EvidenceLabel is the Evidence tab's count, on every tab; Evidence is
+	// built only on the Evidence tab.
+	EvidenceLabel EvidenceLabel
+	Evidence      *EvidenceTab
+	// Epic is set when the issue is an epic: its children, for the Epic tab.
+	Epic *EpicTab
+}
+
+// EpicTab is an epic's children, by version, for the first tab (named Epic).
+type EpicTab struct {
+	Done, Total int
+	Versions    []EpicVersion
+}
+
+// AllDone: every child closed.
+func (e *EpicTab) AllDone() bool { return e.Total > 0 && e.Done == e.Total }
+
+// EpicVersion is one version's children of an epic ("none" for no version).
+type EpicVersion struct {
+	Version     string
+	Done, Total int
+	Children    []*tracker.Issue
+}
+
+// Pct is the version's closed share, for its bar.
+func (v EpicVersion) Pct() int {
+	if v.Total == 0 {
+		return 0
+	}
+	return v.Done * 100 / v.Total
+}
+
+// buildEpicTab groups the epic's children by version, oldest first; within a
+// version the open ones come first, furthest along.
+func buildEpicTab(wf *tracker.WorkflowConfig, epic *tracker.Issue, issues []*tracker.Issue) *EpicTab {
+	if !tracker.IsEpic(epic, issues) {
+		return nil
+	}
+	cs := newCanvasStatuses(wf)
+	tab := &EpicTab{}
+	byVersion := map[string]*EpicVersion{}
+	for _, c := range tracker.EpicChildren(issues, epic.Slug) {
+		v := c.Version
+		if v == "" {
+			v = "none"
+		}
+		ev := byVersion[v]
+		if ev == nil {
+			ev = &EpicVersion{Version: v}
+			byVersion[v] = ev
+		}
+		ev.Children = append(ev.Children, c)
+		ev.Total++
+		tab.Total++
+		if cs.closed(c.Status) {
+			ev.Done++
+			tab.Done++
+		}
+	}
+	for _, ev := range byVersion {
+		sort.SliceStable(ev.Children, func(i, j int) bool {
+			ci, cj := cs.closed(ev.Children[i].Status), cs.closed(ev.Children[j].Status)
+			if ci != cj {
+				return !ci
+			}
+			if pi, pj := cs.pos(ev.Children[i].Status), cs.pos(ev.Children[j].Status); pi != pj {
+				return pi > pj
+			}
+			return ev.Children[i].Slug < ev.Children[j].Slug
+		})
+		tab.Versions = append(tab.Versions, *ev)
+	}
+	sort.Slice(tab.Versions, func(i, j int) bool { return compareVersions(tab.Versions[i].Version, tab.Versions[j].Version) < 0 })
+	return tab
 }
 
 type timelineFilterLink struct {
@@ -264,6 +339,13 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		issueTab = loadIssueTab(proj, prefix, found, issues, wf, needsApprovals)
 	}
 
+	comments, _ := tracker.LoadComments(found.FilePath)
+	report := evidenceReport(proj, found, comments)
+	var evidence *EvidenceTab
+	if tab == "evidence" {
+		evidence = loadEvidenceTab(proj, prefix, found, wf, report)
+	}
+
 	renderedBody := renderBodyWithDataTable(found, prefix, projectRoot(proj), slugMap)
 
 	closed := tracker.ClosedIssueFunc(proj)
@@ -295,6 +377,9 @@ func (s *Server) handleDetail(w http.ResponseWriter, r *http.Request, proj *trac
 		Timeline:          tl,
 		TimelineFilters:   filters,
 		IssueTab:          issueTab,
+		EvidenceLabel:     evidenceLabel(report, wf.ProofRequired(found)),
+		Evidence:          evidence,
+		Epic:              buildEpicTab(wf, found, issues),
 	}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
@@ -313,6 +398,7 @@ func loadIssueTab(proj *tracker.Project, prefix string, issue *tracker.Issue, is
 	call, known := lastCliCall(proj.Slug, agentLogPaths(ca.workDir, wt, tracker.AgentSessionName(issue.Slug), issue.Assignee)...)
 	root, mdDir := projectRoot(proj), filepath.Dir(issue.FilePath)
 	t := buildIssueTab(issueTabInput{
+		Project: proj.Slug,
 		Issue:   issue,
 		WF:      wf,
 		Src:     src,

@@ -64,12 +64,12 @@ func TestHandleDispatchPrompt_MatchesDispatchAndHasNoSideEffects(t *testing.T) {
 	}
 
 	var dispatched string
-	origDispatch := dispatchAgentSession
-	dispatchAgentSession = func(_ *tracker.Project, session, prompt, _, _, _ string, _ *tracker.WorkflowConfig) DispatchResponse {
-		dispatched = prompt
-		return DispatchResponse{Status: "dispatched", Prompt: prompt, Session: session}
+	origDispatch := startDispatch
+	startDispatch = func(_ *tracker.Project, spec agentrun.Spec) DispatchResponse {
+		dispatched = spec.Prompt
+		return DispatchResponse{Status: "dispatched", Prompt: spec.Prompt, Session: spec.Session}
 	}
-	t.Cleanup(func() { dispatchAgentSession = origDispatch })
+	t.Cleanup(func() { startDispatch = origDispatch })
 	post, err := http.Post(ts.URL+"/p/test-project/issue/bug-in-login/dispatch", "application/json", strings.NewReader(`{}`))
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +155,7 @@ func TestHandleDispatchReprompt_NoSessionIs409AndCreatesNothing(t *testing.T) {
 	if resp.StatusCode != http.StatusConflict {
 		t.Fatalf("status = %d, want 409", resp.StatusCode)
 	}
-	if dr.Status != "no-session" || len(dr.Steps) != 1 || !strings.Contains(dr.Steps[0].Detail, "/p/test-project/issue/bug-in-login/dispatch") {
+	if dr.Status != "no-session" || len(dr.Steps) != 1 || !strings.Contains(dr.Steps[0].Detail, "issue-cli --project test-project dispatch bug-in-login") {
 		t.Fatalf("response = %+v, want no-session with a dispatch hint", dr)
 	}
 	for _, dir := range []string{".worktrees", ".agent-logs"} {
@@ -216,7 +216,7 @@ func TestStartAgentSession_LaunchesWithPromptArgumentAndVerifiesDelivery(t *test
 
 	// echo stands in for the agent: it prints its argument, as Claude renders
 	// the prompt it was launched with.
-	resp := startAgentSession(proj, "agent-x", prompt, "x", "echo", "", nil)
+	resp := startAgentSession(proj, "agent-x", prompt, "x", "echo", nil)
 	if resp.Status != "dispatched" {
 		t.Fatalf("Status = %q; steps=%+v", resp.Status, resp.Steps)
 	}
@@ -242,7 +242,7 @@ func TestStartAgentSession_ReportsUndeliveredPromptWithoutResending(t *testing.T
 	proj := &tracker.Project{Slug: "test", Terminal: "none", WorkDir: t.TempDir()}
 
 	// true prints nothing, like a Claude that dropped its prompt.
-	resp := startAgentSession(proj, "agent-y", "never shown marker line\n", "y", "true", "", nil)
+	resp := startAgentSession(proj, "agent-y", "never shown marker line\n", "y", "true", nil)
 	if resp.Status != "dispatched" {
 		t.Fatalf("Status = %q, want dispatched (the session is still up); steps=%+v", resp.Status, resp.Steps)
 	}
@@ -250,7 +250,7 @@ func TestStartAgentSession_ReportsUndeliveredPromptWithoutResending(t *testing.T
 	if last.Name != "Prompt not delivered" || last.Status != "error" {
 		t.Fatalf("last step = %+v, want Prompt not delivered error", last)
 	}
-	if !strings.Contains(last.Detail, "nothing was re-sent") || !strings.Contains(last.Detail, "/p/test/issue/y/dispatch/reprompt") {
+	if !strings.Contains(last.Detail, "nothing was re-sent") || !strings.Contains(last.Detail, "issue-cli --project test dispatch y --reprompt") {
 		t.Fatalf("detail = %q, want no-resend note and reprompt hint", last.Detail)
 	}
 }
@@ -287,19 +287,6 @@ func TestPromptDeliveryStep_NoRepromptURLSuggestsManualPaste(t *testing.T) {
 	}
 }
 
-func TestRepromptURL_OnlyForTheIssuesMainSession(t *testing.T) {
-	proj := &tracker.Project{Slug: "p"}
-	if got := repromptURL(proj, tmuxSessionName("a/b"), "a/b"); got != "/p/p/issue/a/b/dispatch/reprompt" {
-		t.Fatalf("main session URL = %q", got)
-	}
-	if got := repromptURL(proj, tmuxSessionName("a/b-act"), "a/b"); got != "" {
-		t.Fatalf("custom action session URL = %q, want empty", got)
-	}
-	if got := repromptURL(proj, "agent-retros", ""); got != "" {
-		t.Fatalf("no-issue URL = %q, want empty", got)
-	}
-}
-
 // A dispatch into a worktree keeps the session's logs in the project
 // checkout, so removing the worktree loses no history, and records its time
 // in the issue's stats sidecar.
@@ -312,7 +299,7 @@ func TestStartAgentSession_LogsInProjectAndRecordsDispatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	session := tmuxSessionName("bug-in-login")
-	resp := startAgentSession(&proj, session, "prompt line\n", "bug-in-login", "echo", "", proj.LoadWorkflow())
+	resp := startAgentSession(&proj, session, "prompt line\n", "bug-in-login", "echo", proj.LoadWorkflow())
 	if resp.Status != "dispatched" {
 		t.Fatalf("Status = %q; steps=%+v", resp.Status, resp.Steps)
 	}
@@ -332,7 +319,7 @@ func TestStartAgentSession_LogsInProjectAndRecordsDispatch(t *testing.T) {
 	}
 
 	// A reattach to the live session is not a new dispatch.
-	startAgentSession(&proj, session, "prompt line\n", "bug-in-login", "echo", "", proj.LoadWorkflow())
+	startAgentSession(&proj, session, "prompt line\n", "bug-in-login", "echo", proj.LoadWorkflow())
 	if store, _ := tracker.LoadStats(tracker.FindIssue(issues, "bug-in-login").FilePath); len(store.Dispatches) != 1 {
 		t.Fatalf("reattach recorded a dispatch: %+v", store.Dispatches)
 	}

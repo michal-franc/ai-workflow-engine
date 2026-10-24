@@ -11,7 +11,13 @@ export type Approvals = {
 }
 
 /** Where the Playtest button is in its cycle. */
-export type PlaytestStep = 'idle' | 'running' | 'ran' | 'reporting'
+export type PlaytestStep = 'idle' | 'opening' | 'ran' | 'reporting'
+
+/** A lead's /exit: idle → writing (the handoff turn runs) → written (the next /exit leaves). */
+export type HandoffStep = 'idle' | 'writing' | 'written'
+
+/** How Playtest opens its tmux window: the project's scripts/playtest-window, the mod's own on `make playtest`, or no playtest. */
+export type PlaytestLauncher = '' | 'script' | 'make'
 
 declare module 'claude-code' {
   interface PluginState {
@@ -20,9 +26,15 @@ declare module 'claude-code' {
       approvals: Approvals | null
       /** The status whose approval is being sent, '' when idle. */
       sending: string
-      /** The worktree's Makefile has a `playtest` target (checked once at start). */
-      hasPlaytest: boolean
-      /** The playtest button's step: idle → running → ran (offer Report) → reporting → idle. */
+      /** How Playtest opens its window (checked once at start); '' when the worktree has no playtest. */
+      playtestLauncher: PlaytestLauncher
+      /** The worktree's Makefile has a `playtest-report` target, so Report is offered after Playtest. */
+      hasReport: boolean
+      /** The issue has guided check scripts (`issue-cli check-script <slug> --list`, at start and after each turn). */
+      hasChecks: boolean
+      /** The lead's handoff before /exit (lead sessions only). */
+      handoff: HandoffStep
+      /** The playtest button's step: idle → opening → ran (window open, offer Report) → reporting → idle. */
       playtest: PlaytestStep
     }
   }

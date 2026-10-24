@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Updates, all projects</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 1v9M4 6l4 4 4-4M2 14h12' stroke='%23f0b866' stroke-width='2' fill='none'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="container wb-page updates-overview" data-testid="updates.overview">
+    <div class="stats-crumb"><a href="/">All projects</a> / updates</div>
+    <div class="wb-head">
+        <div>
+            <h1 class="wb-title">Updates</h1>
+            <p class="wb-sub">Every project's workflow.yaml against the bundled feature catalog ({{.CatalogSize}} features). Click a project for its Updates tab.</p>
+        </div>
+        <div class="wb-stats" data-testid="updates.overview.stats">
+            <div class="wb-stat"><span class="wb-stat-num">{{.Projects}}</span><span class="wb-stat-label">projects</span></div>
+            <div class="wb-stat waiting"><span class="wb-stat-num">{{.Behind}}</span><span class="wb-stat-label">stamped, behind</span></div>
+            <div class="wb-stat"><span class="wb-stat-num">{{.NeverScanned}}</span><span class="wb-stat-label">never scanned</span></div>
+            <div class="wb-stat"><span class="wb-stat-num">{{.ToDecide}}</span><span class="wb-stat-label">to decide</span></div>
+        </div>
+    </div>
+
+    <div class="updates-table-wrap">
+        <table class="data-table updates-overview-table">
+            <thead><tr>
+                <th scope="col">Project</th><th scope="col">Template</th><th scope="col">State</th><th scope="col" class="num">To decide</th><th scope="col">Record</th><th scope="col">Newest proposal</th>
+            </tr></thead>
+            <tbody>
+            {{range .Rows}}
+            <tr data-testid="updates.overview.row">
+                <th scope="row">{{if .Builtin}}<strong>{{.Name}}</strong>{{else}}<a href="{{.Href}}"><strong>{{.Name}}</strong></a>{{end}}</th>
+                <td class="mono">{{.Template}}</td>
+                <td><span class="chip {{.StateClass}}">{{.State}}</span></td>
+                <td class="num">{{if .Builtin}}—{{else}}<a href="{{.Href}}"><strong>{{.ToDecide}}</strong></a>{{end}}</td>
+                <td class="muted">{{.Record}}</td>
+                <td class="mono muted">{{.Newest}}</td>
+            </tr>
+            {{end}}
+            </tbody>
+        </table>
+    </div>
+    <p class="wb-footnote">Never scanned: no <code>features:</code> record yet, so every feature it lacks is listed. A project's Updates tab works either way; <code>issue-cli workflow scan</code> there records what it already has.</p>
+</div>
+</body>
+</html>

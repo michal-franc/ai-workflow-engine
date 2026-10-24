@@ -44,6 +44,12 @@ Each takes the DetailData; detail.html places them.
         {{else if eq .State "playtest"}}
         <code class="it-code" data-testid="detail.needs.command">{{.Command}}</code>
         <div class="it-actions"><button type="button" class="btn" data-testid="detail.needs.copy" onclick="copyText({{.Command}}, this)">Copy command</button></div>
+        {{else if eq .State "checks"}}
+        <div class="it-actions">
+            <button type="button" class="btn it-go" data-testid="detail.needs.run_checks" onclick="runChecks(this)">▶ Run checks</button>
+            <button type="button" class="btn" data-testid="detail.needs.copy" onclick="copyText({{.Command}}, this)">Copy command</button>
+        </div>
+        <code class="it-code" data-testid="detail.needs.command">{{.Command}}</code>
         {{else if eq .State "question"}}
         <label for="it-answer" class="it-small">Your answer</label>
         <textarea id="it-answer" class="it-textarea" rows="2" data-testid="detail.needs.answer" placeholder="Saved as an answer: comment the agent reads."></textarea>

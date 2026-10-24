@@ -31,6 +31,15 @@ func (w *WorkflowConfig) checkAction(action WorkflowAction, issue *Issue, _ []Co
 			return toIssueView(linked)
 		}
 	}
+	if w.ChildrenOf != nil {
+		cfg.Children = func(slug string) []*validations.IssueView {
+			var out []*validations.IssueView
+			for _, c := range w.ChildrenOf(slug) {
+				out = append(out, toIssueView(c))
+			}
+			return out
+		}
+	}
 	return validations.Check(toAction(action), toIssueView(issue), cfg)
 }
 

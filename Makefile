@@ -1,15 +1,22 @@
-.PHONY: build build-cli install demo clean validate test vet cover-cli playtest-check ux-test playtest playtest-report
+.PHONY: build build-cli install demo clean validate test vet cover-cli catalog-check playtest-check ux-test playtest playtest-report
+
+# The build's version is `git describe`: the tag on a release or release
+# candidate (v0.54.0-rc.1), "<tag>-N-g<sha>" past one, "-dirty" with
+# uncommitted changes. `issue-cli version`, the sidebar and the usage log
+# show it. Override with make install VERSION=...
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -X main.Version=$(VERSION)
 
 build:
-	go build -o issue-viewer .
+	go build -ldflags "$(LDFLAGS)" -o issue-viewer .
 
 build-cli:
-	go build -o issue-cli ./cmd/issue-cli/
+	go build -ldflags "$(LDFLAGS)" -o issue-cli ./cmd/issue-cli/
 
 install:
-	go install ./cmd/issue-cli/
-	go install .
-	@echo "Installed issue-cli and issue-viewer via go install"
+	go install -ldflags "$(LDFLAGS)" ./cmd/issue-cli/
+	go install -ldflags "$(LDFLAGS)" .
+	@echo "Installed issue-cli and issue-viewer $(VERSION) via go install"
 
 demo: build
 	./issue-viewer -config demo/projects.yaml -port 8080
@@ -26,8 +33,10 @@ CLI_COVERAGE_FLOOR ?= 70.0
 vet:
 	go vet ./...
 
+# In local CI ($CI_RESULTS_DIR set) the tests also write go test -json for the
+# health tests family; ci gotest prints the same text plain go test would.
 test:
-	go test ./... -count=1
+	go test ./... -count=1 $(if $(CI_RESULTS_DIR),-json | go run ./cmd/issue-cli ci gotest --out $(CI_RESULTS_DIR)/unit.json)
 
 cover-cli:
 	@go test -coverprofile=cover.out ./cmd/issue-cli/... -count=1 >/dev/null
@@ -36,7 +45,13 @@ cover-cli:
 	  awk -v p="$$pct" -v f="$(CLI_COVERAGE_FLOOR)" 'BEGIN { exit (p+0 < f+0) }' || \
 	    { echo "FAIL: coverage below floor"; exit 1; }
 
-validate: vet test cover-cli playtest-check
+# A branch that changes a catalog feature's code (its sources:) or a bundled
+# template must bump its version past the last release, or say why not with
+# a `Catalog: n/a <id> <why>` trailer. Skipped on main.
+catalog-check:
+	@go run ./cmd/issue-cli workflow catalog-check
+
+validate: vet test cover-cli catalog-check playtest-check
 	@echo "✓ validate passed"
 
 # Playtest sessions (playtest/sessions/*.yaml): an issue's manual checks run

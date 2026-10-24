@@ -142,3 +142,20 @@ func TestAgentCommandRunsInLoginShellAndKeepsAShell(t *testing.T) {
 		t.Fatalf("without $SHELL the shell is %q, want /bin/sh", got[0])
 	}
 }
+
+// The agent comes from the pane's start command, which AgentCommand wraps;
+// anything else (a shell started by hand) is unknown.
+func TestAgentOfStartCommand(t *testing.T) {
+	for cmd, want := range map[string]string{
+		`/bin/zsh -lic "trap : INT; claude -n agent-x \"$(cat \"/p/prompt.txt\")\"; exec /bin/zsh -l"`: "claude",
+		`/bin/sh -lic "trap : INT; codex --model o3 \"$(cat \"/p/prompt.txt\")\"; exec /bin/sh -l"`:    "codex",
+		strings.Join(AgentCommand(LaunchCommand(&tracker.Project{}, "codex", "agent-x", "/p")), " "): "codex",
+		strings.Join(AgentCommand(LaunchCommand(&tracker.Project{}, "claude", "agent-x", "/p")), " "): "claude",
+		`/bin/zsh`:                         "",
+		`/bin/zsh -lic "trap : INT; vim"`: "",
+	} {
+		if got := agentOfStartCommand(cmd); got != want {
+			t.Errorf("agentOfStartCommand(%q) = %q, want %q", cmd, got, want)
+		}
+	}
+}

@@ -1,0 +1,86 @@
+session: enemy-3d-glitchers
+issue: combat/eldritch-nexus-and-glitcher-3d-enemy-units
+mode: ux-test
+build: dfd1eee-dirty
+seed: 4127
+started: 2026-10-21T16:09:28
+steps:
+- id: MV2
+  title: The Glitcher pack reads by shape and one amber eye
+  judgement: true
+  status: fail
+  checks:
+  - kind: visible
+    subject: battle.view3d
+    passed: true
+  - kind: state
+    subject: battle.hostiles count 10
+    passed: true
+  - kind: state
+    subject: battle.hostiles all alive
+    passed: true
+  - kind: state
+    subject: battle3d.enemies count 10
+    passed: true
+  - kind: state
+    subject: 'battle3d.enemies all { faction: Glitchers }'
+    passed: true
+  layout:
+  - resolution: 1920x1080
+    rule: inside_viewport
+    passed: false
+    failures:
+    - battle.topbar.menu at (2056,7 112x36) is outside the 1920x1080 viewport
+    screenshot: MV2@1920x1080.png
+  - resolution: 1920x1080
+    rule: no_clipping
+    passed: true
+  - resolution: 1920x1080
+    rule: no_overlap
+    passed: true
+  - resolution: 1920x1080
+    rule: no_zero_width_text
+    passed: true
+  - resolution: 2560x1440
+    rule: inside_viewport
+    passed: false
+    failures:
+    - battle.topbar.menu at (2056,7 112x36) is outside the 1920x1080 viewport
+    screenshot: MV2@2560x1440.png
+  - resolution: 2560x1440
+    rule: no_clipping
+    passed: true
+  - resolution: 2560x1440
+    rule: no_overlap
+    passed: true
+  - resolution: 2560x1440
+    rule: no_zero_width_text
+    passed: true
+  screenshots:
+  - MV2@1920x1080.png
+  - MV2@2560x1440.png
+  fingerprint: 323542d9be4d2814
+  fingerprint_source: >
+    FBrute Flash|0|CenterTorso:70/11/55;Head:20/0/30;LeftArm:34/0/35;LeftLeg:50/0/45;LeftTorso:50/9/40;RightArm:34/0/35;RightLeg:50/0/45;RightTorso:50/9/40;A
+
+    FSpark Breaker|0|CenterTorso:34/12/30;Head:13/0/20;LeftArm:20/0/20;LeftLeg:27/0/30;LeftTorso:27/8/30;RightArm:20/0/20;RightLeg:27/0/30;RightTorso:27/8/30;A
+
+    HScrapmite Pack|0|CenterTorso:50/30/30;Head:20/0/20;LeftArm:30/0/20;LeftLeg:40/0/30;LeftTorso:40/20/30;RightArm:30/0/20;RightLeg:40/0/30;RightTorso:40/20/30;A
+
+    HHusk Strider|0|CenterTorso:50/30/30;Head:20/0/20;LeftArm:30/0/20;LeftLeg:40/0/30;LeftTorso:40/20/30;RightArm:30/0/20;RightLeg:40/0/30;RightTorso:40/20/30;A
+
+    HGaunt|0|CenterTorso:80/40/60;Head:20/0/20;LeftArm:50/0/30;LeftLeg:60/0/40;LeftTorso:70/30/50;RightArm:50/0/30;RightLeg:60/0/40;RightTorso:70/30/50;A
+
+    HDragline|0|CenterTorso:80/40/60;Head:20/0/20;LeftArm:50/0/30;LeftLeg:60/0/40;LeftTorso:70/30/50;RightArm:50/0/30;RightLeg:60/0/40;RightTorso:70/30/50;A
+
+    HRevenant|0|CenterTorso:80/40/60;Head:20/0/20;LeftArm:50/0/30;LeftLeg:60/0/40;LeftTorso:70/30/50;RightArm:50/0/30;RightLeg:60/0/40;RightTorso:70/30/50;A
+
+    HReclaimer|0|CenterTorso:110/50/80;Head:20/0/20;LeftArm:60/0/40;LeftLeg:70/0/50;LeftTorso:90/40/60;RightArm:60/0/40;RightLeg:70/0/50;RightTorso:90/40/60;A
+
+    HCrooked Battery|0|CenterTorso:110/50/80;Head:20/0/20;LeftArm:60/0/40;LeftLeg:70/0/50;LeftTorso:90/40/60;RightArm:60/0/40;RightLeg:70/0/50;RightTorso:90/40/60;A
+
+    HGirder Brute|0|CenterTorso:110/50/80;Head:20/0/20;LeftArm:60/0/40;LeftLeg:70/0/50;LeftTorso:90/40/60;RightArm:60/0/40;RightLeg:70/0/50;RightTorso:90/40/60;A
+
+    HStitchwork|0|CenterTorso:110/50/80;Head:20/0/20;LeftArm:60/0/40;LeftLeg:70/0/50;LeftTorso:90/40/60;RightArm:60/0/40;RightLeg:70/0/50;RightTorso:90/40/60;A
+
+    HHegemon Colossus|0|CenterTorso:160/70/100;Head:20/0/20;LeftArm:80/0/50;LeftLeg:100/0/60;LeftTorso:120/50/70;RightArm:80/0/50;RightLeg:100/0/60;RightTorso:120/50/70;A

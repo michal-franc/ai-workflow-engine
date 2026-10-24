@@ -1,0 +1,225 @@
+{{/*
+The detail page's Evidence tab (?tab=evidence): is it proven? Shots, the
+criteria → proof report, the change; the verdict, playtest per step, the key,
+watch and stale text on the side. Data is DetailData; the model is .Evidence
+(evidence.go).
+*/}}
+{{define "evidence"}}
+{{with .Evidence}}
+<div class="tl ev" data-testid="evidence.tab">
+    {{if .Missing}}
+    <div class="tl-missing" role="status" data-testid="evidence.missing">
+        <strong>Couldn't read {{len .Missing}} {{if eq (len .Missing) 1}}source{{else}}sources{{end}}</strong>
+        {{range .Missing}}<div>{{.}}</div>{{end}}
+    </div>
+    {{end}}
+
+    {{if .NotStarted}}
+    <section class="card tl-card" data-testid="evidence.empty">
+        <div class="tl-body">
+            <strong>Nothing to prove yet</strong>
+            <p class="tl-note tl-muted">The criteria are written in design and proven in testing.{{if .Total}} {{.Total}} written so far.{{end}}</p>
+        </div>
+    </section>
+    {{end}}
+
+    <div class="tl-cols">
+        <div class="ev-main">
+            <section class="card tl-card" aria-labelledby="ev-shots-h" data-testid="evidence.shots">
+                <div class="tl-head">
+                    <h2 id="ev-shots-h">Shots{{if .Shots}} · {{len .Shots}} {{if eq (len .Shots) 1}}step{{else}}steps{{end}}{{end}}</h2>
+                    {{if .ShotsRun}}<span class="tl-muted ev-small">{{.ShotsRun}}{{if .ShotsBy}} · {{.ShotsBy}}{{end}}</span>{{end}}
+                </div>
+                <div class="tl-body">
+                    {{if .ShotsEmpty}}<p class="tl-note tl-muted" data-testid="evidence.shots.empty">{{.ShotsEmpty}}</p>{{end}}
+                    {{if .Shots}}
+                    <div class="ev-shots">
+                        {{range .Shots}}
+                        <figure class="ev-shot{{if .Large}} is-large{{end}}{{if .NoRun}} is-norun{{end}}" data-testid="evidence.shot.{{tid .Step}}">
+                            {{if .NoRun}}
+                            <div class="ev-shot-none">{{.Step}} has no run yet</div>
+                            {{else if .Src}}
+                            <a href="{{.Src}}" target="_blank" rel="noopener" class="ev-shot-link" aria-label="Open the full {{.Step}} shot"><img class="ev-shot-img{{if eq .StateClass "red"}} is-failed{{end}}{{if .Narrow}} is-narrow{{end}}" src="{{.Src}}" alt="Step {{.Step}}: {{.Title}}" loading="lazy"></a>
+                            {{else}}
+                            <div class="ev-shot-none">No shot file for {{.Step}}{{if .Reduced}} (reduced){{end}}</div>
+                            {{end}}
+                            <div class="ev-tags">
+                                <span class="chip ev-mono">{{.Step}}</span>
+                                {{if .Proves}}<span class="chip {{if eq .StateClass "green" "blue"}}chip-green{{else}}chip-amber{{end}}">proves {{.ProvesText}}</span>{{end}}
+                                <span class="chip chip-{{.StateClass}}">{{.State}}</span>
+                                {{if .Reduced}}<span class="chip" title="Shrunk 30 days after done: smaller JPEG, top of the page">reduced</span>{{end}}
+                                {{if gt (len .Views) 1}}
+                                <span class="ev-views" role="group" aria-label="Screen size">
+                                    {{range .Views}}<button type="button" class="ev-vp{{if .On}} is-on{{end}}{{if .Failed}} is-failed{{end}}" data-src="{{.Src}}" data-vp="{{.Name}}" data-narrow="{{if .Narrow}}1{{end}}" aria-pressed="{{if .On}}true{{else}}false{{end}}" data-testid="evidence.shot.vp.{{tid .Name}}" onclick="evPickView(this)">{{.Label}}{{if .Failed}} ✕{{end}}</button>{{end}}
+                                </span>
+                                {{end}}
+                            </div>
+                            {{if .Title}}<figcaption>{{.Title}}</figcaption>{{end}}
+                            {{if .FailLine}}<div class="ev-fail ev-mono">{{.FailLine}}</div>{{end}}
+                        </figure>
+                        {{end}}
+                    </div>
+                    {{end}}
+                    {{if .Other}}
+                    <details class="ev-other" data-testid="evidence.shots.other">
+                        <summary class="tl-muted">{{range $i, $o := .Other}}{{if $i}}; {{end}}{{len $o.Steps}} other {{if eq (len $o.Steps) 1}}step{{else}}steps{{end}} in {{$o.Session}}{{end}} prove no criterion</summary>
+                        {{range .Other}}<p class="tl-note">{{.Session}}: {{.StepsText}}</p>{{end}}
+                        <p class="tl-note tl-muted">Add <code>proves: [AC…]</code> to a step to tag its shot.</p>
+                    </details>
+                    {{end}}
+                    {{if .Shots}}<p class="tl-note tl-muted">Shown in place from the run folders; nothing is copied into the issue. Click a shot for the full page. Mockups stay on the Issue tab.</p>{{end}}
+                </div>
+            </section>
+
+            <section class="card tl-card" aria-labelledby="ev-crit-h" data-testid="evidence.criteria">
+                <div class="tl-head">
+                    <h2 id="ev-crit-h">{{if .Unlinked}}Criteria{{else}}Criteria → proof{{end}}</h2>
+                    {{if $.EvidenceLabel.Text}}<span class="chip chip-{{$.EvidenceLabel.Class}}">{{$.EvidenceLabel.Text}}</span>{{end}}
+                </div>
+                {{if not .Criteria}}
+                <div class="tl-body"><p class="tl-note tl-muted">This issue has no Acceptance Criteria checkboxes.</p></div>
+                {{else}}
+                {{if .Unlinked}}<p class="tl-note tl-muted ev-pad">The proof gate doesn't cover this issue, so nothing asked for links. Each box shows only whether it was ticked; no link is guessed.</p>{{end}}
+                <div class="ev-table-wrap">
+                    <table class="ev-table">
+                        <thead><tr><th scope="col">Criterion</th><th scope="col">{{if .Unlinked}}Proof{{else}}Links, where they came from, and the engine's check{{end}}</th><th scope="col">State</th></tr></thead>
+                        <tbody>
+                            {{range .Criteria}}
+                            <tr class="{{if and (not .Proven) (not $.Evidence.Unlinked)}}is-short{{end}}" data-testid="evidence.criterion.{{tid .ID}}">
+                                <td class="ev-crit"><span class="ev-mono tl-muted">{{.ID}}</span> {{if .Visual}}<span class="chip ev-xs">visual</span> {{end}}{{.Text}}</td>
+                                <td class="ev-links">
+                                    {{range .Links}}<span class="ev-link" data-testid="evidence.link"><span class="ev-kind">{{.Kind}}</span>{{.Ref}} <span class="ev-src">{{.Source}}</span> <span class="ev-state ev-{{.Class}}">{{.State}}</span></span>{{if .Changed}}<span class="chip ev-xs">criterion text changed since linked</span>{{end}}{{end}}
+                                    {{if not .Links}}<span class="tl-muted ev-small">no link</span>{{end}}
+                                    {{range .Fixes}}<div class="ev-fix ev-mono">→ {{.}}</div>{{end}}
+                                </td>
+                                <td>{{if .Proven}}<span class="chip chip-green">proven</span>{{else if $.Evidence.Unlinked}}<span class="chip">{{if .Checked}}ticked{{else}}open{{end}} · no link</span>{{else}}<span class="chip chip-amber">unproven</span>{{end}}</td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+                {{end}}
+                {{if or .Strays .Ways}}
+                <div class="tl-body ev-foot">
+                    {{range .Strays}}<div data-testid="evidence.strays"><span class="chip chip-red">Unknown criterion {{.ID}}</span> <span class="tl-muted">{{.Link}}</span></div>{{end}}
+                    {{if .Ways}}<details><summary class="tl-muted">Ways to prove an unproven criterion (shown for {{.WaysFor}})</summary><ul class="ev-ways">{{range .Ways}}<li>{{.}}</li>{{end}}</ul></details>{{end}}
+                </div>
+                {{end}}
+            </section>
+
+            <section class="card tl-card" aria-labelledby="ev-chg-h" data-testid="evidence.change">
+                {{with .Change}}
+                <div class="tl-head">
+                    <h2 id="ev-chg-h">Change{{if .Commits}} · {{len .Commits}} {{if eq (len .Commits) 1}}commit{{else}}commits{{end}}, {{.Files}} files, <span class="ev-add">+{{.Add}}</span> <span class="ev-del">−{{.Del}}</span>{{end}}</h2>
+                    {{if .Range}}<span class="tl-muted ev-small">first-parent on <span class="ev-mono">{{.Range}}</span>{{if .Merges}} · {{.Merges}} {{if eq .Merges 1}}merge{{else}}merges{{end}} from main not counted{{end}}</span>{{end}}
+                </div>
+                <div class="tl-body">
+                    {{if .Unreadable}}<p class="tl-note tl-muted">{{.Unreadable}}</p>{{end}}
+                    {{if .Commits}}
+                    <div class="ev-commits">
+                        {{range .Commits}}<div><span class="ev-mono ev-sha">{{.SHA}}</span> <span class="tl-muted ev-mono">{{.When}}</span> {{.Subject}} <span class="tl-muted">· {{.Files}} {{if eq .Files 1}}file{{else}}files{{end}}</span></div>{{end}}
+                    </div>
+                    <div class="ev-areas" role="table" aria-label="Files by area">
+                        <div role="row" class="ev-area ev-area-head"><span role="columnheader">Area</span><span role="columnheader">Files</span><span role="columnheader">Lines</span><span role="columnheader" aria-label="Share of added lines"></span></div>
+                        {{range .Areas}}<div role="row" class="ev-area" data-testid="evidence.change.area"><span role="cell" class="ev-mono">{{.Name}}</span><span role="cell">{{.Files}}</span><span role="cell" class="ev-mono"><span class="ev-add">+{{.Add}}</span> <span class="ev-del">−{{.Del}}</span></span><span role="cell"><span class="ev-bar" style="width: {{.Pct}}%"></span></span></div>{{end}}
+                    </div>
+                    {{if .TestAdd}}<p class="tl-note tl-muted">Of the added lines, {{.TestAdd}} are in test files.</p>{{end}}
+                    {{end}}
+                </div>
+                {{end}}
+            </section>
+        </div>
+
+        <aside class="tl-side ev-side" aria-label="Verdict and checks">
+            <section class="card tl-card" aria-labelledby="ev-ver-h" data-testid="evidence.verdict">
+                {{with .Verdict}}
+                <div class="tl-head"><h2 id="ev-ver-h">Verdict</h2><span class="chip" style="color: {{statusColor .Status}}">{{.Status}}</span></div>
+                <div class="tl-body ev-verdict">
+                    {{if $.EvidenceLabel.Text}}
+                    <div><span class="ev-big ev-{{$.EvidenceLabel.Class}}">{{if $.Evidence.Unlinked}}{{$.Evidence.Ticked}}{{else}}{{$.Evidence.Proven}} / {{$.Evidence.Total}}{{end}}</span> {{if $.Evidence.Unlinked}}ticked, 0 linked{{else}}criteria proven{{end}}</div>
+                    {{end}}
+                    {{if $.Evidence.Unlinked}}<div class="tl-muted">Not covered by the proof gate: links are shown, not required.</div>{{end}}
+                    {{if .Short}}<div class="tl-amber">Short: {{.Short}}.{{if $.Evidence.Required}} testing → human-testing is refused until each has a passing link.{{end}}</div>{{end}}
+                    {{if .Merge}}<div>Merged <span class="ev-mono">{{.Merge}}</span>, {{.MergeAt}}{{if .CI}} · <span class="ev-{{.CIClass}}">{{.CI}}</span>{{end}}</div>
+                    {{else if .Head}}<div>Not merged · branch head <span class="ev-mono">{{.Head}}</span></div>{{end}}
+                    {{if .HasTests}}
+                    <div><span class="chip">tests:</span> {{.TestsAt}}{{if .Tests}}: {{.Tests}}{{end}}
+                        {{if .TestsAfter}}<span class="tl-muted">After the last code commit{{if .LastChangeSHA}} (<span class="ev-mono">{{.LastChangeSHA}}</span>, {{.LastChangeAt}}){{end}}.</span>
+                        {{else}}<span class="tl-amber">Before the last code commit (<span class="ev-mono">{{.LastChangeSHA}}</span>, {{.LastChangeAt}}).</span>{{end}}
+                    </div>
+                    {{else if not $.Evidence.NotStarted}}<div><span class="chip">tests:</span> <span class="tl-amber">none yet</span></div>{{end}}
+                    {{if .FromDispatch}}<div>{{.FromDispatch}}{{if .Waiting}} · {{.Waiting}} waiting on you{{end}} · <a href="{{$.Prefix}}/issue/{{$.Issue.Slug}}?tab=timeline">Timeline</a></div>{{end}}
+                </div>
+                {{end}}
+            </section>
+
+            <section class="card tl-card" aria-labelledby="ev-pt-h" data-testid="evidence.playtest">
+                <div class="tl-head"><h2 id="ev-pt-h">Playtest, per step</h2>{{if .Judged}}<span class="chip chip-blue">{{.Judged}}</span>{{end}}</div>
+                <div class="tl-body">
+                    {{if .Steps}}
+                    <div class="ev-steps" role="table" aria-label="Playtest per step">
+                        <div role="row" class="ev-steps-row ev-steps-head"><span role="columnheader">Step</span><span role="columnheader">Machine</span><span role="columnheader">You</span></div>
+                        {{range .Steps}}<div role="row" class="ev-steps-row" data-testid="evidence.playtest.step.{{tid .ID}}" title="{{.Session}}: {{.Title}}"><span role="cell" class="ev-mono">{{.ID}}</span><span role="cell">{{if eq .MachineCls "muted" "amber"}}<span class="{{if eq .MachineCls "amber"}}tl-amber{{else}}tl-muted{{end}}">{{.Machine}}</span>{{else}}<span class="chip chip-{{.MachineCls}}">{{.Machine}}</span>{{end}}{{if .Screens}}<span class="ev-screens tl-muted">{{.Screens}}</span>{{end}}</span><span role="cell" class="ev-{{.YouCls}} ev-small">{{.You}}</span></div>{{end}}
+                    </div>
+                    {{range .Words}}<p class="tl-note">{{.Step}}, {{.At}}: <q>{{.Text}}</q> <span class="tl-muted">({{.Source}})</span></p>{{end}}
+                    <p class="tl-note tl-muted">Machine: the latest auto run of each session, and the screens it ran at. You: the latest judge run, else an <code>approval:</code> or <code>playtest:</code> comment naming the step.</p>
+                    {{else}}<p class="tl-note tl-muted">No playtest session ran for this issue.</p>{{end}}
+                </div>
+            </section>
+
+            <section class="card tl-card" aria-labelledby="ev-key-h" data-testid="evidence.key">
+                <div class="tl-head"><h2 id="ev-key-h">How links are checked</h2></div>
+                <div class="tl-body ev-small">
+                    <div><b>test</b> <span class="tl-muted">is in a test file on the branch, and a tests: comment came after the last code commit (docs-only commits don't count); else</span> <span class="ev-st">stale</span></div>
+                    <div><b>step</b> <span class="tl-muted">passed in the latest run; else</span> <span class="ev-st">not run</span> <span class="tl-muted">or</span> <span class="ev-bad">failed</span></div>
+                    <div><b>commit</b> <span class="tl-muted">is on the branch or its merge</span></div>
+                    <div><b>value</b> <span class="tl-muted">shown as written, marked reported</span></div>
+                </div>
+            </section>
+
+            <section class="card tl-card" aria-labelledby="ev-watch-h" data-testid="evidence.watch">
+                <div class="tl-head"><h2 id="ev-watch-h">Watch</h2><span class="chip">{{len .Watch}} risk: {{if eq (len .Watch) 1}}comment{{else}}comments{{end}}</span></div>
+                <div class="tl-body ev-small">
+                    {{range .Watch}}<div>{{if .None}}<span class="tl-muted">None, posted {{.At}}.</span>{{else}}{{.Text}} <span class="tl-muted">· {{.At}}</span>{{end}}</div>{{end}}
+                    {{if not .Watch}}<p class="tl-note tl-muted">No <code>risk:</code> comment. Shipping asks for one on issues the proof gate covers.</p>{{end}}
+                </div>
+            </section>
+
+            <section class="card tl-card" aria-labelledby="ev-stale-h" data-testid="evidence.stale">
+                <div class="tl-head"><h2 id="ev-stale-h">Stale text in the body</h2><span class="chip{{if .Stale}} chip-amber{{end}}">{{len .Stale}}</span></div>
+                <div class="tl-body ev-small">
+                    {{range .Stale}}
+                    <div class="ev-stale" data-testid="evidence.stale.line">
+                        <span class="tl-muted ev-xs-text">{{.Section}}</span>
+                        <span><q>{{.Text}}</q></span>
+                        {{if .Answer}}<span>Likely answered by <a href="{{$.Prefix}}/issue/{{$.Issue.Slug}}#{{.Anchor}}">{{.Answer}}</a>{{if .Quote}}: <q>{{.Quote}}</q>{{end}}</span>{{else}}<span class="tl-muted">No decision matches</span>{{end}}
+                    </div>
+                    {{end}}
+                    {{if not .Stale}}<p class="tl-note tl-muted">{{if .StaleRun}}No Open, pending or TBD lines left.{{else}}Checked once the issue is past design.{{end}}</p>{{end}}
+                    {{if .Stale}}<p class="tl-note tl-muted">Lines under an Open questions heading, or saying Open question, pending or TBD, past design. The match is the decision or clarification sharing the most words.</p>{{end}}
+                </div>
+            </section>
+        </aside>
+    </div>
+</div>
+<script>
+function evPickView(btn) {
+    var fig = btn.closest('.ev-shot');
+    fig.querySelectorAll('.ev-vp').forEach(function(b) { b.classList.remove('is-on'); b.setAttribute('aria-pressed', 'false'); });
+    btn.classList.add('is-on');
+    btn.setAttribute('aria-pressed', 'true');
+    var img = fig.querySelector('.ev-shot-img'), link = fig.querySelector('.ev-shot-link');
+    if (img && btn.dataset.src) { img.src = btn.dataset.src; link.href = btn.dataset.src; }
+    if (img) img.classList.toggle('is-narrow', btn.dataset.narrow === '1');
+}
+(function() {
+    // On a phone the large shot opens at the narrowest screen.
+    if (window.innerWidth >= 720) return;
+    var fig = document.querySelector('.ev-shot.is-large');
+    if (!fig) return;
+    var btns = fig.querySelectorAll('.ev-vp');
+    if (btns.length > 1) evPickView(btns[btns.length - 1]);
+})();
+</script>
+{{end}}
+{{end}}

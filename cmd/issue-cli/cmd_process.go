@@ -191,8 +191,7 @@ func runProcessWorkflow(ctx *Context, args []string) error {
 	if typeFlag == "" {
 		printTypesBlock(ctx.Stdout, base)
 	}
-	printLintBlock(ctx.Stdout, base)
-	printWorkflowUpgradeHint(ctx)
+	printLintBlock(ctx.Stdout, base, staleRecordWarning(ctx.Project))
 	return nil
 }
 
@@ -226,9 +225,13 @@ func printTypesBlock(w io.Writer, wf *tracker.WorkflowConfig) {
 	fmt.Fprintln(w, "An issue's type: frontmatter picks its path. Details: issue-cli process workflow --type <name>; create with --type; change with set-type (first status only).")
 }
 
-// printLintBlock prints workflow.yaml warnings: types: and workbench: problems.
-func printLintBlock(w io.Writer, wf *tracker.WorkflowConfig) {
+// printLintBlock prints workflow.yaml warnings: types: and workbench:
+// problems, and a stale features: record ("" for none).
+func printLintBlock(w io.Writer, wf *tracker.WorkflowConfig, record string) {
 	warnings := wf.Lint()
+	if record != "" {
+		warnings = append(warnings, record)
+	}
 	if len(warnings) == 0 {
 		return
 	}
@@ -237,6 +240,7 @@ func printLintBlock(w io.Writer, wf *tracker.WorkflowConfig) {
 	for _, msg := range warnings {
 		fmt.Fprintf(w, "  ⚠ %s\n", msg)
 	}
+	fmt.Fprintln(w, "  Full check (schema, template, placeholders, gates, undated issues): issue-cli health lint")
 }
 
 func runProcessSystems(ctx *Context) error {

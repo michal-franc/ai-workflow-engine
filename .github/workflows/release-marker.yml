@@ -20,7 +20,9 @@ permissions:
 
 jobs:
   release-marker:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
+    # A private repo is a dev repo (privacy.code: snapshots): it builds no
+    # releases; the public repo gets one snapshot commit per release.
+    if: ${{ !github.event.repository.private && (github.event_name == 'workflow_dispatch' || github.event_name == 'push') }}
     runs-on: ubuntu-latest
     outputs:
       current: ${{ steps.version.outputs.current }}
@@ -91,77 +93,26 @@ jobs:
           git tag -a "$CURRENT" "$TARGET_SHA" -m "$CURRENT"
           git push origin "refs/tags/$CURRENT"
 
-      - name: Generate categorized release notes
+      - name: Release notes from the CHANGELOG
         if: ${{ steps.version.outputs.skip != 'true' }}
         id: notes
         env:
           CURRENT: ${{ steps.version.outputs.current }}
-          PREVIOUS: ${{ steps.version.outputs.previous }}
           TARGET_SHA: ${{ steps.version.outputs.target_sha }}
         run: |
           set -euo pipefail
 
-          if [ -n "$PREVIOUS" ]; then
-            RANGE="${PREVIOUS}..${TARGET_SHA}"
-          else
-            RANGE="$TARGET_SHA"
-          fi
-
-          categorize() {
-            local sha="$1"
-            local files
-            files="$(git show --no-renames --name-only --pretty=format: "$sha" | sed '/^$/d')"
-            local cat_cli=0 cat_ui=0 cat_wf=0 cat_other=0
-            while IFS= read -r f; do
-              [ -z "$f" ] && continue
-              case "$f" in
-                cmd/issue-cli/*)                cat_cli=1 ;;
-                templates/*|static/*)           cat_ui=1 ;;
-                handlers.go|handlers_test.go|docs.go|main.go) cat_ui=1 ;;
-                workflow.yaml|workflow.yaml.example) cat_wf=1 ;;
-                internal/tracker/workflow*)     cat_wf=1 ;;
-                internal/tracker/*)             cat_other=1 ;;
-                *)                              cat_other=1 ;;
-              esac
-            done <<< "$files"
-            [ $cat_cli   -eq 1 ] && echo "CLI"
-            [ $cat_ui    -eq 1 ] && echo "UI"
-            [ $cat_wf    -eq 1 ] && echo "Workflow"
-            [ $cat_other -eq 1 ] && echo "Other"
-          }
-
+          # The notes are the CHANGELOG's "## <version> — <date>" section: a
+          # release snapshot is one commit, so commit subjects say nothing.
+          CHANGELOG="cmd/issue-cli/CHANGELOG.md"
           TMP="$(mktemp -d)"
-          : > "$TMP/CLI"
-          : > "$TMP/UI"
-          : > "$TMP/Workflow"
-          : > "$TMP/Other"
-
-          for sha in $(git rev-list --reverse "$RANGE"); do
-            subject="$(git log -1 --pretty=%s "$sha")"
-            short="$(git rev-parse --short "$sha")"
-            line="- ${subject} (${short})"
-            for cat in $(categorize "$sha" | sort -u); do
-              echo "$line" >> "$TMP/$cat"
-            done
-          done
-
-          {
-            echo "## Release ${CURRENT}"
-            echo
-            if [ -n "$PREVIOUS" ]; then
-              echo "_Changes since ${PREVIOUS}._"
-            else
-              echo "_Initial tagged release._"
-            fi
-            echo
-            for cat in UI CLI Workflow Other; do
-              if [ -s "$TMP/$cat" ]; then
-                echo "### ${cat}"
-                cat "$TMP/$cat"
-                echo
-              fi
-            done
-          } > "$TMP/notes.md"
+          git show "${TARGET_SHA}:${CHANGELOG}" | awk -v v="$CURRENT" '
+            /^## / { if (found) exit; if ($2 == v) { found = 1; next } }
+            found { print }
+          ' | sed -e '/./,$!d' > "$TMP/notes.md"
+          if [ ! -s "$TMP/notes.md" ]; then
+            echo "_No ${CURRENT} section in ${CHANGELOG}._" > "$TMP/notes.md"
+          fi
 
           echo "---- release notes ----"
           cat "$TMP/notes.md"

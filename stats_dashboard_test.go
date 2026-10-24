@@ -111,7 +111,10 @@ func TestDashboardMatchesTimelineTab(t *testing.T) {
 // out days without issues, and marks families that do not exist yet.
 func TestDashboardTrendsFromSnapshots(t *testing.T) {
 	proj := fixItProject(t)
-	now := time.Now()
+	// Noon today: day(3).Add(-time.Hour) must stay on day(3)'s date, which
+	// time.Now() breaks in the hour after midnight.
+	y, m, dd := time.Now().Date()
+	now := time.Date(y, m, dd, 12, 0, 0, 0, time.Local)
 	day := func(n int) time.Time { return now.AddDate(0, 0, -n) }
 	snap := func(at time.Time, issues, cycle, share float64) *health.Snapshot {
 		date := at.Local().Format("2006-01-02T15:04")
@@ -161,7 +164,7 @@ func TestDashboardTrendsFromSnapshots(t *testing.T) {
 	if big := d.Gauges[2]; big.Value != "12" || !big.Over || big.Verdict != "Over limit" {
 		t.Errorf("big files gauge = %+v", big)
 	}
-	if len(d.Pending) != 3 || d.Pending[2].Family != "context" {
+	if len(d.Pending) != 4 || d.Pending[2].Family != "context" || d.Pending[3].Family != "storage" {
 		t.Errorf("pending = %+v", d.Pending)
 	}
 	// Hiding a series keeps its legend entry, struck, as a link back.
@@ -178,5 +181,83 @@ func TestDashboardTrendsFromSnapshots(t *testing.T) {
 	d = dashboardFor(t, &proj, "range=7d", snaps[:1], now)
 	if d.Hint != "issue-cli --project test-project health backfill" {
 		t.Errorf("hint = %q", d.Hint)
+	}
+}
+
+// AC14: the Disk use card shows the newest storage snapshot's total and a
+// bar per area, the total's line once there are two snapshots, and is
+// pending until a snapshot has the family.
+func TestDashboardDiskUseCard(t *testing.T) {
+	proj := fixItProject(t)
+	now := time.Now()
+	snap := func(daysAgo int, total, worktrees, shots float64) *health.Snapshot {
+		return &health.Snapshot{
+			Run:      health.RunInfo{Date: now.AddDate(0, 0, -daysAgo).Local().Format("2006-01-02T15:04"), Trigger: health.TriggerDaily},
+			Families: map[string]health.FamilyResult{"storage": {}},
+			Metrics: []health.Row{
+				{ID: "storage.total_mb", Metric: "storage.total_mb", Value: total},
+				{ID: "storage.worktrees_mb", Metric: "storage.worktrees_mb", Value: worktrees},
+				{ID: "storage.worktrees", Metric: "storage.worktrees", Value: 96},
+				{ID: "storage.playtest_mb", Metric: "storage.playtest_mb", Value: shots},
+				{ID: "storage.git_mb", Metric: "storage.git_mb", Value: 37},
+				{ID: "storage.agent_logs_mb", Metric: "storage.agent_logs_mb", Value: 21},
+				{ID: "storage.attachments_mb", Metric: "storage.attachments_mb", Value: 0.4},
+			},
+		}
+	}
+	card := func(d *Dashboard) (ChartCard, bool) {
+		for _, c := range d.Trends {
+			if c.ID == "storage" {
+				return c, true
+			}
+		}
+		return ChartCard{}, false
+	}
+
+	d := dashboardFor(t, &proj, "range=7d", nil, now)
+	if _, ok := card(d); ok {
+		t.Fatal("Disk use card without a storage snapshot")
+	}
+
+	d = dashboardFor(t, &proj, "range=7d", []*health.Snapshot{snap(1, 3430, 1880, 1336)}, now)
+	c, ok := card(d)
+	if !ok {
+		t.Fatal("no Disk use card")
+	}
+	if c.Big != "3.35 GB" || !strings.Contains(c.Sub, "96 worktrees") || !strings.Contains(c.Empty, "second daily snapshot") {
+		t.Errorf("one snapshot: big %q sub %q empty %q", c.Big, c.Sub, c.Empty)
+	}
+	want := []AreaBar{{"worktrees", "1,880 MB", 100}, {"playtest shots", "1,336 MB", 71}, {".git", "37 MB", 2}, {".agent-logs", "21 MB", 1}, {"attachments", "0.4 MB", 1}}
+	if len(c.Bars) != len(want) {
+		t.Fatalf("bars = %+v", c.Bars)
+	}
+	for i, w := range want {
+		if c.Bars[i] != w {
+			t.Errorf("bar %d = %+v, want %+v", i, c.Bars[i], w)
+		}
+	}
+	for _, p := range d.Pending {
+		if p.Family == "storage" {
+			t.Error("Disk use still pending with a storage snapshot")
+		}
+	}
+
+	d = dashboardFor(t, &proj, "range=7d", []*health.Snapshot{snap(3, 3000, 1800, 1100), snap(1, 3430, 1880, 1336)}, now)
+	if c, _ = card(d); c.Points != 2 || c.Empty != "" || c.SVG == "" {
+		t.Errorf("two snapshots: points %d, empty %q", c.Points, c.Empty)
+	}
+}
+
+func TestFmtMB(t *testing.T) {
+	for v, want := range map[float64]string{0: "0.0 MB", 9.94: "9.9 MB", 37: "37 MB", 1336: "1,336 MB", 3430: "3,430 MB", 1023.6: "1,024 MB"} {
+		if got := fmtMB(v); got != want {
+			t.Errorf("fmtMB(%v) = %q, want %q", v, got, want)
+		}
+	}
+	if got := fmtSize(3430); got != "3.35 GB" {
+		t.Errorf("fmtSize(3430) = %q", got)
+	}
+	if got := fmtSize(1000); got != "1,000 MB" {
+		t.Errorf("fmtSize(1000) = %q", got)
 	}
 }

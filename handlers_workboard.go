@@ -56,7 +56,7 @@ type WorkCard struct {
 
 // CardAgent is the card footer: the agent on the issue and what it is doing.
 type CardAgent struct {
-	State string // working, idle, gate, question, playtest or stopped
+	State string // working, idle, gate, question, playtest, checks or stopped
 	Tone  string // green, grey, amber or stopped (hollow dot)
 	Text  string
 	Title string
@@ -397,6 +397,8 @@ func (ca *cardAgents) footer(wf *tracker.WorkflowConfig, issue *tracker.Issue, a
 	}
 	if (state == "working" || state == "idle" || state == "at-gate") && att.PlaytestDue {
 		state = "playtest"
+	} else if (state == "working" || state == "idle" || state == "at-gate") && att.ChecksDue {
+		state = "checks"
 	}
 	a := &CardAgent{State: state, Href: href, Title: name}
 	if known {
@@ -416,6 +418,8 @@ func (ca *cardAgents) footer(wf *tracker.WorkflowConfig, issue *tracker.Issue, a
 		a.State, a.Tone, a.Text = "gate", "amber", "agent waiting on your approval"
 	case "playtest":
 		a.Tone, a.Text = "amber", "agent waiting on your playtest"
+	case "checks":
+		a.Tone, a.Text = "amber", "agent waiting on your checks"
 	case "idle":
 		a.Tone, a.Text = "grey", "agent idle"+lastText
 		a.Title += " (no issue-cli call for " + agoText(ca.now.Sub(call.At)) + ")"

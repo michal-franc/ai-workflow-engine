@@ -51,13 +51,16 @@ func runStart(ctx *Context, args []string) error {
 	}
 	assignee := *assigneeFlag
 
-	issue, _, err := findIssueOrErr(ctx, slug)
+	issue, issues, err := findIssueOrErr(ctx, slug)
 	if err != nil {
+		return err
+	}
+	if err := ownIssueOnly(ctx, issues, issue, "start"); err != nil {
 		return err
 	}
 	wf := ctx.Project.LoadWorkflowForIssue(issue)
 	if assignee == "" {
-		assignee = agentNameForSlug(slug)
+		assignee = agentNameForSlug(issue.Slug)
 	}
 
 	started, err := wf.StartIssueOnce(issue.FilePath, slug, assignee)
@@ -107,8 +110,8 @@ func runStart(ctx *Context, args []string) error {
 	fmt.Fprintf(ctx.Stdout, "file: %s\n\n", issue.FilePath)
 
 	printWorkflowNextSteps(ctx.Stdout, wf, issue)
+	printCheckScriptHint(ctx.Stdout, ctx.Project, wf, issue)
 	printStartWorkflowReminder(ctx.Stdout, wf)
-	printWorkflowUpgradeHint(ctx)
 	return nil
 }
 

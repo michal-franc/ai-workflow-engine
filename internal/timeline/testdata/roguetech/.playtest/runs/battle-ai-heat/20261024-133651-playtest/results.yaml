@@ -1,0 +1,18 @@
+session: battle-ai-heat
+issue: api/reproducible-scenarios-and-playtest-cases-for-battles-and-screens
+mode: playtest
+build: b5de0554
+seed: 13
+started: 2026-10-24T13:37:17
+steps:
+- id: MV7
+  title: The overheated Sniper holds fire with its target in range
+  judgement: true
+  status: pass
+  verdict: pass
+  checks:
+  - kind: state
+    subject: 'battle.ai.last.1 has { personality: Sniper, action: hold, reason: hold_heat, target: 0 }'
+    passed: true
+  seconds: 26.4
+  boot_seconds: 1.2

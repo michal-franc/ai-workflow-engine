@@ -25,6 +25,8 @@ type DataEntry struct {
 type DataStore struct {
 	NextID  int         `json:"next_id"`
 	Entries []DataEntry `json:"entries"`
+	// Proofs are the issue-cli prove links, keyed by criterion id ("AC2").
+	Proofs map[string][]ProofLink `json:"proofs,omitempty"`
 }
 
 // DefaultDataStatuses is used when the marker omits an explicit status list.

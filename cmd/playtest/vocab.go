@@ -57,11 +57,11 @@ func sortedKeys(m map[string]bool) []string {
 // Validator checks sessions without a browser or a board.
 type Validator struct {
 	ScenarioDir string
-	// Checklist, when set, returns the issue's checkbox ids so step ids can
-	// be checked against it. It returns ok=false when the issue can't be
-	// resolved here (no config, not found); step ids are then only checked
-	// for shape.
-	Checklist func(issue string) (ids map[string]bool, ok bool)
+	// Checklist, when set, returns the issue's checkbox ids (uppercase),
+	// each with its section, so step ids and proves: ids can be checked
+	// against it. It returns ok=false when the issue can't be resolved here
+	// (no config, not found); ids are then only checked for shape.
+	Checklist func(issue string) (sections map[string]string, ok bool)
 	// Notes collects non-fatal remarks (an issue that couldn't be resolved).
 	Notes []string
 }
@@ -110,7 +110,7 @@ func (v *Validator) Validate(s *Session) []error {
 		at(1, "no steps")
 	}
 
-	var ids map[string]bool
+	var ids map[string]string
 	if v.Checklist != nil && s.Issue != "" {
 		var ok bool
 		if ids, ok = v.Checklist(s.Issue); !ok {
@@ -127,8 +127,16 @@ func (v *Validator) Validate(s *Session) []error {
 			at(st.Line, "step id %q is not a checkbox id (letters then digits, e.g. TP3)", st.ID)
 		case seen[st.ID]:
 			at(st.Line, "duplicate step id %q", st.ID)
-		case ids != nil && !ids[strings.ToUpper(st.ID)]:
+		case ids != nil && ids[strings.ToUpper(st.ID)] == "":
 			at(st.Line, "step id %q is not a checkbox in %s (see issue-cli checklist %s)", st.ID, s.Issue, s.Issue)
+		}
+		for _, id := range st.Proves {
+			switch section, known := ids[strings.ToUpper(id)]; {
+			case !tracker.IsCheckboxRefShaped(id):
+				at(st.Line, "step %s proves %q, which is not a criterion id (e.g. AC2)", st.ID, id)
+			case ids != nil && (!known || !strings.EqualFold(section, tracker.CriteriaSection)):
+				at(st.Line, "step %s proves %q, which is not an acceptance criterion of %s (see issue-cli checklist %s)", st.ID, id, s.Issue, s.Issue)
+			}
 		}
 		if st.From != "" && !seen[st.From] {
 			at(st.Line, "from: %q must name an earlier step", st.From)

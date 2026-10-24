@@ -1,0 +1,37 @@
+session: health-layout
+issue: workflow/health-scores-derived-metrics-and-agent-opinion-tests-count-vs-runtime-e2e-codebase-shape
+title: Health layout at desktop size - Health below Status, the Health card on the top tiles' grid
+scenario: health
+
+# Desktop only: on a phone the sidebar is a bar and every card stacks, so
+# "below" and "beside" mean something else there (health-view covers phones).
+session_checks:
+  viewports: [1440x900]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP5
+    title: Health is right below Status in the sidebar, with the derived score
+    setup:
+      - open: /p/{project}/status
+    act:
+      - check: { below: [nav.tab.status, nav.tab.health] }
+      - check: { text_contains: { target: nav.tab.health, text: "86" } }
+      - click: nav.tab.health
+      - wait_for: health.page
+    checks:
+      - visible: health.page
+      - url: { contains: /p/hl/health }
+
+  - id: TP7
+    title: The Health card sits in the milestone row, a third of the grid like the top tiles
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - beside: [status.milestone, status.health]
+      - below: [status.next.pop, status.health]
+      - below: [status.health, status.epics]
+      # No local CI here: Current milestone takes two columns and Health the
+      # third, as wide as a top tile.
+      - size: { target: status.health, min_width: 366, max_width: 378 }

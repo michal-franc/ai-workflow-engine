@@ -3,8 +3,11 @@ package tracker
 import (
 	"fmt"
 	"path"
+	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // HealthConfig is the optional `health:` block in workflow.yaml: how the
@@ -21,6 +24,57 @@ type HealthConfig struct {
 	// trend alerts may use): waiting_share 0.25 (share of issue time waiting
 	// on the owner), big_files 10. A key set to 0 turns that limit off.
 	Limits map[string]float64 `yaml:"limits,omitempty" desc:"Thresholds for the stats page gauges: waiting_share (default 0.25), big_files (default 10); 0 turns one off"`
+	// E2ESessions are the playtest session files the tests family counts.
+	E2ESessions []string `yaml:"e2e_sessions,omitempty" desc:"Globs of the playtest session files the tests family counts (default playtest/sessions/*.yaml)"`
+	// LongFuncLines: a function longer than this is long (shape family).
+	LongFuncLines int `yaml:"long_func_lines,omitempty" desc:"A function with more lines than this is long (default 80)"`
+	// Score overrides the derived health score's components, by name
+	// (unit_wait, big_files, ...): good, bad and weight. Weight 0 turns one off.
+	Score map[string]ScoreKnob `yaml:"score,omitempty" desc:"Derived health score components by name: {good, bad, weight}; weight 0 turns one off (docs/workbench-files.md, Scores)"`
+	// ShrinkShotsAfterDays: the daily health pass shrinks the playtest shots
+	// of issues done this many days ago (nil: the default 30; 0: never).
+	ShrinkShotsAfterDays *int `yaml:"shrink_shots_after_days,omitempty" desc:"Days after done when the daily health pass shrinks an issue's playtest shots to small JPEGs (default 30; 0 turns it off)"`
+}
+
+// ScoreKnob overrides one derived-score component. Good and Bad take a
+// number, a duration (60s, 10m: seconds) or a percentage (5%: 0.05).
+type ScoreKnob struct {
+	Good   *ScoreBound `yaml:"good,omitempty" desc:"Value that scores 100"`
+	Bad    *ScoreBound `yaml:"bad,omitempty" desc:"Value that scores 0"`
+	Weight *float64    `yaml:"weight,omitempty" desc:"Weight in the total; 0 turns the component off"`
+}
+
+// ScoreBound is a number read from a plain number, a Go duration (in
+// seconds) or a percentage (as a share).
+type ScoreBound float64
+
+// UnmarshalYAML reads 60, 60s, 10m or 5%.
+func (b *ScoreBound) UnmarshalYAML(node *yaml.Node) error {
+	v, err := ParseScoreBound(node.Value)
+	if err != nil {
+		return fmt.Errorf("line %d: %w", node.Line, err)
+	}
+	*b = ScoreBound(v)
+	return nil
+}
+
+// ParseScoreBound reads 60, 60s, 10m or 5%.
+func ParseScoreBound(s string) (float64, error) {
+	s = strings.TrimSpace(s)
+	if p, ok := strings.CutSuffix(s, "%"); ok {
+		f, err := strconv.ParseFloat(strings.TrimSpace(p), 64)
+		if err != nil {
+			return 0, fmt.Errorf("%q is not a percentage like 5%%", s)
+		}
+		return f / 100, nil
+	}
+	if f, err := strconv.ParseFloat(s, 64); err == nil {
+		return f, nil
+	}
+	if d, err := time.ParseDuration(s); err == nil {
+		return d.Seconds(), nil
+	}
+	return 0, fmt.Errorf("%q is not a number, a duration like 60s or a percentage like 5%%", s)
 }
 
 // HealthLimitDefaults are the limits used when health.limits leaves a key
@@ -31,8 +85,9 @@ var HealthLimitDefaults = map[string]float64{
 }
 
 const (
-	healthDefaultBigFileLines = 1000
-	healthDefaultTimeout      = 20 * time.Second
+	healthDefaultLongFuncLines = 80
+	healthDefaultBigFileLines  = 1000
+	healthDefaultTimeout       = 20 * time.Second
 )
 
 // HealthDefaultTestGlobs are the test globs used when test_globs is unset.
@@ -59,6 +114,25 @@ func (h *HealthConfig) BigFileLimit() int {
 	return healthDefaultBigFileLines
 }
 
+// LongFuncLimit is the long-function line count, the default when unset.
+func (h *HealthConfig) LongFuncLimit() int {
+	if h != nil && h.LongFuncLines > 0 {
+		return h.LongFuncLines
+	}
+	return healthDefaultLongFuncLines
+}
+
+// HealthDefaultE2ESessions is where playtest sessions live by default.
+var HealthDefaultE2ESessions = []string{"playtest/sessions/*.yaml"}
+
+// E2ESessionGlobs is the e2e_sessions globs, the default when unset.
+func (h *HealthConfig) E2ESessionGlobs() []string {
+	if h != nil && len(h.E2ESessions) > 0 {
+		return h.E2ESessions
+	}
+	return HealthDefaultE2ESessions
+}
+
 // Tests is the test globs, the defaults when unset.
 func (h *HealthConfig) Tests() []string {
 	if h != nil && len(h.TestGlobs) > 0 {
@@ -83,6 +157,22 @@ func (h *HealthConfig) FamilyTimeout() time.Duration {
 		}
 	}
 	return healthDefaultTimeout
+}
+
+// healthDefaultShrinkDays is how long after done shots stay full size.
+const healthDefaultShrinkDays = 30
+
+// ShrinkShotsAfter is how long after done an issue's playtest shots are
+// shrunk; ok is false when shrinking is off (0) or the value is negative.
+func (h *HealthConfig) ShrinkShotsAfter() (time.Duration, bool) {
+	days := healthDefaultShrinkDays
+	if h != nil && h.ShrinkShotsAfterDays != nil {
+		days = *h.ShrinkShotsAfterDays
+	}
+	if days <= 0 {
+		return 0, false
+	}
+	return time.Duration(days) * 24 * time.Hour, true
 }
 
 // Limit is the named threshold: the configured value, else the default.
@@ -112,6 +202,20 @@ func (h *HealthConfig) Validate() []string {
 			problems = append(problems, fmt.Sprintf("health.timeout %q is not a positive duration like 30s (default 20s is used)", h.Timeout))
 		}
 	}
+	if h.LongFuncLines < 0 {
+		problems = append(problems, fmt.Sprintf("health.long_func_lines %d is negative (default 80 is used)", h.LongFuncLines))
+	}
+	if h.ShrinkShotsAfterDays != nil && *h.ShrinkShotsAfterDays < 0 {
+		problems = append(problems, fmt.Sprintf("health.shrink_shots_after_days %d is negative (use 0 to turn it off)", *h.ShrinkShotsAfterDays))
+	}
+	for k, v := range h.Score {
+		if v.Weight != nil && *v.Weight < 0 {
+			problems = append(problems, fmt.Sprintf("health.score.%s.weight %v is negative (use 0 to turn it off)", k, *v.Weight))
+		}
+		if v.Good != nil && v.Bad != nil && *v.Good == *v.Bad {
+			problems = append(problems, fmt.Sprintf("health.score.%s: good and bad are equal, so the component can't score", k))
+		}
+	}
 	for k, v := range h.Limits {
 		if v < 0 {
 			problems = append(problems, fmt.Sprintf("health.limits.%s %v is negative (use 0 to turn it off)", k, v))
@@ -120,7 +224,7 @@ func (h *HealthConfig) Validate() []string {
 	for _, list := range []struct {
 		key   string
 		globs []string
-	}{{"test_globs", h.TestGlobs}, {"exclude", h.Exclude}} {
+	}{{"test_globs", h.TestGlobs}, {"exclude", h.Exclude}, {"e2e_sessions", h.E2ESessions}} {
 		key := list.key
 		for i, g := range list.globs {
 			// path.Match checks the syntax of each segment; ** is a plain *.
@@ -139,6 +243,17 @@ func cloneHealth(h *HealthConfig) *HealthConfig {
 	out := *h
 	out.TestGlobs = append([]string(nil), h.TestGlobs...)
 	out.Exclude = append([]string(nil), h.Exclude...)
+	out.E2ESessions = append([]string(nil), h.E2ESessions...)
+	if h.ShrinkShotsAfterDays != nil {
+		d := *h.ShrinkShotsAfterDays
+		out.ShrinkShotsAfterDays = &d
+	}
+	if h.Score != nil {
+		out.Score = make(map[string]ScoreKnob, len(h.Score))
+		for k, v := range h.Score {
+			out.Score[k] = v
+		}
+	}
 	if h.Limits != nil {
 		out.Limits = make(map[string]float64, len(h.Limits))
 		for k, v := range h.Limits {

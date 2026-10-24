@@ -64,7 +64,10 @@ func TestUXTestEndToEnd(t *testing.T) {
 			t.Errorf("%s ran at %d viewports, want 2", st.ID, len(st.Viewports))
 		}
 		for _, v := range st.Viewports {
-			if _, err := os.Stat(v.Screenshot); err != nil {
+			if filepath.IsAbs(v.Screenshot) || !strings.HasPrefix(v.Screenshot, "shots/") {
+				t.Errorf("%s %s: screenshot %q is not relative to the run folder", st.ID, v.Viewport, v.Screenshot)
+			}
+			if _, err := os.Stat(filepath.Join(dir, v.Screenshot)); err != nil {
 				t.Errorf("%s %s: no screenshot: %v", st.ID, v.Viewport, err)
 			}
 		}
@@ -72,6 +75,33 @@ func TestUXTestEndToEnd(t *testing.T) {
 	back, err := ReadResults(dir)
 	if err != nil || len(back.Steps) != 2 {
 		t.Fatalf("results.yaml: %v", err)
+	}
+}
+
+// TestUXTestKeepsOnlyOwnIssueShots: a passing run of another issue's
+// session keeps results.yaml but no shots, and says so once.
+func TestUXTestKeepsOnlyOwnIssueShots(t *testing.T) {
+	r, b := newTestRunner(t)
+	r.OwnIssue = "ui/someone-else"
+	s := loadRepoSession(t, "board-basics")
+	res, dir, err := r.UXTest(b, s, map[string]bool{"TP2": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range res.Steps[0].Viewports {
+		if v.Status == StatusPass && v.Screenshot != "" {
+			t.Errorf("%s kept a shot for another issue's session", v.Viewport)
+		}
+	}
+	if shots, _ := filepath.Glob(filepath.Join(dir, "shots", "*.png")); len(shots) != 0 {
+		t.Errorf("shots written: %v", shots)
+	}
+	if note := r.ShotsNote(); !strings.Contains(note, "shots kept for ui/someone-else only") {
+		t.Errorf("note = %q", note)
+	}
+	r.OwnIssue = s.Issue
+	if !r.keepsShots(s) {
+		t.Error("the run's own session must keep its shots")
 	}
 }
 
@@ -104,11 +134,20 @@ steps:
 	if len(errs) > 0 {
 		t.Fatal(errs)
 	}
-	res, _, err := r.UXTest(b, s, nil)
+	// Another issue's session: only the failing viewports keep their shots.
+	r.OwnIssue = "ui/someone-else"
+	res, dir, err := r.UXTest(b, s, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	v := res.Steps[0].Viewports[0]
+	for _, st := range res.Steps {
+		if sv := st.Viewports[0]; sv.Screenshot == "" {
+			t.Errorf("%s failed but kept no shot", st.ID)
+		} else if _, err := os.Stat(filepath.Join(dir, sv.Screenshot)); err != nil {
+			t.Errorf("%s fail shot: %v", st.ID, err)
+		}
+	}
 	if res.Steps[0].Status != StatusFail || len(v.Checks) != 1 || v.Checks[0].Actual != "2" {
 		t.Errorf("TP1: want a failed check with actual 2, got %+v", v)
 	}
@@ -188,7 +227,7 @@ func TestOverlayEndToEnd(t *testing.T) {
 	}
 	if tp12.Status != StatusFail || tp12.Judge.Note != "the hover card hides the drop target" {
 		t.Errorf("TP12 = %+v", tp12.Judge)
-	} else if _, err := os.Stat(tp12.Judge.Screenshot); err != nil {
+	} else if _, err := os.Stat(filepath.Join(dir, tp12.Judge.Screenshot)); err != nil {
 		t.Errorf("TP12 fail screenshot: %v", err)
 	}
 	if _, err := ReadResults(dir); err != nil {

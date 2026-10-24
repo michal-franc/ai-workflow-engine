@@ -5,6 +5,7 @@ system: "Backend"
 version: "1.1"
 priority: "medium"
 parent: "backend/checkout-v2"
+created: "2026-10-22"
 ---
 
 Split checkout into resumable steps (cart, address, payment, confirmation) so a dropped connection resumes where it stopped.

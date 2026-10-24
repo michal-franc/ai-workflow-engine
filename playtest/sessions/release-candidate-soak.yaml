@@ -1,0 +1,106 @@
+session: release-candidate-soak
+issue: workflow/pre-release-a-release-candidate-we-run-on-our-own-projects-before-the-release-is-published
+title: Status page - a release candidate soaking on the engine project
+scenario: release-rc
+
+session_checks:
+  viewports: [1440x900, 1280x800]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: The card shows v1.5.0-rc.1 folded to one summary line; opening it shows the builds running, Atlas's calls on it and the open report holding 1.5 back
+    proves: [AC4, AC5, AC6]
+    setup:
+      - open: /p/{project}/status
+    act:
+      # Silver on the card: something is soaking, and for how long.
+      - check: { text_contains: { target: status.rc_badge, text: "v1.5.0-rc.1 · release candidate · soaking " } }
+      # Folded: only the summary line shows.
+      - check: { visible: status.release_wait.candidate.summary }
+      - check: { hidden: status.release_wait.candidate.running }
+      - check: { text_contains: { target: status.release_wait.candidate.summary, text: "v1.5.0-rc.1 · cut " } }
+      - check: { text_contains: { target: status.release_wait.candidate.summary, text: "nothing merged since · ran by 1 of 1 · 1 open report · not the candidate" } }
+      - click: status.release_wait.fit
+      - click: status.release_wait.candidate.summary
+      - wait_for: { visible: status.release_wait.candidate.running }
+    checks:
+      - visible: [status.release_wait, status.release_wait.candidate, status.release_wait.candidate.tag, status.release_wait.candidate.running, status.release_wait.candidate.projects, status.release_wait.candidate.reports]
+      # The report is in 1.5, so the release is not ready: no cut, no publish.
+      - text_equals: { target: status.release_wait.state, text: v1.5.0 not ready }
+      - absent: [status.release_wait.ready, status.release_wait.cut_rc, status.release_wait.publish, status.release_wait.candidate.fixed]
+      - text_contains: { target: status.release_wait.check.issues, text: 1 open }
+      # Only a changelog commit came after the tag.
+      - text_contains: { target: status.release_wait.check.soaked, text: Nothing merged after v1.5.0-rc.1 but the changelog }
+      - text_contains: { target: status.release_wait.check.soaked, text: 0 since }
+      - text_contains: { target: status.release_wait.candidate.tag, text: v1.5.0-rc.1 }
+      - text_contains: { target: status.release_wait.candidate.tag, text: nothing merged since }
+      # Scenario binaries are plain builds: not the candidate.
+      - text_contains: { target: status.release_wait.candidate.running, text: "Running: viewer dev" }
+      - text_contains: { target: status.release_wait.candidate.running, text: "not the candidate: install v1.5.0-rc.1 and restart the viewer" }
+      - text_contains: { target: status.release_wait.candidate.project.atlas, text: 3 calls }
+      - text_contains: { target: status.release_wait.check.reports, text: 1 open }
+      - text_contains: { target: status.release_wait.candidate.report.cli/route-export-drops-waypoints, text: Route export drops waypoints }
+      - text_contains: { target: status.release_wait.candidate.report.cli/route-export-drops-waypoints, text: rc.1 · shipping }
+      - count: { pattern: status.release_wait.candidate.report.*, equals: 1 }
+
+  - id: TP5
+    title: Taking the report to done turns the card into rc.1 soaking, publish only on the owner's ok
+    proves: [AC8]
+    setup:
+      - open: /p/{project}/status
+    act:
+      - check: { absent: status.release_wait.publish }
+      - cli: [transition, cli/route-export-drops-waypoints, --to, done]
+      - reload: true
+      - wait_for: { visible: status.release_wait.publish }
+      - click: status.release_wait.fit
+      - click: status.release_wait.candidate.summary
+      - wait_for: { visible: status.release_wait.candidate.fixed }
+    checks:
+      - text_equals: { target: status.release_wait.state, text: v1.5.0-rc.1 soaking }
+      - text_contains: { target: status.release_wait.publish, text: "v1.5.0-rc.1 soaking: publish v1.5.0 only on the owner's ok" }
+      - text_contains: { target: status.release_wait.publish, text: Never publish without their ok. }
+      - text_contains: { target: status.release_wait.publish, text: "rename ## Unreleased to ## v1.5.0" }
+      # Never the plain Ready to cut box, and no candidate to cut.
+      - absent: [status.release_wait.ready, status.release_wait.cut_rc, status.release_wait.candidate.reports]
+      - text_contains: { target: status.release_wait.check.reports, text: none }
+      - text_contains: { target: status.release_wait.candidate.fixed, text: Route export drops waypoints }
+
+  - id: TP6
+    title: status.md carries the candidate lines and the verdict
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - http: { path: "/p/{project}/status.md", contains: "- Milestone 1.5: 1/2 done; v1.5.0 not ready: 1 issue open; 1 report open: cli/route-export-drops-waypoints\n" }
+      - http: { path: "/p/{project}/status.md", contains: "- Candidate v1.5.0-rc.1: cut " }
+      - http: { path: "/p/{project}/status.md", contains: "nothing merged since but the changelog\n" }
+      - http: { path: "/p/{project}/status.md", contains: "(not the candidate: install v1.5.0-rc.1 and restart the viewer)\n" }
+      - http: { path: "/p/{project}/status.md", contains: "- Ran v1.5.0-rc.1: atlas (3 calls, last " }
+      - http: { path: "/p/{project}/status.md", contains: "- Open reports from candidates (1):\n  - cli/route-export-drops-waypoints (found in rc.1, shipping)\n" }
+
+  - id: TP7
+    title: The candidate reads clearly in every theme, silver on the card
+    setup:
+      - open: /p/{project}/status
+      # The side card fits its row; Show all opens the rest.
+      - click: status.release_wait.fit
+    do: Read the Waiting for release card (opened with Show all). The Release candidate block is folded to one line; click it to open the details, then switch to the Dracula and light themes.
+    expect: |
+      Right under the Waiting for release title, a silver badge reads
+      "v1.5.0-rc.1 · release candidate · soaking …d". Folded, the Release
+      candidate block is one line: "v1.5.0-rc.1 · cut …
+      ago · nothing merged since · ran by 1 of 1 · 1 open report · not the
+      candidate" (the warning in red). A click opens the details below it.
+      The card shows an amber "v1.5.0 not ready" chip and a check list with
+      four rows: "Every 1.5 issue done" crossed (1 open), "Entries under
+      ## Unreleased" ticked, "Nothing merged after v1.5.0-rc.1 but the
+      changelog" ticked, and "No open reports against v1.5.0 candidates"
+      crossed, naming the report. Opened, the Release candidate block shows
+      v1.5.0-rc.1, a red "not the candidate" line under
+      Running (the scenario runs dev builds), Atlas with 3 calls, and the one
+      open report. You can tell at a glance that the release waits for that
+      bug, and that nothing tells the lead to publish. Crosses, ticks and
+      chips stay readable in every theme.
+    why: whether the card tells the lead the next step at a glance is the owner's call.

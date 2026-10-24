@@ -328,6 +328,31 @@ system: "CLI"
 	}
 }
 
+func TestRunSetMetaCreatedOnlyWhenMissing(t *testing.T) {
+	proj, _, _ := makeSimpleProject(t, "in progress")
+	ctx, stdout, _ := newTestContext(proj, false)
+	issues, _ := tracker.LoadIssues(proj.IssueDir)
+	slug := issues[0].Slug
+	if issues[0].Created != "" {
+		t.Fatalf("fixture is already dated: %q", issues[0].Created)
+	}
+	if err := runSetMeta(ctx, []string{slug, "--key", "created", "--clear"}); err == nil {
+		t.Error("--clear on created was accepted")
+	}
+	if err := runSetMeta(ctx, []string{slug, "--key", "created", "--value", "2026-04-02"}); err != nil {
+		t.Fatalf("dating an undated issue: %v", err)
+	}
+	assertContains(t, stdout.String(), `✓ Set created = "2026-04-02"`)
+	err := runSetMeta(ctx, []string{slug, "--key", "created", "--value", "2026-05-01"})
+	if err == nil || !strings.Contains(err.Error(), "never changed") {
+		t.Errorf("re-dating: err = %v, want a refusal", err)
+	}
+	issues, _ = tracker.LoadIssues(proj.IssueDir)
+	if issues[0].Created != "2026-04-02" {
+		t.Errorf("created = %q, want 2026-04-02", issues[0].Created)
+	}
+}
+
 func TestRunSetMetaSetsAndClears(t *testing.T) {
 	dir := t.TempDir()
 	issuesDir := filepath.Join(dir, "issues")

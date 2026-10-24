@@ -20,6 +20,10 @@ lookup is: $ISSUE_VIEWER_CONFIG, ./projects.yaml (only if it exists), the
 running viewer's config (~/.local/state/ai-workflow-engine/viewer.json),
 then ~/.config/ai-workflow-engine/projects.yaml.
 
+--json gives each project's viewer_url: the viewer address issue-cli links
+to and calls (viewer_url in projects.yaml, else the running viewer's, else
+http://localhost:8080).
+
 Examples:
   issue-cli projects
   issue-cli projects --json
@@ -35,8 +39,11 @@ type projectListEntry struct {
 	Slug     string `json:"slug"`
 	Name     string `json:"name"`
 	IssueDir string `json:"issue_dir"`
-	Active   bool   `json:"active,omitempty"`
-	Default  bool   `json:"default,omitempty"`
+	// ViewerURL is the viewer address issue-cli uses for this project
+	// (viewerBaseURL): what the issue-approve mod calls.
+	ViewerURL string `json:"viewer_url"`
+	Active    bool   `json:"active,omitempty"`
+	Default   bool   `json:"default,omitempty"`
 }
 
 func runProjects(ctx *Context, args []string) error {
@@ -67,11 +74,12 @@ func runProjects(ctx *Context, args []string) error {
 		entries := make([]projectListEntry, 0, len(projects))
 		for _, p := range projects {
 			entries = append(entries, projectListEntry{
-				Slug:     p.Slug,
-				Name:     p.Name,
-				IssueDir: p.IssueDir,
-				Active:   p.Slug == activeSlug,
-				Default:  p.Slug == defaultSlug,
+				Slug:      p.Slug,
+				Name:      p.Name,
+				IssueDir:  p.IssueDir,
+				ViewerURL: viewerBaseURL(&p),
+				Active:    p.Slug == activeSlug,
+				Default:   p.Slug == defaultSlug,
 			})
 		}
 		return writeJSON(ctx.Stdout, entries)

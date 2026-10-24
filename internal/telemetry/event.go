@@ -49,6 +49,10 @@ type Event struct {
 	PID      int    `json:"pid"`
 	PPID     int    `json:"ppid"`
 	ArgsHash string `json:"args_hash"`
+	// Ver is the issue-cli build's version (`git describe` at install:
+	// "v0.54.0-rc.1"), so the Status page can tell which projects ran a
+	// release candidate. Added without a schema bump: readers ignore it.
+	Ver string `json:"ver,omitempty"`
 }
 
 // Safe holds the only argument values telemetry is allowed to store.

@@ -38,12 +38,13 @@ func TestBuildTimelineLocalCI(t *testing.T) {
 		t.Fatalf("comments: %v", err)
 	}
 	body, _ := os.ReadFile(issuePath)
+	runs, _ := timeline.LoadPlaytestRuns(nil, "workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures", dir)
 	src := timelineSources{
 		Comments:    comments,
 		Decisions:   tracker.ParseDecisions("workflow/local-ci", string(body)),
 		Transitions: stats.Transitions,
 		Calls:       timeline.LoadCalls(nil, []string{filepath.Join(dir, "agent.clilog")}, "issue-viewer", "workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures"),
-		Runs:        timeline.LoadPlaytestRuns(nil, "workflow/local-ci-validate-integrated-main-after-every-merge-and-report-failures", dir),
+		Runs:        runs,
 		Commits: []gitCommit{
 			{SHA: "11826db", At: time.Date(2026, 10, 22, 15, 13, 38, 0, time.UTC), Subject: "ci: local CI runner"},
 			{SHA: "af4e2da", At: time.Date(2026, 10, 22, 18, 31, 39, 0, time.UTC), Subject: "ci: Last runs boxes"},
@@ -227,9 +228,14 @@ func TestDetailTabs(t *testing.T) {
 		t.Error("timeline tab shows the issue sidebar (D-3)")
 	}
 
-	_, ev := getBody(t, base+"?tab=evidence")
-	if !strings.Contains(ev, `data-testid="evidence.coming"`) {
-		t.Error("evidence tab: no coming panel")
+	code, ev := getBody(t, base+"?tab=evidence")
+	if code != 200 {
+		t.Fatalf("evidence tab: %d", code)
+	}
+	for _, want := range []string{`data-testid="detail.pagetab.evidence" aria-current="true"`, `data-testid="evidence.tab"`, `data-testid="evidence.verdict"`, `data-testid="evidence.shots.empty"`} {
+		if !strings.Contains(ev, want) {
+			t.Errorf("evidence tab: missing %s", want)
+		}
 	}
 	_, odd := getBody(t, base+"?tab=nope")
 	if !strings.Contains(odd, `data-testid="detail.pagetab.issue" aria-current="true"`) {

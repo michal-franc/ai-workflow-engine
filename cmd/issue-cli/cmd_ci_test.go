@@ -123,6 +123,7 @@ func TestCIStatusNotConfigured(t *testing.T) {
 func TestCIRunRedGreenReporting(t *testing.T) {
 	proj, root := makeCIFixture(t, ciBlockFor("mark"))
 	issuePath := filepath.Join(root, "issues", "UI", "a.md")
+	// The lead is live, and CI still never pastes into it.
 	var nudges []string
 	origLive, origPaste := sessionLive, pasteIntoSession
 	defer func() { sessionLive, pasteIntoSession = origLive, origPaste }()
@@ -162,8 +163,8 @@ func TestCIRunRedGreenReporting(t *testing.T) {
 	assertContains(t, cs[0].Text, "Landed since the last green run (")
 	assertContains(t, cs[0].Text, "ui/a (work/ui/a)")
 	assertContains(t, cs[0].Text, "issue-cli --project test ci status")
-	if len(nudges) != 1 || !strings.Contains(nudges[0], "[from ci] local CI red on main") || !strings.Contains(nudges[0], "Merged since green: ui/a") {
-		t.Fatalf("nudges = %v", nudges)
+	if len(nudges) != 0 {
+		t.Fatalf("red run pasted into a session: %v", nudges)
 	}
 
 	// status, text and JSON.
@@ -194,21 +195,21 @@ func TestCIRunRedGreenReporting(t *testing.T) {
 		t.Errorf("json = %+v", js)
 	}
 
-	// Re-run, same failure: no new comment, no new nudge.
+	// Re-run, same failure: no new comment.
 	ctx, _, _ = newTestContext(proj, false)
 	_ = runCI(ctx, []string{"run"})
-	if got := len(comments(t, issuePath)); got != 1 || len(nudges) != 1 {
-		t.Errorf("still red re-commented (%d comments) or re-nudged (%v)", got, nudges)
+	if got := len(comments(t, issuePath)); got != 1 {
+		t.Errorf("still red re-commented (%d comments)", got)
 	}
 
-	// The fix lands: green again, the lead hears.
+	// The fix lands: green again, state says so; still no paste.
 	landBranch(t, root, false)
 	ctx, _, _ = newTestContext(proj, false)
 	if err := runCI(ctx, []string{"run"}); err != nil {
 		t.Fatalf("fixed run: %v", err)
 	}
-	if len(nudges) != 2 || !strings.Contains(nudges[1], "local CI green again on main") {
-		t.Errorf("nudges = %v", nudges)
+	if len(nudges) != 0 {
+		t.Errorf("green run pasted into a session: %v", nudges)
 	}
 	if st, _ := ci.ReadState(root); st.State != ci.Green || len(st.Blamed) != 0 {
 		t.Errorf("state = %+v", st)

@@ -12,9 +12,9 @@ type WorkflowStatus struct {
 	Name        string   `yaml:"name" desc:"Status identifier (e.g. \"in progress\")"`
 	Description string   `yaml:"description" desc:"Short one-line description shown in lists and board columns"`
 	Prompt      string   `yaml:"prompt,omitempty" desc:"Agent guidance injected when entering this status"`
-	Template    string   `yaml:"template" desc:"Legacy body template appended on entry (prefer transitions[].actions[] append_section)"`
-	Validation  []string `yaml:"validation" desc:"Legacy shorthand for validation rules (prefer transitions[].actions[] validate)"`
-	SideEffects []string `yaml:"side_effects" desc:"Legacy shorthand for side effects (prefer transitions[].actions[] set_fields)"`
+	Template    string   `yaml:"template" desc:"Legacy body template appended on entry (prefer transitions[].actions[] append_section)" deprecated:"use an append_section action on the transition into this status"`
+	Validation  []string `yaml:"validation" desc:"Legacy shorthand for validation rules (prefer transitions[].actions[] validate)" deprecated:"use validate actions on the transition into this status"`
+	SideEffects []string `yaml:"side_effects" desc:"Legacy shorthand for side effects (prefer transitions[].actions[] set_fields)" deprecated:"use set_fields actions on the transition into this status"`
 	// Optional marks the status as skippable on forward transitions. A transition
 	// from A to C is valid if every status strictly between them is Optional.
 	Optional bool `yaml:"optional,omitempty" desc:"Skippable on forward transitions; surfaced with a CTA in the viewer"`
@@ -180,7 +180,7 @@ type WorkflowConfig struct {
 	// Actions is the deprecated original name for IssueActions, kept so existing
 	// workflow.yaml files keep working. New configs should use issue_actions.
 	// Both are merged by IssueActionList (issue_actions take precedence on id clash).
-	Actions []CustomAction `yaml:"actions,omitempty" desc:"Deprecated alias for issue_actions; kept for backward compatibility"`
+	Actions []CustomAction `yaml:"actions,omitempty" desc:"Deprecated alias for issue_actions; kept for backward compatibility" deprecated:"rename it to issue_actions"`
 	// ProjectActions are custom one-shot agent buttons shown on the project-level
 	// views (list, board, graph). Unlike issue actions they are not bound to a
 	// single issue, so their prompts template against project context ({{project}}) only.
@@ -199,6 +199,10 @@ type WorkflowConfig struct {
 	// Health tunes the project health snapshots. Project-wide like CI; nil
 	// means snapshots with the defaults.
 	Health *HealthConfig `yaml:"health,omitempty" desc:"Optional health snapshot settings: big-file limit, test and exclude globs (see docs/workbench-files.md, Health snapshots)"`
+	// Privacy records the owner's choice of where work files live and
+	// whether development is private (docs/workflow.md, Private work and
+	// code). Project-wide like CI; nil means not decided.
+	Privacy *PrivacyConfig `yaml:"privacy,omitempty" desc:"Optional privacy choice: work_files (tracker | in_repo), code (snapshots | public), the owner's words in decided (see docs/workflow.md, Private work and code)"`
 	// AllowShell opts in to the command_succeeds validator. When false, any
 	// transition with a command_succeeds rule fails at validate time.
 	AllowShell bool `yaml:"allow_shell,omitempty" desc:"Permit command_succeeds validators to run shell commands (default false)"`
@@ -229,7 +233,10 @@ type WorkflowConfig struct {
 	// LookupIssue resolves another issue by slug for linked_issue_in_status;
 	// IssuesRoot is the working directory used by command_succeeds.
 	LookupIssue func(slug string) *Issue `yaml:"-" json:"-"`
-	IssuesRoot  string                   `yaml:"-" json:"-"`
+	// ChildrenOf lists an epic's children for children_closed; set like
+	// LookupIssue by attachRuntime.
+	ChildrenOf func(slug string) []*Issue `yaml:"-" json:"-"`
+	IssuesRoot string                     `yaml:"-" json:"-"`
 	// RepoRoot is the project's checkout (Project.TelemetryRoot), where a
 	// transition looks up the work/<slug> branch head and the merge sha.
 	RepoRoot string `yaml:"-" json:"-"`

@@ -558,7 +558,7 @@
     document.addEventListener('click', closeAllPickers);
 
     // Dispatch to agent
-    function dispatchToAgent(slug, agent) {
+    function dispatchToAgent(slug, agent, force) {
         var modal = document.getElementById('dispatch-modal');
         var stepsEl = document.getElementById('dispatch-steps');
         var promptEl = document.getElementById('dispatch-prompt');
@@ -571,11 +571,18 @@
         fetch(prefix + '/issue/' + slug + '/dispatch', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ agent: agent })
+            body: JSON.stringify({ agent: agent, force: !!force })
         }).then(res => res.json()).then(data => {
             sessionEl.textContent = 'tmux session: ' + data.session;
             promptEl.textContent = data.prompt;
+            // A refusal sent no prompt.
+            promptEl.closest('details').style.display = data.status === 'waiting-on-gate' ? 'none' : '';
 
+            if (data.status === 'waiting-on-gate') {
+                stepsEl.innerHTML = gateBanner(prefix + '/issue/' + slug, data.gate,
+                    "dispatchToAgent('" + slug + "', '" + agent + "', true)");
+                return;
+            }
             var html = '';
             if (data.status === 'reattached') {
                 html += '<div class="dispatch-banner reattached">'
@@ -598,6 +605,18 @@
         }).catch(function(err) {
             stepsEl.innerHTML = '<div class="dispatch-step error">Failed: ' + err.message + '</div>';
         });
+    }
+
+    // gateBanner is the dispatch modal's answer when the issue only waits on
+    // the owner's approval (409 waiting-on-gate): approve it, or dispatch
+    // anyway (force).
+    function gateBanner(issuePath, gate, forceCall) {
+        var safe = String(gate).replace(/[&<>"']/g, function(c) { return '&#' + c.charCodeAt(0) + ';'; });
+        return '<div class="dispatch-banner reattached" data-testid="dispatch.gate">'
+            + 'Waiting on your approval for <b>' + safe + '</b>: everything else is done, so a new agent would only stop at the gate. Nothing was started. '
+            + '<a href="' + issuePath + '#approve-' + safe.replace(/ /g, '-') + '" data-testid="dispatch.gate.approve">Approve</a> or '
+            + '<button class="dispatch-banner-btn" data-testid="dispatch.gate.force" onclick="' + forceCall + '">Dispatch anyway</button>'
+            + '</div>';
     }
 
     function closeDispatchModal() {

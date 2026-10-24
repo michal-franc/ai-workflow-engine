@@ -1,0 +1,194 @@
+{{define "health.html"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — Health</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M2 12 A6 6 0 0 1 14 12' fill='none' stroke='%238b949e' stroke-width='2'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="app">
+{{template "sidebar" (sidebar .Prefix "health")}}
+<div class="app-main">
+    <div class="container stats-page" data-testid="health.page" data-project="{{.Project}}">
+        <header class="stats-head">
+            <div class="stats-head-text">
+                <h1 class="page-title">Health</h1>
+                <p class="stats-sub">{{if .Latest}}Latest snapshot {{.Latest}} · {{plural .Snapshots "snapshot" "snapshots"}}{{else}}No health snapshot yet{{end}} · how the scores work: docs/workbench-files.md, "Scores"</p>
+            </div>
+            <nav class="stats-options" aria-label="Range" data-testid="health.range">
+                <div class="stats-seg" role="group" aria-label="Range">
+                    {{range .Ranges}}<a href="{{.Href}}" class="stats-seg-btn{{if .On}} active{{end}}"{{if .On}} aria-current="true"{{end}} data-testid="health.range.{{.Key}}">{{.Label}}</a>{{end}}
+                </div>
+            </nav>
+        </header>
+
+        {{if .Flash}}<p class="health-flash{{if .FlashErr}} error{{end}}" role="status" data-testid="health.flash">{{.Flash}}</p>{{end}}
+
+        <section class="stats-section" aria-labelledby="health-now">
+            <h2 id="health-now" class="stats-label">Now</h2>
+            <div class="health-now">
+                <section class="health-card" aria-labelledby="health-derived-h" data-testid="health.derived">
+                    <div class="health-card-head"><h3 id="health-derived-h">Derived health</h3><span class="stats-muted mono">score.derived</span></div>
+                    {{with .Derived}}
+                    {{if .Has}}
+                    <div class="health-gauge" data-testid="health.score_gauge">
+                        {{.SVG}}
+                        <div class="health-gauge-text">
+                            <span class="stats-big" data-testid="health.derived.value">{{.Value}}</span>
+                            <span>{{.Change}}</span>
+                            <span class="stats-muted">{{.Context}}</span>
+                        </div>
+                    </div>
+                    {{else}}<p class="stats-muted" data-testid="health.derived.empty">{{.Empty}}</p>{{end}}
+                    {{end}}
+                    {{if .Components}}
+                    <table class="health-components" data-testid="health.components">
+                        <caption class="stats-muted">{{.Coverage}}. Each part scores 100 at its good value and 0 at its bad one; health.score in workflow.yaml changes them.</caption>
+                        <thead><tr><th scope="col">Component</th><th scope="col">Measured</th><th scope="col">Sub-score</th><th scope="col" class="num">Weight</th></tr></thead>
+                        <tbody>
+                        {{range .Components}}
+                        <tr data-testid="health.component.{{.Name}}">
+                            <th scope="row"><span class="mono">{{.Name}}</span><span class="stats-muted health-help">{{.Help}} · {{.Range}}</span></th>
+                            {{if .Has}}
+                            <td>{{.Measured}}</td>
+                            <td><span class="health-bar" aria-hidden="true"><span style="width: {{.Pct}}%"></span></span> <span class="mono">{{printf "%.0f" .Sub}}</span></td>
+                            {{else}}
+                            <td colspan="2" class="stats-muted">no data: {{.Missing}}</td>
+                            {{end}}
+                            <td class="num mono">{{printf "%.0f" .Weight}}</td>
+                        </tr>
+                        {{end}}
+                        </tbody>
+                    </table>
+                    {{end}}
+                    {{if .Warnings}}
+                    <ul class="health-warnings" data-testid="health.warnings" aria-label="Measurement warnings">
+                        {{range .Warnings}}<li>⚠ <span class="mono">{{.Family}}</span> {{.Text}}</li>{{end}}
+                    </ul>
+                    {{end}}
+                </section>
+
+                <section class="health-card" id="review" aria-labelledby="health-opinion-h" data-testid="health.opinion">
+                    <div class="health-card-head"><h3 id="health-opinion-h">Agent opinion</h3>
+                        <form method="post" action="{{.Prefix}}/health/review"><button type="submit" class="btn btn-sm" data-testid="health.run_review">Run review</button></form>
+                    </div>
+                    {{with .Opinion}}
+                    {{if .Has}}
+                    <div class="health-gauge">
+                        {{.SVG}}
+                        <div class="health-gauge-text">
+                            <span class="stats-big" data-testid="health.opinion.value">{{.Value}}</span>
+                            <span>{{.Change}}</span>
+                            <span class="stats-muted">{{.Context}}</span>
+                        </div>
+                    </div>
+                    {{else}}<p class="stats-muted" data-testid="health.opinion.empty">{{.Empty}}</p>{{end}}
+                    {{end}}
+                    {{with .Review}}
+                    {{if .Stale}}<p class="health-stale" data-testid="health.opinion.stale"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.5l2 1.5"/></svg> The review is {{.Age}}: run a new one.</p>{{end}}
+                    <p class="health-assessment">{{.Assessment}}</p>
+                    <p class="stats-muted">{{.Date}}{{if .Reviewer}} · {{.Reviewer}}{{end}}</p>
+                    <h4 class="stats-label">Recommendations{{if .Proposed}} · {{.Proposed}} wait for you{{end}}</h4>
+                    {{range .Recs}}
+                    <article class="health-rec{{if not .Proposed}} done{{end}}" data-testid="health.recommendation">
+                        <div class="health-rec-head"><span class="mono stats-muted">{{.ID}}</span><span class="stats-chip">{{.Kind}}</span><span class="stats-chip">effort {{.Effort}}</span>
+                            {{if eq .State "filed"}}<span class="stats-chip ok">filed{{if .Issue}}: <a href="{{.IssueHref}}" class="mono">{{.Issue}}</a>{{end}}</span>{{end}}
+                            {{if eq .State "dismissed"}}<span class="stats-chip">dismissed{{if .Reason}}: {{.Reason}}{{end}}</span>{{end}}
+                        </div>
+                        <strong class="health-rec-title">{{.Title}}</strong>
+                        <ul class="health-evidence mono">{{range .Evidence}}<li>{{.}}</li>{{end}}</ul>
+                        <p class="health-effect"><span class="stats-muted">Expected:</span> {{.Effect}}</p>
+                        {{if .Proposed}}
+                        <div class="health-rec-actions">
+                            <form method="post" action="{{$.Prefix}}/health/recommendation/{{.ID}}/file"><button type="submit" class="btn btn-sm btn-primary" data-testid="health.file_recommendation">File as issue</button></form>
+                            <form method="post" action="{{$.Prefix}}/health/recommendation/{{.ID}}/dismiss" class="health-dismiss">
+                                <input name="reason" class="stats-select" placeholder="why (optional)" aria-label="Why dismiss {{.ID}} (optional)">
+                                <button type="submit" class="btn btn-sm" data-testid="health.dismiss_recommendation">Dismiss</button>
+                            </form>
+                        </div>
+                        {{end}}
+                    </article>
+                    {{end}}
+                    {{end}}
+                </section>
+            </div>
+        </section>
+
+        {{with .Lint}}
+        <section class="stats-section health-lint" id="lint" aria-labelledby="health-lint-h" data-testid="health.lint">
+            <div class="stats-section-head">
+                <h2 id="health-lint-h" class="stats-label">Lint · <span data-testid="health.lint.count">{{if .Warnings}}{{plural .Warnings "warning" "warnings"}}{{else}}no warnings{{end}}</span></h2>
+                <span class="stats-muted">workflow.yaml and the board, checked now; the lint score component counts them</span>
+            </div>
+            {{if .Err}}<p class="stats-muted" data-testid="health.lint.error">lint could not run: {{.Err}}</p>{{end}}
+            {{if .Findings}}
+            <ol data-testid="health.lint.list">
+                {{range .Findings}}<li data-testid="health.lint.row"><span class="mono">{{.Check}} {{.Where}}</span> {{.Message}}{{if .Fix}} <span class="health-lint-fix">· {{.Fix}}</span>{{end}}</li>{{end}}
+            </ol>
+            {{end}}
+            {{if .More}}<p class="stats-muted" data-testid="health.lint.more">{{.More}} more: {{.Command}} --all</p>{{end}}
+            <p class="mono stats-muted" data-testid="health.lint.cmd">{{.Command}}</p>
+        </section>
+        {{end}}
+
+        <section class="stats-section" aria-labelledby="health-trends">
+            <div class="stats-section-head">
+                <h2 id="health-trends" class="stats-label">Trends · {{.RangeLabel}}</h2>
+                <span class="stats-muted">One point per snapshot; count and runtime share their time axis</span>
+            </div>
+            <div class="stats-grid health-trends">
+                {{template "healthChart" .Scores}}
+            {{range .Pairs}}
+            <figure class="stats-card" id="{{.ID}}" data-testid="health.chart.{{.ID}}">
+                <div class="stats-card-head"><div><h3>{{.Title}}</h3>{{if .Summary}}<div class="stats-sub">{{.Summary}}</div>{{end}}</div></div>
+                {{if .Empty}}<p class="stats-muted stats-card-empty" data-testid="health.chart.empty">{{.Empty}}</p>{{else}}
+                <div class="health-panels">
+                    {{template "healthChart" .Count}}
+                    {{template "healthChart" .Runtime}}
+                </div>
+                {{end}}
+            </figure>
+            {{end}}
+            </div>
+        </section>
+
+        {{if .Lists}}
+        <section class="stats-section" aria-labelledby="health-where">
+            <div class="stats-section-head"><h2 id="health-where" class="stats-label">Where to look</h2><span class="stats-muted">From the latest snapshot; the review reads the same rows</span></div>
+            <div class="health-lists">
+                {{range .Lists}}
+                <section class="health-list" data-testid="health.list">
+                    <h3>{{.Title}}</h3><p class="stats-muted">{{.Sub}}</p>
+                    <ol>{{range .Rows}}<li><span class="mono">{{.Label}}</span><span class="mono stats-muted">{{.Value}}</span></li>{{end}}</ol>
+                </section>
+                {{end}}
+            </div>
+        </section>
+        {{end}}
+    </div>
+</div>
+</div>
+</body>
+</html>
+{{end}}
+
+{{define "healthChart"}}
+<figure class="stats-card" id="{{.ID}}" data-testid="health.chart.{{.ID}}">
+    <div class="stats-card-head"><div><h3>{{.Title}}</h3><div class="stats-sub">{{.Sub}}</div></div></div>
+    {{if .Legend}}<div class="stats-legend">{{range .Legend}}<span class="stats-lg"><span class="stats-sw {{.Class}}"></span>{{.Name}}</span>{{end}}</div>{{end}}
+    {{if .Empty}}<p class="stats-muted stats-card-empty">{{.Empty}}</p>{{else}}<div class="stats-plot">{{.SVG}}</div>{{end}}
+    {{if .Table.Rows}}
+    <details class="stats-table" data-testid="health.chart_table">
+        <summary>Table</summary>
+        <div class="stats-time-scroll"><table class="data-table">
+            <thead><tr>{{range .Table.Head}}<th scope="col">{{.}}</th>{{end}}</tr></thead>
+            <tbody>{{range .Table.Rows}}<tr>{{range $i, $c := .}}{{if eq $i 0}}<th scope="row">{{$c}}</th>{{else}}<td class="num">{{$c}}</td>{{end}}{{end}}</tr>{{end}}</tbody>
+        </table></div>
+    </details>
+    {{end}}
+</figure>
+{{end}}

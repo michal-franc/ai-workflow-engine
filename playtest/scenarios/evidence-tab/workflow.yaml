@@ -1,0 +1,35 @@
+statuses:
+  - name: "idea"
+    description: "Raw idea"
+  - name: "in design"
+    description: "Being designed"
+  - name: "in progress"
+    description: "Being built"
+  - name: "testing"
+    description: "Being checked"
+  - name: "human-testing"
+    description: "The owner checks it"
+  - name: "done"
+    description: "Finished"
+
+transitions:
+  - from: "idea"
+    to: "in design"
+  - from: "in design"
+    to: "in progress"
+    actions:
+      - type: "require_human_approval"
+        status: "in progress"
+      - type: "append_section"
+        title: "Implementation"
+        body: |
+          - [ ] Code changes complete
+  - from: "in progress"
+    to: "testing"
+  - from: "testing"
+    to: "human-testing"
+  - from: "human-testing"
+    to: "done"
+    actions:
+      - type: "require_human_approval"
+        status: "done"

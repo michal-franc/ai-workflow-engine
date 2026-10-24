@@ -1,6 +1,7 @@
 ---
 title: "Demo: linkify URLs in data-table comments"
 status: "idea"
+created: "2026-10-02"
 ---
 ## Summary
 

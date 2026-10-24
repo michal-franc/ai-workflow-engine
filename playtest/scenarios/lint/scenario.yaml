@@ -1,0 +1,10 @@
+# Lint on the Health view: the workflow has two lint errors (an
+# unknown board key, colums, and a {{slug}} in a status prompt, which is
+# not templated) and one of the two issues has no created: date (a
+# warning).
+title: Health view - the Lint section (issue-cli health lint run live)
+project:
+  name: Lintdemo
+  slug: lintdemo
+issues: tracker
+workflow: workflow.yaml

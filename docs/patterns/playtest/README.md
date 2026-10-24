@@ -26,6 +26,12 @@ worked examples show how to build one:
 - `issue-cli process playtest game`: a game engine, after RogueTech.X's
   in-game playtest.
 
+Checks that aren't on a screen (CLI commands, API routes, tmux, scripts) are
+not playtest sessions: they come as a guided check script,
+`scripts/checks/<name>.sh`, run with `issue-cli check-script <slug>` (start
+one with `--new <name>`; the helpers: `issue-cli check-script --lib`). See
+docs/patterns/guided-check-scripts.md.
+
 ## The shape every project shares
 
 ### A session file
@@ -49,6 +55,7 @@ steps:
     do: What the owner does    # a step with expect: is a judgement step
     expect: What the owner should see
     why: Why it matters
+    proves: [AC2]              # optional: the acceptance criteria this step proves
 ```
 
 The rules:
@@ -57,6 +64,10 @@ The rules:
   shows them, e.g. `TP3`). That is how a result finds its box.
 - **A step with `expect:` is a judgement step.** Only judgement steps reach
   the owner. A step without one is machine-only.
+- `proves:` lists the acceptance criteria the step shows working (ids from
+  the issue's `## Acceptance Criteria`). Copy it into the step's result, so
+  `issue-cli prove` finds the link with no extra call; the step's latest
+  verdict is the link's check. Reject ids that aren't the issue's criteria.
 - Every step starts fresh from its scenario, so steps never depend on the
   order they ran in, and any step can be replayed alone.
 - The actions and checks are each project's own vocabulary. Name them after
@@ -84,14 +95,75 @@ steps:
     title: …
     judgement_step: true
     status: pass               # pass | fail | skip | pending
-    viewports: []              # or resolutions: one entry per size, each with its checks, layout, errors, screenshot
+    proves: [AC2]              # copied from the session step, when it has one
+    duration_ms: 4210          # the step's time at every size, setup included (REPEAT ignores it)
+    viewports:                 # or resolutions: one entry per size, each with its checks, layout, errors, screenshot
+      - viewport: 1440x900
+        status: pass
+        screenshot: shots/TP3-1440x900.png   # relative to the run folder
     judge:                     # judge runs only
       status: fail
       note: the hover card hides the drop target
-      screenshot: …
+      screenshot: shots/TP3-fail.png
       checks: []
       opinions: [{ target: board.search, note: too small }]
+reduced: "2026-11-22"          # set when the shots were shrunk (below)
 ```
+
+- **Paths:** `screenshot:` is relative to the run folder, so a run that moves still finds its shots. A reader resolves
+  a shot as `shots/<file name>` next to `results.yaml`, which also covers older runs with absolute paths.
+- **Own sessions only:** an auto run keeps the shots of the run's own issue's sessions. The own issue is `-issue`, else
+  the `work/<slug>` branch the repo is on. Another issue's session keeps its `results.yaml` and the shots of failing
+  sizes, nothing else, and ux-test prints "shots kept for <issue> only" once. Judge runs keep every shot. With no own
+  issue (on main) every shot is kept.
+- **At done:** `issue-cli transition <slug> --to done` keeps the latest auto and judge run of each of the issue's own
+  sessions (a game's `ux-test` / `playtest` count as auto / judge), moves them to the project root's `.playtest/runs/`
+  and deletes the rest of the worktree's runs and the runner's cached binaries (`runs/.bin`), so removing the worktree
+  keeps the evidence. An own run is deleted only when a newer run of its session and mode is kept; the run a kept
+  `-cached` run takes its shots from, an own run of another mode and a run it can't classify are kept too. It prints
+  `archived N of M runs, deleted K` (a ⚠ when none of the issue's M runs was archived).
+  `issue-cli playtest prune <slug> | --all [--dry-run]` does the same for worktrees that already exist (an open issue
+  only loses other issues' runs).
+- **Reduced:** the viewer's daily health pass shrinks the shots of issues done `health.shrink_shots_after_days` ago
+  (default 30, `0` off), in `shots/` or beside `results.yaml`, to JPEGs at most 720 px wide and three screens tall,
+  and sets `reduced:`. Every check and verdict stays.
+
+#### What the viewer reads
+
+The issue page's Evidence and Timeline tabs, and the proof links, read every `results.yaml` whose `issue:` is the
+issue, in the project checkout's and the issue worktree's `.playtest/runs/`. They read two schemas, converted to one
+when the file is loaded:
+
+| | This repo's runner (above) | A game's runner (RogueTech.X) |
+|:--|:--|:--|
+| `started:` | RFC 3339 with an offset | also local time with no offset (`2026-10-24T11:04:20`) |
+| `mode:` | `auto` / `judge` | `ux-test` / `playtest` (read as `auto` / `judge`) |
+| Judgement step | `judgement_step: true` | `judgement: true` |
+| Your verdict | `judge.status` | `verdict:` on the step |
+| Screen sizes and shots | `viewports[].viewport`, `.screenshot` | `screenshots: [MV3@1920x1080.png]`: one view per `@WxH` in a name or `layout[].resolution` |
+| Checks | `viewports[].checks[]`: `check`, `pass`, `actual` | `checks[]` on the step: `kind` + `subject`, `passed`, `reason` (on every view) |
+| Layout | `viewports[].layout[]`: the broken rules | `layout[]`: every rule per `resolution`, `passed`, `failures[]` |
+| Shot file | `shots/<name>` in the run folder | `<name>` beside `results.yaml` |
+
+Also read: `id`, `title`, `status`, `proves`, `session`, `issue`, `build`, `reduced`. A run whose `started:` or YAML
+can't be read is listed at the top of both tabs, not dropped silently.
+
+- **Shots:** each step a criterion points to (`proves:` or a link) gets its shot from the newest run that has the shot
+  file, so a run that saved none (a game's `-cached` replay) is passed over. When no step proves a criterion, the
+  Shots card shows every step of each session's latest ux-test run instead. Add `proves: [AC…]` to the session steps
+  so shots line up with criteria.
+
+### The e2e results file (for local CI)
+
+When `CI_RESULTS_DIR` is set (a local CI run, see [Local CI: Test results](../../workflow.md#test-results-results)), ux-test also writes `$CI_RESULTS_DIR/e2e.json`, or the path given with `-results`. It covers every session it ran:
+
+```json
+{"started": "2026-10-23T18:00:00Z", "finished": "2026-10-23T18:03:10Z",
+ "sessions": [{"session": "board-basics", "issue": "ui/some-issue-slug", "duration_ms": 60000,
+               "steps": [{"id": "TP3", "status": "pass", "duration_ms": 20000}]}]}
+```
+
+A `ci.run` entry `{kind: e2e, format: playtest, file: e2e.json}` feeds it to the health tests family. Another project's runner (RogueTech's GPU ux-test) can write the same shape. A step is one test, a session one part, and the issue slug's first segment the area.
 
 ### Four commands
 

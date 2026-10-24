@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/michal-franc/issue-viewer/internal/testresults"
 )
 
 // Run states.
@@ -64,6 +66,9 @@ type Run struct {
 	Log       string   `json:"log"`
 	LogTail   []string `json:"log_tail,omitempty"`
 	RangeFrom string   `json:"range_from,omitempty"`
+	// Results are the parsed test results per kind (unit, e2e), from the
+	// files the commands' results: entries name.
+	Results map[string]testresults.Summary `json:"results,omitempty"`
 	Merged    []Merged `json:"merged,omitempty"`
 }
 
@@ -236,6 +241,7 @@ func prune(root string) {
 		stem := filepath.Join(RunsDir(root), runName(r.Sha, r.Tier))
 		os.Remove(stem + ".json")
 		os.Remove(stem + ".log")
+		os.RemoveAll(ResultsDir(root, r.Sha, r.Tier))
 	}
 }
 

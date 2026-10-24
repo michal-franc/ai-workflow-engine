@@ -28,6 +28,7 @@ func init() {
 	pasteIntoSession = func(*tracker.Project, string, string, string, string) agentrun.Response {
 		panic("test pasted into a real session; stub pasteIntoSession")
 	}
+	sessionAgent = func(*tracker.Project, string) string { return "" }
 	os.Unsetenv("ISSUE_VIEWER_LEAD_SCOPE")
 	os.Unsetenv("ISSUE_VIEWER_ISSUE_SLUG")
 }
@@ -105,7 +106,7 @@ func TestLeadSpawn_ProjectLead(t *testing.T) {
 	if err := runLead(ctx, []string{"spawn"}); err != nil {
 		t.Fatal(err)
 	}
-	if spec.Session != "lead-proj" || spec.LeadScope != "project" || !spec.Headless || spec.Worktree.Path != "" || spec.WorkDir != proj.WorkDir {
+	if spec.Session != "lead-proj" || spec.LeadScope != "project" || spec.Headless || spec.Worktree.Path != "" || spec.WorkDir != proj.WorkDir {
 		t.Fatalf("spec = %+v", *spec)
 	}
 	for _, want := range []string{
@@ -143,6 +144,61 @@ func TestLeadSpawn_PrintsSwitchAndAttach(t *testing.T) {
 	want := "Inside tmux:  tmux switch-client -t lead-proj\nFrom a shell: tmux attach -t lead-proj\n"
 	if !strings.Contains(stdout.String(), want) {
 		t.Fatalf("stdout = %q, want %q", stdout.String(), want)
+	}
+}
+
+// lead spawn follows lead_terminal unless --headless; the old --attach is
+// still accepted and changes nothing.
+func TestLeadSpawn_HeadlessFlag(t *testing.T) {
+	proj := makeLeadProject(t)
+	for _, tc := range []struct {
+		args     []string
+		headless bool
+	}{
+		{[]string{"spawn"}, false},
+		{[]string{"spawn", "--headless"}, true},
+		{[]string{"spawn", "--attach"}, false},
+	} {
+		spec := captureStart(t, "dispatched")
+		ctx, _, _ := newTestContext(proj, false)
+		if err := runLead(ctx, tc.args); err != nil {
+			t.Fatalf("%v: %v", tc.args, err)
+		}
+		if spec.Headless != tc.headless {
+			t.Errorf("%v: Headless = %v, want %v", tc.args, spec.Headless, tc.headless)
+		}
+	}
+}
+
+// Inside tmux with lead_terminal unset, a headless spawn says how to get the
+// lead as a tab; once lead_terminal is set (or --headless asked for it) the
+// tip goes away.
+func TestLeadSpawn_TipNamesLeadTerminal(t *testing.T) {
+	proj := makeLeadProject(t)
+	orig := startAgent
+	startAgent = func(proj *tracker.Project, spec agentrun.Spec) agentrun.Response {
+		return agentrun.Response{Status: "dispatched", Session: spec.Session, AttachCmd: "a", SwitchCmd: "s"}
+	}
+	t.Cleanup(func() { startAgent = orig })
+	t.Setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+	run := func(args ...string) string {
+		t.Helper()
+		ctx, stdout, _ := newTestContext(proj, false)
+		if err := runLead(ctx, append([]string{"spawn"}, args...)); err != nil {
+			t.Fatal(err)
+		}
+		return stdout.String()
+	}
+	const tip = "tip: set lead_terminal: tmux-window and lead_window_session"
+	if out := run(); !strings.Contains(out, tip) {
+		t.Errorf("unset lead_terminal: want the tip, got %q", out)
+	}
+	if out := run("--headless"); strings.Contains(out, tip) {
+		t.Errorf("--headless: no tip wanted, got %q", out)
+	}
+	proj.LeadTerminal = "tmux-window"
+	if out := run(); strings.Contains(out, tip) {
+		t.Errorf("lead_terminal set: no tip wanted, got %q", out)
 	}
 }
 
@@ -304,7 +360,12 @@ func TestLeadMessage(t *testing.T) {
 		}
 		return agentrun.Response{Status: "sent", Session: session}
 	}
-	t.Cleanup(func() { pasteIntoSession = orig })
+	origAgent, origLive := sessionAgent, sessionLive
+	sessionAgent = func(*tracker.Project, string) string { return "codex" }
+	sessionLive = func(*tracker.Project) func(string) bool {
+		return func(n string) bool { return n != "agent-gone" }
+	}
+	t.Cleanup(func() { pasteIntoSession, sessionAgent, sessionLive = orig, origAgent, origLive })
 
 	t.Setenv("ISSUE_VIEWER_LEAD_SCOPE", "project")
 	for target, want := range map[string]string{
@@ -331,6 +392,46 @@ func TestLeadMessage(t *testing.T) {
 	t.Setenv("ISSUE_VIEWER_ISSUE_SLUG", "ui/child")
 	if err := runLead(ctx, []string{"message", "project", "hi"}); err == nil || !strings.Contains(err.Error(), "workers can't message sessions") {
 		t.Fatalf("worker: err = %v", err)
+	}
+}
+
+// A Claude Code session is never pasted into: lead message refuses and names
+// the SendMessage address. A session started by hand (agent unknown) counts
+// as Claude; one that isn't live is "not running".
+func TestLeadMessage_ClaudeSessionsUseSendMessage(t *testing.T) {
+	proj := makeLeadProject(t)
+	pasted := false
+	origPaste, origAgent, origLive := pasteIntoSession, sessionAgent, sessionLive
+	pasteIntoSession = func(*tracker.Project, string, string, string, string) agentrun.Response {
+		pasted = true
+		return agentrun.Response{Status: "sent"}
+	}
+	agent := "claude"
+	sessionAgent = func(*tracker.Project, string) string { return agent }
+	sessionLive = func(*tracker.Project) func(string) bool {
+		return func(n string) bool { return n == "agent-ui-child" }
+	}
+	t.Cleanup(func() { pasteIntoSession, sessionAgent, sessionLive = origPaste, origAgent, origLive })
+	t.Setenv("ISSUE_VIEWER_LEAD_SCOPE", "project")
+
+	for _, a := range []string{"claude", ""} {
+		agent = a
+		ctx, _, _ := newTestContext(proj, false)
+		err := runLead(ctx, []string{"message", "ui/child", "please rebase"})
+		if err == nil || pasted {
+			t.Fatalf("agent %q: err = %v, pasted = %v; want a refusal and no paste", a, err, pasted)
+		}
+		for _, w := range []string{"not sent: agent-ui-child runs Claude Code", `SendMessage({to: "agent-ui-child", message: "[from lead-proj] please rebase"})`, "ListAgents"} {
+			if !strings.Contains(err.Error(), w) {
+				t.Errorf("agent %q: refusal missing %q:\n%v", a, w, err)
+			}
+		}
+	}
+
+	agent = ""
+	ctx, _, _ := newTestContext(proj, false)
+	if err := runLead(ctx, []string{"message", "project", "hi"}); err == nil || !strings.Contains(err.Error(), "lead-proj is not running; nothing was sent") || pasted {
+		t.Fatalf("not live: err = %v, pasted = %v", err, pasted)
 	}
 }
 

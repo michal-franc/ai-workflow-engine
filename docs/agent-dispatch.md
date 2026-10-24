@@ -16,11 +16,52 @@ The board and detail views can dispatch issues to AI agents (Claude or Codex) vi
 
 > **Tip.** Not sure which `terminal` value fits your setup? Ask your coding agent: *"Look at my OS, window manager and installed terminals, then set the `terminal:` field in `projects.yaml` to something that works here."* It can detect i3, GNOME, macOS or WSL, check what's on `$PATH`, and pick the right command, or fall back to `"none"`.
 
+## A human starts the work
+
+The tool runs agents only when a human directs it. Once started, agents work on their own.
+
+- **A human starts the work.** Each worker starts from a dispatch on the board (▶), or from `issue-cli dispatch <slug> --quote "<the human's words>"`, where the words name that worker. The lead runs that command only when you tell it to in its chat, and only for the issues you name. It never starts work on its own: not when planning finishes, not as the next issue, not more workers than you named. The quote is the lead's report of what you said: the tool records it in a `dispatch:` comment but can't check it, and the trail makes it reviewable.
+- **Then agents work on their own.** A started worker runs in auto mode through its one issue's workflow and stops there. It stops at the gates the workflow puts in front of you. In a worker session, `start`, `claim` and `transition` on any other issue fail, and the worker prompt says never to pick the next issue.
+- **No unattended runs.** The tool has no scheduler, timer, overnight batch or auto-dispatch. Don't wrap anything around it (cron, a loop script, a scheduled check-in) that starts or prompts sessions without a human. Unattended runs are outside this tool: use `claude -p` or the Agent SDK with your own API key, not a Claude subscription.
+
+Agents message each other with Claude Code's own `ListAgents` / `SendMessage`. `issue-cli` never pastes into a Claude session on an agent's behalf: `issue-cli lead message` pastes only into Codex sessions, and for a Claude session it prints the `SendMessage` call to make instead.
+
+### Where the tool types into a session
+
+Every place the engine pastes into or starts a session, and what starts it:
+
+| What | Code | Started by |
+|---|---|---|
+| Dispatch a worker | `agentrun.Start` via ▶ / `POST …/dispatch` | your click |
+| | `issue-cli dispatch --quote` | your words, quoted (the lead or your shell) |
+| Re-send prompt | `agentrun.Reprompt` via the button / `POST …/dispatch/reprompt` | your click |
+| | `issue-cli dispatch --reprompt --quote` | your words, quoted |
+| Approval nudge into the worker | `tmuxSendKeys` (`agentrun.SendKeys`) in the approve handler | your Approve click in the viewer |
+| Spawn the lead | `issue-cli lead spawn`, **Spawn lead** (`startLead`) | you |
+| Health review agent | **Run review** on `/health` | your click |
+| | `issue-cli health review --spawn --quote` | your words, quoted |
+| Action buttons (`project_actions:`, issue `actions:`), Review retros | `startAgentSession` via `POST …/action/<id>`, `POST …/retros/review` | your click |
+| Body editor | `nvim` in a tmux window (not an agent) | your click |
+| `issue-cli lead message` | `agentrun.Paste` | the lead; Codex sessions only |
+
+Nothing runs on a timer that reaches a session. The viewer's timers (local CI's watcher, the daily health snapshot) run `make` and `git` and write files; they never paste into or prompt a session. Local CI reports to the Status page, `status.md`, the `ci-red` markers and `ci:` comments, and the lead reads `issue-cli ci status` when you ask.
+
 ## How to Dispatch
 
 - **Board view** — hover a card, click the play button, pick Claude or Codex
 - **Detail view** — two buttons in the sidebar (Claude / Codex)
-- **API** — `POST /p/<project>/issue/<slug>/dispatch` with `{"agent": "claude"}` or `{"agent": "codex"}`
+- **CLI** — `issue-cli dispatch <slug> --quote "<the human's words>" [--how "lead chat"] [--agent claude|codex] [--force] [--reprompt]`. `--quote` is required: without the human's words nothing starts (exit 2). Each start or re-prompt leaves `dispatch: "<words>" (<how>, <date>)` on the issue, signed by the lead when the lead ran it; `--how` defaults to `lead chat` for the lead and `owner's shell` otherwise. One slug per call. It builds the same spec as ▶ (`agentrun.DispatchSpec`: prompt, session, worktree) and starts it through tmux itself, so the viewer doesn't need to be running. It prints the steps, then `Inside tmux:` / `From a shell:` commands to reach the session. Exit codes: 0 started, re-attached or re-prompted; 1 the launch failed, or `--reprompt` found no live worker; 2 usage; 3 waiting on a gate (below). `--json` prints the object the endpoint returns. Workers can't dispatch. Agents should use this rather than the endpoint: a single `issue-cli` permission covers it, so no `curl` allow is needed.
+- **API** — `POST /p/<project>/issue/<slug>/dispatch` with `{"agent": "claude"}` or `{"agent": "codex"}`, plus `"force": true` to skip the gate refusal
+
+### Waiting on a gate
+
+When everything an issue's next transition needs is done except the owner's approval (the same rule as the Status page's "waiting on you" gates, `tracker.WaitingOnGate`), a new worker would only stop at that gate. Dispatch refuses there and starts nothing:
+
+- ▶ shows "Waiting on your approval for <status>", with an **Approve** link and a **Dispatch anyway** button.
+- `POST …/dispatch` answers 409 `{"status": "waiting-on-gate", "gate": "<status>", …}`.
+- `issue-cli dispatch` exits 3 and prints the approve link and the `--force --quote` command.
+
+A gate whose work isn't finished doesn't block: the worker still has something to do. Re-attaching to a live worker is never refused.
 
 ## How the prompt is delivered
 
@@ -42,7 +83,7 @@ Dispatch then polls the pane for the prompt's last line. It reports the step **P
 
 ### Re-send prompt
 
-If an agent came up without its briefing, use **Re-send prompt** in the issue sidebar, or the link in the reattach banner. It sends `POST /p/<project>/issue/<slug>/dispatch/reprompt`, which pastes the current briefing into the issue's live session through a per-session named tmux buffer and submits it. It asks for confirmation first. If no agent session is alive, it fails with "No live agent session" and creates nothing; dispatch instead.
+If an agent came up without its briefing, use **Re-send prompt** in the issue sidebar, the link in the reattach banner, or `issue-cli dispatch <slug> --reprompt --quote "<the human's words>"`. All three run `agentrun.Reprompt` (the button through `POST /p/<project>/issue/<slug>/dispatch/reprompt`), which pastes the current briefing into the issue's live session through a per-session named tmux buffer and submits it. It asks for confirmation first. If no agent session is alive, it fails with "No live agent session" and creates nothing; dispatch instead.
 
 ### Read the prompt without dispatching
 
@@ -78,7 +119,17 @@ The terminal that opens for the agent session is configurable via the `terminal`
   terminal: "alacritty -e tmux attach -t {{session}}"
 ```
 
-The handler substitutes `{{session}}` with the tmux session name and runs the command via `sh -c`.
+The handler fills in the placeholders below and runs the command via `sh -c`. Each value is shell-quoted when it isn't safe to type unquoted.
+
+| Placeholder   | Becomes |
+|:--------------|:--------|
+| `{{session}}` | the tmux session to attach: the shared session in shared mode, otherwise the agent's own |
+| `{{project}}` | the project slug |
+| `{{name}}`    | the agent's name: `agent-<slug>`, `lead-<project>`, or `agent-<slug>-edit` for **Edit in nvim** |
+| `{{role}}`    | `lead`, `worker` or `editor` |
+| `{{window}}`  | the agent's exact tmux target, e.g. `'=work:=agent-<slug>'` in shared mode, ready for `tmux select-window -t {{window}}` |
+
+`terminal:` is for workers and the editor. The project lead follows [`lead_terminal:`](#lead-terminal) instead.
 
 ### Examples
 
@@ -95,7 +146,7 @@ If `terminal` is unset, defaults to i3 + alacritty, with the window titled after
 - `switch_cmd` is for a shell already inside tmux, e.g. `tmux switch-client -t agent-<slug>`. A plain `tmux attach` refuses to nest there.
 - `attach_cmd` is for a plain shell, e.g. `tmux attach -t agent-<slug>`.
 
-`issue-cli lead spawn` prints both, as `Inside tmux:` and `From a shell:`.
+`issue-cli lead spawn` prints both, as `Inside tmux:` and `From a shell:`, whenever the lead is headless.
 
 A `terminal:` at the top of `projects.yaml` is the default for every project that doesn't set its own (see [One terminal, a session per project](#one-terminal-a-session-per-project)).
 
@@ -176,6 +227,57 @@ set -g status-left '#{S:#{?#{m:_*,#{session_name}},,#{?session_attached,#[fg=bla
 
 The project lead and every worker, epic children included, live in the same project session, so the grouping is per project, not per epic.
 
+## Lead terminal
+
+`lead_terminal:` decides what opens when the project lead starts or is opened: `issue-cli lead spawn`, **Spawn lead**, and **Open** on the agents canvas. Workers (▶ and `issue-cli dispatch`) keep using `terminal:`, so you can see the lead and leave the workers headless.
+
+| `lead_terminal:` | What happens |
+|:-----------------|:-------------|
+| unset or `none`  | Nothing opens. The response carries `switch_cmd` and `attach_cmd`, as with `terminal: none`. This holds even when `terminal:` is set. |
+| `tmux-window`    | The lead becomes a tab in your own tmux session (below). |
+| any other text   | A shell command, run like `terminal:` with the same placeholders (`{{role}}` is `lead`). |
+
+`lead_terminal:` and `lead_window_session:` can go at the top of `projects.yaml` as defaults for every project, or on a project. `lead_window:` is per project only. `issue-cli lead spawn --headless` opens nothing whatever `lead_terminal` says.
+
+### Leads as tabs in your own session
+
+With `lead_terminal: tmux-window`, starting the lead adds one window to the tmux session you work in. That window runs a nested tmux client showing the lead.
+
+```yaml
+# projects.yaml
+terminal: none                  # workers: never open or select anything
+tmux_session_per_project: true  # each project's lead and workers share a session
+lead_terminal: tmux-window      # leads: a tab in your session
+lead_window_session: main       # the session you work in (required for tmux-window)
+projects:
+  - name: "Issue Viewer"
+    slug: "issue-viewer"
+    lead_window: 1              # optional: put this lead's tab at window 1
+  - name: "RogueTech"
+    slug: "roguetech"           # next free window
+```
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ ┌──────────────────────────────────────────────────────────┐ │
+│ │ lead-issue-viewer                                        │ │
+│ │ > _                                                      │ │
+│ │[view-lead-issue-viewer] 0:lead-issue-viewer* 1:agent-a   │ │
+│ └──────────────────────────────────────────────────────────┘ │
+│[main] 0:shell 1:view-lead-issue-viewer* 2:view-lead-roguetech│
+└──────────────────────────────────────────────────────────────┘
+```
+
+- **Detached.** The tab is created in the background. Your current window and your typing stay where they are.
+- **One tab per lead.** The tab is named `view-lead-<project>` and tagged with the tmux option `@iv_lead_view`. Spawning or opening the lead again finds it and leaves it as it is.
+- **Fixed slot.** `lead_window: <n>` puts the tab at index n. If n is taken, the tab goes to the next free index and the steps carry a warning naming both.
+- **Pinned on the lead.** The nested client attaches to `view-lead-<project>`, a session grouped with the project session that selects the lead's window. A grouped session has its own current window, so a worker window selected in the project session doesn't move your tab. It is never listed as an agent.
+- **Closing the tab is safe.** Kill the window, or detach the nested client with `prefix prefix d`. Either way only the view session goes (`destroy-unattached`). The lead keeps running in the project session.
+- **Nested keys.** The outer tmux takes your prefix. Press it twice to send it to the nested client, e.g. `prefix prefix n`.
+- **Misconfigured.** Without `lead_window_session`, or with a session that isn't running, nothing is created. The steps carry a warning naming what's missing, and the lead is headless with the attach commands. If `lead_window_session` names the lead's own project session, the lead window is already there and nothing is added.
+
+**Don't move the lead's real pane** into your session with `join-pane` or `break-pane`. That empties the project session, tmux then closes it, and the lead dies. The tab is the safe way to keep a lead in view. To reach the lead without a tab, use `tmux switch-client -t '=<project>:=lead-<project>'` from inside tmux.
+
 ## Per-issue Worktrees
 
 Set `worktree: true` at the top of `workflow.yaml` to give every dispatched issue its own git worktree:
@@ -197,11 +299,12 @@ Epics and their children get worktrees like any other issue: `work/<slug>` from 
 
 There is one lead per project. It runs in tmux like a worker, as `lead-<project>`, in the project checkout. Start it with `issue-cli lead spawn`, or the **Spawn lead** button in the sidebar's Actions or on the agents canvas (`POST /p/<project>/lead/spawn`, body `{}`). A live lead is re-attached, never started twice.
 
-- Leads use the same launcher, terminal, `tmux_session` and `agent_model_source` settings as dispatched workers.
+- Leads use the same launcher, `tmux_session` and `agent_model_source` settings as dispatched workers. What opens for them is [`lead_terminal:`](#lead-terminal), not `terminal:`.
 - Its brief comes from `leads.project` in `workflow.yaml`, or the built-in default.
 - A `lead-*` session is never counted as an active agent on an issue, even when its name contains the issue's slug.
 - Every worker's dispatch prompt has a `## Your lead` section naming the project lead and the issue's epic.
-- Agents message each other with Claude Code's own `ListAgents` / `SendMessage`, addressed by tmux name. The tool builds nothing on top of it; the briefs just say it is there. A session in a different permission mode from the sender holds incoming messages for its human's approval, as Claude Code does out of the box.
+- Agents message each other with Claude Code's own `ListAgents` / `SendMessage`, addressed by tmux name. The tool builds nothing on top of it; the briefs just say it is there. `issue-cli lead message` pastes only into Codex sessions; for a Claude session it refuses and prints the `SendMessage` call.
+- The lead dispatches only the workers you name in its chat, with `issue-cli dispatch --quote` (see [A human starts the work](#a-human-starts-the-work)). A session in a different permission mode from the sender holds incoming messages for its human's approval, as Claude Code does out of the box.
 
 See [The lead session](patterns/lead-session.md) for roles, routing and authority.
 
@@ -212,7 +315,11 @@ When `workflow.yaml` has a `ci:` block ([Workflow: Local CI](workflow.md#local-c
 - The dispatch prompt has a `## Local CI` section with the one-line state of the integration branch. While main is red it says the failure is inherited, so the agent doesn't debug it as its own, and it tells the agent never to wait for CI after its merge.
 - `issue-cli start` prints the same line, and `transition --to done` reminds the agent that CI runs without it.
 - CI runs live in tmux as `ci-<project>`: a session of their own, or a window in the project's `tmux_session`. The name is not an agent prefix, so the agents canvas never shows it as an agent.
-- A red run sends the live lead a `[from ci]` message with `issue-cli lead message`'s paste mechanism, and the text is saved under `.agent-logs/lead-<project>/messages/`.
+- CI never messages the lead: CI runs on a timer, and nothing on a timer prompts a session. A red run reaches the Status page, `status.md`, the `ci-red` markers and the merged issues' `ci:` comments; the lead reads `issue-cli ci status` when you ask, at check-ins and before a push. (Before 0.54 a red run pasted a `[from ci]` message into the live lead.)
+
+## Other machines and cloud sessions
+
+A session started anywhere but this machine works against the same repos this one does. With `privacy.work_files: tracker` it clones the private tracker too and runs `issue-cli tracker sync` before work (pull) and after (push). With `privacy.code: snapshots` it clones the private dev repo, never the public one, and opens its PRs there: a cloud session that opens a PR on the public repo publishes it, and GitHub never lets a PR be removed (that is how PR #62 went public). See [Workflow: Private work and code](workflow.md#private-work-and-code).
 
 ## Agent Model
 
@@ -243,9 +350,11 @@ The `issue-approve` Claude Code mod (`claude-mods/issue-approve/` in this repo) 
 
 - The buttons come from `GET /p/<project>/issue/<slug>/approvals.json`: the approval-gated transitions out of the issue's current status, with the workflow's type and system overlays applied. It is the same list as the detail page's Human Approval box (both read `issueApprovals`).
 - The mod refreshes at session start, every 15 seconds, after each agent turn and after a press.
-- It reads `ISSUE_VIEWER_ISSUE_SLUG`, `ISSUE_VIEWER_URL` and `ISSUE_VIEWER_PROJECT`. An agent dispatched before `ISSUE_VIEWER_PROJECT` existed asks `GET /project-for?cwd=<its folder>`, which names the project whose work directory holds that folder (the most nested wins).
+- It reads `ISSUE_VIEWER_ISSUE_SLUG` and `ISSUE_VIEWER_PROJECT`, and gets the board's address from `issue-cli projects --json` (`viewer_url`). An agent dispatched before `ISSUE_VIEWER_PROJECT` existed asks `GET /project-for?cwd=<its folder>`, which names the project whose work directory holds that folder (the most nested wins).
 - A session with no issue slug (a lead, a session you started yourself) shows nothing.
 - **Playtest:** when the issue waits on your playtest (status `human-testing`, or a project's own `playtest…` status) and the worktree's Makefile has a `playtest` target (`make -n playtest` at session start), the band also shows **▶ Playtest**. It runs `make playtest ISSUE=<slug>` in the agent's worktree for as long as you need; when it ends, **✓ Report** runs `make playtest-report ISSUE=<slug> APPLY=1`, which ticks the passed boxes, and the approve buttons are back for documentation. A toast says how each ended.
+
+- **Run checks:** when the issue waits on the owner (the same rule as Playtest) and `issue-cli --project <p> check-script <slug> --list` finds a [guided check script](patterns/guided-check-scripts.md) (probed at session start and after each turn, since the agent writes the script during the session), the band shows **▶ Run checks**. A script asks questions, so the mod can't run it itself: the button POSTs the board's `…/check-script`, which opens tmux window `check-script-<slug>` in the worktree, and a toast says it started (or, headless, how to reach it). With a playtest due as well, both buttons show.
 
 Install it once, at user scope, from this repo's folder:
 
@@ -272,10 +381,13 @@ Do not wait or poll: re-run this command only after the human says it is approve
 
 The fragment `#approve-<status>` matches the `id` on the approve button in the detail view, so clicking the link scrolls to and visually flashes the right control. For optional approvals (the ones hidden behind a "Divert to..." CTA), the page also auto-reveals the widget when the URL fragment matches.
 
-The base URL comes from:
+The base URL comes from the same place for every link the CLI prints and every call it makes to the viewer (`viewerstate.BaseURL`):
 
-1. `ISSUE_VIEWER_URL` env var (set automatically in dispatched sessions — see below)
-2. Default `http://localhost:8080`
+1. `viewer_url:` at the top of `projects.yaml`, e.g. `viewer_url: "https://issues.example.com"` (http or https with a host; a trailing `/` is trimmed, a path prefix is kept; anything else fails the config load)
+2. The running viewer's own address, from `viewer.json`, when that viewer serves the same config
+3. Default `http://localhost:8080`
+
+The viewer doesn't rebuild URLs from the request's `Host` header, and `ISSUE_VIEWER_URL` is no longer read or set. `issue-cli projects --json` gives each project's `viewer_url`.
 
 ## Environment Variables
 
@@ -286,5 +398,4 @@ Dispatched agents start with these set (passed to tmux with `-e`):
 - `ISSUE_VIEWER_ISSUE_SLUG` — slug of the dispatched issue (attached to bug reports automatically)
 - `ISSUE_VIEWER_LEAD_SCOPE` — the lead's session only: `project`. `issue-cli lead whoami`, `approve` and `lead spawn` read it to know who is asking; any other value is ignored.
 - `ISSUE_VIEWER_PROJECT` — the project's slug (read by the `issue-approve` mod)
-- `ISSUE_VIEWER_URL` — base URL of the dispatching server, reconstructed from the inbound request's `Host` (and `X-Forwarded-Host`/`X-Forwarded-Proto` if behind a proxy). The CLI uses it to build approval-gate deep links so dispatched bots' errors point back at the same host the human just clicked from.
 - `ISSUE_VIEWER_CONFIG` — the config path the viewer was started with, when it has one in its environment

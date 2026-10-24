@@ -274,7 +274,7 @@ func truncateRunes(s string, n int) string {
 
 // decisionsURL links the viewer's Decisions tab.
 func decisionsURL(proj *tracker.Project) string {
-	base := strings.TrimRight(viewerBaseURL(), "/")
+	base := viewerBaseURL(proj)
 	if proj != nil {
 		return fmt.Sprintf("%s/p/%s/decisions", base, proj.Slug)
 	}

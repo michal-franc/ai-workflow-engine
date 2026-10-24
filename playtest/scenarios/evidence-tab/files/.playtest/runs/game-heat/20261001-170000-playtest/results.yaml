@@ -1,0 +1,16 @@
+session: game-heat
+issue: ui/evidence-game
+mode: playtest
+build: b5de0554
+seed: 13
+started: 2026-10-01T17:00:00
+steps:
+- id: MV7
+  title: The overheated Sniper holds fire with its target in range
+  judgement: true
+  status: pass
+  verdict: pass
+  checks:
+  - kind: state
+    subject: "battle.ai.last.1 has { action: hold, reason: hold_heat }"
+    passed: true

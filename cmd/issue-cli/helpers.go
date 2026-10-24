@@ -173,14 +173,33 @@ func formatProjectList(projects []tracker.Project, defaultSlug string) string {
 }
 
 // agentNameForSlug returns the assignee name used by `start` and `claim` when
-// the user does not pass --assignee. The AGENT_NAME env var, if set by a
-// dispatched session, takes precedence.
+// the user does not pass --assignee: the worker's session name
+// (agent-<slug>), which is also its SendMessage address. The AGENT_NAME env
+// var, if set by a dispatched session, takes precedence.
 func agentNameForSlug(slug string) string {
 	if name := os.Getenv("AGENT_NAME"); name != "" {
 		return name
 	}
-	base := filepath.Base(slug)
-	return "agent-" + base
+	return tracker.AgentSessionName(slug)
+}
+
+// ownIssueOnly refuses a worker acting on any issue but its own: a worker runs
+// its one issue's workflow and stops. Leads, humans and workers whose issue
+// is unknown pass. verb names the command for the message.
+func ownIssueOnly(ctx *Context, issues []*tracker.Issue, issue *tracker.Issue, verb string) error {
+	me := whoAmI(ctx.Project, issues)
+	if me.Role != tracker.RoleWorker || me.Slug == "" {
+		return nil
+	}
+	own := me.Slug
+	if found := tracker.FindIssue(issues, own); found != nil {
+		own = found.Slug
+	}
+	if issue.Slug == own {
+		return nil
+	}
+	return fmt.Errorf("you work on %s only; ask your lead. %s %s changed nothing.\n\nA worker runs its own issue's workflow and stops: it doesn't start, claim or move another issue. Ask on your issue trail:\n  %s",
+		own, verb, issue.Slug, tracker.InjectProject(ctx.Project, fmt.Sprintf("issue-cli comment %s \"question: ...\"", own)))
 }
 
 // projectRoot returns the directory used as the project root for sidecar

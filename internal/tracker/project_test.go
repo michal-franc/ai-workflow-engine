@@ -3,6 +3,7 @@ package tracker
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -79,6 +80,31 @@ projects:
 `)
 	if p := projects[0]; p.Terminal != "" || p.TmuxSession != "" {
 		t.Errorf("no top-level keys must change nothing: terminal %q, tmux_session %q", p.Terminal, p.TmuxSession)
+	}
+}
+
+// lead_terminal and lead_window_session default from the top level like
+// terminal does; lead_window is per project only, and 0 is a real index.
+func TestLoadProjects_LeadTerminalDefaults(t *testing.T) {
+	fp := filepath.Join(t.TempDir(), "projects.yaml")
+	os.WriteFile(fp, []byte(`lead_terminal: tmux-window
+lead_window_session: main
+projects:
+  - name: "Inherits"
+  - name: "Own"
+    lead_terminal: "none"
+    lead_window_session: "other"
+    lead_window: 0
+`), 0644)
+	projects, err := LoadProjects(fp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p := projects[0]; p.LeadTerminal != "tmux-window" || p.LeadWindowSession != "main" || p.LeadWindow != nil {
+		t.Errorf("inheriting project: lead_terminal %q, lead_window_session %q, lead_window %v", p.LeadTerminal, p.LeadWindowSession, p.LeadWindow)
+	}
+	if p := projects[1]; p.LeadTerminal != "none" || p.LeadWindowSession != "other" || p.LeadWindow == nil || *p.LeadWindow != 0 {
+		t.Errorf("a project's own values must win: lead_terminal %q, lead_window_session %q, lead_window %v", p.LeadTerminal, p.LeadWindowSession, p.LeadWindow)
 	}
 }
 
@@ -248,5 +274,29 @@ func TestLoadProjects_AgentModel(t *testing.T) {
 	os.WriteFile(fp, []byte("projects:\n  - name: \"C\"\n    agent_model_source: bogus\n"), 0644)
 	if _, err := LoadProjects(fp); err == nil {
 		t.Error("expected error for invalid agent_model_source")
+	}
+}
+
+func TestLoadProjects_ViewerURL(t *testing.T) {
+	fp := filepath.Join(t.TempDir(), "projects.yaml")
+	os.WriteFile(fp, []byte("viewer_url: \"https://issues.example.com/viewer/\"\nprojects:\n  - name: \"A\"\n  - name: \"B\"\n"), 0644)
+	projects, err := LoadProjects(fp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range projects {
+		if p.ViewerURL != "https://issues.example.com/viewer" {
+			t.Errorf("%s: ViewerURL %q, want the top-level value without its trailing slash", p.Name, p.ViewerURL)
+		}
+		if p.ConfigPath != fp {
+			t.Errorf("%s: ConfigPath %q, want %q", p.Name, p.ConfigPath, fp)
+		}
+	}
+
+	for _, bad := range []string{"localhost:8080", "ftp://host", "http://"} {
+		os.WriteFile(fp, []byte("viewer_url: \""+bad+"\"\nprojects:\n  - name: \"A\"\n"), 0644)
+		if _, err := LoadProjects(fp); err == nil || !strings.Contains(err.Error(), "viewer_url") {
+			t.Errorf("viewer_url %q: want a config error naming viewer_url, got %v", bad, err)
+		}
 	}
 }

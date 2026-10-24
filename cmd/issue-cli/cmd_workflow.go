@@ -7,7 +7,8 @@ import (
 const workflowUsage = `Usage:
   issue-cli workflow init [--template <name>] [--force]
   issue-cli workflow upgrade [--template <name>] [--all]
-  issue-cli workflow scan [--dry-run] [--installed <ids>] [--declined <ids>] [--forget <ids>]`
+  issue-cli workflow scan [--dry-run] [--installed <ids>] [--declined <ids>] [--forget <ids>]
+  issue-cli workflow catalog-check [--base main]`
 
 var workflowCommand = &Command{
 	Name:      "workflow",
@@ -20,6 +21,8 @@ Subcommands:
                                        (agents: only when the operator asks; see issue-cli help upgrade)
   scan [--dry-run] [flags]             detect which catalog features workflow.yaml has and write its
                                        features: record (installed <id>@<version>, declined <id>)
+  catalog-check [--base main]          issue-cli developers: a branch that changes a feature's code or a
+                                       bundled template bumps its catalog version (make validate runs it)
 
 Feature record (top level of workflow.yaml, next to template:):
   features:
@@ -35,7 +38,7 @@ until --forget, and declined ids stay declined until --forget re-opens them.
 
 ` + scanUsage,
 	Run:         runWorkflow,
-	Subcommands: []string{"init", "upgrade", "scan"},
+	Subcommands: []string{"init", "upgrade", "scan", "catalog-check"},
 }
 
 func init() {
@@ -54,6 +57,8 @@ func runWorkflow(ctx *Context, args []string) error {
 		return runWorkflowUpgrade(ctx, rest)
 	case "scan":
 		return runWorkflowScan(ctx, rest)
+	case "catalog-check":
+		return runCatalogCheck(ctx, rest)
 	default:
 		return fmt.Errorf("unknown workflow subcommand: %s\n\n%s", sub, workflowUsage)
 	}

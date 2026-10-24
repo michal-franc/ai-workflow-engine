@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"os/exec"
@@ -76,7 +77,7 @@ func TestStartAgentSession_ReattachWhenSessionExists(t *testing.T) {
 		return true
 	})
 
-	resp := startAgentSession(proj, session, "do the work", "bug-in-login", "claude", "", nil)
+	resp := startAgentSession(proj, session, "do the work", "bug-in-login", "claude", nil)
 
 	if resp.Status != "reattached" {
 		t.Fatalf("Status = %q, want reattached", resp.Status)
@@ -128,7 +129,7 @@ func TestStartAgentSession_DoesNotReattachWhenSessionMissing(t *testing.T) {
 
 	withMockTmuxHasSession(t, func(string) bool { return false })
 
-	resp := startAgentSession(proj, session, "prompt", "slug", "true", "", nil)
+	resp := startAgentSession(proj, session, "prompt", "slug", "true", nil)
 	if resp.Status == "reattached" {
 		t.Fatalf("Status = reattached when session does not exist; steps=%+v", resp.Steps)
 	}
@@ -378,7 +379,7 @@ actions:
 
 	var gotPrompt, gotSession, gotIssueSlug, gotAgent string
 	origDispatch := dispatchAgentSession
-	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType, _ string, wf *tracker.WorkflowConfig) DispatchResponse {
+	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType string, wf *tracker.WorkflowConfig) DispatchResponse {
 		gotPrompt, gotSession, gotIssueSlug, gotAgent = prompt, session, issueSlug, agentType
 		return DispatchResponse{Status: "dispatched", Prompt: prompt, Session: session}
 	}
@@ -420,7 +421,7 @@ func TestHandleCustomAction_UnknownActionReturns404(t *testing.T) {
 
 	called := false
 	origDispatch := dispatchAgentSession
-	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType, _ string, _ *tracker.WorkflowConfig) DispatchResponse {
+	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType string, _ *tracker.WorkflowConfig) DispatchResponse {
 		called = true
 		return DispatchResponse{}
 	}
@@ -465,7 +466,7 @@ project_actions:
 
 	var gotPrompt, gotSession, gotIssueSlug, gotAgent string
 	origDispatch := dispatchAgentSession
-	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType, _ string, wf *tracker.WorkflowConfig) DispatchResponse {
+	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType string, wf *tracker.WorkflowConfig) DispatchResponse {
 		gotPrompt, gotSession, gotIssueSlug, gotAgent = prompt, session, issueSlug, agentType
 		return DispatchResponse{Status: "dispatched", Prompt: prompt, Session: session}
 	}
@@ -507,7 +508,7 @@ func TestHandleProjectAction_UnknownActionReturns404(t *testing.T) {
 
 	called := false
 	origDispatch := dispatchAgentSession
-	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType, _ string, _ *tracker.WorkflowConfig) DispatchResponse {
+	dispatchAgentSession = func(_ *tracker.Project, session, prompt, issueSlug, agentType string, _ *tracker.WorkflowConfig) DispatchResponse {
 		called = true
 		return DispatchResponse{}
 	}
@@ -864,7 +865,7 @@ func TestStartAgentSession_SharedSessionAddsWindows(t *testing.T) {
 	isolateTmux(t)
 	proj := &tracker.Project{Slug: "test", Terminal: "none", TmuxSession: "work", WorkDir: t.TempDir()}
 
-	first := startAgentSession(proj, "agent-a", "prompt", "a", "true", "", nil)
+	first := startAgentSession(proj, "agent-a", "prompt", "a", "true", nil)
 	if first.Status != "dispatched" {
 		t.Fatalf("first dispatch Status = %q; steps=%+v", first.Status, first.Steps)
 	}
@@ -875,7 +876,7 @@ func TestStartAgentSession_SharedSessionAddsWindows(t *testing.T) {
 		t.Fatalf("AttachCmd = %q, want it to attach to the shared session", first.AttachCmd)
 	}
 
-	second := startAgentSession(proj, "agent-b", "prompt", "b", "true", "", nil)
+	second := startAgentSession(proj, "agent-b", "prompt", "b", "true", nil)
 	if second.Status != "dispatched" {
 		t.Fatalf("second dispatch Status = %q; steps=%+v", second.Status, second.Steps)
 	}
@@ -898,7 +899,7 @@ func TestStartAgentSession_SharedSessionAddsWindows(t *testing.T) {
 		t.Fatalf("shared agent windows = %+v", windows)
 	}
 
-	again := startAgentSession(proj, "agent-a", "prompt", "a", "true", "", nil)
+	again := startAgentSession(proj, "agent-a", "prompt", "a", "true", nil)
 	if again.Status != "reattached" {
 		t.Fatalf("re-dispatch Status = %q, want reattached; steps=%+v", again.Status, again.Steps)
 	}
@@ -925,7 +926,7 @@ func TestStartAgentSession_SharedHeadlessKeepsLeadFocused(t *testing.T) {
 	}
 
 	for _, name := range []string{"agent-a", "agent-b", "agent-a"} {
-		resp := startAgentSession(proj, name, "prompt", strings.TrimPrefix(name, "agent-"), "true", "", nil)
+		resp := startAgentSession(proj, name, "prompt", strings.TrimPrefix(name, "agent-"), "true", nil)
 		if resp.Status == "error" {
 			t.Fatalf("dispatch %s: steps=%+v", name, resp.Steps)
 		}
@@ -946,7 +947,7 @@ func TestStartAgentSession_SharedHeadlessKeepsLeadFocused(t *testing.T) {
 	original := agentrun.SessionAttached
 	agentrun.SessionAttached = func(string) bool { return true }
 	t.Cleanup(func() { agentrun.SessionAttached = original })
-	if resp := startAgentSession(withTerminal, "agent-c", "prompt", "c", "true", "", nil); resp.Status == "error" || resp.SwitchCmd != "" {
+	if resp := startAgentSession(withTerminal, "agent-c", "prompt", "c", "true", nil); resp.Status == "error" || resp.SwitchCmd != "" {
 		t.Fatalf("dispatch with a terminal: status %q, switch %q; steps=%+v", resp.Status, resp.SwitchCmd, resp.Steps)
 	}
 	if got := activeWindow(t, "work"); got != "lead-test" {
@@ -990,5 +991,71 @@ func TestAttachAgentStep_SharedSessionDetachedOpensTerminal(t *testing.T) {
 	}
 	if !opened {
 		t.Fatalf("expected a terminal to be opened on the detached shared session; steps=%+v", steps)
+	}
+}
+
+// An issue whose next gate only waits on the owner's approval is refused by
+// ▶ (409, the gate named, nothing started); force dispatches anyway. The
+// refusal is agentrun.DispatchSpec's, shared with `issue-cli dispatch`.
+func TestHandleDispatchAgent_RefusesAtAReadyGateUnlessForced(t *testing.T) {
+	proj, tmpDir := setupTestProject(t)
+	wfPath := filepath.Join(tmpDir, "workflow.yaml")
+	if err := os.WriteFile(wfPath, []byte(`statuses:
+  - name: "in progress"
+  - name: "testing"
+transitions:
+  - from: "in progress"
+    to: "testing"
+    actions:
+      - type: "require_human_approval"
+        status: "testing"
+`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	proj.WorkflowFile = wfPath
+	origHas := agentrun.HasSession
+	agentrun.HasSession = func(string) bool { return false }
+	t.Cleanup(func() { agentrun.HasSession = origHas })
+
+	var started []agentrun.Spec
+	origStart := startDispatch
+	startDispatch = func(_ *tracker.Project, spec agentrun.Spec) DispatchResponse {
+		started = append(started, spec)
+		return DispatchResponse{Status: "dispatched", Session: spec.Session}
+	}
+	t.Cleanup(func() { startDispatch = origStart })
+
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+
+	post := func(body string) (*http.Response, DispatchResponse) {
+		t.Helper()
+		resp, err := http.Post(ts.URL+"/p/test-project/issue/bug-in-login/dispatch", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var dr DispatchResponse
+		json.NewDecoder(resp.Body).Decode(&dr)
+		return resp, dr
+	}
+
+	resp, dr := post(`{"agent":"claude"}`)
+	if resp.StatusCode != http.StatusConflict || dr.Status != agentrun.StatusWaitingOnGate || dr.Gate != "testing" {
+		t.Fatalf("status %d, response %+v; want 409 waiting-on-gate for testing", resp.StatusCode, dr)
+	}
+	if len(dr.Steps) != 1 || !strings.Contains(dr.Steps[0].Detail, "issue-cli --project test-project dispatch bug-in-login --force") {
+		t.Fatalf("steps = %+v, want the --force hint", dr.Steps)
+	}
+	if len(started) != 0 {
+		t.Fatalf("a refused dispatch started %+v", started)
+	}
+
+	resp, dr = post(`{"agent":"codex","force":true}`)
+	if resp.StatusCode != http.StatusOK || dr.Status != "dispatched" {
+		t.Fatalf("forced: status %d, response %+v", resp.StatusCode, dr)
+	}
+	if len(started) != 1 || started[0].AgentType != "codex" || started[0].Session != "agent-bug-in-login" || started[0].RepromptHint != "issue-cli --project test-project dispatch bug-in-login --reprompt --quote \"<the human's words>\"" {
+		t.Fatalf("started = %+v", started)
 	}
 }

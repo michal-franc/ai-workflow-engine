@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.ProjectName}} — Updates</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 1v9M4 6l4 4 4-4M2 14h12' stroke='%23f0b866' stroke-width='2' fill='none'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+<div class="app">
+{{template "sidebar" (sidebar .Prefix "updates")}}
+<div class="app-main">
+    <main class="container wb-page updates" data-testid="updates.page">
+        <div class="wb-head">
+            <div>
+                <h2 class="wb-title">Updates</h2>
+                <p class="wb-sub">Workflow features this project's workflow.yaml doesn't use yet. Nothing changes until you install one.</p>
+            </div>
+        </div>
+
+        {{if .Flash}}<div class="health-flash updates-flash{{if .FlashErr}} error{{end}}" role="status" data-testid="updates.flash"><span>{{.Flash}}</span>{{if .Undo}}<form method="post" action="{{.Prefix}}/updates/reopen"><input type="hidden" name="id" value="{{.Undo}}"><button type="submit" class="btn btn-sm" data-testid="updates.undo">Undo</button></form>{{end}}</div>{{end}}
+
+        <section class="card updates-template" aria-label="Template" data-testid="updates.template">
+            <div class="updates-field">
+                <span class="label">Template</span>
+                <span class="updates-stamp"><span class="mono">{{if .Current}}{{.Template}}@{{.Current}}{{else}}{{.Template}} (no stamp){{end}}</span><span class="muted" aria-hidden="true">→</span><span class="mono">{{.Latest}}</span><span class="chip {{.StateClass}}" data-testid="updates.state">{{.State}}</span></span>
+            </div>
+            <div class="updates-field">
+                <span class="label">Record</span>
+                {{if .HasRecord}}<span><a href="#installed">{{len .Installed}} installed</a> · <a href="#declined">{{len .Declined}} declined</a></span>{{else}}<span>none yet: <code>issue-cli workflow scan</code> writes it</span>{{end}}
+            </div>
+            <div class="updates-field updates-terminal">
+                <span class="label">From a terminal</span>
+                <code>issue-cli workflow upgrade</code>
+            </div>
+        </section>
+
+        {{if not .Total}}
+        <div class="wb-empty" data-testid="updates.empty">
+            <div class="wb-empty-icon">✓</div>
+            <h3>Up to date</h3>
+            <p>workflow.yaml has, or has declined, every feature the bundled catalog offers.</p>
+        </div>
+        {{else}}
+        <div class="wb-chips updates-chips" data-testid="updates.filters">
+            <span class="label">{{.Total}} to decide</span>
+            {{range .Chips}}<a href="{{.Href}}" class="wb-chip{{if .Active}} active{{end}}" data-testid="updates.filter.{{tid .Name}}">{{if eq .Name "all"}}All{{else}}{{.Name}}{{end}} {{.Count}}</a>{{end}}
+        </div>
+
+        <div class="updates-cards">
+        {{range .Cards}}
+            <article class="card updates-card{{if .Open}} open{{end}}" aria-label="{{.ID}}" data-testid="updates.card.{{tid .ID}}">
+                <div class="updates-card-head">
+                    <h3>{{if eq .Kind "update"}}Update: {{end}}{{.Title}}</h3>
+                    <span class="mono muted">{{.ID}}@{{.Version}}</span>
+                    <span class="chip updates-cat-{{.Category}}">{{.Category}}</span>
+                    {{if eq .Kind "update"}}<span class="chip">you have {{.Installed}}</span>{{end}}
+                    {{if .Installing}}<span class="chip chip-green" data-testid="updates.card.{{tid .ID}}.installing"><span aria-hidden="true">●</span> installing</span>{{end}}
+                </div>
+                <p class="updates-what">{{.SummaryHTML}}</p>
+                {{if .Installing}}
+                <p class="updates-running" data-testid="updates.card.{{tid .ID}}.session"><span class="mono">{{.Session}}</span> is installing it with you. Attach: <code>{{.AttachCmd}}</code> · <a href="{{$.Prefix}}/agents">Agents</a>. The card leaves the list once <code>workflow scan</code> records it.</p>
+                {{end}}
+                <div class="updates-actions">
+                    <details class="updates-details" data-testid="updates.card.{{tid .ID}}.details">
+                        <summary class="btn">Details</summary>
+                        <dl class="updates-dl">
+                            <dt>What</dt><dd>{{.WhatHTML}}</dd>
+                            <dt>Why</dt><dd>{{.WhyHTML}}</dd>
+                            <dt>Where</dt><dd><code>{{.Where}}</code></dd>
+                            <dt>Ask</dt><dd class="updates-ask">{{.Question}}</dd>
+                        </dl>
+                        <pre class="updates-snippet" data-testid="updates.card.{{tid .ID}}.snippet">{{.Snippet}}</pre>
+                        {{if .Setup}}<div class="updates-setup" data-testid="updates.card.{{tid .ID}}.setup">
+                            <span class="label">What installing does</span>
+                            <ol>{{range .Setup}}<li><span class="chip{{if eq .Who "owner"}} chip-amber{{end}}">{{if eq .Who "owner"}}you{{else}}agent{{end}}</span> {{.Do}}</li>{{end}}</ol>
+                        </div>{{end}}
+                    </details>
+                    {{if not .Installing}}
+                    <details class="updates-install"{{if .Open}} open{{end}}>
+                        <summary class="btn btn-primary" data-testid="updates.card.{{tid .ID}}.install">Install with an agent</summary>
+                        <form method="post" action="{{$.Prefix}}/updates/install" class="updates-install-form">
+                            <input type="hidden" name="id" value="{{.ID}}">
+                            <p>An agent starts in tmux in this project's checkout, asks you the question below, edits workflow.yaml, runs <code>issue-cli process workflow</code> and <code>workflow scan</code>, and shows you the diff. It commits only when you say so.</p>
+                            <label for="words-{{.ID}}" class="label">Your answer to "{{.Question}}" (optional)</label>
+                            <textarea id="words-{{.ID}}" name="words" rows="2" data-testid="updates.card.{{tid .ID}}.words"></textarea>
+                            <button type="submit" class="btn btn-primary" data-testid="updates.card.{{tid .ID}}.start">Start the agent</button>
+                        </form>
+                    </details>
+                    <form method="post" action="{{$.Prefix}}/updates/decline" class="updates-decline">
+                        <input type="hidden" name="id" value="{{.ID}}">
+                        <button type="submit" class="btn" data-testid="updates.card.{{tid .ID}}.decline">Decline</button>
+                    </form>
+                    {{end}}
+                </div>
+            </article>
+        {{else}}
+            <p class="muted">Nothing in this category.</p>
+        {{end}}
+        </div>
+        {{end}}
+
+        {{if .Installed}}
+        <section id="installed" class="updates-installed" aria-label="Installed" data-testid="updates.installed">
+            <h3 class="label">Installed · {{len .Installed}}</h3>
+            <div class="updates-ids">{{range .Installed}}<span class="chip mono">{{.}}</span>{{end}}</div>
+        </section>
+        {{end}}
+
+        {{if .Declined}}
+        <section id="declined" class="card updates-declined" aria-label="Declined" data-testid="updates.declined">
+            <h3 class="label">Declined · {{len .Declined}} · never proposed again until re-opened</h3>
+            {{range .Declined}}
+            <div class="updates-declined-row{{if .Just}} just{{end}}" data-testid="updates.declined.{{tid .ID}}">
+                <span class="mono">{{.ID}}</span>
+                <span class="muted">{{.Title}}{{if .Just}} · just now{{end}}</span>
+                <form method="post" action="{{$.Prefix}}/updates/reopen">
+                    <input type="hidden" name="id" value="{{.ID}}">
+                    <button type="submit" class="btn btn-sm" data-testid="updates.declined.{{tid .ID}}.reopen">Re-open</button>
+                </form>
+            </div>
+            {{end}}
+        </section>
+        {{end}}
+    </main>
+</div>
+</div>
+</body>
+</html>

@@ -153,7 +153,8 @@ func (w *WorkflowConfig) recordTransitionStat(filePath, slug, fromStatus, toStat
 // folderSlug puts the issue's folder under issuesRoot in front of slug, as
 // LoadIssues does (ParseIssue alone gives the bare title slug).
 func folderSlug(issuesRoot, filePath, slug string) string {
-	if issuesRoot == "" || slug == "" {
+	// A slug with a "/" already has its folder (base slugs never do).
+	if issuesRoot == "" || slug == "" || strings.Contains(slug, "/") {
 		return slug
 	}
 	rel, err := filepath.Rel(issuesRoot, filepath.Dir(filePath))
@@ -416,6 +417,7 @@ func (w *WorkflowConfig) ApplyTransitionToFileWithFields(filePath, toStatus stri
 			return err
 		}
 		issue.FilePath = filePath
+		issue.Slug = folderSlug(w.IssuesRoot, filePath, issue.Slug)
 
 		rawBody, err := ParseFrontmatter(string(data), &Issue{})
 		if err != nil {

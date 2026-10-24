@@ -99,6 +99,7 @@ A path listed twice is written once. All of them live in the project's checkout,
 | `caller` | `dispatched` (`ISSUE_VIEWER_ISSUE_SLUG` set by viewer dispatch), `agent` (`CLAUDECODE`, `AI_AGENT` or `CODEX_*` env), `tty` (interactive stdin) or `script`. |
 | `agent`, `tmux` | Agent name from env (`claude-code`, `codex`, …), and whether `$TMUX` is set. |
 | `pid`, `ppid`, `args_hash` | Process ids and a 16-hex-char SHA-256 prefix of the full raw args. `ppid` groups calls from one agent shell; `args_hash` spots identical repeats without storing values. |
+| `ver` | The issue-cli build (`git describe` at `make install`: `v0.54.0-rc.1`, `v0.54.0-rc.1-3-gabc1234`, `dev` for a plain `go build`). The engine's Status page counts each project's calls on a release candidate from it. Added in v0.54.0 without a schema bump; older events have none. |
 
 Titles, comment and append bodies, retrospective text, `set-meta` values, `--field` answers, descriptions and positional values never reach telemetry. `cmd/issue-cli/telemetry_test.go` asserts this with a sentinel string.
 

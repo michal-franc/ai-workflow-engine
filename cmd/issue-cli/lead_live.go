@@ -34,6 +34,10 @@ var startAgent = agentrun.Start
 // pasteIntoSession delivers text into a live session. A var for tests.
 var pasteIntoSession = agentrun.Paste
 
+// sessionAgent names the agent a live session runs (claude, codex, or ""). A
+// var for tests.
+var sessionAgent = agentrun.SessionAgent
+
 // currentTmuxNames returns the tmux session and window this process runs in,
 // or "", "" outside tmux. A var for tests.
 var currentTmuxNames = func() (session, window string) {

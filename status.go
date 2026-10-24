@@ -48,7 +48,17 @@ type EpicProgress struct {
 	Progress Progress
 	// Running is how many children have a live agent.
 	Running int
+	// AllDone: every child of the epic is done, in every version (Progress
+	// may count only one version's children).
+	AllDone bool
+	// LaterOpen counts the epic's open children outside this version's panel;
+	// LaterIn names their versions ("0.55, 0.56").
+	LaterOpen int
+	LaterIn   string
 }
+
+// ReadyToClose: every child is done but the epic itself is still open.
+func (e EpicProgress) ReadyToClose() bool { return e.AllDone }
 
 // Note is the epic row's second line: "3 children with agents", "all
 // children done", …
@@ -126,24 +136,35 @@ type StatusModel struct {
 	Prefix  string
 	AsOf    time.Time
 
-	All       Progress
-	Versions  []Progress
-	Epics     []EpicProgress
-	LeadName  string
-	LeadState string
-	Active    []ActiveRow
-	InDesign  []AgentChip
-	Next      NextSteps
-	Backlog   []*tracker.Issue
-	Parked    []ParkedRow
-	Waiting   []WaitingItem
+	All Progress
+	// Versions are the versions not released yet (the newest release and
+	// everything before it left out), oldest first; VersionsProgress sums them.
+	Versions         []Progress
+	VersionsProgress Progress
+	Epics            []EpicProgress
+	LeadName         string
+	LeadState        string
+	Active           []ActiveRow
+	InDesign         []AgentChip
+	Next             NextSteps
+	Backlog          []*tracker.Issue
+	Parked           []ParkedRow
+	Waiting          []WaitingItem
 	// NotReady counts gates whose checklist is still open.
 	NotReady      int
 	Releases      []Release
 	ReleaseSource string
-	DoneRecent    []DoneRow
+	// ChangelogDeclined: the owner declined status-changelog, so an empty
+	// Recently released doesn't suggest workbench.changelog.
+	ChangelogDeclined bool
+	DoneRecent        []DoneRow
 	// CI is the Local CI card; nil without a ci: block.
 	CI *CIRow
+	// Health is the Health card; nil without a health snapshot.
+	Health *HealthCard
+	// Privacy is the work-files and code badges after the title and their
+	// lines on the Health card (privacy_view.go).
+	Privacy *PrivacyView
 	// ReleaseWait is the Waiting for release card; nil when it has nothing
 	// to show.
 	ReleaseWait *ReleaseWait
@@ -186,7 +207,17 @@ func (m *StatusModel) WaitingCount() int {
 // AgeOf is how long ago t was, as of the page: 25m, 1h 30m, 13d.
 func (m *StatusModel) AgeOf(t time.Time) string { return shortDuration(m.AsOf.Sub(t)) }
 
-// WaitingOf returns the waiting items of one kind (gate, playtest, question).
+// Candidate is the release candidate being soaked (silver on the Waiting
+// for release card, waiting to be released); nil without one.
+func (m *StatusModel) Candidate() *CandidateRow {
+	if m.ReleaseWait == nil || m.ReleaseWait.Milestone == nil {
+		return nil
+	}
+	return m.ReleaseWait.Milestone.Candidate
+}
+
+// WaitingOf returns the waiting items of one kind (gate, playtest, checks,
+// question).
 func (m *StatusModel) WaitingOf(kind string) []WaitingItem {
 	var out []WaitingItem
 	for _, it := range m.Waiting {
@@ -310,24 +341,42 @@ func buildStatus(proj *tracker.Project, issues []*tracker.Issue, agents *AgentsM
 
 	m.Waiting = waitingOnOwner(proj, sorted)
 	m.CI = ciRow(proj, issues, now)
+	m.Health = healthCard(proj, now)
+	m.Privacy = privacyView(proj, m.Prefix, now)
 	m.UnsentBugReports = unsentBugReports()
 	root := projectRoot(proj)
 	m.Next = leadNextSteps(root, tracker.LeadSessionName(proj), now)
 	text, changelog := readChangelog(root, wf.Workbench.Changelog)
 	m.Releases, m.ReleaseSource = recentReleasesFrom(root, text, changelog, statusReleases)
+	m.ChangelogDeclined = wf.DeclinesFeature("status-changelog")
 	released := ""
 	if len(m.Releases) > 0 {
 		released = m.Releases[0].Version
 	}
+	m.Versions, m.VersionsProgress = upcomingVersions(m.Versions, released)
 	m.ReleaseWait = buildReleaseWait(proj, wf, cs, byVersion, released, changelog, text, now)
+	if m.ReleaseWait != nil && m.ReleaseWait.Milestone != nil {
+		ms := m.ReleaseWait.Milestone
+		ms.Epic = map[string]bool{}
+		for _, issue := range ms.Open {
+			if tracker.IsEpic(issue, issues) {
+				ms.Epic[issue.Slug] = true
+			}
+		}
+	}
 	if v, p, items := pickMilestone(byVersion, cs, released); v != "" {
 		m.Milestone = buildMilestoneView(wf, cs, v, p, items)
+		for _, issue := range items {
+			if !cs.closed(issue.Status) && tracker.IsEpic(issue, issues) {
+				m.Milestone.OpenEpics++
+			}
+		}
 	}
 	current := ""
 	if m.Milestone != nil {
 		current = m.Milestone.Version
 	}
-	m.EpicsByArea = buildEpicsView(cs, issues, m.Epics, current)
+	m.EpicsByArea = buildEpicsView(cs, issues, m.Epics, current, released)
 	m.Shipped = groupShipped(m.DoneRecent)
 	return m
 }
@@ -544,6 +593,9 @@ func statusMarkdown(m *StatusModel) string {
 		fmt.Fprintf(&b, " · %s in %s", plural(ev.Epics, "epic", "epics"), plural(ev.Areas, "area", "areas"))
 	}
 	b.WriteString("\n")
+	for _, pb := range m.Privacy.badges() {
+		fmt.Fprintf(&b, "%s: %s\n", pb.Label, pb.Sentence)
+	}
 
 	fmt.Fprintf(&b, "\n## Waiting on you (%d)\n", m.WaitingCount())
 	if m.CI.Red() {
@@ -562,6 +614,8 @@ func statusMarkdown(m *StatusModel) string {
 			fmt.Fprintf(&b, "- Approve %s: %s → %s\n", it.Issue.Slug, it.Issue.Status, it.Target)
 		case "playtest":
 			fmt.Fprintf(&b, "- Playtest %s: session %s, no judge run\n", it.Issue.Slug, strings.Join(it.Sessions, ", "))
+		case "checks":
+			fmt.Fprintf(&b, "- Run checks %s: issue-cli check-script %s (%s), no owner run\n", it.Issue.Slug, it.Issue.Slug, strings.Join(it.Sessions, ", "))
 		case "question":
 			fmt.Fprintf(&b, "- Answer %s: open question: comment\n", it.Issue.Slug)
 		}
@@ -628,6 +682,7 @@ func statusMarkdown(m *StatusModel) string {
 		fmt.Fprintf(&b, "- All issues: %d/%d done%s\n", m.All.Done, m.All.Total, note)
 	}
 	ciMarkdown(&b, m.CI)
+	healthMarkdown(&b, m.Health)
 	if m.ReleaseWait != nil {
 		releaseWaitMarkdown(&b, m.ReleaseWait, m.AsOf)
 	}
@@ -803,4 +858,21 @@ func areaCountsLine(areas []AreaCount, n int) string {
 		parts = append(parts, fmt.Sprintf("%s %d", a.Area, a.Count))
 	}
 	return strings.Join(parts, ", ")
+}
+
+// upcomingVersions keeps the versions after released (and the non-numeric
+// ones, such as "future") and sums their progress.
+func upcomingVersions(all []Progress, released string) ([]Progress, Progress) {
+	rel := milestone.Norm(released)
+	var out []Progress
+	var sum Progress
+	for _, v := range all {
+		if n := milestone.Norm(v.Label); n != "" && rel != "" && milestone.Compare(n, rel) <= 0 {
+			continue
+		}
+		out = append(out, v)
+		sum.Done += v.Done
+		sum.Total += v.Total
+	}
+	return out, sum
 }

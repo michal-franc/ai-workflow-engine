@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"text/template"
 )
@@ -28,13 +29,7 @@ func fail(action Action, issue *IssueView, problem, defaultHint string) error {
 // renderTemplate applies text/template substitution with {{slug}}, {{number}},
 // {{repo}}, {{system}} as zero-arg template funcs (so the no-dot syntax works).
 func renderTemplate(s string, issue *IssueView) (string, error) {
-	funcs := template.FuncMap{
-		"slug":   func() string { return issue.Slug },
-		"number": func() int { return issue.Number },
-		"repo":   func() string { return issue.Repo },
-		"system": func() string { return issue.System },
-	}
-	tmpl, err := template.New("v").Funcs(funcs).Parse(s)
+	tmpl, err := template.New("v").Funcs(templateFuncs(issue)).Parse(s)
 	if err != nil {
 		return s, err
 	}
@@ -43,6 +38,26 @@ func renderTemplate(s string, issue *IssueView) (string, error) {
 		return s, err
 	}
 	return buf.String(), nil
+}
+
+func templateFuncs(issue *IssueView) template.FuncMap {
+	return template.FuncMap{
+		"slug":   func() string { return issue.Slug },
+		"number": func() int { return issue.Number },
+		"repo":   func() string { return issue.Repo },
+		"system": func() string { return issue.System },
+	}
+}
+
+// TemplateNames lists the {{name}} placeholders a validator's hint and
+// command fill, sorted (issue-cli lint's placeholders check).
+func TemplateNames() []string {
+	var names []string
+	for n := range templateFuncs(&IssueView{}) {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // findSectionContent returns the body of a "## <name>" section

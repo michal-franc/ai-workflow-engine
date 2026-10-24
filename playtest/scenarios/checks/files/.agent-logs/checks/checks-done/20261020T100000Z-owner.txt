@@ -1,0 +1,6 @@
+script: checks-done
+issue: cli/checks-done
+mode: owner
+lib: 1
+step TP1 pass boxes=TP1
+boxes passed: TP1

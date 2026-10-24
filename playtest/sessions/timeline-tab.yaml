@@ -10,7 +10,7 @@ session_checks:
 
 steps:
   - id: TP4
-    title: Every issue page has the tab bar; Issue is the default, Timeline opens at ?tab=timeline, Evidence says coming
+    title: Every issue page has the tab bar; Issue is the default, Timeline opens at ?tab=timeline
     setup:
       - open: /p/{project}/issue/ui/timeline-demo
       - check: { visible: [detail.pagetabs, detail.pagetab.issue, detail.pagetab.timeline, detail.pagetab.evidence, detail.body, detail.sidebar] }
@@ -24,7 +24,7 @@ steps:
       - visible: [timeline.tab, timeline.total, timeline.bar]
       - absent: [detail.sidebar, detail.body]
       - below: [detail.pagetabs, timeline.total]
-      - http: { path: "/p/{project}/issue/ui/timeline-demo?tab=evidence", contains: "Evidence is coming" }
+      - http: { path: "/p/{project}/issue/ui/timeline-demo?tab=evidence", contains: 'data-testid="evidence.tab"' }
       - http: { path: "/p/{project}/issue/ui/timeline-demo", contains: 'data-testid="detail.pagetab.issue" aria-current="true"' }
 
   - id: TP5

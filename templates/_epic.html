@@ -1,0 +1,34 @@
+{{/*
+An epic's children on its first tab (named Epic), grouped by version: each
+version's done count, then its children, open ones first. Data is the detail
+page's data; .Epic is set only for an epic.
+*/}}
+{{define "epic-children"}}
+<section class="card status-card epic-children" data-testid="detail.epic" aria-labelledby="epic-children-h">
+    <div class="status-card-head">
+        <h2 id="epic-children-h">Children · <span class="mono">{{.Epic.Done}}/{{.Epic.Total}}</span> closed</h2>
+        <span class="status-meta">{{plural (len .Epic.Versions) "version" "versions"}}</span>
+    </div>
+    {{range .Epic.Versions}}
+    <details class="status-area" open data-testid="detail.epic.version.{{tid .Version}}">
+        <summary class="status-grid-cols status-area-row">
+            <span class="mono">{{.Version}}</span>
+            <span class="status-bar"><span style="width: {{.Pct}}%"></span></span>
+            <span class="mono num">{{.Done}}/{{.Total}}</span>
+        </summary>
+        <div class="status-list">
+        {{range .Children}}
+            <div class="status-row" data-testid="detail.epic.child.{{tid .Slug}}">
+                <div class="status-row-stack">
+                    <a href="{{$.Prefix}}/issue/{{.Slug}}" class="status-title status-ellipsis">{{.Title}}</a>
+                    <span class="mono status-meta status-ellipsis">{{.Slug}}{{if .Type}} · {{.Type}}{{end}}{{if .Assignee}} · {{.Assignee}}{{end}}</span>
+                </div>
+                <span class="chip" style="background: {{statusColor .Status}}; color: {{statusTextColor .Status}}">{{.Status}}</span>
+            </div>
+        {{end}}
+        </div>
+    </details>
+    {{end}}
+    {{if not .Epic.Versions}}<p class="status-hint">No children yet: give issues <code>parent: {{.Issue.Slug}}</code>.</p>{{end}}
+</section>
+{{end}}

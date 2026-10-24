@@ -32,7 +32,10 @@ type Response struct {
 	AttachCmd string `json:"attach_cmd,omitempty"`
 	// SwitchCmd reaches the agent from inside tmux; set with AttachCmd.
 	SwitchCmd string `json:"switch_cmd,omitempty"`
-	Steps     []Step `json:"steps"`
+	// Gate is the status awaiting the owner's approval when Status is
+	// "waiting-on-gate" (see DispatchSpec).
+	Gate  string `json:"gate,omitempty"`
+	Steps []Step `json:"steps"`
 }
 
 // Spec describes one agent launch.
@@ -48,17 +51,17 @@ type Spec struct {
 	// LeadScope is exported as ISSUE_VIEWER_LEAD_SCOPE: "project" or the
 	// epic slug. Empty for workers.
 	LeadScope string
-	ViewerURL string
 	// WorkDir is the project checkout the agent (or its worktree) starts
 	// from; "" means ProjectWorkDir(proj).
 	WorkDir string
 	// Worktree is where the agent runs; zero means WorkDir itself.
 	Worktree tracker.WorktreeSpec
 	Workflow *tracker.WorkflowConfig
-	// RepromptURL is quoted in hints when the prompt can be re-sent.
-	RepromptURL string
-	// Headless skips opening a terminal; the response carries AttachCmd and
-	// SwitchCmd.
+	// RepromptHint is the command quoted in hints when the prompt can be
+	// re-sent (issue-cli dispatch <slug> --reprompt).
+	RepromptHint string
+	// Headless skips opening a terminal (lead_terminal for leads, terminal
+	// for workers); the response carries AttachCmd and SwitchCmd.
 	Headless bool
 }
 
@@ -160,11 +163,24 @@ func Start(proj *tracker.Project, spec Spec) Response {
 	// Headless (spec.Headless, or terminal: none) opens no terminal; the
 	// response carries the attach hints instead. No launch selects the new
 	// window, so whoever is looking at the shared session (usually the lead)
-	// keeps it.
+	// keeps it. Leads follow lead_terminal: instead, headless when it is
+	// unset.
+	lead := spec.LeadScope != ""
 	headless := spec.Headless || TerminalNone(proj)
+	if lead {
+		headless = spec.Headless || LeadHeadless(proj)
+	}
 	setHints := func() {
 		response.AttachCmd = AttachCmd(proj, session)
 		response.SwitchCmd = SwitchCmd(proj, session)
+	}
+	// showLead runs lead_terminal; a tab it could not add leaves the hints.
+	showLead := func() bool {
+		ok, shown := LeadTerminalStep(proj, session, &steps)
+		if !shown {
+			setHints()
+		}
+		return ok
 	}
 
 	if HasSession(target) {
@@ -173,14 +189,17 @@ func Start(proj *tracker.Project, spec Spec) Response {
 		// next to it with the prompt again, so skip all setup and just
 		// open a terminal attached to the existing session.
 		steps = append(steps, Step{Name: "Existing session — attaching", Status: "reattached"})
-		if spec.RepromptURL != "" {
-			steps = append(steps, Step{Name: "Prompt not re-sent", Status: "reattached", Detail: "to re-send the current briefing use Re-send prompt or POST " + spec.RepromptURL})
+		if spec.RepromptHint != "" {
+			steps = append(steps, Step{Name: "Prompt not re-sent", Status: "reattached", Detail: "to re-send the current briefing use Re-send prompt or run: " + spec.RepromptHint})
 		}
 		response.Status = "reattached"
-		if headless {
+		switch {
+		case headless:
 			steps = append(steps, Step{Name: "Terminal: headless — attach manually", Status: "ok"})
 			setHints()
-		} else {
+		case lead:
+			showLead()
+		default:
 			AttachStep(proj, session, &steps)
 		}
 		response.Steps = steps
@@ -208,9 +227,6 @@ func Start(proj *tracker.Project, spec Spec) Response {
 	}
 	if spec.LeadScope != "" {
 		env = append(env, "ISSUE_VIEWER_LEAD_SCOPE="+spec.LeadScope)
-	}
-	if spec.ViewerURL != "" {
-		env = append(env, "ISSUE_VIEWER_URL="+spec.ViewerURL)
 	}
 	if proj != nil && proj.Slug != "" {
 		env = append(env, "ISSUE_VIEWER_PROJECT="+proj.Slug)
@@ -252,7 +268,7 @@ func Start(proj *tracker.Project, spec Spec) Response {
 	if headless {
 		steps = append(steps, Step{Name: "Terminal: headless — attach manually", Status: "ok"})
 		setHints()
-	} else if !ShowStep(proj, session, &steps) {
+	} else if lead && !showLead() || !lead && !ShowStep(proj, session, &steps) {
 		response.Status = "error"
 		response.Steps = steps
 		return response
@@ -260,7 +276,7 @@ func Start(proj *tracker.Project, spec Spec) Response {
 
 	// Only Claude's pane rendering has been checked for the delivery marker.
 	if spec.AgentType != "codex" {
-		PromptDeliveryStep(&steps, target, prompt, spec.RepromptURL)
+		PromptDeliveryStep(&steps, target, prompt, spec.RepromptHint)
 	}
 
 	response.Steps = steps
@@ -289,7 +305,7 @@ func recordDispatch(proj *tracker.Project, spec Spec, steps *[]Step) {
 // buffer named after the session (deleted after pasting) so concurrent pastes
 // can't swap texts. textFile keeps a copy of what was sent and is what the
 // buffer loads. Status is "no-session" when the session is not live.
-func Paste(proj *tracker.Project, session, text, textFile, repromptURL string) Response {
+func Paste(proj *tracker.Project, session, text, textFile, repromptHint string) Response {
 	target := Target(proj, session)
 	response := Response{Status: "sent", Prompt: text, Session: tracker.AgentDisplayName(proj, session)}
 	if !HasSession(target) {
@@ -318,7 +334,7 @@ func Paste(proj *tracker.Project, session, text, textFile, repromptURL string) R
 		ok = RunStep(&steps, "Submit prompt", exec.Command("tmux", "send-keys", "-t", target, "Enter"))
 	}
 	if ok {
-		PromptDeliveryStep(&steps, target, text, repromptURL)
+		PromptDeliveryStep(&steps, target, text, repromptHint)
 	} else {
 		response.Status = "error"
 	}

@@ -5,14 +5,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/michal-franc/issue-viewer/internal/clilog"
+	"github.com/michal-franc/issue-viewer/internal/playtestruns"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -84,12 +87,7 @@ func (c *Cache) results(dir string) []playtestResultsFile {
 	var out []playtestResultsFile
 	files, _ := filepath.Glob(filepath.Join(dir, ".playtest", "runs", "*", "*", "results.yaml"))
 	for _, f := range files {
-		data, err := os.ReadFile(f)
-		if err != nil {
-			continue
-		}
-		var r playtestResultsFile
-		if yaml.Unmarshal(data, &r) == nil {
+		if r, ok := readResults(f); ok {
 			out = append(out, r)
 		}
 	}
@@ -157,7 +155,11 @@ func Load(proj *tracker.Project, issue *tracker.Issue, cache *Cache) Sources {
 		}
 	}
 
-	src.Runs = LoadPlaytestRuns(cache, issue.Slug, root, worktree)
+	var problems []string
+	src.Runs, problems = LoadPlaytestRuns(cache, issue.Slug, root, worktree)
+	for _, p := range problems {
+		src.Missing = append(src.Missing, Missing{"Playtest run", p + "; the run is not shown."})
+	}
 	if len(src.Runs) == 0 {
 		src.Read = append(src.Read, "playtest runs (none for this issue)")
 	} else {
@@ -346,22 +348,207 @@ type playtestResultsFile struct {
 	Issue   string         `yaml:"issue"`
 	Mode    string         `yaml:"mode"`
 	Started string         `yaml:"started"`
-	Steps   []PlaytestStep `yaml:"steps"`
+	Build   string         `yaml:"build"`
+	Reduced string         `yaml:"reduced"`
+	Steps   []PlaytestStep `yaml:"-"`
+	dir     string
+	// bad is why the file could not be parsed; Issue is then read from its
+	// issue: line, so the issue's pages can say so.
+	bad string
+}
+
+// resultStep is a step as either runner writes it: ours (cmd/playtest), or
+// a game's (RogueTech's runner: judgement:, verdict:, checks: and layout:
+// on the step, screenshots: named <step>@<W>x<H>.png beside results.yaml).
+type resultStep struct {
+	PlaytestStep  `yaml:",inline"`
+	GameJudgement bool         `yaml:"judgement"`
+	Verdict       string       `yaml:"verdict"`
+	Screenshots   []string     `yaml:"screenshots"`
+	Checks        []gameCheck  `yaml:"checks"`
+	Layout        []gameLayout `yaml:"layout"`
+}
+
+type gameCheck struct {
+	Kind    string `yaml:"kind"`
+	Subject string `yaml:"subject"`
+	Passed  bool   `yaml:"passed"`
+	Reason  string `yaml:"reason"`
+}
+
+// gameLayout is one layout rule at one resolution, passed or not.
+type gameLayout struct {
+	Resolution string   `yaml:"resolution"`
+	Rule       string   `yaml:"rule"`
+	Passed     bool     `yaml:"passed"`
+	Failures   []string `yaml:"failures"`
+}
+
+// step is s in our schema; a step our runner wrote passes through.
+func (s resultStep) step() PlaytestStep {
+	st := s.PlaytestStep
+	st.Judgement = st.Judgement || s.GameJudgement
+	if st.Judge == nil && s.Verdict != "" {
+		st.Judge = &PlaytestJudge{Status: s.Verdict}
+	}
+	if len(st.Viewports) == 0 {
+		st.Viewports = s.viewports()
+	}
+	return st
+}
+
+var shotSizeRe = regexp.MustCompile(`@(\d+x\d+)\.\w+$`)
+
+// viewports turns a game's step into one viewport per screen size: from the
+// @WxH in a shot's name or layout[].resolution. Its checks are not per size,
+// so each viewport carries them all. None when it saved no shot and ran no
+// layout rule.
+func (s resultStep) viewports() []PlaytestViewport {
+	var out []PlaytestViewport
+	at := map[string]int{}
+	size := func(wh string) *PlaytestViewport {
+		i, ok := at[wh]
+		if !ok {
+			i = len(out)
+			at[wh] = i
+			out = append(out, PlaytestViewport{Viewport: wh, Status: "pass"})
+		}
+		return &out[i]
+	}
+	var unsized []string
+	for _, f := range s.Screenshots {
+		if m := shotSizeRe.FindStringSubmatch(f); m == nil {
+			unsized = append(unsized, f)
+		} else if v := size(m[1]); v.Screenshot == "" {
+			v.Screenshot = f
+		}
+	}
+	for _, l := range s.Layout {
+		if l.Resolution == "" {
+			continue
+		}
+		v := size(l.Resolution)
+		if l.Passed {
+			continue
+		}
+		v.Status = "fail"
+		if len(l.Failures) == 0 {
+			v.Layout = append(v.Layout, PlaytestLayout{Rule: l.Rule})
+		}
+		for _, f := range l.Failures {
+			v.Layout = append(v.Layout, PlaytestLayout{Rule: l.Rule, Detail: f})
+		}
+	}
+	// A shot with no size in its name (a playtest note) is the only size's
+	// shot, else a view of its own.
+	for _, f := range unsized {
+		if len(out) == 1 && out[0].Screenshot == "" {
+			out[0].Screenshot = f
+			continue
+		}
+		out = append(out, PlaytestViewport{Status: "pass", Screenshot: f})
+	}
+	for i := range out {
+		for _, c := range s.Checks {
+			out[i].Checks = append(out[i].Checks, PlaytestCheck{Check: strings.TrimSpace(c.Kind + " " + c.Subject), Pass: c.Passed, Actual: c.Reason})
+			if !c.Passed {
+				out[i].Status = "fail"
+			}
+		}
+	}
+	return out
+}
+
+// parseRunStarted reads a run's started:. Ours is RFC 3339; a game's runner
+// writes local time with no offset (2026-10-24T11:04:20).
+func parseRunStarted(s string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	return time.ParseInLocation("2006-01-02T15:04:05", s, time.Local)
+}
+
+var issueLineRe = regexp.MustCompile(`(?m)^issue:\s*["']?([^"'\s]+)`)
+
+// parsedResults keeps each results.yaml parsed once per process, keyed by
+// path and checked against its size and mtime: worktrees hold dozens of runs
+// and every issue page reads them for the Evidence label.
+var parsedResults = struct {
+	sync.Mutex
+	m map[string]parsedResult
+}{m: map[string]parsedResult{}}
+
+type parsedResult struct {
+	size int64
+	mod  time.Time
+	r    playtestResultsFile
+	ok   bool
+}
+
+func readResults(path string) (playtestResultsFile, bool) {
+	st, err := os.Stat(path)
+	if err != nil {
+		return playtestResultsFile{}, false
+	}
+	parsedResults.Lock()
+	c, hit := parsedResults.m[path]
+	parsedResults.Unlock()
+	if hit && c.size == st.Size() && c.mod.Equal(st.ModTime()) {
+		return c.r, c.ok
+	}
+	var raw struct {
+		playtestResultsFile `yaml:",inline"`
+		Steps               []resultStep `yaml:"steps"`
+	}
+	data, err := os.ReadFile(path)
+	ok := err == nil
+	if ok {
+		if err := yaml.Unmarshal(data, &raw); err != nil {
+			raw.bad = err.Error()
+			if m := issueLineRe.FindSubmatch(data); m != nil && raw.Issue == "" {
+				raw.Issue = string(m[1])
+			}
+		}
+	}
+	r := raw.playtestResultsFile
+	r.Mode = playtestruns.Mode(r.Mode) // shared with the done-time archive
+	for _, st := range raw.Steps {
+		r.Steps = append(r.Steps, st.step())
+	}
+	r.dir = filepath.Dir(path)
+	parsedResults.Lock()
+	parsedResults.m[path] = parsedResult{size: st.Size(), mod: st.ModTime(), r: r, ok: ok}
+	parsedResults.Unlock()
+	return r, ok
 }
 
 // LoadPlaytestRuns reads the results.yaml of every run for issueSlug, in
 // each dir's .playtest/runs: agents run ux-test in their worktree, so most
 // runs live there. cache may be nil.
-func LoadPlaytestRuns(cache *Cache, issueSlug string, dirs ...string) []PlaytestRun {
+//
+// A game's runner writes its own schema (started: without an offset, modes
+// ux-test / playtest, shots beside results.yaml); its runs read as ours.
+// The second result names each run for the issue that could not be read.
+func LoadPlaytestRuns(cache *Cache, issueSlug string, dirs ...string) ([]PlaytestRun, []string) {
 	var runs []PlaytestRun
+	var problems []string
 	seen := map[string]bool{}
 	for _, d := range dirs {
 		for _, r := range cache.results(d) {
 			if r.Issue != issueSlug {
 				continue
 			}
-			started, err := time.Parse(time.RFC3339, r.Started)
+			name := r.dir
+			if rel, err := filepath.Rel(d, r.dir); err == nil {
+				name = rel
+			}
+			if r.bad != "" {
+				problems = append(problems, "playtest run "+name+": results.yaml can't be parsed ("+r.bad+")")
+				continue
+			}
+			started, err := parseRunStarted(r.Started)
 			if err != nil {
+				problems = append(problems, "playtest run "+name+": started: "+strconv.Quote(r.Started)+" is not a date")
 				continue
 			}
 			key := r.Session + "|" + r.Started + "|" + r.Mode
@@ -369,11 +556,11 @@ func LoadPlaytestRuns(cache *Cache, issueSlug string, dirs ...string) []Playtest
 				continue
 			}
 			seen[key] = true
-			runs = append(runs, PlaytestRun{Session: r.Session, Mode: r.Mode, Started: started, Steps: r.Steps})
+			runs = append(runs, PlaytestRun{Session: r.Session, Mode: r.Mode, Started: started, Steps: r.Steps, Dir: r.dir, Build: r.Build, Reduced: r.Reduced})
 		}
 	}
 	sort.SliceStable(runs, func(i, j int) bool { return runs[i].Started.Before(runs[j].Started) })
-	return runs
+	return runs, problems
 }
 
 func plural(n int, one, many string) string {

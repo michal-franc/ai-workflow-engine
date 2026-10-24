@@ -1,6 +1,7 @@
 ---
 title: "Demo: data-table status pill clipping & layout brittleness"
 status: "idea"
+created: "2026-05-07"
 ---
 ## Summary
 

@@ -1,0 +1,8 @@
+{
+  "transitions": [
+    {"from": "idea", "to": "in design", "ts": "2026-10-01T17:10:00Z", "static_tokens": 0, "dynamic_tokens": 0, "actual_tokens": null},
+    {"from": "in design", "to": "in progress", "ts": "2026-10-01T17:30:00Z", "static_tokens": 0, "dynamic_tokens": 0, "actual_tokens": null, "approved_at": "2026-10-01T17:25:00Z"},
+    {"from": "in progress", "to": "testing", "ts": "2026-10-01T18:30:00Z", "static_tokens": 0, "dynamic_tokens": 0, "actual_tokens": null}
+  ],
+  "dispatches": [{"at": "2026-10-01T17:00:00Z", "session": "agent-ui-evidence-short", "agent": "claude"}]
+}

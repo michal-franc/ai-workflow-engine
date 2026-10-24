@@ -29,6 +29,10 @@ type ScenarioSpec struct {
 	Project struct {
 		Name string `yaml:"name"`
 		Slug string `yaml:"slug"`
+		// Repo is the project's repo: in projects.yaml; the engine's
+		// (michal-franc/ai-workflow-engine) makes the board treat it as the
+		// engine project (report-bug's board, a release candidate's soak).
+		Repo string `yaml:"repo"`
 	} `yaml:"project"`
 	Issues   string `yaml:"issues"`
 	Workflow string `yaml:"workflow"`
@@ -40,6 +44,8 @@ type ScenarioSpec struct {
 	// Commits are applied on main after the first commit, in order: each
 	// overlays its folder on the project and commits it.
 	Commits []ScenarioCommit `yaml:"commits"`
+	// Tags are annotated tags made after the commits, each on main (or Ref).
+	Tags []ScenarioTag `yaml:"tags"`
 	// Branches are created after the commits, each from main (or From).
 	Branches []ScenarioBranch `yaml:"branches"`
 	// Upstream, when set, is a branch main tracks (git branch -u), for views
@@ -71,6 +77,13 @@ type ScenarioGenerate struct {
 type ScenarioCommit struct {
 	Files   string `yaml:"files"`
 	Message string `yaml:"message"`
+}
+
+// ScenarioTag is an annotated tag on Ref (default main), such as a release
+// candidate tag. Its date is pinned like a commit's.
+type ScenarioTag struct {
+	Name string `yaml:"name"`
+	Ref  string `yaml:"ref"`
 }
 
 // ScenarioBranch is a branch the scenario creates: with Worktree it gets a
@@ -276,15 +289,20 @@ func StartScenario(scenarioDir, name string, bins *Binaries, log io.Writer) (*Sc
 	// terminal: none keeps dispatch and lead spawns headless: otherwise the
 	// board falls back to `i3-msg exec alacritty`, which opens a window on the
 	// owner's desktop attached to the real tmux server.
-	cfg := fmt.Sprintf("projects:\n  - name: %q\n    slug: %q\n    issues: %q\n    docs: %q\n    workdir: %q\n    terminal: \"none\"\n",
-		spec.Project.Name, spec.Project.Slug, filepath.Join(s.Proj, "issues"), filepath.Join(s.Proj, "docs"), s.Proj)
-	if err := os.WriteFile(s.ConfigPath(), []byte(cfg), 0o644); err != nil {
-		return fail(err)
-	}
+	// viewer_url points every link and issue-cli call in the scenario at
+	// its own board.
 	if s.Port, err = freePort(); err != nil {
 		return fail(err)
 	}
 	s.Base = fmt.Sprintf("http://127.0.0.1:%d", s.Port)
+	cfg := fmt.Sprintf("viewer_url: %q\nprojects:\n  - name: %q\n    slug: %q\n    issues: %q\n    docs: %q\n    workdir: %q\n    terminal: \"none\"\n",
+		s.Base, spec.Project.Name, spec.Project.Slug, filepath.Join(s.Proj, "issues"), filepath.Join(s.Proj, "docs"), s.Proj)
+	if spec.Project.Repo != "" {
+		cfg += fmt.Sprintf("    repo: %q\n", spec.Project.Repo)
+	}
+	if err := os.WriteFile(s.ConfigPath(), []byte(cfg), 0o644); err != nil {
+		return fail(err)
+	}
 	s.env = scenarioEnv(os.Environ(), s)
 	for _, args := range [][]string{
 		{"init", "-q", "-b", "main"},
@@ -317,7 +335,7 @@ func (s *Scenario) buildHistory(src string) error {
 	gitIn := func(dir string, args ...string) error {
 		cmd := s.command("git", args...)
 		cmd.Dir = dir
-		if args[0] == "commit" {
+		if args[0] == "commit" || args[0] == "tag" {
 			cmd.Env = append(cmd.Env, s.nextCommitDate()...)
 		}
 		if out, err := cmd.CombinedOutput(); err != nil {
@@ -346,6 +364,15 @@ func (s *Scenario) buildHistory(src string) error {
 	}
 	for _, c := range s.Spec.Commits {
 		if err := commit(s.Proj, c); err != nil {
+			return err
+		}
+	}
+	for _, t := range s.Spec.Tags {
+		ref := t.Ref
+		if ref == "" {
+			ref = "main"
+		}
+		if err := gitIn(s.Proj, "tag", "-a", t.Name, "-m", t.Name, ref); err != nil {
 			return err
 		}
 	}
@@ -479,7 +506,6 @@ func scenarioEnv(base []string, s *Scenario) []string {
 		"XDG_CACHE_HOME="+filepath.Join(s.Root, "cache"),
 		"TMUX_TMPDIR="+s.TmuxDir(),
 		"ISSUE_VIEWER_CONFIG="+s.ConfigPath(),
-		"ISSUE_VIEWER_URL="+s.Base,
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_AUTHOR_NAME=playtest", "GIT_AUTHOR_EMAIL=playtest@example.invalid",
 		"GIT_COMMITTER_NAME=playtest", "GIT_COMMITTER_EMAIL=playtest@example.invalid",

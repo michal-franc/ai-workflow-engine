@@ -208,6 +208,10 @@ type ChartCard struct {
 	Empty   string
 	Error   string
 	Points  int
+	// Big is a headline value over the chart (Disk use: "3.35 GB"); Bars
+	// list its parts, each with a bar scaled to the largest.
+	Big  string
+	Bars []AreaBar
 }
 
 // LegendItem is one series in a legend; Href toggles it when set.
@@ -238,6 +242,7 @@ type DrillIssue struct {
 // The issues that bring the families this page waits for.
 const (
 	checkSpeedIssue  = "workflow/health-check-speed-ux-test-timing-tree-and-ci-durations"
+	storageIssue     = "ui/evidence-tab-proof-shots-and-criteria"
 	contextCostIssue = "workflow/health-context-cost-what-every-agent-pays-before-working"
 )
 
@@ -696,6 +701,11 @@ func trends(in dashIn, d *Dashboard, daily []*health.Snapshot, latest *health.Sn
 		c.SubSVG = chart.Spark{Label: "Test ratio trend", Values: ratio, Class: "s-tweak"}.SVG()
 	}
 	out = append(out, finish(c, l, "codebase"))
+
+	// Disk use, once a snapshot has the storage family.
+	if c, ok := storageCard(d, daily, latest); ok {
+		out = append(out, c)
+	}
 	return out
 }
 
@@ -730,6 +740,7 @@ func pendingCards(snaps []*health.Snapshot) []PendingCard {
 		{Title: "CI and make validate duration", Family: "checks", Issue: checkSpeedIssue},
 		{Title: "ux-test duration and flaky steps", Family: "checks", Issue: checkSpeedIssue},
 		{Title: "Tokens per issue", Family: "context", Issue: contextCostIssue},
+		{Title: "Disk use", Family: "storage", Issue: storageIssue},
 	} {
 		if !has[p.Family] {
 			out = append(out, p)

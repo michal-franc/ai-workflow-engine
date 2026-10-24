@@ -1,0 +1,30 @@
+session: battle-ai-heat
+issue: api/reproducible-scenarios-and-playtest-cases-for-battles-and-screens
+mode: ux-test
+build: b5de0554
+seed: 13
+started: 2026-10-24T10:47:08
+seconds: 0
+steps:
+- id: MV7
+  title: The overheated Sniper holds fire with its target in range
+  judgement: true
+  status: pass
+  checks:
+  - kind: state
+    subject: 'battle.ai.last.1 has { personality: Sniper, action: hold, reason: hold_heat, target: 0 }'
+    passed: true
+  layout:
+  - resolution: 1920x1080
+    rule: no_zero_width_text
+    passed: true
+  screenshots:
+  - MV7@1920x1080.png
+  fingerprint: f7adbb23f0b320e8
+  fingerprint_source: >
+    FCastellan Warden|16|CenterTorso:93/25/55;Head:27/0/20;LeftArm:46/0/30;LeftLeg:66/0/45;LeftTorso:66/21/40;RightArm:46/0/30;RightLeg:66/0/45;RightTorso:66/21/40;A
+
+    HMedium Standard|110|CenterTorso:67/40/60;Head:20/0/20;LeftArm:29/0/30;LeftLeg:58/0/40;LeftTorso:48/30/50;RightArm:42/0/30;RightLeg:38/0/40;RightTorso:63/30/50;A
+  cached: .playtest/runs/battle-ai-heat/20261024-104012-ux-test
+  seconds: 5.9
+  boot_seconds: 1.2

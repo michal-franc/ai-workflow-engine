@@ -1,0 +1,48 @@
+# The Evidence tab. The scenario's first commit is 14:00 UTC on 2026-10-01,
+# then one commit an hour.
+# - ui/evidence-demo (done): work/ui/evidence-demo has a test commit with
+#   a Proves: AC2 TestDemoCount trailer (15:00), a change with Proves: AC3
+#   (16:00) and a docs-only commit (17:00). The tests: comment (16:30) comes
+#   after the last code commit, so the test link reads reported (D-6). EV1
+#   and EV2 passed at two screens; EV3 proves nothing; EV9 is a judgement
+#   step you passed. AC4 is a value from the sidecar. Expected 4 / 4 proven.
+# - ui/evidence-short (testing): EV5 failed at 390x844, the sidecar's test
+#   TestMissing is not found, AC3 has no link, EV6 passed; a Proves: AC9
+#   trailer (18:00) names a criterion it doesn't have. Expected 1 / 4.
+# - ui/evidence-legacy (done, no created:, no links): grey "3 ticked · 0
+#   linked" and three stale Open questions, two matched.
+# - ui/evidence-game (testing): runs in a game runner's schema (RogueTech:
+#   started: with no offset, ux-test / playtest modes, screenshots: beside
+#   results.yaml). No step proves a criterion, so the Shots card shows each
+#   session's latest ux-test shots: MV7 from game-heat (the newer -cached
+#   run has no shot; the playtest run's verdict reads judged pass) and MV4
+#   from game-ammo.
+title: Evidence tab - is it proven?
+project:
+  name: Evidence Demo
+  slug: ev
+issues: tracker
+workflow: workflow.yaml
+root: files
+branches:
+  - name: work/ui/evidence-demo
+    commits:
+      - files: branches/demo-code
+        message: |
+          test: the badge count
+
+          Proves: AC2 TestDemoCount
+      - files: branches/demo-change
+        message: |
+          feat: the badge glows when the count changes
+
+          Proves: AC3
+      - files: branches/demo-docs
+        message: "docs: the badge"
+  - name: work/ui/evidence-short
+    commits:
+      - files: branches/short-code
+        message: |
+          feat: half of the panel
+
+          Proves: AC9

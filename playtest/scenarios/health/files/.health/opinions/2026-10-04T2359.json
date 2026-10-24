@@ -1,0 +1,53 @@
+{
+ "date": "2026-10-04T23:59",
+ "score": 78,
+ "reviewer": "agent-review",
+ "snapshot": "2026-10-04T23:59",
+ "derived": 86,
+ "assessment": "Feedback is fast: 1,145 unit tests finish in 30 s and the count grew a fifth in two weeks while the wall stayed flat. One package is the whole wall clock, though: cmd/playtest, whose Chrome tests take 29 s. The e2e sessions never ran in CI, so their runtime is unknown. Fix first: move the Chrome tests out of the unit tier.",
+ "recommendations": [
+  {
+   "id": "R1",
+   "kind": "speed_up_tests",
+   "title": "Move cmd/playtest's Chrome tests to the e2e tier",
+   "effort": "M",
+   "expected_effect": "tests.wall_seconds{kind=unit} 30 s to about 17 s",
+   "state": "proposed",
+   "evidence": [
+    {
+     "metric": "tests.part.seconds{kind=unit,part=cmd/playtest}",
+     "shows": "the package is the whole unit wall"
+    }
+   ]
+  },
+  {
+   "id": "R2",
+   "kind": "split_file",
+   "title": "Split static/style.css by view",
+   "effort": "M",
+   "expected_effect": "shape.big_lines.share 18% to about 14%",
+   "state": "proposed",
+   "evidence": [
+    {
+     "metric": "shape.hotspot{path=static/style.css}",
+     "shows": "4,033 lines and 38 commits in 30 days"
+    }
+   ]
+  },
+  {
+   "id": "R3",
+   "kind": "simplify",
+   "title": "Break up buildCanvas",
+   "effort": "S",
+   "expected_effect": "shape.long_funcs down by one",
+   "state": "filed",
+   "issue": "cli/faster-list-command",
+   "evidence": [
+    {
+     "metric": "shape.long_func.lines{func=buildCanvas,path=handlers_canvas.go}",
+     "shows": "297 lines"
+    }
+   ]
+  }
+ ]
+}

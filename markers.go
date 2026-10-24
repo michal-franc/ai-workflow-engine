@@ -77,14 +77,19 @@ func cardMarkers(ctx *markerCtx, issue *tracker.Issue) []Marker {
 		wait = " · " + agoText(ctx.now.Sub(att.Since))
 	}
 	var out []Marker
-	// A playtest due comes before the approval it leads to: one ask at a time.
-	if att.Gate != nil && att.Gate.Ready && !att.PlaytestDue {
+	// A playtest or check script due comes before the approval it leads to:
+	// one ask at a time.
+	if att.Gate != nil && att.Gate.Ready && !att.PlaytestDue && !att.ChecksDue {
 		out = append(out, Marker{Kind: "gate", Tone: "amber", Label: "approve " + att.Gate.Target + wait,
 			Title: "Every requirement is met except your approval for " + att.Gate.Target})
 	}
 	if att.PlaytestDue {
 		out = append(out, Marker{Kind: "playtest", Tone: "amber", Label: "playtest" + wait,
 			Title: "Run: " + strings.Join(att.Playtests, ", ")})
+	}
+	if att.ChecksDue {
+		out = append(out, Marker{Kind: "checks", Tone: "amber", Label: "run checks" + wait,
+			Title: "Run: issue-cli check-script " + issue.Slug + " (" + strings.Join(att.Checks, ", ") + ")"})
 	}
 	if att.OpenQuestion {
 		out = append(out, Marker{Kind: "question", Tone: "amber", Label: "question",

@@ -1,6 +1,7 @@
 package health
 
 import (
+	"fmt"
 	"path"
 	"strings"
 )
@@ -51,4 +52,13 @@ func matchAny(patterns []string, p string) bool {
 		}
 	}
 	return false
+}
+
+// globNote names a glob setting for a warning: health.<key> with the
+// configured patterns, or with "default" and the defaults when unset.
+func globNote(key string, configured bool, globs []string) string {
+	if configured {
+		return fmt.Sprintf("health.%s (%s)", key, strings.Join(globs, ", "))
+	}
+	return fmt.Sprintf("health.%s (default %s)", key, strings.Join(globs, ", "))
 }

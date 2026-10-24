@@ -48,7 +48,7 @@ steps:
       - below: [status.milestone, status.epics]
       - below: [status.epics, status.shipped]
       - beside: [status.shipped, status.versions]
-      - size: { target: status.versions, min_width: 318, max_width: 322 }
+      - size: { target: status.versions, min_width: 316, max_width: 378 }  # a third of the grid, as wide as a top tile: 319 at 1280, 372 at 1440
       - size: { target: status.all_progress.bar, min_width: 30, max_width: 200, min_height: 4 }
 
   - id: TP6

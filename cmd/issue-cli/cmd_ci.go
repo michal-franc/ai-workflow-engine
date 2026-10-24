@@ -17,7 +17,7 @@ import (
 
 var ciCommand = &Command{
 	Name:      "ci",
-	ShortHelp: "Local CI on the integration branch (sub: status|run|reset|watch)",
+	ShortHelp: "Local CI on the integration branch (sub: status|run|reset|watch|gotest)",
 	LongHelp: `Local CI: the project's ci: commands (workflow.yaml) run on the head of the
 integration branch after every move, in the persistent worktree .worktrees/.ci.
 Results go to .ci/ in the main checkout. The viewer starts runs by itself; an
@@ -40,6 +40,12 @@ Subcommands:
   watch [--interval 5s] [--once]
       Start a detached run whenever the branch head is untested. Use it when
       the viewer is not running.
+  gotest [--out <file>]
+      Filter for a ci.run command: reads go test -json on stdin, prints what
+      plain go test prints, saves the raw stream to --out (default
+      $CI_RESULTS_DIR/unit.json) and exits 1 when anything failed. Needs no
+      project. In a Makefile:
+        go test ./... -json | issue-cli ci gotest --out $(CI_RESULTS_DIR)/unit.json
 
 Config (workflow.yaml):
   ci:
@@ -47,11 +53,13 @@ Config (workflow.yaml):
       - make validate
       - cmd: make ux-test
         tier: slow
+        results:          # test results the command writes into $CI_RESULTS_DIR
+          - {kind: e2e, format: playtest, file: e2e.json}
     timeout: 20m        # default 10m
     on_red: mark        # or file_issue
 See docs/workflow.md, "Local CI".`,
 	Run:         runCI,
-	Subcommands: []string{"status", "run", "reset", "watch"},
+	Subcommands: []string{"status", "run", "reset", "watch", "gotest"},
 }
 
 func init() {
@@ -62,7 +70,7 @@ const ciNotConfigured = "ci: not configured — add a ci: block to workflow.yaml
 
 func runCI(ctx *Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("ci requires a subcommand\n\nUsage:\n  issue-cli ci status [--tier <name>]\n  issue-cli ci run [--tier <name>] [--detach]\n  issue-cli ci reset\n  issue-cli ci watch [--interval 5s]")
+		return fmt.Errorf("ci requires a subcommand\n\nUsage:\n  issue-cli ci status [--tier <name>]\n  issue-cli ci run [--tier <name>] [--detach]\n  issue-cli ci reset\n  issue-cli ci watch [--interval 5s]\n  go test -json ./... | issue-cli ci gotest [--out <file>]")
 	}
 	switch args[0] {
 	case "status":
@@ -73,8 +81,10 @@ func runCI(ctx *Context, args []string) error {
 		return runCIReset(ctx, args[1:])
 	case "watch":
 		return runCIWatch(ctx, args[1:])
+	case "gotest":
+		return runCIGoTest(ctx, args[1:])
 	default:
-		return fmt.Errorf("unknown ci subcommand: %s\n\nValid: status, run, reset, watch", args[0])
+		return fmt.Errorf("unknown ci subcommand: %s\n\nValid: status, run, reset, watch, gotest", args[0])
 	}
 }
 

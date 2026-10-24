@@ -12,6 +12,7 @@
     <div class="header">
         <div class="container header-inner">
             <h1>Projects</h1>
+            <a href="/updates" class="projects-updates-link" data-testid="projects.updates_link">Workflow updates</a>
             <div class="theme-picker">
                 <button class="theme-btn" data-theme="dark" title="Dark"></button>
                 <button class="theme-btn" data-theme="dracula" title="Dracula"></button>
@@ -28,7 +29,9 @@
                 <div class="project-card-stats">
                     <span>{{.IssueCount}} issues</span>
                     {{if .DocCount}}<span>{{.DocCount}} docs</span>{{end}}
+                    {{if .Updates}}<span class="project-card-updates" data-testid="projects.updates">{{.Updates}} updates</span>{{end}}
                 </div>
+                {{with .Privacy}}<div class="project-card-privacy">{{range .}}<span class="privacy-marker privacy-{{.Level}}" data-testid="projects.privacy.{{.Kind}}" data-level="{{.Level}}" title="{{.Sentence}}">{{.Icon}}{{if eq .Kind "work"}}Work: {{else}}Code: {{end}}{{.Marker}}</span>{{end}}</div>{{end}}
             </a>
             {{end}}
         </div>

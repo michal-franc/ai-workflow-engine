@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestParseIssue_Valid(t *testing.T) {
@@ -1213,6 +1214,22 @@ func TestCreateIssueFile(t *testing.T) {
 	}
 	if !strings.Contains(content, "backlog") {
 		t.Error("file missing status")
+	}
+}
+
+func TestCreateIssueFileOpts_WritesCreated(t *testing.T) {
+	dir := t.TempDir()
+	fp, _, err := CreateIssueFileOpts(dir, CreateIssueOpts{Title: "Dated", Now: time.Date(2026, 10, 24, 9, 0, 0, 0, time.Local)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(fp)
+	issue, err := ParseIssue(fp, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if issue.Created != "2026-10-24" {
+		t.Errorf("created = %q, want 2026-10-24", issue.Created)
 	}
 }
 

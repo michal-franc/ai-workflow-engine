@@ -79,6 +79,10 @@ func runCheck(ctx *Context, args []string) error {
 		return err
 	}
 
+	if err := refuseCriteria(ctx, issue, section, *indexFlag, *allFlag, positional, query); err != nil {
+		return err
+	}
+
 	switch {
 	case *allFlag:
 		return checkSectionAll(ctx, issue, section)
@@ -318,4 +322,43 @@ func printUncheckedItems(w io.Writer, body string) {
 			fmt.Fprintf(w, "  %s\n", checkboxLabel(it))
 		}
 	}
+}
+
+// refuseCriteria stops check from ticking an acceptance criterion while the
+// proof gate covers the issue: a criterion is ticked by its proof (prove).
+func refuseCriteria(ctx *Context, issue *tracker.Issue, section string, index int, all bool, positional []string, query string) error {
+	wf := ctx.Project.LoadWorkflowForIssue(issue)
+	if !wf.ProofRequired(issue) {
+		return nil
+	}
+	items := tracker.ListCheckboxes(issue.BodyRaw)
+	var hit []string
+	switch {
+	case all:
+		if strings.EqualFold(section, tracker.CriteriaSection) {
+			for _, it := range tracker.Criteria(issue.BodyRaw) {
+				if !it.Checked {
+					hit = append(hit, it.ID)
+				}
+			}
+		}
+	case index != 0:
+		if _, it, already, ok := tracker.CheckByIndex(issue.BodyRaw, section, index); ok && !already && strings.EqualFold(it.Section, tracker.CriteriaSection) {
+			hit = append(hit, it.ID)
+		}
+	case section == "" && looksLikeRefs(issue.BodyRaw, positional):
+		for _, ref := range positional {
+			if it, st := tracker.ResolveCheckboxRef(items, ref); st == tracker.RefFound && strings.EqualFold(it.Section, tracker.CriteriaSection) && !it.Checked {
+				hit = append(hit, it.ID)
+			}
+		}
+	default:
+		if m := tracker.MatchUncheckedByText(issue.BodyRaw, section, query); len(m) == 1 && strings.EqualFold(m[0].Section, tracker.CriteriaSection) {
+			hit = append(hit, m[0].ID)
+		}
+	}
+	if len(hit) == 0 {
+		return nil
+	}
+	return fmt.Errorf("acceptance criteria are ticked by their proof, not by hand: %s\n\nSee what proves each one and what is missing:\n  issue-cli prove %s --list\nA criterion is ticked as soon as one of its links passes.", strings.Join(hit, ", "), issue.Slug)
 }

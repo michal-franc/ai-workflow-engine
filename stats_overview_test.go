@@ -34,6 +34,34 @@ func overviewSnap(t *testing.T, root string, at time.Time, rows map[string]float
 	}
 }
 
+// AC14: the Stats page renders the Disk use card from a storage snapshot.
+func TestStatsPageDiskUseCard(t *testing.T) {
+	withStubTelemetryReport(t, func(*tracker.Project) ([]byte, error) { return []byte(`{"v":1,"enabled":true}`), nil })
+	proj := fixItProject(t)
+	at := time.Now().Add(-time.Hour)
+	s := &health.Snapshot{Run: health.RunInfo{Date: at.Local().Format("2006-01-02T15:04"), Trigger: health.TriggerDaily}, Families: map[string]health.FamilyResult{"storage": {}}}
+	for id, v := range map[string]float64{"storage.total_mb": 3430, "storage.worktrees_mb": 1880, "storage.playtest_mb": 1336, "storage.git_mb": 37, "storage.worktrees": 96} {
+		s.Metrics = append(s.Metrics, health.Row{ID: id, Metric: id, Value: v})
+	}
+	if _, err := health.Write(proj.WorkDir, s, at); err != nil {
+		t.Fatal(err)
+	}
+	ts := newTestServer(t, []tracker.Project{proj})
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/p/" + proj.Slug + "/stats?range=7d")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	page := string(body)
+	for _, want := range []string{`data-chart="storage"`, `data-testid="stats.card.storage"`, `<div class="stats-big">3.35 GB</div>`, "playtest shots", "1,336 MB", "issue-cli playtest prune --all"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("stats page lacks %q", want)
+		}
+	}
+}
+
 // AC2: /stats compares the projects that have snapshots, one row each,
 // sorted by the chosen key; the others are named at the bottom.
 func TestStatsOverview(t *testing.T) {

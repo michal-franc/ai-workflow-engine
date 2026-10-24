@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/michal-franc/issue-viewer/internal/ci"
+	"github.com/michal-franc/issue-viewer/internal/proof"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
 )
 
@@ -105,8 +106,11 @@ func runTransition(ctx *Context, args []string) error {
 	}
 	to = strings.ToLower(to)
 
-	issue, _, err := findIssueOrErr(ctx, slug)
+	issue, issues, err := findIssueOrErr(ctx, slug)
 	if err != nil {
+		return err
+	}
+	if err := ownIssueOnly(ctx, issues, issue, "transition"); err != nil {
 		return err
 	}
 	wf := ctx.Project.LoadWorkflowForIssue(issue)
@@ -115,6 +119,8 @@ func runTransition(ctx *Context, args []string) error {
 	if *dryRun {
 		return runTransitionDryRun(ctx, wf, issue, slug, to, fields)
 	}
+
+	tickProvenBeforeGate(ctx, wf, issue, to)
 
 	from, result, err := wf.ApplyTransitionToFileWithFields(issue.FilePath, to, fields)
 	if err != nil {
@@ -128,10 +134,30 @@ func runTransition(ctx *Context, args []string) error {
 	if err := printTransitionResult(ctx, buildTransitionOutput(wf, issue, from, to, result)); err != nil {
 		return err
 	}
+	if to == "done" {
+		archivePlaytestRuns(ctx, issue)
+	}
 	if to == "done" && !ctx.JSONOutput {
 		printCIAfterDone(ctx, wf)
 	}
+	if !ctx.JSONOutput {
+		printCheckScriptHint(ctx.Stdout, ctx.Project, wf, issue)
+	}
 	return nil
+}
+
+// tickProvenBeforeGate ticks the proven acceptance criteria when the
+// transition checks proof, so the boxes match what the gate sees.
+func tickProvenBeforeGate(ctx *Context, wf *tracker.WorkflowConfig, issue *tracker.Issue, to string) {
+	if !wf.TransitionChecksProof(issue.Status, to) || !wf.ProofRequired(issue) {
+		return
+	}
+	comments, _ := tracker.LoadComments(issue.FilePath)
+	ticked, err := proof.TickProven(issue.FilePath, proof.Collect(projectRoot(ctx.Project), issue, comments))
+	if err != nil || len(ticked) == 0 || ctx.JSONOutput {
+		return
+	}
+	fmt.Fprintf(ctx.Stdout, "✓ Ticked %s (proven)\n", strings.Join(ticked, ", "))
 }
 
 // printCIAfterDone tells the agent that just shipped that local CI tests

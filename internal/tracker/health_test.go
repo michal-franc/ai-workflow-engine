@@ -34,6 +34,35 @@ func TestHealthConfigDefaultsAndValidate(t *testing.T) {
 	}
 }
 
+func TestHealthShrinkShotsAfter(t *testing.T) {
+	var nilCfg *HealthConfig
+	if d, ok := nilCfg.ShrinkShotsAfter(); !ok || d != 30*24*time.Hour {
+		t.Fatalf("default = %v, %v", d, ok)
+	}
+	for src, want := range map[string]time.Duration{"shrink_shots_after_days: 7\n": 7 * 24 * time.Hour, "shrink_shots_after_days: 0\n": 0} {
+		var cfg HealthConfig
+		if err := yaml.Unmarshal([]byte(src), &cfg); err != nil {
+			t.Fatal(err)
+		}
+		if d, ok := cfg.ShrinkShotsAfter(); d != want || ok != (want > 0) {
+			t.Errorf("%q: %v, %v", src, d, ok)
+		}
+		clone := cloneHealth(&cfg)
+		*clone.ShrinkShotsAfterDays = 99
+		if *cfg.ShrinkShotsAfterDays == 99 {
+			t.Fatal("clone shares shrink_shots_after_days")
+		}
+	}
+	var neg HealthConfig
+	yaml.Unmarshal([]byte("shrink_shots_after_days: -2\n"), &neg)
+	if _, ok := neg.ShrinkShotsAfter(); ok {
+		t.Error("negative days turned shrinking on")
+	}
+	if got := strings.Join(neg.Validate(), "\n"); !strings.Contains(got, "health.shrink_shots_after_days -2 is negative") {
+		t.Errorf("Validate() = %q", got)
+	}
+}
+
 func TestHealthLimits(t *testing.T) {
 	var nilCfg *HealthConfig
 	if v, ok := nilCfg.Limit("waiting_share"); !ok || v != 0.25 {

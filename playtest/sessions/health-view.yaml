@@ -1,0 +1,94 @@
+session: health-view
+issue: workflow/health-scores-derived-metrics-and-agent-opinion-tests-count-vs-runtime-e2e-codebase-shape
+title: Health view - both scores, the components, the review and count vs runtime; the Status card
+scenario: health
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP4
+    title: Both gauges, the components with their reasons, the review with actions on proposed ones only
+    setup:
+      - open: /p/{project}/health?range=all
+    checks:
+      - text_equals: { target: health.derived.value, text: "86" }
+      - text_equals: { target: health.opinion.value, text: "78" }
+      - visible: [health.score_gauge, health.components, health.opinion.stale]
+      - text_contains: { target: health.component.big_files, text: "18.2%" }
+      - text_contains: { target: health.component.big_files, text: "47" }
+      - text_contains: { target: health.component.flaky, text: "no data: needs the playtest telemetry" }
+      - text_contains: { target: health.components, text: "6 of 9 components, 70% of the weight" }
+      - count: { pattern: health.recommendation, equals: 3 }
+      - count: { pattern: health.file_recommendation, equals: 2 }
+      - count: { pattern: health.dismiss_recommendation, equals: 2 }
+      - text_contains: { target: health.opinion, text: "filed: cli/faster-list-command" }
+      - visible: health.run_review
+    do: Read the Now section top to bottom at desktop size, then at phone size.
+    expect: |
+      Derived health (86, blue) and Agent opinion (78, amber) sit side by
+      side, each with a half-ring gauge. The opinion says the review is old
+      with a clock icon. The component table reads as a breakdown: each row
+      names what it measures and its good → bad range, the measured value, a
+      sub-score bar and the weight; the three empty ones say why. Only R1 and
+      R2 have File as issue and Dismiss; R3 shows it was filed, with a link.
+      On a phone the two cards stack and nothing is cut off.
+
+  - id: TP6
+    title: Count vs runtime is two aligned panels, count blue and runtime orange; e2e says how to get results
+    setup:
+      - open: /p/{project}/health?range=all
+    checks:
+      - visible: [health.chart.unit_tests, health.chart.unit_count, health.chart.unit_runtime, health.chart.scores]
+      - below: [health.chart.unit_count, health.chart.unit_runtime]
+      - text_contains: { target: health.chart.unit_tests, text: "934 → 1.1k tests" }
+      - text_contains: { target: health.chart.e2e_tests, text: "--tier slow" }
+    do: Look at the Trends section, then open each chart's Table.
+    expect: |
+      Health scores draws both scores on a 0–100 axis, three blue points
+      (80, 83, 86) and one amber (78). Unit tests: count vs runtime has the
+      count above (blue) and the wall time below (orange), both on the same
+      dates, so you can read "the count went up, the runtime did not". No
+      chart has a second y-axis. The tables list the same numbers.
+    why: ux-test can't judge whether the two panels read as one comparison or the colours as two series.
+
+  - id: TP7
+    title: Status adds only the Health card, in the milestone row, on the top tiles' grid
+    setup:
+      - open: /p/{project}/status
+    checks:
+      - visible: [status.health, status.health.derived, status.health.opinion]
+      - text_contains: { target: status.health.derived, text: "86" }
+      - text_contains: { target: status.health.opinion, text: "78" }
+      - text_contains: { target: status.health, text: "Weakest: big files 47" }
+      - text_contains: { target: status.health.recommendations, text: "2 recommendations wait for you" }
+      - http: { path: "/p/{project}/status.md", contains: "## Health" }
+      - http: { path: "/p/{project}/status.md", contains: "- 2 recommendation(s) wait for the owner on the Health view" }
+    do: Load the Status page at 1440×900, then at phone size.
+    expect: |
+      The Health card is the only new thing. It sits in the row with
+      Current milestone (and Local CI when the project has it), and the
+      cards in that row are as wide as the three tiles above them; the
+      Epics row below is 2 to 1 on the same edges. The card shows Derived
+      86 with a blue bar and Agent opinion 78 with an amber bar and an old
+      review, the weakest component and the recommendations link. On a phone
+      every card takes the full width.
+
+  - id: TP8
+    title: File as issue creates the issue and marks it filed; Dismiss marks it dismissed
+    setup:
+      - open: /p/{project}/health?range=all
+    act:
+      - click: health.file_recommendation
+      - wait_for: health.flash
+      - check: { text_contains: { target: health.flash, text: "Filed as move-cmdplaytests-chrome-tests-to-the-e2e-tier" } }
+      - check: { issue: { slug: move-cmdplaytests-chrome-tests-to-the-e2e-tier, field: status, equals: idea } }
+      - check: { text_contains: { target: health.opinion, text: "filed: move-cmdplaytests-chrome-tests-to-the-e2e-tier" } }
+      - check: { count: { pattern: health.file_recommendation, equals: 1 } }
+      - click: health.dismiss_recommendation
+      - wait_for: health.flash
+    checks:
+      - text_contains: { target: health.flash, text: "Dismissed R2" }
+      - absent: health.file_recommendation

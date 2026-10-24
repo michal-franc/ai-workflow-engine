@@ -33,6 +33,7 @@ func TestScenarioEnvIsolated(t *testing.T) {
 		"XDG_STATE_HOME=/home/someone/.local/state",
 		"ISSUE_VIEWER_CONFIG=/home/someone/Work/projects.yaml",
 		"ISSUE_VIEWER_ISSUE_SLUG=real/issue",
+		"ISSUE_VIEWER_URL=http://localhost:8080",
 		"CLAUDECODE=1",
 		"AGENT_NAME=agent-real",
 		"GIT_AUTHOR_NAME=Someone",
@@ -40,7 +41,7 @@ func TestScenarioEnvIsolated(t *testing.T) {
 	}
 	s := &Scenario{Root: "/tmp/pt-x", Base: "http://127.0.0.1:1234", bins: &Binaries{Dir: "/tmp/bin"}}
 	m := envMap(scenarioEnv(base, s))
-	for _, k := range []string{"TMUX", "TMUX_PANE", "ISSUE_VIEWER_ISSUE_SLUG", "CLAUDECODE", "AGENT_NAME"} {
+	for _, k := range []string{"TMUX", "TMUX_PANE", "ISSUE_VIEWER_ISSUE_SLUG", "ISSUE_VIEWER_URL", "CLAUDECODE", "AGENT_NAME"} {
 		if _, ok := m[k]; ok {
 			t.Errorf("%s leaked into the scenario env", k)
 		}
@@ -50,7 +51,6 @@ func TestScenarioEnvIsolated(t *testing.T) {
 		"XDG_STATE_HOME":      "/tmp/pt-x/state",
 		"TMUX_TMPDIR":         "/tmp/pt-x/tmux",
 		"ISSUE_VIEWER_CONFIG": "/tmp/pt-x/projects.yaml",
-		"ISSUE_VIEWER_URL":    "http://127.0.0.1:1234",
 		"GIT_AUTHOR_NAME":     "playtest",
 		"LANG":                "C.UTF-8",
 		"PATH":                "/tmp/bin:/usr/bin",

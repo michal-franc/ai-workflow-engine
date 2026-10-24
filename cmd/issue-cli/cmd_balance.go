@@ -231,7 +231,7 @@ func loadIssueComments(issue *tracker.Issue) []tracker.Comment {
 
 // boardURL links the viewer's Balance tab.
 func boardURL(proj *tracker.Project) string {
-	base := strings.TrimRight(viewerBaseURL(), "/")
+	base := viewerBaseURL(proj)
 	if proj != nil {
 		return fmt.Sprintf("%s/p/%s/balance", base, proj.Slug)
 	}

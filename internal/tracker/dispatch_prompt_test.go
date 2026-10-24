@@ -40,11 +40,16 @@ func TestBuildDispatchPrompt(t *testing.T) {
 	if dp.Lead != "lead-proj" || !strings.Contains(dp.Prompt, "## Your lead\n\nYou report to the project lead lead-proj (not running).") {
 		t.Fatalf("lead = %q, prompt missing the lead section: %q", dp.Lead, dp.Prompt)
 	}
-	if !strings.Contains(dp.Prompt, "message lead-proj, or another agent on this project, with ListAgents / SendMessage") || !strings.Contains(dp.Prompt, "yours is agent-api-fix") {
-		t.Fatalf("prompt missing the SendMessage line: %q", dp.Prompt)
+	// Workers message the lead only on the human's word (owner, 2026-10-24).
+	if !strings.Contains(dp.Prompt, "Don't message lead-proj or any other agent (SendMessage) unless the human, in your chat, gives you permission or asks you to") || !strings.Contains(dp.Prompt, "Your address is agent-api-fix") {
+		t.Fatalf("prompt missing the no-messaging line: %q", dp.Prompt)
 	}
 	if !strings.Contains(dp.Prompt, "issue-cli --project proj ") || !strings.Contains(dp.Prompt, "## Worktree") {
 		t.Fatalf("prompt missing --project injection or worktree section")
+	}
+	// One task, then stop: the worker never picks the next issue.
+	if !strings.Contains(dp.Prompt, "This issue is your one task. When it reaches its last status, or a gate that waits on the human, stop there: do not run issue-cli --project proj next, do not start, claim or move another issue, and do not start other agents.") {
+		t.Fatalf("prompt missing the one-task rule: %q", dp.Prompt)
 	}
 
 	noWT := BuildDispatchPrompt(nil, issue, nil, "/w", nil)
@@ -102,5 +107,21 @@ func TestRenderPromptTemplate_LeavesValuesAlone(t *testing.T) {
 	got := renderPromptTemplate("{{slug}} / {{body}}", map[string]string{"slug": "a/b", "body": "see {{slug}}"})
 	if got != "a/b / see {{slug}}" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// A worker's briefing never sends it to the viewer's HTTP endpoints: the
+// built-in workflow's prompts name issue-cli commands only.
+func TestBuildDispatchPrompt_NoRawHTTP(t *testing.T) {
+	wf := DefaultWorkflow()
+	proj := &Project{Slug: "proj"}
+	for _, st := range wf.GetStatusOrder() {
+		issue := &Issue{Slug: "api/fix", Title: "Fix", Status: st, BodyRaw: "Body text."}
+		prompt := BuildDispatchPrompt(proj, issue, wf, "/w", nil).Prompt
+		for _, raw := range []string{"curl", "/status.md", "/status.json", "/dispatch", "http://", "https://"} {
+			if strings.Contains(prompt, raw) {
+				t.Errorf("status %q: prompt mentions %q", st, raw)
+			}
+		}
 	}
 }

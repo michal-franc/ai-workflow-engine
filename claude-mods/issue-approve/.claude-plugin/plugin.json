@@ -1,6 +1,6 @@
 {
   "name": "issue-approve",
-  "version": "0.2.1",
-  "description": "Approve and Playtest buttons above the prompt for a dispatched agent's issue, the same approvals as the AI Workflow Engine board",
+  "version": "0.6.0",
+  "description": "Approve, Playtest and Run checks buttons above the prompt for a dispatched agent's issue, the same approvals as the AI Workflow Engine board",
   "types": "./types/index.d.ts"
 }

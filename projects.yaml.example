@@ -1,9 +1,12 @@
 # Machine-wide defaults, used by every project that doesn't set its own:
-# terminal: none                  # a command with {{session}}, or none (never open a terminal)
+# terminal: none                  # workers: a command with {{session}} etc., or none (never open a terminal)
+# lead_terminal: tmux-window      # the lead: unset/none is headless, tmux-window a tab in lead_window_session, or a command
+# lead_window_session: main       # your own tmux session, for lead_terminal: tmux-window
 # tmux_session_per_project: true  # each project's lead and workers share a tmux session named after its slug
 # engine_project: issue-viewer      # where `issue-cli report-bug` files issue-cli bugs (default: the project with repo michal-franc/ai-workflow-engine)
 # allowed_hosts:                    # Host names the viewer answers to besides localhost, 127.0.0.1, [::1], *.localhost (others get 421)
 #   - viewer.lan
+# viewer_url: "https://viewer.lan"  # the address every link and issue-cli call uses (default: the running viewer's, then http://localhost:8080); its host is allowed too
 #
 # One terminal with tmux (e.g. a Mac): set both, then `tmux attach -t <slug>`
 # and use prefix s to switch project. See docs/agent-dispatch.md.
@@ -14,6 +17,7 @@ projects:
     slug: "my-project"
     issues: "./issues"
     docs: "./docs"
+    # lead_window: 1                # optional: the lead's tab at this window index (lead_terminal: tmux-window)
     # Which model dispatched agents use:
     #   global  (default) - no --model flag; the agent uses its own global settings
     #   project           - enforce agent_models below via --model

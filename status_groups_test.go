@@ -96,7 +96,7 @@ func TestBuildEpicsView(t *testing.T) {
 	for _, i := range issues[:4] {
 		epics = append(epics, EpicProgress{Issue: i})
 	}
-	ev := buildEpicsView(cs, issues, epics, "0.1")
+	ev := buildEpicsView(cs, issues, epics, "0.1", "")
 	if ev.Epics != 4 || ev.Areas != 3 || ev.Current != "0.1" {
 		t.Fatalf("view = %+v", ev)
 	}
@@ -135,10 +135,10 @@ func TestBuildEpicsView(t *testing.T) {
 	}
 
 	// No children in the milestone: the first panel is all.
-	if ev := buildEpicsView(cs, issues, epics, "0.9"); ev.Current != epicsAll || ev.Panels[0].Key != "0.1" {
+	if ev := buildEpicsView(cs, issues, epics, "0.9", ""); ev.Current != epicsAll || ev.Panels[0].Key != "0.1" {
 		t.Errorf("no milestone children: current %s, first %s", ev.Current, ev.Panels[0].Key)
 	}
-	if ev := buildEpicsView(cs, issues, nil, "0.1"); len(ev.Panels) != 0 || ev.CurrentPanel() != nil {
+	if ev := buildEpicsView(cs, issues, nil, "0.1", ""); len(ev.Panels) != 0 || ev.CurrentPanel() != nil {
 		t.Errorf("no epics: %+v", ev)
 	}
 }
@@ -285,5 +285,76 @@ func TestTileSummaries(t *testing.T) {
 	}
 	if got := m.NextSummary(); got != "the lead's ## Next · 1 backlog · 0 parked" {
 		t.Errorf("next = %q", got)
+	}
+}
+
+// TestEpicsViewListsOnlyUpcomingVersions: a released version gets no panel in
+// the Version select; the current milestone, later versions and "all" stay.
+func TestEpicsViewListsOnlyUpcomingVersions(t *testing.T) {
+	cs := newCanvasStatuses(groupsWorkflow())
+	issues := []*tracker.Issue{
+		{Slug: "data/e1", Title: "E1", Status: "idea", System: "Data", Type: "epic"},
+		iss("data/a", "done", "Data", "0.1", "data/e1"),
+		iss("data/b", "idea", "Data", "0.2", "data/e1"),
+		iss("data/c", "idea", "Data", "0.3", "data/e1"),
+		iss("data/d", "idea", "Data", "future", "data/e1"),
+	}
+	ev := buildEpicsView(cs, issues, []EpicProgress{{Issue: issues[0]}}, "0.2", "v0.1.0")
+	var keys []string
+	for _, p := range ev.Panels {
+		keys = append(keys, p.Key)
+	}
+	if got := strings.Join(keys, ","); got != "0.2,0.3,future,all" {
+		t.Errorf("panels = %s, want 0.2,0.3,future,all (0.1 is released)", got)
+	}
+}
+
+// TestEpicReadyToClose: every child done, in every version; a version's
+// panel whose own children are all done is not enough.
+func TestEpicReadyToClose(t *testing.T) {
+	cs := newCanvasStatuses(groupsWorkflow())
+	issues := []*tracker.Issue{
+		{Slug: "e1", Title: "E1", Status: "idea", Type: "epic"},
+		{Slug: "e2", Title: "E2", Status: "idea", Type: "epic"},
+		iss("a", "done", "", "0.1", "e1"),
+		iss("b", "idea", "", "0.2", "e1"),
+		iss("c", "done", "", "0.1", "e2"),
+		iss("d", "done", "", "0.2", "e2"),
+	}
+	ev := buildEpicsView(cs, issues, []EpicProgress{{Issue: issues[0]}, {Issue: issues[1]}}, "0.1", "")
+	ready := map[string]bool{}
+	for _, ar := range ev.Panels[0].Areas {
+		for _, e := range ar.Epics {
+			ready[e.Issue.Slug] = e.ReadyToClose()
+		}
+	}
+	if ev.Panels[0].Key != "0.1" || ready["e1"] || !ready["e2"] {
+		t.Errorf("panel %s ready = %v, want e1 false (0.2 child open), e2 true", ev.Panels[0].Key, ready)
+	}
+}
+
+// TestUpcomingVersions: the Versions card leaves out the released versions.
+func TestUpcomingVersions(t *testing.T) {
+	all := []Progress{{Label: "0.52", Done: 5, Total: 5}, {Label: "0.53", Done: 19, Total: 19}, {Label: "0.54", Done: 26, Total: 27}, {Label: "0.55", Total: 14}, {Label: "future", Total: 3}}
+	got, sum := upcomingVersions(all, "v0.53.0")
+	var labels []string
+	for _, v := range got {
+		labels = append(labels, v.Label)
+	}
+	if strings.Join(labels, ",") != "0.54,0.55,future" || sum.Done != 26 || sum.Total != 44 {
+		t.Errorf("upcoming = %v, sum %+v", labels, sum)
+	}
+	if got, _ := upcomingVersions(all, ""); len(got) != 5 {
+		t.Errorf("nothing released yet keeps every version, got %d", len(got))
+	}
+}
+
+// TestEpicContinuesInLaterVersions: a version's panel says how many children
+// are still open elsewhere and in which versions.
+func TestEpicContinuesInLaterVersions(t *testing.T) {
+	cs := newCanvasStatuses(groupsWorkflow())
+	kids := []*tracker.Issue{iss("a", "done", "", "0.1", "e"), iss("b", "idea", "", "0.2", "e"), iss("c", "idea", "", "0.3", "e"), iss("d", "done", "", "0.3", "e"), iss("f", "idea", "", "0.1", "e")}
+	if n, in := openElsewhere(cs, kids, "0.1"); n != 2 || in != "0.2, 0.3" {
+		t.Errorf("openElsewhere = %d %q, want 2 \"0.2, 0.3\"", n, in)
 	}
 }

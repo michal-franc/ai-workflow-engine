@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/michal-franc/issue-viewer/internal/checks"
 	"github.com/michal-franc/issue-viewer/internal/testids"
 	"github.com/michal-franc/issue-viewer/internal/timeline"
 	"github.com/michal-franc/issue-viewer/internal/tracker"
@@ -69,7 +70,7 @@ type briefTime struct {
 // needsYou is the band's third column: what the owner has to do now, or,
 // quiet, who has the issue.
 type needsYou struct {
-	State string // gate, playtest, question, working, idle, stopped, queued, parked, done, none
+	State string // gate, playtest, checks, question, working, idle, stopped, queued, parked, done, none
 	Amber bool
 	Label string // "Needs you", "With the agent", "Parked", …
 	Title string
@@ -77,7 +78,7 @@ type needsYou struct {
 	Meta  string // the quiet states' right-hand label
 
 	Targets  []string // gate: approve buttons, primary first
-	Command  string   // gate: the lead's approve line; playtest: the command to run
+	Command  string   // gate: the lead's approve line; playtest, checks: the command to run
 	Sessions []string
 	Question string
 	AskedAt  time.Time
@@ -148,6 +149,7 @@ type agentCard struct {
 // issueTabInput is what buildIssueTab needs: gathered by the handler, kept
 // apart so tests build the tab without a project on disk.
 type issueTabInput struct {
+	Project string
 	Issue   *tracker.Issue
 	WF      *tracker.WorkflowConfig
 	Src     timelineSources
@@ -590,7 +592,7 @@ func agentCardFor(in issueTabInput) *agentCard {
 }
 
 // needsYouFor picks the band's third column. A question wins over a
-// playtest and a playtest over a ready gate, as on the board cards (you play
+// playtest, a playtest over check scripts and those over a ready gate, as on the board cards (you play
 // it before you approve it); the others are listed as "Also waiting".
 func needsYouFor(in issueTabInput, t IssueTab) needsYou {
 	a, issue := in.Att, in.Issue
@@ -605,6 +607,9 @@ func needsYouFor(in issueTabInput, t IssueTab) needsYou {
 	if a.PlaytestDue {
 		kinds = append(kinds, "playtest")
 	}
+	if a.ChecksDue {
+		kinds = append(kinds, "checks")
+	}
 	if gate {
 		kinds = append(kinds, "gate")
 	}
@@ -616,6 +621,8 @@ func needsYouFor(in issueTabInput, t IssueTab) needsYou {
 				n.Also = append(n.Also, "approve → "+strings.Join(targets, " or "))
 			case "playtest":
 				n.Also = append(n.Also, "run the playtest")
+			case "checks":
+				n.Also = append(n.Also, "run the checks")
 			}
 		}
 	}
@@ -639,6 +646,14 @@ func needsYouFor(in issueTabInput, t IssueTab) needsYou {
 			n.Text = "Sessions " + joinAnd(a.Playtests) + " name this issue and have no run judged by you yet."
 		}
 		n.Command = "make playtest ISSUE=" + issue.Slug
+	case len(kinds) > 0 && kinds[0] == "checks":
+		n.State, n.Sessions = "checks", a.Checks
+		n.Title = "Run the guided checks: " + plural(len(a.Checks), "script", "scripts") + "."
+		n.Text = "Script " + joinAnd(a.Checks) + " walks you through this issue's manual checks and ticks the boxes that pass. It runs in tmux window " + checks.WindowName(issue.Slug) + "."
+		if len(a.Checks) > 1 {
+			n.Text = "Scripts " + joinAnd(a.Checks) + " walk you through this issue's manual checks and tick the boxes that pass. They run in tmux window " + checks.WindowName(issue.Slug) + "."
+		}
+		n.Command = "issue-cli --project " + in.Project + " check-script " + issue.Slug
 	default:
 		quietState(&n, in)
 	}

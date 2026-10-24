@@ -158,12 +158,18 @@ func runOnce(opts Options, branch, tier, sha string, prev *State) *Run {
 	limit := opts.Config.TimeoutDuration()
 	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
+	resultsDir, err := prepareResultsDir(root, sha, tier)
+	if err != nil {
+		fmt.Fprintf(out, "CI can't run: %v\n", err)
+		return finishError(opts, run, err)
+	}
 	run.State = Green
 	for _, c := range opts.Config.Commands(tier) {
 		fmt.Fprintf(out, "\n$ %s\n", c.Cmd)
 		offset, _ := logFile.Seek(0, io.SeekCurrent)
 		start := time.Now()
-		exit, timedOut, startErr := runCommand(ctx, dir, c.Cmd, opts.Config.NiceLevel(), out)
+		exit, timedOut, startErr := runCommand(ctx, dir, c.Cmd, opts.Config.NiceLevel(), resultsDir, out)
+		collectResults(root, run, c, resultsDir, out)
 		res := CommandResult{Cmd: c.Cmd, Tier: c.TierName(), Exit: exit, DurationMS: time.Since(start).Milliseconds(), TimedOut: timedOut}
 		if startErr != nil {
 			run.Commands = append(run.Commands, res)
@@ -198,9 +204,11 @@ func finishError(opts Options, run *Run, err error) *Run {
 	return run
 }
 
-// runCommand runs one command under sh in its own process group, so a
-// timeout kills everything it started. startErr means it could not start.
-func runCommand(ctx context.Context, dir, command string, nice int, out io.Writer) (exit int, timedOut bool, startErr error) {
+// runCommand runs one command under sh in its own session: its own process
+// group, so a timeout kills everything it started, and no controlling
+// terminal, so a command that wants one (an interactive shell) does not stop
+// on the runner's tty. startErr means it could not start.
+func runCommand(ctx context.Context, dir, command string, nice int, resultsDir string, out io.Writer) (exit int, timedOut bool, startErr error) {
 	args := []string{"sh", "-c", command}
 	if nice > 0 {
 		if p, err := exec.LookPath("nice"); err == nil {
@@ -210,8 +218,11 @@ func runCommand(ctx context.Context, dir, command string, nice int, out io.Write
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 	cmd.Dir = dir
 	cmd.Env = commandEnv(os.Environ())
+	if resultsDir != "" {
+		cmd.Env = append(cmd.Env, ResultsEnv+"="+resultsDir)
+	}
 	cmd.Stdout, cmd.Stderr = out, out
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = 5 * time.Second
 	err := cmd.Run()
@@ -243,7 +254,7 @@ func commandEnv(env []string) []string {
 	for _, kv := range env {
 		key, _, _ := strings.Cut(kv, "=")
 		switch {
-		case strings.HasPrefix(key, "ISSUE_VIEWER_"), key == "TMUX", key == "TMUX_PANE", key == "AGENT_NAME", key == "CI":
+		case strings.HasPrefix(key, "ISSUE_VIEWER_"), key == "TMUX", key == "TMUX_PANE", key == "AGENT_NAME", key == "CI", key == ResultsEnv:
 			continue
 		}
 		out = append(out, kv)

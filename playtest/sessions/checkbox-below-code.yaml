@@ -1,0 +1,28 @@
+session: checkbox-below-code
+issue: ui/ticking-a-box-on-the-issue-page-saves-the-wrong-box-when-a-appears-in-code-or-prose-above-it
+title: A box below a quoted [ ] saves itself, not the box above it
+scenario: basic
+
+session_checks:
+  viewports: [1440x900, 390x844]
+  layout: [inside_viewport, no_clipping, no_overlap, no_zero_size_text, styles_applied]
+  console: no_errors
+
+steps:
+  - id: TP2
+    title: Ticking the second Plan box below inline-code and fenced [ ] ticks that box and nothing else
+    setup:
+      # The Repro: the checkbox syntax quoted in inline code, prose and a
+      # fenced block above the Plan boxes. The old page counted these.
+      - cli: [append, ui/card-titles-overflow-on-a-phone, --section, Problem, --body, "Write `[ ]` for a task; prose can say [x] too.\n\n```\n- [ ] make cas\n```"]
+      - open: /p/{project}/issue/ui/card-titles-overflow-on-a-phone
+      - click: detail.fold.expand_all
+    act:
+      - click: detail.body.checkbox.1
+      - check: { issue: { slug: ui/card-titles-overflow-on-a-phone, checkbox: P2, checked: true } }
+      - reload: true
+    checks:
+      - selected: detail.body.checkbox.1
+      - issue: { slug: ui/card-titles-overflow-on-a-phone, checkbox: P1, checked: false }
+      - issue: { slug: ui/card-titles-overflow-on-a-phone, body_contains: "Write `[ ]` for a task; prose can say [x] too." }
+      - issue: { slug: ui/card-titles-overflow-on-a-phone, body_contains: "- [ ] make cas" }

@@ -30,6 +30,15 @@ func ApprovalComment(words, how, date string, statuses ...string) string {
 	return s
 }
 
+// DispatchComment is the comment issue-cli dispatch leaves with the human's
+// words that started (or re-prompted) the issue's worker, the same shape as
+// an approval:
+//
+//	dispatch: "<words>" (<how>, <date>)
+func DispatchComment(words, how, date string) string {
+	return fmt.Sprintf("dispatch: %q (%s, %s)", words, how, date)
+}
+
 // ParseApprovalComment reads a comment written by ApprovalComment. It also
 // takes the older form without "→ <status>" and a trailing
 // " — recorded by <name>"; ok is false for any other comment.

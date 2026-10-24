@@ -75,10 +75,10 @@ func TestReworkLoops(t *testing.T) {
 			{From: "in progress", To: "testing", TS: at(90)},
 		},
 		Runs: []PlaytestRun{
-			{Mode: "auto", Started: at(20), Steps: []PlaytestStep{{"TP1", "fail"}}}, // before testing: not rework
-			{Mode: "judge", Started: at(100), Steps: []PlaytestStep{{"TP1", "pass"}, {"TP2", "fail"}}},
-			{Mode: "auto", Started: at(105), Steps: []PlaytestStep{{"TP2", "pass"}}}, // another mode
-			{Mode: "judge", Started: at(120), Steps: []PlaytestStep{{"TP2", "pass"}}},
+			{Mode: "auto", Started: at(20), Steps: []PlaytestStep{{ID: "TP1", Status: "fail"}}}, // before testing: not rework
+			{Mode: "judge", Started: at(100), Steps: []PlaytestStep{{ID: "TP1", Status: "pass"}, {ID: "TP2", Status: "fail"}}},
+			{Mode: "auto", Started: at(105), Steps: []PlaytestStep{{ID: "TP2", Status: "pass"}}}, // another mode
+			{Mode: "judge", Started: at(120), Steps: []PlaytestStep{{ID: "TP2", Status: "pass"}}},
 		},
 	}
 	loops := ReworkLoops(src, wf, at(200))

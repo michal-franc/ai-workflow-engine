@@ -1,0 +1,13 @@
+# The Health view and the Status page's Health card. Three health snapshots
+# (2026-09-20, 09-27, 10-04) carry the derived score, its components, unit
+# test results, shape rows and the agent opinion; one review from 10-04 has
+# three recommendations (one filed, two proposed). The fixtures are in the
+# past, so steps open ?range=all, and the review always reads as old.
+# health.off keeps the viewer from adding today's snapshot.
+title: Health view - scores, components, the review and count vs runtime
+project:
+  name: Health Demo
+  slug: hl
+issues: tracker
+workflow: workflow.yaml
+root: files

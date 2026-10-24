@@ -1,5 +1,5 @@
 ---
-title: "Compliance: human-directed sessions, Claude Code messaging, API key for unattended runs"
+title: "Compliance: human-directed sessions, Claude Code messaging, no unattended runs"
 status: "backlog"
 system: "Workflow"
 priority: "high"
@@ -9,7 +9,7 @@ created: "2026-10-23"
 ---
 
 Goal: every agent session stays human-directed. Agent-to-agent messages go through Claude Code's own features,
-and anything unattended runs on an API key, not the subscription login.
+and the tool runs nothing unattended.
 
 Owner, 2026-10-23: added for a new PR, to start on 2026-10-24.
 
@@ -74,25 +74,23 @@ the trail makes it reviewable.
 ## 3. No unattended work on the subscription login
 
 - Add no cron, timers or auto-dispatch that start or prompt interactive sessions without a human action.
-- If unattended runs are needed (scheduled jobs, overnight batches), add a separate headless mode: run `claude -p`
-  (or the Agent SDK) with `ANTHROPIC_API_KEY` injected through per-project config (e.g. an `api_key_env` field in
-  `projects.yaml`). That bills the linked Console org's API credits, not the Max plan.
-- This headless mode is also where the Toadie automations should run, on those API credits.
 
-Notes from the code (2026-10-23):
+Owner, 2026-10-24: no headless mode. "we won't add this but we will need disclaimer in docs". Every session today is
+interactive: a human dispatches it from the board or starts the lead, and it runs in a tmux window. Nothing runs on
+a timer, so nothing needs to move to an API key. If an unattended job ever comes up (e.g. Toadie), it gets its own
+issue.
 
-- `projects.yaml` has no free-form env field yet. Sessions get a fixed set of exports through
-  `tmux send-keys "export K=V"` (`internal/agentrun/agentrun.go:208`). `api_key_env` is a new `tracker.Project` field.
-- `api_key_env` should name the environment variable that holds the key (read by the server/CLI), never hold the key
-  itself, so `projects.yaml` stays free of secrets.
-- Headless runs should pass the key via `exec.Cmd.Env`, not `send-keys`, so it never lands in tmux scrollback or shell
-  history. See `cli/agent-process-safety-prompt-off-the-command-line-clean-stop-env-allowlist` (secrets via stdin/env,
-  never argv).
+## 4. Docs: the disclaimer
 
-## 4. Docs
+Add a short section to `docs/agent-dispatch.md` (and link it from `docs/patterns/lead-session.md`):
 
-- Document the boundary in `docs/agent-dispatch.md`: interactive sessions = human-triggered starts and approvals;
-  unattended = headless + API key.
+- **Interactive only.** The tool starts Claude Code sessions only on a human action: a dispatch from the board, a
+  `lead dispatch --quote` with the human's words, `lead spawn`, or an approve / Re-send click. Each session runs in a
+  tmux window the human can watch and type into.
+- **No unattended runs.** The tool has no scheduler, timer or overnight batch, and doesn't start or prompt sessions
+  on its own. Don't add one around it (cron, a loop script) that drives sessions logged in with a subscription.
+- **If you need unattended runs,** that's outside this tool: run `claude -p` or the Agent SDK with your own
+  `ANTHROPIC_API_KEY`, billed to your Console org's API credits, not a Claude subscription.
 
 ## Acceptance criteria (draft)
 
@@ -106,16 +104,12 @@ Notes from the code (2026-10-23):
 - [ ] `lead dispatch` from a worker fails and starts nothing
 - [ ] Each dispatch leaves a `dispatch: "<quote>"` comment on the issue
 - [ ] Nothing new starts or prompts an interactive session without a human action
-- [ ] (If built) the headless mode runs `claude -p` with the key from `api_key_env`, the key passed via process env only
-- [ ] `docs/agent-dispatch.md` documents the interactive / unattended boundary
+- [ ] `docs/agent-dispatch.md` carries the disclaimer in section 4, linked from `docs/patterns/lead-session.md`
 
 ## Open questions
 
 - `lead dispatch`: call the running viewer's `POST /issue/<slug>/dispatch` (one code path, needs the server up), or
   share the launcher through `internal/agentrun` (works offline, two callers)?
-
 - How does `issue-cli` (a Go binary outside Claude Code) send a Claude Code SendMessage? Find the supported entry
   point (CLI subcommand, local socket, SDK) before building section 1. If there is none, the lead sends it with its
   own SendMessage tool and `lead message` only prints the address.
-- Is the headless mode in this PR, or only the rule and the docs, with the mode built when the first unattended job
-  (Toadie) needs it?

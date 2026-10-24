@@ -8,8 +8,8 @@ version: "0.59"
 created: "2026-10-23"
 ---
 
-Goal: every agent session stays human-directed. Agent-to-agent messages go through Claude Code's own features,
-and the tool runs nothing unattended.
+Goal: agents act only if directed by a human. Agent-to-agent messages go through Claude Code's own features, and
+the tool runs nothing unattended.
 
 Owner, 2026-10-23: added for a new PR, to start on 2026-10-24.
 
@@ -82,15 +82,20 @@ issue.
 
 ## 4. Docs: the disclaimer
 
-Add a short section to `docs/agent-dispatch.md` (and link it from `docs/patterns/lead-session.md`):
+Add a short section to `docs/agent-dispatch.md` (and link it from `docs/patterns/lead-session.md`).
 
-- **Interactive only.** The tool starts Claude Code sessions only on a human action: a dispatch from the board, a
-  `lead dispatch --quote` with the human's words, `lead spawn`, or an approve / Re-send click. Each session runs in a
-  tmux window the human can watch and type into.
-- **No unattended runs.** The tool has no scheduler, timer or overnight batch, and doesn't start or prompt sessions
-  on its own. Don't add one around it (cron, a loop script) that drives sessions logged in with a subscription.
-- **If you need unattended runs,** that's outside this tool: run `claude -p` or the Agent SDK with your own
-  `ANTHROPIC_API_KEY`, billed to your Console org's API credits, not a Claude subscription.
+Owner, 2026-10-24: "Only if directed by human". This is the disclaimer's headline rule.
+
+**Agents act only when a human directs them.** That covers:
+
+- **Starting a session:** a dispatch from the board, `lead spawn`, or `lead dispatch --quote` with the human's
+  words from the lead's chat.
+- **Prompting a running session:** the approve nudge and Re-send prompt, both human clicks.
+- **Gates:** ticked by the human, or by the lead with `approve --quote` and the human's words.
+- **Decisions:** the lead answers from recorded decisions only. A question with no recorded answer goes to the human.
+- **Nothing on its own:** no scheduler, timer, overnight batch or auto-dispatch, and nothing should be wrapped
+  around the tool (cron, a loop script) that drives sessions without a human. Unattended runs are outside this tool:
+  `claude -p` or the Agent SDK with your own API key, not a Claude subscription.
 
 ## Acceptance criteria (draft)
 

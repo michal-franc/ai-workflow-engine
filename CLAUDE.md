@@ -178,6 +178,7 @@ Detailed documentation lives in `docs/` and is viewable at `/docs` in the web UI
 - [Issue File Format](docs/issue-format.md) — frontmatter fields, custom fields, file organization
 - [Workflow](docs/workflow.md) — lifecycle, prompts, side-effects, system overlays
 - [Agent Workflow Flow](docs/agent-workflow-flow.md) — full dispatch-to-done agent flow
+- [Agent Attention](docs/patterns/agent-attention.md) — how just-in-time prompts, checkboxes and gates keep an agent focused and get around "lost in the middle"
 - [Board Configuration](docs/board-configuration.md) — columns, card fields
 - [Agent Dispatch](docs/agent-dispatch.md) — terminal config, approval notifications, the lead session, worktrees
 - [GitHub Integration](docs/github-integration.md) — sync, issue reference, auto-close

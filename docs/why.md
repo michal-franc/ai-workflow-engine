@@ -37,3 +37,5 @@ Agents don't get a giant system prompt up front. Instead, the harness assembles 
 - The issue body, comments, checklists and sidecar data, read fresh from disk.
 
 The agent calls `issue-cli context <slug>` and `issue-cli process` to pull exactly the slice it needs for the step it's on: no stale context, no prompt drift.
+
+How this, checkboxes and gates keep an agent's attention through a long session: [Agent Attention](patterns/agent-attention.md).
